@@ -10,7 +10,7 @@ Working folder for NFS Most Wanted (2005) modding experiments. Game install: `F:
 | `Tools/nfsmw-2005-sdk/` | Clone of https://github.com/s-b-repo/nfsmw-2005-sdk | delete the folder |
 | `Tools/nfsmw-2005-re/` | Clone of https://github.com/s-b-repo/nfsmw-2005-re | delete the folder |
 | `Tools/check_addrs.py` | Read-only check of SDK addresses against `speed.exe` | delete the file |
-| `Mods/` | Our own mods (`hello/` = first smoke test). Build: MinGW32 shell, `cmake -S . -B build -G "MinGW Makefiles" && cmake --build build` | delete the folder |
+| `Mods/` | Our own mods: `cam/` (the camera options mod). Build: MinGW32 shell, `cmake -S . -B build -G "MinGW Makefiles" && cmake --build build`; deploy to GameTest with `set_mods.ps1 -Mode cam`. The first smoke test, `hello/`, was removed on 2026-10-08 (it's in the first commit, b572b7c) | delete the folder |
 | `GameTest/` | 11.7 GB copy of the game for testing. `Mods/set_mods.ps1` picks which `.asi` files load (the rest wait in `scripts_disabled/`) | delete the folder (original is untouched) |
 | `.git/`, `.gitignore`, `.gitmodules` | Git repo for this folder (since 2026-10-08). Ignored: `GameTest/`, `Exports/`, `Mods/build/`, the decomp and `nfsmw-2005-re` clones. `Tools/nfsmw-2005-sdk` is a submodule because the mods build against it (`git clone --recursive`) | delete those three |
 | `Tools/nfsmw-decomp/` | Clone (depth 1) of https://github.com/dbalatoni13/nfsmw. `config/SPEED_EXE_1_3/symbols.json` = names + addresses for ~46k functions of the PC 1.3 exe; checked against our `speed.exe` (150/150 camera symbols start at real function boundaries) | delete the folder |
