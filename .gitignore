@@ -1,0 +1,13 @@
+# Copy of the game (11.7 GB) and textures exported from it: EA's files, not ours
+/GameTest/
+/Exports/
+/robocopy.log
+
+# Build output (CMake build folder, built .asi/.tpk)
+/Mods/build/
+
+# Reference clones, not needed to build (URLs are in notes.md)
+/Tools/nfsmw-2005-re/
+/Tools/nfsmw-decomp/
+
+__pycache__/
