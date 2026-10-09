@@ -123,7 +123,9 @@ def main():
     os.makedirs(out, exist_ok=True)
     gallery = []
     for arg in sys.argv[2:]:
-        path, _, names = arg.partition(':')
+        path, _, names = arg.rpartition(':')
+        if not path or '/' in names or '\\' in names:  # no pack list, just a path (maybe with a drive letter)
+            path, names = arg, ''
         only = set(names.split(',')) if names else None
         data = open(path, 'rb').read()
         for s, e in tpk_list.find_packs(data):
