@@ -1,5 +1,4 @@
-// The Controls menu (UIOptionsPCController): extra rows for the camera look bindings, readable binding names, and its
-// title icon.
+// The Controls menu (UIOptionsPCController): extra rows for the camera look bindings and readable binding names.
 #include "bindings.h"
 #include "controls_menu.h"
 #include "hooks.h"
@@ -78,17 +77,11 @@ bool from_controls_screen(void *return_address) {
     return (a >= 0x51D410 && a < 0x51D740) || (a >= 0x52A7B0 && a < 0x52B300);
 }
 
-// Also fixes the screen's title icon: its layout (Pause_PC_Controller.fng) defaults the icon object to the audio
-// icon, like the Options layout does, but unlike the Options screens this one never sets its own (a base game bug).
-constexpr unsigned kHeaderIconObject = 0x08007B4C, kControlsIconTexture = 0xA04A7B26;  // OPTIONS_ICON_CONTROLS
-const auto FEngSetTextureHashPkg = reinterpret_cast<void (*)(const char *, unsigned, unsigned)>(0x527EE0);
-
 MethodFn g_orig_controls_refresh;
 void FASTCALL hook_controls_refresh(void *screen, void *edx) {
     g_controls_screen = screen;
     if (g_rows_added && g_look_entries_ok) ensure_look_language();
     g_orig_controls_refresh(screen, edx);
-    if (const char *pkg = field<const char *>(screen, 0x10)) FEngSetTextureHashPkg(pkg, kHeaderIconObject, kControlsIconTexture);
 }
 
 // Row -> the entry's binding slots. Also used by the profile save and load for entries 0-18, which must not move.

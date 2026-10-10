@@ -1,49 +1,47 @@
 # Camera Settings
 
-*Disclaimer: Vibe coded with Claude. Thoroughly tested.*
+*Disclaimer: The code was written by Claude (Sonnet & Opus). The custom menu icon, testing, design, and this page, were made by me, a human.*
 
-The plugin `nfsmw_camera_settings.asi` for Need for Speed: Most Wanted (2005, PC, `speed.exe` 1.3) that lets you tune every camera view in the pause
-menu. It needs [nfsmw_custom_menus](../custom_menus/ReadMe.md) for its menu page. Otherwise, you have to hand-edit `scripts/nfsmw/nfsmw_camera_settings.ini`.
+This mod for Need for Speed: Most Wanted 2005 (1.3) lets you tune camera views in the pause menu. You should also grab [Custom Menus](../custom_menus/ReadMe.md) to get these camera settings properly integrated in the game's pause menu. Otherwise, you have to hand-edit `scripts/mets_mods/nfsmw_camera_settings.ini`.
 
 ## What it does
 
+[YouTube link.](https://www.youtube.com/watch?v=G5I_quac7Gc)
 ![The Options > Camera page in the pause menu](docs/camera-options-menu.png)
 
-**Pause > Options > Camera** edits the camera view the game's own Camera selector points at; row 1 is
-that selector, so you pick the view and edit it in the same screen. The values are saved in `nfsmw_camera_settings.ini`.
+**Pause > Options > Camera** edits the settings of the currently active camera view, which can also be changed as the first option.
 
 ## How it works
 
-`CameraAnchor::GetPov` builds the active camera view (a POV struct) from the car's attributes every frame. The plugin
-changes the fields you edited in what it returns, **relative to the game's own value**: the page shows the value for the
-car you drive, and what is saved is the difference. Cars differ a little in the game's data (hood heights, for example),
-and some values can move while driving, so every car keeps its own character and a field you set back to the game's value
-is no longer a setting. Only Tilting is saved as plain on / off.
+In the base game, every car has its own camera values. This mod preserves that by storing only offsets from those base values. While editing the values in the Camera menu however, you're seeing the final calculated value. This means your camera values may change when switching cars. This is normal, and this allows preserving the game's original designed base values, while only applying an offset to those as a way of customization. This is important for eg. hood heights, which differ significantly per car.
+
+## Features
+
+It was my goal to integrate this mod into the original game's design as if it was a native feature that shipped with the game. If used with the Custom Menus mod, the Camera menu has:
+- A custom hand-made icon.
+- Separate customization for each camera type, applied as offsets to the current car's base camera values.
+- Hit **Apply** to save. Otherwise, hitting **Back** will ask if you want to quit without saving.
+- A button to reset to defaults.
+- A help button that explains what the current setting does.
+- Controller input supported for all of the above.
+- You can hold Shift to change with smaller increments. This is only available on keyboard.
 
 ## Settings, files
 
-In the folder `scripts/nfsmw/` (next to the `.asi` files) (created on first start; all our mods keep their files there): `nfsmw_camera_settings.ini` (your settings, written by the menu), `nfsmw_camera_settings.log`, `nfsmw_camera_settings.tpk` (the page's
-icon, built from `camera_settings/OPTIONS_CAMERA.png` by `set_mods.ps1`).
-
-```ini
-[close]            ; one section per view: bumper hood close far super_far drift pursuit
-fov=5              ; keys: fov height lag angle lat stiffness tilting. Each is added to the game's value
-height=-0.25       ; for the car (Tilting: 1 = on, 0 = off, instead)
-[general]
-degree_symbol=0    ; write " deg" instead of the degree sign
-icon=OPTIONS_CAMERA ; a texture name, or its hash as 8 hex digits (default OPTIONS_CAMERA)
-[hooks]
-drivecamdraw=0     ; skip one hook (getpov drivecamdraw)
-```
+After launching the game with the mod installed, it will store camera settings in `installdir/scripts/mets_mods/nfsmw_camera_settings.ini`. This file is also what gets modified when using the in-game Camera menu. `nfsmw_camera_settings.log` writes debug data here.
 
 ## Compatibility
 
-Needs only the ASI loader and `speed.exe` 1.3 (and nfsmw_custom_menus for the page). It shows the extra camera views from
-NFSMWExtraOptions when that mod is installed, but does not need it. A mod that changes `CameraAnchor::GetPov` the same way
-conflicts (the hook is skipped). See the [overview](../ReadMe.md#compatibility).
+- Required: Game version 1.3
+- Required: [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
+- Recommended: [Custom Menus](../custom_menus/ReadMe.md) mod if you want to customize cameras in-game instead of digging in an .ini file.
+- Incompatible: Other mods that change `CameraAnchor::GetPov`
+- Confirmed compatible:
+  - "DRIFT" camera mode added by [`NFSMWExtraOptions`](https://github.com/ExOptsTeam/NFSMWExOpts).
 
 ## Ideas / TODO
-- Take native per-car values into account.
+- Double check our requirements.
 - New "Speed FoV" option: FoV rising with speed, lag falling.
 - A way to try values while driving without pausing.
 - Add keybind for "Previous Camera"
+- Update the YT link above, possibly make it an embed.

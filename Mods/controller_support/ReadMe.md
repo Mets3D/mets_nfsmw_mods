@@ -1,11 +1,8 @@
 # Controller Support
 
-*Disclaimer: Vibe coded with Claude. Thoroughly tested.*
+*Disclaimer: The code was written by Claude (Sonnet & Opus). The custom menu icon, testing, design, and this page, were made by me, a human.*
 
-The plugin `nfsmw_controller_support.asi` for Need for Speed: Most Wanted (2005, PC, `speed.exe` 1.3) for Xbox-style (XInput) controllers. It fixes the
-game's controller input at the source, adds rumble that the PC game never had, and adds a free camera look. Every
-binding stays in the game's own Controls menu. Its Options > Rumble page is built with
-[nfsmw_custom_menus](../custom_menus/ReadMe.md).
+This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller support including analogue steering and throttle, camera look while driving, input remapping, and customizable rumble. You should also grab [Custom Menus](../custom_menus/ReadMe.md) to get these rumble settings properly integrated in the game's pause menu. Otherwise, you have to hand-edit `scripts/mets_mods/nfsmw_controller_support.ini`.
 
 ## What it does
 
@@ -14,52 +11,65 @@ The game reads controllers through DirectInput, where an XInput controller has t
 `IDirectInputDevice8::GetDeviceState` (only for XInput controllers, found by `IG_` in the device path) and in the game's
 action mapping:
 
-- **Triggers**: both triggers share one axis, so gas and brake on the triggers cancel each other. LT and RT now report
-  as two separate axes (Slider 1 and 2) and bind like anything else.
-- **Dead zones**: the sticks never rest exactly at the centre, which makes anything watching for stick movement (the
-  widescreen fix's keyboard / controller icon switching) see constant input. A radial dead zone centres them exactly.
-- **Analog steering, gas and brake**: the game maps them as on/off inputs, so even a stick bound to them was not analog.
+- **Analog steering, gas and brake**: The vanilla game maps them as on/off inputs, so even a stick bound to them was not analog. This mod enables analog throttle and reversing, however, the mod does not change the default keybinds - **you must set them to the triggers and the sticks yourself, in the Controls options menu**.
+- **Triggers**: In the vanilla game, both triggers share one axis, so gas and brake on the triggers cancel each other. LT and RT now report
+  as two separate axes (Slider 1 and 2) and bind like anything else, so they do not cancel each other.
+- **Dead zones**: Currently the mod comes with hard-coded deadzones to address stick drift, customization for this is a TODO.
   They are analog now, with whatever you bound them to (stick, trigger, keys still work).
 
 ### Controls menu
 - Direction names for controller bindings ("Left stick Left", "D-pad Up", "LT" instead of the widescreen fix's
   direction-less names).
-- Four extra rows at the end of both lists: **Look Left / Right / Up / Down**, remappable like the rest. The title icon of
-  the screen (a game bug: it shows the audio icon) is fixed.
+- Four extra rows at the end of both lists: **Look Left / Right / Up / Down**, remappable like the rest.
 
 ### Camera look
-The chase cameras (close, far, super far and the like; not bumper or hood) turn with the look rows, bound to the
-**right stick** by default, and with the **mouse**. After a few idle seconds of driving the view returns behind the car.
-Replaces the widescreen fix's camera look (its `[CAMERA] Enable` must be 0: both change the same call in
-`CubicCameraMover::Update`).
+All 3rd-person cameras can be controlled with either the mouse, or the inputs bound to the new "Look" keybindings which you can find in the Controls menu. Bound to the right stick by default. After letting go of the "Look" inputs for a few seconds, the camera returns to normal.
+
+<TODO: Screenshot of new options.>
+
+For this to work, the widescreen fix mod's camera look must be disabled; its `[CAMERA] Enable` must be set to 0.
 
 ### Rumble (Options > Rumble)
-The game has force feedback events (road surface, tire slip and skid, engine revs, nitrous, gear changes, blown engine,
-collisions) that were never connected to anything on PC. They now drive the controller's motors. In **Pause > Options >
-Rumble**: the game's own **Vibration** setting, then a level for each effect, 0 to 100:
+The vanilla game has force feedback events (road surface, tire slip and skid, engine revs, nitrous, gear changes, blown engine,
+collisions) that were never connected to anything on PC. With this mod, they now drive the controller's rumble motors. If you have Custom Menus installed with this mod, you can customize the rumble strength of each event in a dedicated options menu. As you change a slider, the controller will rumble to show you how strong that setting feels.
 
-| Effect | Default | What you feel |
-|---|---|---|
-| Collisions | 100 | a jolt, harder the more the hit slows your car; a grinding rumble (half level) while sliding along something |
-| Landings | 80 | the car's body hitting the ground: a jump, bottoming out |
-| Gear Shifts | 60 | a short kick on every upshift |
-| Nitrous | 70 | a surge, then a steady push while it lasts |
-| Drifting | 40 | tires sliding sideways, stronger the faster |
-| Wheelspin | 40 | spinning wheels (burnouts, hard launches), locked brakes |
-| Rev Limiter | 40 | full throttle at maximum revs |
-| Rough Ground | 40 | grass, gravel, wooden bridges, rail crossings, stronger with speed |
-| Engine | 0 | a hum rising with revs and throttle |
-| Tire Blowouts | 80 | spike strips: a bang, then the flat tire thumping |
-| Blown Engine | 80 | drag races and the sabotaged opening race |
+<TODO: Screenshot, after mod is finalized.>
 
-**A level means the same strength on every row**: it is how hard both motors run in an ordinary instance of the effect
-(a solid hit, a normal drift); bigger ones stay at that level. Changing a level plays a sample at that level. Rumble stops
-when the game is paused, when Vibration is Off, when the window is not in front, and when the controller was not touched
-for 30 seconds (so it does not buzz on the desk while you play on the keyboard).
+## Compatibility
+
+- Required: Game version 1.3
+- Required: [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
+- Recommended: [Custom Menus](../custom_menus/ReadMe.md) mod if you want to customize cameras in-game instead of digging in an .ini file.
+- Recommended but **must be configured**: WideScreenFix: Set the following settings in that mod:
+  - `ImproveGamepadSupport = 1` for better controller icons.
+  - `LeftStickDeadzone = 0` and `RightStickDeadzone = 0` because this mod will handle deadzones.
+  - `[CAMERA] Enable = 0` because our mod adds camera look to all third-person camera types instead of just two arbitrary ones.
+- Incompatible: NFS-XtendedInput, potentially other similar mods that mess with controller functions.
+
+## Limitations
+
+- **XInput controllers only** (Xbox 360 / One / Series, and anything that looks like one: PlayStation and Switch pads
+  through DS4Windows, Steam Input, ...). The plugin touches no other DirectInput device.
+- **One player.** Only the first XInput controller and the game's port 0 are handled: no split-screen.
+- **The look bindings are not in the game's profile**: the profile saves only the game's own 19 controls, so the four look
+  rows are kept in `nfsmw_controller_support.ini` (shared by all profiles).
+
+## TODOs
+- Figure out whether input remapping code should live in this mod or be moved to the Custom Menus mod.
+- Test other controllers through DS4Windows and SteamInput. Currently only an Xbox 1 controller was tested. I also own PS5 and Switch controllers.
+- Make a custom icon for the rumble menu - but maybe it becomes a "Controller" menu instead, since we want to add more options than just Rumble:
+- Add options to tweak deadzones of triggers and sticks from the menu
+- Add option to switch to Playstation icons
+- Become independent of WideScreenFix: Take their icons, improve the "A" button icon which is currently blue when it should be green.
+- Test and support 2-players.
+
+<details>
+
+<summary>Code Notes</summary>
 
 ## Settings, files
 
-In the folder `scripts/nfsmw/` (next to the `.asi` files): `nfsmw_controller_support.ini` and `nfsmw_controller_support.log`. All optional; the Options > Rumble page and the Controls menu
+In the folder `scripts/mets_mods/` (next to the `.asi` files): `nfsmw_controller_support.ini` and `nfsmw_controller_support.log`. All optional; the Options > Rumble page and the Controls menu
 write the rumble levels and the look bindings for you.
 
 ```ini
@@ -95,18 +105,6 @@ engine_blown=80
 [look_bindings]           ; written by the Controls menu: the four look rows' bindings
 ```
 
-Recommended with the widescreen fix (`NFSMostWanted.WidescreenFix.ini`): `ImproveGamepadSupport = 1` (the colourful
-button icons, switching with the last input used), `LeftStickDeadzone = 0` and `RightStickDeadzone = 0` (this plugin
-does it), `[CAMERA] Enable = 0`. NFS-XtendedInput overlaps with this plugin and also changes the Controls menu: do not
-use both.
-
-## Compatibility
-
-Needs only the ASI loader and `speed.exe` 1.3 (and nfsmw_custom_menus for the Rumble page). Works with the widescreen fix
-(recommended settings above) except that its own camera look (`[CAMERA] Enable = 1`) must be off: nfsmw_controller_support notices a
-second redirect of the same call and switches its camera look off. Do not combine with NFS-XtendedInput. Every hook and row patch checks the game's code
-first and is skipped if another mod changed it (the log says which). See the
-[overview](../ReadMe.md#compatibility).
 
 ## Code layout
 
@@ -116,7 +114,7 @@ first and is skipped if another mod changed it (the log says which). See the
 | `settings.cpp`, `pad.h` | `nfsmw_controller_support.ini`, the log, shared helpers |
 | `input.cpp` | DirectInput state (dead zones, triggers, mouse deltas), analog action mapping |
 | `bindings.cpp` | the PC binding table: the four look entries, a log of every binding change |
-| `controls_menu.cpp` | the Controls menu: look rows, direction names, title icon |
+| `controls_menu.cpp` | the Controls menu: look rows, direction names |
 | `look.cpp` | camera look |
 | `rumble.cpp` | rumble: the force feedback object the game talks to, the effects, the motors thread |
 | `rumble_page.cpp` | Options > Rumble, a page of nfsmw_custom_menus |
@@ -134,11 +132,4 @@ checks the Vibration setting only through a path the PC build left out, so the p
 the level to the controller (`XInputSetState`) at most every 30 ms. Findings, addresses and the measurements the strengths
 were calibrated on are in [`notes.md`](../../notes.md).
 
-## Limitations
-
-- **XInput controllers only** (Xbox 360 / One / Series, and anything that looks like one: PlayStation and Switch pads
-  through DS4Windows, Steam Input, ...). The plugin touches no other DirectInput device.
-- **One player.** Only the first XInput controller and the game's port 0 are handled: no split-screen.
-- **Rumble levels were tuned on one controller** (Xbox Wireless over Bluetooth); other pads may want different numbers.
-- **The look bindings are not in the game's profile**: the profile saves only the game's own 19 controls, so the four look
-  rows are kept in `nfsmw_controller_support.ini` (shared by all profiles).
+</details>

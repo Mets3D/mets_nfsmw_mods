@@ -38,14 +38,14 @@ class Logger {
     FILE *file_ = nullptr;
 };
 
-// Everything our mods write or ship (settings, logs, texture packs) lives in one folder, <game>/scripts/nfsmw/, next to the
+// Everything our mods write or ship (settings, logs, texture packs) lives in one folder, <game>/scripts/mets_mods/, next to the
 // .asi plugins as other mods keep their settings, but in a folder of its own. Created on first use.
 inline void data_file(const char *name, char *out, size_t out_size) {
     GetModuleFileNameA(nullptr, out, static_cast<DWORD>(out_size));
-    if (char *slash = strrchr(out, '\\'))*(slash + 1) = 0;
+    if (char *slash = strrchr(out, '\\')) *(slash + 1) = 0;
     strncat(out, "scripts\\", out_size - strlen(out) - 1);
     CreateDirectoryA(out, nullptr);
-    strncat(out, "nfsmw\\", out_size - strlen(out) - 1);
+    strncat(out, "mets_mods\\", out_size - strlen(out) - 1);
     CreateDirectoryA(out, nullptr);
     strncat(out, name, out_size - strlen(out) - 1);
 }

@@ -4,7 +4,7 @@
  *   settings.cpp       nfsmw_controller_support.ini and the log
  *   input.cpp          DirectInput state (dead zones, separate triggers, mouse) and the analog action mapping
  *   bindings.cpp       the PC binding table: the camera look entries, a log of binding changes
- *   controls_menu.cpp  Options > Controls: the look rows, readable names, the title icon
+ *   controls_menu.cpp  Options > Controls: the look rows, readable names
  *   look.cpp           camera look
  *   rumble.cpp         rumble (the force feedback events, the controller's motors)
  *   rumble_page.cpp    Options > Rumble, a page of nfsmw_custom_menus

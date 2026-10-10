@@ -8,7 +8,7 @@ the game.
 
 | Mod | What | Docs |
 |---|---|---|
-| **Custom Menus** (`nfsmw_custom_menus.asi`) | the Options menu framework: other mods add pages to Pause > Options through it | [custom_menus/ReadMe.md](custom_menus/ReadMe.md) |
+| **Custom Menus** (`nfsmw_custom_menus.asi`) | the Options menu framework: other mods add pages to Pause > Options through it; also fixes the Controls screen's title icon | [custom_menus/ReadMe.md](custom_menus/ReadMe.md) |
 | **Camera Settings** (`nfsmw_camera_settings.asi`) | camera settings: per-view FOV, height, distance, pitch, offset, stiffness, tilting (Options > Camera) | [camera_settings/ReadMe.md](camera_settings/ReadMe.md) |
 | **Controller Support** (`nfsmw_controller_support.asi`) | Xbox controller: analog steering and separate triggers, camera look, rumble (Options > Rumble) | [controller_support/ReadMe.md](controller_support/ReadMe.md) |
 
@@ -73,7 +73,7 @@ powershell -File set_mods.ps1 -Mode ours      # copy to GameTest/scripts (+ text
 ```
 
 `GameTest/` is a copy of the game; the original install is not touched. Close the game before deploying (it keeps the old
-`.asi` loaded). Settings, logs and texture packs of all our mods are in one folder, `scripts/nfsmw/`, so the game folder stays tidy. The logs: `nfsmw_custom_menus.log`, `nfsmw_camera_settings.log`, `nfsmw_controller_support.log`, and
+`.asi` loaded). Settings, logs and texture packs of all our mods are in one folder, `scripts/mets_mods/`, so the game folder stays tidy. The logs: `nfsmw_custom_menus.log`, `nfsmw_camera_settings.log`, `nfsmw_controller_support.log`, and
 `nfsmw_custom_menus_crash.log` for access violations anywhere in the game.
 
 To uninstall a mod, delete its `.asi` (and `.tpk`) from `scripts/`.

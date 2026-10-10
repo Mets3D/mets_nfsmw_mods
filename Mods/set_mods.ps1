@@ -6,7 +6,7 @@
 param([Parameter(Mandatory)][ValidateSet('all', 'ours', 'none')][string]$Mode)
 $game = 'E:\Git\NFS-MW\GameTest'
 $on = "$game\scripts"; $off = "$game\scripts_disabled"
-$data = "$game\scripts\nfsmw"  # settings, logs and texture packs of our mods
+$data = "$game\scripts\mets_mods"  # settings, logs and texture packs of our mods
 New-Item -ItemType Directory $data -Force | Out-Null
 Remove-Item "$game\nfsmw_mods" -Recurse -ErrorAction SilentlyContinue  # where the previous layout kept them
 $ours = 'nfsmw_custom_menus.asi', 'nfsmw_camera_settings.asi', 'nfsmw_controller_support.asi'

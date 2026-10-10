@@ -12,7 +12,7 @@
  *    highlighted row in the game's message box.
  * Every plugin that exports nfsmw_custom_menus_provide gets asked for its pages the first time the Options menu opens.
  *
- * Files in <game>/scripts/nfsmw/: nfsmw_custom_menus.ini (settings), nfsmw_custom_menus.log, nfsmw_custom_menus_crash.log (access
+ * Files in <game>/scripts/mets_mods/: nfsmw_custom_menus.ini (settings), nfsmw_custom_menus.log, nfsmw_custom_menus_crash.log (access
  * violations anywhere in the game, with the modules involved; handy for any of our mods).
  * ini settings, all optional:
  *   [features] help_hint=0, hide_dialog_icon=0, texture_pack=0  turn those parts off
@@ -34,6 +34,7 @@
 #include "hooks.h"
 #include "nfsmw_util.h"
 #include "custom_menus_api.h"
+#include "title_icon.h"
 #include "xinput.h"
 
 NFSMW_PLUGIN_DECLARE("NFSMW Options Menu", "1.0.0", "Demeter Dzadik")
@@ -154,7 +155,6 @@ const auto FEPrintf = at<int (*)(void *string, const char *fmt, ...)>(0x515D70);
 const auto FEPrintfPkg = at<int (*)(const char *pkg, int object, const char *fmt, ...)>(0x5252D0);  // strings and groups
 const auto FESetString = at<void (*)(void *string, const unsigned short *text)>(0x515CC0);
 const auto FEngSetTextureHash = at<void (*)(void *image, unsigned hash)>(0x515B90);
-const auto FEngSetTextureHashPkg = at<void (*)(const char *pkg, unsigned object, unsigned hash)>(0x527EE0);
 const auto FEngSetInvisiblePkg = at<void (*)(const char *pkg, unsigned object)>(0x527DB0);
 const auto ShowOneButton = at<unsigned (*)(const char *pkg, const char *dialog_pkg, int title, unsigned button_text,
                                            unsigned button_msg, unsigned back_msg, unsigned text)>(0x5989B0);
@@ -228,7 +228,6 @@ constexpr unsigned kEntryPage = 0x5C;   // ours: the page of an Options menu ent
 
 // Hashes: FEng objects, messages, scripts, textures, language strings.
 constexpr unsigned kHeaderText = 0x42ADB44C;  // HEADER_TEXT: the title of a screen or message box
-constexpr unsigned kHeaderIcon = 0x08007B4C;  // the Options screen's title icon
 constexpr unsigned kDialogIcon1 = 0x0D4F4069, kDialogIcon2 = 0xFAC88427;  // the message box's exclamation mark
 // The Options layout has two hint bars: console hints (hidden on PC) and the PC hints that are shown, top-level
 // groups of {label string, clickable hit-box group, key image}.
@@ -433,7 +432,7 @@ void build_page_screen(void *screen) {
     const char *pkg = field<const char *>(screen, kScreenPackage);
     game::FEngSetLanguageHashPkg(pkg, kHeaderText, g_page->title_hash);
     game::FEPrintfPkg(pkg, static_cast<int>(kHeaderText), "%s", page.title);
-    game::FEngSetTextureHashPkg(pkg, kHeaderIcon, g_page->icon);
+    custom_menus::title_icon::set(pkg, g_page->icon);
     game::RefreshWidgets(screen);
     g_hint_pending_screen = screen;  // the Help hint is cloned on the first tick, once the layout is live
     log_line("Options > %s built", page.entry_text);
@@ -935,6 +934,7 @@ void install_hooks() {
          nfsmw::detour(&hook_dialog_build), nfsmw::orig(&g_orig_dialog_build)},
     };
     nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), g_log, g_ini);
+    custom_menus::title_icon::install_hooks(g_log, g_ini);
 }
 
 }  // namespace

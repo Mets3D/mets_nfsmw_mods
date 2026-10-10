@@ -1,29 +1,46 @@
 # Custom Menus
 
-*Disclaimer: Vibe coded with Claude. Thoroughly tested.*
+*Disclaimer: The code was written by Claude (Sonnet & Opus). The custom menu icon, testing, design, and this page, were made by me, a human.*
 
-The plugin `nfsmw_custom_menus.asi` for Need for Speed: Most Wanted (2005, PC, `speed.exe` 1.3). It lets other plugins add **pages to the pause
-menu's Options screen** that look and behave like the game's own: an icon in the Options menu, a title, rows you change
-with left / right, Accept / Back / Defaults, and a Help button.
-
-On its own it does nothing visible. It is the part of the menu code that only one plugin can own, because two plugins
-cannot hook the same game function. [nfsmw_camera_settings](../camera_settings/ReadMe.md) (Options > Camera) and
-[nfsmw_controller_support](../controller_support/ReadMe.md) (Options > Rumble) are pages built on it.
+This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an ability to add their own menus in the game's pause menu easily, without conflicts, and in a way that feels like a native part of the game.
 
 ## What the framework does for a page
 
 - Adds an entry with the page's icon to the Options menu (pause menu only), after the game's own entries.
 - Builds the screen from the game's own Options layout, so fonts, sounds, animations, mouse hover and the controller
-  all work as they do in the game's screens.
-- Left / right on a row calls the page; hold **Shift** for finer steps (the page decides what that means).
-- **Accept / Back / Defaults** work like the game's own: edits take effect immediately; leaving with Accept keeps them;
-  Back asks "discard changes?" if the page says something changed; Defaults asks for confirmation, then resets the page.
+  all work as they do in the vanilla game's screens.
+- Left / right on a row tells the mod that owns the page (through its `change` callback) to raise or lower that value.
+  The mod decides what the stepping value of that row is. Holding **Shift** tells it to take a smaller step.
+- **Accept / Back** work like the game's own: Leaving the menu with "Accept" keeps changes; "Back" asks "discard changes?" if something changed
+- **Defaults**: Asks for confirmation, then resets the page.
 - **Help**: a "2 Help" hint next to the game's "1 Defaults" hint (a copy of it, so it matches). The **2** key, a click on
   the hint, or the **X** button on an XInput controller opens a message box with the highlighted row's help text.
 - Game strings: all texts a page gives are added to the game's language table, so the game's own label, title and
   dialog code shows them.
 - Row kinds: a normal value row, and the game's own **Camera selector** (it switches the player's camera view; the other
   rows are redrawn, so a camera page can show the selected view's values).
+
+## Other fixes
+
+- **Controls screen title icon.** Pause > Options > Controls showed the audio icon as its title icon (a base game bug:
+  its layout defaults to it and the screen never sets its own). It now shows the Controls icon. Works without any page
+  or other mod (`title_icon.cpp`).
+
+## Example Mods
+- [Camera Settings](../camera_settings/ReadMe.md): Adds the Options > Camera page.
+- [Controller Support](../controller_support/ReadMe.md): Adds the Options > Rumble page.
+
+## TODO
+- Translation support?
+- Ability to add not just sub-menus under "Options", but also in the pause menu.
+- Maybe investigate other menus later.
+- In the main menu, we currently get a "Quit" button hint that shows a stick down. Is this a bug in the vanilla game, the widescreen fix, in this mod, or the controller support mod? It's not clear from the symbol which stick it means, and neither of them do anything anyways.
+- Is there a limit on how many entries can be in a page?
+- Adding entries to the controls? Can this be an unlimited amount, since the controls UI supports a scrollbar?
+
+<details>
+
+<summary>Code Notes</summary>
 
 ## Using it from your own plugin
 
@@ -89,7 +106,7 @@ a texture (a texture's hash is the game's `h = h * 33 + c` from `0xFFFFFFFF` ove
 in [`common/nfsmw_util.h`](../common/nfsmw_util.h)); if the game has no such texture, `fallback_icon` (any texture the game
 always has, for example `0x66C9A7B6`, MILESTONE_SPEEDTRAP) is used. To ship your own icon, build a `.tpk` with
 [`Tools/tpk_build.py`](../../Tools/tpk_build.py) from a 256x256 PNG named like the texture (`OPTIONS_MYMOD.png`), put it in
-`scripts/nfsmw/` (`nfsmw::data_file()` in `common/nfsmw_util.h` gives the path), and pass its full path as `texture_pack`; the framework loads it through the game's resource loader when
+`scripts/mets_mods/` (`nfsmw::data_file()` in `common/nfsmw_util.h` gives the path), and pass its full path as `texture_pack`; the framework loads it through the game's resource loader when
 the menu first opens.
 
 The `Page` and `Row` structures and the arrays they point to must stay valid for the whole run (make them static).
@@ -116,7 +133,7 @@ when another mod changed their first bytes, and then there are no pages. See the
 
 ## Files and settings
 
-In the folder `scripts/nfsmw/` (next to the `.asi` files): `nfsmw_custom_menus.log` (what registered, hooks), `nfsmw_custom_menus_crash.log` (any access violation in the
+In the folder `scripts/mets_mods/` (next to the `.asi` files): `nfsmw_custom_menus.log` (what registered, hooks), `nfsmw_custom_menus_crash.log` (any access violation in the
 game process, with the modules involved: useful for every mod, not only this one), `nfsmw_custom_menus.ini`:
 
 ```ini
@@ -126,7 +143,7 @@ hide_dialog_icon=0   ; keep the exclamation mark in the Help message box
 texture_pack=0       ; do not load the pages' icon packs
 [hooks]
 notify=0             ; skip one hook (names: optmain initialpos setupplayer notify restoredefaults didnotchange
-                     ; restoreoriginals dialogbuild), for troubleshooting
+                     ; restoreoriginals dialogbuild controlsicon), for troubleshooting
 ```
 
 ## How it works (short)
@@ -137,3 +154,5 @@ A page's screen is the game's `UIOptionsScreen` in its **Player** category, with
 (`FEGroup::Clone` plus fixes for what the game leaves broken in a clone), and the Help key is polled on the screen's
 per-frame tick, because the layout does not forward that key as a message. Offsets come from the PC disassembly (the decomp's
 are from console builds); findings and addresses are in [`notes.md`](../../notes.md).
+
+</details>

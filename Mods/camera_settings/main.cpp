@@ -7,7 +7,7 @@
  *    selector, the rows below edit the selected view (hold Shift for finer steps). Edits are kept on Accept.
  *  - The Drift camera's name ("DRIFT", from NFSMWExtraOptions) is shown with the game's own "Drift" string.
  *
- * Files in <game>/scripts/nfsmw/: nfsmw_camera_settings.ini (your changes and settings), nfsmw_camera_settings.log, nfsmw_camera_settings.tpk (the Options icon).
+ * Files in <game>/scripts/mets_mods/: nfsmw_camera_settings.ini (your changes and settings), nfsmw_camera_settings.log, nfsmw_camera_settings.tpk (the Options icon).
  * ini settings, all optional:
  *   [general]  degree_symbol=0  writes " deg" instead of the degree sign
  *              icon=<texture name, or its hash as 8 hex digits>  the Options icon (default OPTIONS_CAMERA)
