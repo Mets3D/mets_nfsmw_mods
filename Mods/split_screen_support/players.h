@@ -1,20 +1,23 @@
-// Who plays with which controller. The PC game reads every controller and the keyboard as one device for player 1, so
-// it cannot tell the players apart; this part can, through XInput.
+// Who plays with which device. The PC game reads every controller and the keyboard as one device for player 1, so it
+// cannot tell the players apart; this part can: XInput tells the controllers apart, and the keyboard is seen
+// through nfsmw_controller_support.
 #pragma once
 
 #include "xinput.h"
 
 namespace split_screen_support::players {
 
-constexpr int kKeyboard = -1;
+constexpr int kKeyboard = -1;  // a device: the keyboard; 0-3 are XInput controllers
 
 // The game is a split screen game: Quick Race with two players (FEDatabase).
 bool split_screen();
 
-// The XInput slot (0-3) of player 0's or player 1's controller in this race, or kKeyboard.
-int pad(int player);
-// That controller's state; false for the keyboard or a controller that is not connected.
+// The device of player 0 or player 1 in this race (0-3 an XInput controller, or kKeyboard).
+int device(int player);
+// A controller player's state; false for the keyboard or a controller that is not connected.
 bool read_pad(int player, nfsmw::xinput::Gamepad *out);
+// The keyboard as DirectInput shows it (256 bytes, bit 7 = down), whoever it reaches; false when it is not known.
+bool read_keyboard(unsigned char *out);
 
 void install();  // registers with events, hooks the Press Start screen
 

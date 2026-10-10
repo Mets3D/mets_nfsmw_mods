@@ -30,6 +30,7 @@ void load_settings() {
     g_cfg.enabled = GetPrivateProfileIntA("pad", "enabled", 1, g_ini) != 0;
     g_cfg.analog_mapping = GetPrivateProfileIntA("pad", "analog_mapping", 1, g_ini) != 0;
     g_cfg.split_triggers = GetPrivateProfileIntA("pad", "split_triggers", 1, g_ini) != 0;
+    g_cfg.merge_controllers = GetPrivateProfileIntA("pad", "merge_controllers", 1, g_ini) != 0;
     g_cfg.left_deadzone = ini_float("stick_deadzone", g_cfg.left_deadzone);
     g_cfg.right_deadzone = ini_float("right_stick_deadzone", g_cfg.right_deadzone);
     g_cfg.labels = GetPrivateProfileIntA("pad", "labels", 1, g_ini) != 0;
@@ -48,8 +49,9 @@ void load_settings() {
     button_icons::load_settings();
     menu_buttons::load_settings();
     rumble::load_settings();
-    log_line("settings: enabled=%d analog_mapping=%d split_triggers=%d stick_deadzone=%.2f right_stick_deadzone=%.2f",
-             g_cfg.enabled, g_cfg.analog_mapping, g_cfg.split_triggers, g_cfg.left_deadzone, g_cfg.right_deadzone);
+    log_line("settings: enabled=%d analog_mapping=%d split_triggers=%d merge_controllers=%d stick_deadzone=%.2f right_stick_deadzone=%.2f",
+             g_cfg.enabled, g_cfg.analog_mapping, g_cfg.split_triggers, g_cfg.merge_controllers, g_cfg.left_deadzone,
+             g_cfg.right_deadzone);
 }
 
 }  // namespace pad

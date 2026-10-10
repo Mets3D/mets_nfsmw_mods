@@ -126,13 +126,20 @@ bool pad_active(const JoyState &s, bool xinput) {
 bool last_input_was_pad() { return g_last_input_pad; }
 
 // ------------------------------------------------------------------------------------------------
-// Which controllers reach the game, when another mod asks (common/controller_api.h; split screen gives each player's
-// screens and car to that player's controller): every XInput controller DirectInput shows the game reports the chosen
-// XInput slot's state instead of its own, all slots merged, or a controller at rest. The game reads its controller by
+// Which controllers reach the game: by default all XInput controllers merged, or another mod asks for one (or none)
+// through common/controller_api.h. Every XInput controller DirectInput shows the game reports the chosen XInput slot's
+// state instead of its own, all slots merged, or a controller at rest. The game reads its controller by
 // DirectInput device, and which DirectInput device is which XInput slot cannot be told; reporting the same state on all
 // of them makes that not matter.
 // ------------------------------------------------------------------------------------------------
-volatile LONG g_exclusive = nfsmw::controller_api::kEveryPad;
+volatile LONG g_exclusive = nfsmw::controller_api::kDefault;
+
+// Whether the keyboard reaches the game, and the keyboard as DirectInput last showed it, wanted or not.
+volatile LONG g_mouse_player = 0;
+volatile LONG g_second_player = -1;  // see nfsmw_controller_support_second_player
+volatile LONG g_keyboard_allowed = 1;
+BYTE g_real_keyboard[256];
+volatile LONG g_keyboard_seen = 0;
 
 // All connected XInput controllers as one: any button, each stick axis and trigger from the pad pushing it furthest.
 // An empty slot is asked about again every 2 seconds at most (that is slow).
@@ -151,6 +158,10 @@ bool read_merged(xinput::Gamepad *out) {
         connected[i] = xinput::read_slot(i, &p);
         if (!connected[i]) continue;
         any = true;
+        // The controller in use is the one that rumbles.
+        if (p.buttons || std::abs(p.lx) > 12000 || std::abs(p.ly) > 12000 || std::abs(p.rx) > 12000 || std::abs(p.ry) > 12000 ||
+            p.left_trigger > 40 || p.right_trigger > 40)
+            xinput::port = i;
         merged.buttons |= p.buttons;
         merged.left_trigger = p.left_trigger > merged.left_trigger ? p.left_trigger : merged.left_trigger;
         merged.right_trigger = p.right_trigger > merged.right_trigger ? p.right_trigger : merged.right_trigger;
@@ -203,7 +214,8 @@ void process_pad_state(void *device, JoyState *state) {
         if (pad_active(s, false)) g_last_input_pad = true;
         return;
     }
-    const LONG exclusive = g_exclusive;
+    LONG exclusive = g_exclusive;
+    if (exclusive == nfsmw::controller_api::kDefault && g_cfg.merge_controllers) exclusive = nfsmw::controller_api::kMergedPads;
     xinput::Gamepad chosen = {};  // the state reported instead of the device's own, when another mod asked for one
     const bool replaced = exclusive >= 0 || exclusive == nfsmw::controller_api::kMergedPads;
     if (exclusive == nfsmw::controller_api::kNoPad) return report_at_rest(s);
@@ -307,6 +319,12 @@ HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
         return hr;
     }
     if (hr >= 0 && data && size == kKeyboardStateSize) {
+        memcpy(g_real_keyboard, data, kKeyboardStateSize);
+        g_keyboard_seen = 1;
+        if (!g_keyboard_allowed) {
+            memset(data, 0, kKeyboardStateSize);
+            return hr;
+        }
         if (any_pressed(static_cast<const BYTE *>(data), kKeyboardStateSize)) g_last_input_pad = false;
         return hr;
     }
@@ -417,6 +435,10 @@ void take_mouse_delta(LONG *dx, LONG *dy) {
     *dy = InterlockedExchange(&g_mouse_dy, 0);
 }
 
+bool no_pads() { return g_exclusive == nfsmw::controller_api::kNoPad; }
+int second_player_slot() { return g_second_player; }
+int mouse_player() { return g_mouse_player; }
+
 bool any_xinput_device() {
     for (int i = 0; i < g_device_count; ++i)
         if (g_devices[i].xinput) return true;
@@ -442,12 +464,44 @@ void install_hooks() {
 }  // namespace pad::input
 
 // For other mods (common/controller_api.h).
-extern "C" __declspec(dllexport) void nfsmw_controller_support_exclusive_pad(int slot) {
+extern "C" __declspec(dllexport) void nfsmw_controller_support_pads(int which) {
     using namespace pad;
-    if (InterlockedExchange(&input::g_exclusive, slot) == slot) return;
-    if (slot >= 0) xinput::port = slot;  // the triggers and the rumble follow that controller too
-    if (slot >= 0) log_line("the game's controller: XInput controller %d only (asked for by another mod)", slot);
-    else if (slot == nfsmw::controller_api::kNoPad) log_line("the game's controller: none, keyboard only (asked for by another mod)");
-    else if (slot == nfsmw::controller_api::kMergedPads) log_line("the game's controller: all XInput controllers merged (asked for by another mod)");
-    else log_line("the game's controller: as normal again");
+    if (InterlockedExchange(&input::g_exclusive, which) == which) return;
+    if (which >= 0) {
+        xinput::port = which;  // the triggers and the rumble follow that controller too
+        log_line("the game's controllers: XInput controller %d only (asked for by another mod)", which);
+    } else if (which == nfsmw::controller_api::kNoPad) {
+        log_line("the game's controllers: none (asked for by another mod)");
+    } else if (which == nfsmw::controller_api::kMergedPads) {
+        log_line("the game's controllers: all XInput controllers merged (asked for by another mod)");
+    } else {
+        log_line("the game's controllers: the default again (%s)", g_cfg.merge_controllers ? "all XInput controllers merged" : "the game's own");
+    }
+}
+
+extern "C" __declspec(dllexport) void nfsmw_controller_support_second_player(int slot) {
+    using namespace pad;
+    if (InterlockedExchange(&input::g_second_player, slot < 0 ? -1 : slot) == (slot < 0 ? -1 : slot)) return;
+    if (slot >= 0) log_line("a second player has XInput controller %d: their rumble and camera look (asked for by another mod)", slot);
+    else log_line("no second player any more (asked for by another mod)");
+}
+
+extern "C" __declspec(dllexport) void nfsmw_controller_support_mouse_player(int player) {
+    using namespace pad;
+    const LONG wanted = player == 1 ? 1 : 0;
+    if (InterlockedExchange(&input::g_mouse_player, wanted) == wanted) return;
+    log_line("the mouse looks around for the %s player (asked for by another mod)", wanted ? "second" : "first");
+}
+
+extern "C" __declspec(dllexport) void nfsmw_controller_support_keyboard(int allowed) {
+    using namespace pad;
+    if (InterlockedExchange(&input::g_keyboard_allowed, allowed ? 1 : 0) == (allowed ? 1 : 0)) return;
+    log_line("the keyboard %s the game (asked for by another mod)", allowed ? "reaches" : "no longer reaches");
+}
+
+extern "C" __declspec(dllexport) int nfsmw_controller_support_keyboard_state(unsigned char *out) {
+    using namespace pad;
+    if (!input::g_keyboard_seen || !out) return 0;
+    memcpy(out, input::g_real_keyboard, 256);
+    return 1;
 }

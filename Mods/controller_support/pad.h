@@ -30,6 +30,7 @@ struct Settings {  // [pad]
     bool enabled = true;
     bool analog_mapping = true;  // steering, gas and brake are analog
     bool split_triggers = true;  // LT and RT as two axes
+    bool merge_controllers = true;  // every XInput controller drives the game, not just the first one DirectInput gave it
     float left_deadzone = 0.15f;
     float right_deadzone = 0.15f;
     bool labels = true;  // direction names for controller bindings in the Controls menu

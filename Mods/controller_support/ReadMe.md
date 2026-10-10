@@ -64,28 +64,22 @@ collisions) that were never connected to anything on PC. With this mod, they now
 
 - **XInput controllers only** (Xbox 360 / One / Series, and anything that looks like one: PlayStation and Switch pads
   through DS4Windows, Steam Input, ...). The plugin touches no other DirectInput device.
-- **One controller at a time.** The game reads the triggers of the first XInput controller and the rest from whichever
-  controller it opened, so two connected controllers mix (one steers, the other accelerates). In a split screen race
-  ([Split Screen Support](../split_screen_support/ReadMe.md)) only player 1's controller reaches the game, asked for by
-  that mod through `nfsmw_controller_support_exclusive_pad` (`common/controller_api.h`).
+- **XInput controllers are merged into one** (any number of them, and the keyboard): the game itself reads only the first
+  controller it opened, and its triggers came from the first XInput controller, so two connected controllers used to
+  mix (one steered, the other accelerated). `merge_controllers=0` in the ini turns the merging off. The controller that
+  was used last is the one that rumbles. Other mods can ask for particular controllers, or for the keyboard to be left
+  out, through the exports described in `common/controller_api.h`; nothing here depends on them. One of them tells the mod about a second local player and their controller: it then rumbles for their car and their right stick looks around in their own camera.
 - **The look bindings are not in the game's profile**: the profile saves only the game's own 19 controls, so the four look
   rows are kept in `nfsmw_controller_support.ini` (shared by all profiles).
 
 ## TODOs
 - Figure out whether input remapping code should live in this mod or be moved to the Custom Menus mod.
-- Test other controllers through DS4Windows and SteamInput. Currently only an Xbox 1 controller was tested. I also own PS5 and Switch controllers.
+- When multiple controllers are connected, only one of their bindings can be customized.
+- The "Controller Prompts" menu entry would be better if it was customizable per input device, so that when we switch from one controller to another, it might switch symbols.
 - Make a custom icon for the rumble menu - but maybe it becomes a "Controller" menu instead, since we want to add more options than just Rumble:
 - Add options to tweak deadzones of triggers and sticks from the menu
-- A menu option for the button pictures (Xbox / PlayStation / keyboard): for now it is `icons=` in the ini.
-- Improve the button pictures: the "A" icon is currently blue when it should be green. They are PNGs in `buttons/` now.
 - The widescreen fix's `ImproveGamepadSupport` also changes the title screen's "Press START" text; we did not take that over.
-- If another screen's prompt still shows a keyboard key on a controller: `log_images=1` in the ini lists everything a
-  screen draws, to find it.
-- Test and support 2-players.
-- **DualSense through Steam Input** (a non-Steam shortcut of `speed.exe`): it works, but needs checking after the fix for
-  "the mod never saw the controller" (see `notes.md`): the dead zones (the camera drifted with the right stick at rest),
-  the controller button prompts and names in the Controls menu should now work. Also open: with an Xbox controller on
-  as well, the game only takes the DualSense when the Xbox controller is off.
+- Support split-screen with various device combinations.
 
 <details>
 
@@ -102,6 +96,7 @@ enabled=1                 ; 0 = the plugin does nothing
 stick_deadzone=0.15       ; 0-1, left and right stick
 right_stick_deadzone=0.15
 split_triggers=1
+merge_controllers=1       ; every XInput controller drives the game, not just the first one; 0 = only the first
 analog_mapping=1
 labels=1                  ; direction names in the Controls menu
 [buttons]
