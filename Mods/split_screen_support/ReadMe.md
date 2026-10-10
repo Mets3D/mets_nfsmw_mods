@@ -1,6 +1,6 @@
 # Split Screen Support
 
-*Disclaimer: The code was written by Claude (Sonnet & Opus).*
+*Disclaimer: The code was written by Claude (Sonnet & Opus). This ReadMe was written by me, a human.*
 
 This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen support.
 
@@ -17,9 +17,13 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - Required for player 2's input: [Controller Support](../controller_support/ReadMe.md).
 - Conditionally compatible: NFSMWExtraOptionsSettings: Set `ExperimentalSplitScreenFix = 0` in `.ini`. If it is on, this mod will do nothing.
 
+## Device Compatibility
+
+- Both using a keyboard is not supported.
+- For supported controllers, see the [Controller Support](../controller_support/ReadMe.md) mod - The game natively supports Xbox controllers, and for everything else, Steam Input is tested and works as a translation layer.
+
 ## TODO
 - In Bumper view, the car is not being rendered. This needs to be integrated, such that each of the 2 screens only stops rendering their own car if it is using bumper view. Currently, a player1 using bumper view is invisible on player2's screen, and a player2 using bumper view has their camera clip into their car, since it's still being rendered on their screen.
-- The same controller can press Start to add both players - though the result still works, I think this is a bit strange. I might expect that when the same player presses Start after having already picked their car, they might be able to re-pick their car, or to do nothing.
 - Minimap currently is centered around strictly player 1. Would be nice if it either zoomed out to fit both, or if each player had one minimap, or if it switched to whoever is in last place.
 - Something is off about the drawing of shadows - In one example, Player 1 (top)'s shadows popped in as Player 2 caught up to them, suggesting that detailed shadows (of trees in this case, maybe the trees themselves?) are only drawn near Player 2, but that would be surprising, so I'm not sure. Maybe it's a two-way street in some way.
 - Reflections on player 2's car change based on player 1's position in the world.

@@ -12,9 +12,9 @@
  * screen). What is told to nfsmw_controller_support (common/controller_api.h) is only who drives the vehicles:
  *  - when the race loads: player 1's vehicle (and its camera, HUD actions and pause request) takes its input from player 1's
  *    device alone. Player 2's joystick port is set to -1 and they read a game input device of their own, made by
- *    nfsmw_controller_support from the bindings of player 2's device (without it they have no input). A player who did
- *    not press Start, or who pressed Start on the device the other player used, gets another one: a free controller, else
- *    the keyboard;
+ *    nfsmw_controller_support from the bindings of player 2's device (without it they have no input). A device that already
+ *    has a player does nothing on the other player's Press Start screen; a player who somehow did not press Start gets
+ *    another device: a free controller, else the keyboard;
  *  - back in the menus (no longer a split screen game): every device drives the vehicle again.
  * Without nfsmw_controller_support every device drives player 1's vehicle, and player 2 has no input.
  */
@@ -205,6 +205,10 @@ void __fastcall hook_press_start(void *screen, void *edx, unsigned message, void
     if (message == kStartReleased && split_screen()) {
         if (g_pressed_by == kNotChosen) return;  // the game's own Start message: it cannot tell the devices apart, press_start() does
         const int player = *reinterpret_cast<int *>(static_cast<char *>(screen) + 0x2C);
+        if ((player == 0 || player == 1) && g_chosen[1 - player] == g_pressed_by) {
+            g_log.line("Press Start: %s already plays player %d; ignored", describe(g_pressed_by), 2 - player);
+            return;  // a device that already has a player does nothing: the screen stays
+        }
         if (player == 0 || player == 1) {
             g_chosen[player] = g_pressed_by;
             g_log.line("Press Start: player %d on %s", player + 1, describe(g_pressed_by));
