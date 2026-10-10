@@ -27,6 +27,12 @@ Marks: [read] disassembly, [tested] confirmed in game or by a crash, [guess].
 - **Rebinding** always records `{type, 0, object}`: the pressed controller is ignored [read, tested]. Vanilla has bindings for controller 0 only;
   `pad_sets.cpp` keeps a set per controller.
 
+## Who may drive (our policy)
+`PollDevice`'s hook (`hook_poll`) takes the entries the game computed (every device's slots), adds the other controllers' sets (`add_values`), and then, when another mod named a
+vehicle source (`vehicle_source`: split screen), replaces the **vehicle entries** (0-13 gas...HUD pad, 15-18 camera / pause request, 25-28 look) with what that device alone asks for
+(`restrict_vehicle_entries`). Entries 14 and 19 up (menus, hotkeys) always come from every device, so a menu is never tied to one device. The DirectInput states of all devices are never blocked
+(the Controls screen's rebind capture reads them directly).
+
 ## Queues and players
 - **ActionQueue** [read]: `+0x268` port, `+0x26C` has entries, `+0x270` entries, `+0x280/0x281` flags. A queue reads `IOModule.devices[port]`.
 - **InputPlayer::FetchInput** [read]: sets the queue's port from `player->GetControllerPort()`, then pops actions: steer `+0x2A0/0x2A4`, gas `+0x2A8`,

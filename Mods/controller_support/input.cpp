@@ -135,10 +135,9 @@ bool last_input_was_pad() { return g_last_input_pad; }
 // DirectInput device, and which DirectInput device is which XInput slot cannot be told; reporting the same state on all
 // of them makes that not matter.
 // ------------------------------------------------------------------------------------------------
-volatile LONG g_exclusive = nfsmw::controller_api::kDefault;
+volatile LONG g_vehicle_source = nfsmw::controller_api::kDefault;  // see nfsmw_controller_support_vehicle_source
 
 // Whether the keyboard reaches the game, and the keyboard as DirectInput last showed it, wanted or not.
-volatile LONG g_keyboard_allowed = 1;
 BYTE g_real_keyboard[256];
 volatile LONG g_keyboard_seen = 0;
 
@@ -269,24 +268,14 @@ void process_pad_state(void *device, JoyState *state) {
         if (pad_active(s, false)) g_last_input_pad = true;
         return;
     }
-    LONG exclusive = g_exclusive;
-    if (exclusive == nfsmw::controller_api::kDefault && g_cfg.merge_controllers) {
-        // Each XInput controller reports its own state (every controller has bindings of its own); a single one, or
-        // none that can be told apart, gets the merged state.
-        const int slot = own_slot(device);
-        exclusive = slot >= 0 ? slot : nfsmw::controller_api::kMergedPads;
-        xinput::Gamepad p;
-        if (slot >= 0 && xinput::read_slot(slot, &p) && in_use(p)) xinput::port = slot;
-    }
-    xinput::Gamepad chosen = {};  // the state reported instead of the device's own, when another mod asked for one
-    const bool replaced = exclusive >= 0 || exclusive == nfsmw::controller_api::kMergedPads;
-    if (exclusive == nfsmw::controller_api::kNoPad) return report_at_rest(s);
-    if (exclusive >= 0) {  // one controller reaches the game: the game controller that is its own, the others are at rest
-        const int own = own_slot(device);
-        if (own >= 0 && own != exclusive) return report_at_rest(s);
-    }
+    // Each XInput controller reports its own state (every controller has bindings of its own); a single one, or none that
+    // can be told apart, gets the merged state.
+    xinput::Gamepad chosen = {};
+    const bool replaced = g_cfg.merge_controllers;
     if (replaced) {
-        if (!(exclusive >= 0 ? xinput::read_slot(exclusive, &chosen) : read_merged(&chosen))) return report_at_rest(s);
+        const int slot = own_slot(device);
+        if (!(slot >= 0 ? xinput::read_slot(slot, &chosen) : read_merged(&chosen))) return report_at_rest(s);
+        if (slot >= 0 && in_use(chosen)) xinput::port = slot;  // the controller in use is the one that rumbles
         report_xinput(s, chosen);
     }
 
@@ -309,7 +298,7 @@ void process_pad_state(void *device, JoyState *state) {
         }
     }
     if (pad_active(s, true)) g_last_input_pad = true;
-    menu_buttons::pad_buttons(s.buttons);
+    menu_buttons::pad_buttons(pad_sets::joystick_of_device(device), s.buttons);
 }
 
 // A controller's state as the game gets it from this controller (dead zones, triggers as two axes), for bindings read
@@ -430,10 +419,6 @@ HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
     if (hr >= 0 && data && size == kKeyboardStateSize) {
         memcpy(g_real_keyboard, data, kKeyboardStateSize);
         g_keyboard_seen = 1;
-        if (!g_keyboard_allowed) {
-            memset(data, 0, kKeyboardStateSize);
-            return hr;
-        }
         if (any_pressed(static_cast<const BYTE *>(data), kKeyboardStateSize)) g_last_input_pad = false;
         return hr;
     }
@@ -614,7 +599,12 @@ void take_mouse_delta(LONG *dx, LONG *dy) {
     *dy = InterlockedExchange(&g_mouse_dy, 0);
 }
 
-bool no_pads() { return g_exclusive == nfsmw::controller_api::kNoPad; }
+int vehicle_source() { return g_vehicle_source; }
+int player_one_rumble_slot() {
+    const int source = g_vehicle_source;
+    if (source == nfsmw::controller_api::kSourceKeyboard) return -1;
+    return source >= 0 ? source : xinput::port;
+}
 bool key_down(int dik) { return dik > 0 && dik < 256 && (g_real_keyboard[dik] & 0x80) != 0; }
 
 bool any_xinput_device() {
@@ -642,25 +632,15 @@ void install_hooks() {
 }  // namespace pad::input
 
 // For other mods (common/controller_api.h).
-extern "C" __declspec(dllexport) void nfsmw_controller_support_pads(int which) {
+// Which device drives player 1's vehicle: an XInput controller (0-3), kSourceKeyboard, or kDefault (every device). The other
+// devices still reach the game, and drive its menus; only the vehicle entries of the binding table (pad_sets.cpp) are
+// taken from this device alone.
+extern "C" __declspec(dllexport) void nfsmw_controller_support_vehicle_source(int source) {
     using namespace pad;
-    if (InterlockedExchange(&input::g_exclusive, which) == which) return;
-    if (which >= 0) {
-        xinput::port = which;  // the triggers and the rumble follow that controller too
-        log_line("the game's controllers: XInput controller %d only (asked for by another mod)", which);
-    } else if (which == nfsmw::controller_api::kNoPad) {
-        log_line("the game's controllers: none (asked for by another mod)");
-    } else if (which == nfsmw::controller_api::kMergedPads) {
-        log_line("the game's controllers: all XInput controllers merged (asked for by another mod)");
-    } else {
-        log_line("the game's controllers: the default again (%s)", g_cfg.merge_controllers ? "all XInput controllers merged" : "the game's own");
-    }
-}
-
-extern "C" __declspec(dllexport) void nfsmw_controller_support_keyboard(int allowed) {
-    using namespace pad;
-    if (InterlockedExchange(&input::g_keyboard_allowed, allowed ? 1 : 0) == (allowed ? 1 : 0)) return;
-    log_line("the keyboard %s the game (asked for by another mod)", allowed ? "reaches" : "no longer reaches");
+    if (InterlockedExchange(&input::g_vehicle_source, source) == source) return;
+    if (source >= 0) log_line("player 1's vehicle: XInput controller %d only (asked for by another mod)", source + 1);
+    else if (source == nfsmw::controller_api::kSourceKeyboard) log_line("player 1's vehicle: the keyboard only (asked for by another mod)");
+    else log_line("player 1's vehicle: every device (asked for by another mod)");
 }
 
 extern "C" __declspec(dllexport) int nfsmw_controller_support_keyboard_state(unsigned char *out) {

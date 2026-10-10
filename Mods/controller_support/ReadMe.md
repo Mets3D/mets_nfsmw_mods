@@ -74,13 +74,10 @@ collisions) that were never connected to anything on PC. With this mod, they now
 
 ## TODOs
 - Figure out whether input remapping code should live in this mod or be moved to the Custom Menus mod.
-- When multiple controllers are connected, only one of their bindings can be customized.
 - The "Controller Prompts" menu entry would be better if it was customizable per input device, so that when we switch from one controller to another, it might switch symbols.
 - Make a custom icon for the rumble menu - but maybe it becomes a "Controller" menu instead, since we want to add more options than just Rumble:
 - Add options to tweak deadzones of triggers and sticks from the menu
 - The widescreen fix's `ImproveGamepadSupport` also changes the title screen's "Press START" text; we did not take that over.
-- Support split-screen with various device combinations.
-  - Kinda done...
 - Clean up the nonsensical .ini file, remove logging code and options.
 
 <details>

@@ -31,5 +31,7 @@ Input for player 2: see [input-system.md](input-system.md) (extra device). Marks
 ## Press Start and players
 `FEngMapJoyParamToJoyport` 0x572FF0 (bit 0..3 to port 0..3, else -1): every FE press on PC is port 0, so the Press Start screen cannot tell devices apart. `uiQRPressStart` screen:
 START_RELEASED 0xEBFCDA65, player number at screen `+0x2C`, `NotificationMessage` 0x7A3F20, `CreateQRPressStart` 0x570C60. The keyboard's Start is Space (Enter is Accept, ignored).
-`players.cpp` reads the XInput slots and the keyboard itself, takes the newest device within 1.5 s, injects Enter as START_RELEASED, and per race: player 1's device reaches the game
-(`controller_api` pads / keyboard), player 2 reads the extra device; after the race (view mode leaves 3) every device controls the menus again.
+`players.cpp` ignores the game's own Start messages (which device ends in one depends on the bindings: Start on a pad is FE_ACTION_START = button 9 by default) and tells the screen itself: it reads
+the XInput slots and the keyboard every frame and, when a controller lets go of Start or Enter / numpad Enter / Space is let go, sends START_RELEASED to the screen and gives that device to the player. Per race: player 1's vehicle takes its input from player 1's
+device alone (`vehicle_source`, see input-system.md), player 2 reads the extra device; all devices drive every menu throughout (pause, Controls, car select); after the race (view mode leaves 3) every
+device drives the vehicle again.

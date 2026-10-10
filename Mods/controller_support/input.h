@@ -10,7 +10,8 @@ namespace pad::input {
 void hook_dinput();
 bool any_xinput_device();        // an XInput controller has been seen
 bool only_xinput_controllers();  // every DirectInput joystick seen is an XInput controller
-bool no_pads();                  // another mod asked for no controller to reach the game
+int vehicle_source();            // the device that drives player 1's vehicle: an XInput slot, kSourceKeyboard or kDefault (all)
+int player_one_rumble_slot();    // the XInput controller player 1 rumbles on, or -1
 int xinput_slot_of_joystick(int index);  // the XInput controller a game controller reports, or -1
 bool key_down(int dik);  // a key of the real keyboard (whether or not it reaches the game)
 float binding_value(int type, int object, const xinput::Gamepad &pad);  // a controller binding, read from a controller

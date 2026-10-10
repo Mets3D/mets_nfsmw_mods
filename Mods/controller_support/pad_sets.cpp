@@ -1,6 +1,7 @@
 #include "pad_sets.h"
 
 #include "bindings.h"
+#include "controller_api.h"
 #include "hooks.h"
 #include "input.h"
 #include "rumble.h"
@@ -101,6 +102,21 @@ void select(int pad) {
 
 int live_pad() { return g_live; }
 
+// The entries the game's input mapping turns into the vehicle, its camera and its HUD actions: 0-13 (gas ... HUD pad), 15-18
+// (camera change / look back / pull back, pause request) and the look entries 25-28. The rest (14, 19-24, 29 and up) are the
+// menus' and hotkeys', and come from every device.
+bool is_vehicle_entry(int e) { return e <= 13 || (e >= 15 && e <= 18) || (e >= 25 && e <= 28); }
+
+void restrict_vehicle_entries(float *values) {
+    const int source = input::vehicle_source();
+    if (source == nfsmw::controller_api::kDefault) return;
+    float own[kBindingCount] = {};
+    if (source == nfsmw::controller_api::kSourceKeyboard) actions_of_keyboard(own);
+    else actions_of_slot(source, own);
+    for (int e = 0; e < kBindingCount; ++e)
+        if (is_vehicle_entry(e)) values[e] = own[e];
+}
+
 bool actions_of_keyboard(float *values) {
     for (int e = 0; e < kBindingCount; ++e) {
         values[e] = 0.0f;
@@ -114,11 +130,20 @@ bool actions_of_keyboard(float *values) {
 
 // The entries' values that one XInput controller asks for through the set of the game controller that reports it (for
 // players the game does not poll: the second one of a split screen).
+// Whether the game has no more than one XInput game controller (then the pads cannot be told apart and share its set).
+bool no_xinput_slot_resolved() {
+    int xinput_controllers = 0;
+    for (int k = 0, n = joystick_count(); k < n; ++k)
+        if (input::xinput_slot_of_joystick(k) >= 0) ++xinput_controllers;
+    return xinput_controllers == 0;
+}
+
 bool actions_of_slot(int xinput_slot, float *values) {
     const int n = joystick_count();
     int pad = -1;
     for (int k = 0; k < n && pad < 0; ++k)
         if (input::xinput_slot_of_joystick(k) == xinput_slot) pad = k;
+    if (pad < 0 && n >= 1 && no_xinput_slot_resolved()) pad = 0;  // one game controller: all pads share it
     if (pad < 0) return false;
     xinput::Gamepad state;
     if (!xinput::read_slot(xinput_slot, &state)) return false;

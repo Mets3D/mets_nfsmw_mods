@@ -163,7 +163,10 @@ void FASTCALL hook_poll(void *self, void *edx) {
     if (extra_device::is_extra(self)) return extra_device::poll(self);  // the second player's device
     if (field<int>(self, 0x24) != 0) return;  // GameDevice port: only port 0 polls
     const float *current = field<float *>(self, 0x20);
-    if (current) pad_sets::add_values(const_cast<float *>(current));  // the other controllers' sets
+    if (current) {
+        pad_sets::add_values(const_cast<float *>(current));  // the other controllers' sets
+        pad_sets::restrict_vehicle_entries(const_cast<float *>(current));  // the vehicle from player 1's device only
+    }
     for (int l = 0; l < L_COUNT && current; ++l) g_look_input[l] = current[kLookEntry[l]];
     log_binding_changes();
 }

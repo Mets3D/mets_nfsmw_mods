@@ -225,7 +225,7 @@ bool preview_shape(int effect, float t, float *out) {
 // player 2 the one that is the source of their device (-1: none, or the keyboard).
 int player_slot(int player) {
     if (player == 1) return extra_device::source_slot();
-    return input::no_pads() ? -1 : xinput::port;
+    return input::player_one_rumble_slot();
 }
 
 DWORD WINAPI rumble_thread(void *) {

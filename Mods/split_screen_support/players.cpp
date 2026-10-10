@@ -2,22 +2,21 @@
  * Which device is whose.
  *
  * The Press Start screen (uiQRPressStart) is shown once per player. The game itself cannot tell who pressed: the PC
- * version has one input device, port 0, for the keyboard and the controllers. Here it is found out: every frame the four
- * XInput slots and the keyboard (through nfsmw_controller_support, which sees it) are read, and when the screen gets its
- * Start message (0xEBFCDA65) the device whose Start (Enter or Space on the keyboard) was pressed last, within 1.5 s,
- * becomes that player's. Nothing recent means the keyboard. (The game starts its Start action with Space on the keyboard,
- * not Enter, so Enter is turned into the Start message here: the screen is told when Enter is let go.)
+ * version has one input device, port 0, for the keyboard and the controllers, and which of them ends in its Start
+ * message depends on the bindings. So the game's own Start messages are ignored here, and the screen is told by this part:
+ * every frame the four XInput slots and the keyboard (through nfsmw_controller_support, which sees it) are read, and when a
+ * controller lets go of Start, or Enter, numpad Enter or Space is let go, the screen gets the Start message (0xEBFCDA65)
+ * and that device becomes that player's.
  *
- * Which devices reach the game is set through nfsmw_controller_support (common/controller_api.h):
- *  - on a Press Start screen (CreateQRPressStart, 0x570C60): all of them, so that either player can press;
- *  - after a player pressed Start: that player's device alone, for the menus that follow (their car select). The other
- *    devices are ignored: a keyboard player's controllers do nothing, a controller player's keyboard does nothing;
- *  - when the race loads: player 1's device alone. Player 2's joystick port is set to -1 and they
- *    read a game input device of their own, made by nfsmw_controller_support from the bindings of player 2's device
- *    (without it they have no input). A player who did not press Start, or who pressed
- *    Start on the device the other player used, gets another one: a free controller, else the keyboard;
- *  - back in the menus (no longer a split screen game): as normal, all devices.
- * Without nfsmw_controller_support only the game's own device reaches it, for both players.
+ * Every device always reaches the game's menus (the Press Start screens, the car select, the pause menu with its Controls
+ * screen). What is told to nfsmw_controller_support (common/controller_api.h) is only who drives the vehicles:
+ *  - when the race loads: player 1's vehicle (and its camera, HUD actions and pause request) takes its input from player 1's
+ *    device alone. Player 2's joystick port is set to -1 and they read a game input device of their own, made by
+ *    nfsmw_controller_support from the bindings of player 2's device (without it they have no input). A player who did
+ *    not press Start, or who pressed Start on the device the other player used, gets another one: a free controller, else
+ *    the keyboard;
+ *  - back in the menus (no longer a split screen game): every device drives the vehicle again.
+ * Without nfsmw_controller_support every device drives player 1's vehicle, and player 2 has no input.
  */
 #include "players.h"
 
@@ -39,19 +38,17 @@ constexpr int kTwoViews = 3;
 constexpr unsigned kStartReleased = 0xEBFCDA65;
 constexpr int kNotChosen = -2;
 constexpr int kEveryone = -3, kNormal = -4;  // for give_controls(): every device; back to the default
-constexpr DWORD kStartWindow = 1500;         // ms from pressing Start to the screen reacting that still counts
-constexpr int kKeysEnterSpace[] = {0x1C, 0x39, 0x9C};  // DirectInput codes: Enter, Space, numpad Enter
-constexpr int kEnterKeys[] = {0x1C, 0x9C};             // Enter, numpad Enter
+constexpr int kStartKeys[] = {0x1C, 0x39, 0x9C};  // DirectInput codes: Enter, Space, numpad Enter
 
-DWORD g_start_down_at[4];  // XInput slots
-DWORD g_key_start_at = 0;  // the keyboard
+bool g_start_was_down[4];  // XInput slots
+bool g_key_was_down = false;
 bool g_connected[4];
 DWORD g_next_scan = 0;
 int g_chosen[2] = {kNotChosen, kNotChosen};  // at the Press Start screens
 int g_race[2] = {kKeyboard, kKeyboard};       // in the race
 bool g_controls_asked = false;                // nfsmw_controller_support was told what reaches the game
 void *g_press_start_screen = nullptr;         // the Press Start screen showing, if any
-bool g_enter_was_down = false;
+int g_pressed_by = kNotChosen;  // the device whose Start the screen is being told about (see press_start)
 enum class Phase { kMenus, kRace } g_phase = Phase::kMenus;  // kRace: the race of this split screen game is on
 bool g_race_seen = false;                                    // ...and has been seen on screen (two views)
 
@@ -64,59 +61,58 @@ const char *describe(int device) {
     return device >= 0 && device < 4 ? names[device] : "the keyboard";
 }
 
+// The Press Start screen is told that a device let go of Start.
+void press_start(int device) {
+    if (!g_press_start_screen || !split_screen()) return;
+    g_pressed_by = device;
+    hook_press_start(g_press_start_screen, nullptr, kStartReleased, nullptr, 1, 0);  // joystick 0, as every press is
+    g_pressed_by = kNotChosen;
+}
+
 void poll() {
     const DWORD now = GetTickCount();
     const bool scan = static_cast<LONG>(now - g_next_scan) >= 0;
     if (scan) g_next_scan = now + 2000;
+    int released = kNotChosen;
     for (int i = 0; i < 4; ++i) {
         if (!g_connected[i] && !scan) continue;  // asking an empty slot is slow
         xinput::Gamepad p;
         const bool was = g_connected[i];
         g_connected[i] = xinput::read_slot(i, &p);
         if (g_connected[i] != was) g_log.line("XInput controller %d %s", i, g_connected[i] ? "connected" : "disconnected");
-        if (g_connected[i] && (p.buttons & xinput::kStart)) g_start_down_at[i] = now | 1;  // never 0
+        const bool down = g_connected[i] && (p.buttons & xinput::kStart);
+        if (g_start_was_down[i] && !down && released == kNotChosen) released = i;
+        g_start_was_down[i] = down;
     }
     unsigned char keys[256];
-    if (!read_keyboard(keys)) return;
-    static bool logged = false;
-    if (!logged) {
-        logged = true;
-        g_log.line("the keyboard can be seen (through nfsmw_controller_support)");
+    if (read_keyboard(keys)) {
+        static bool logged = false;
+        if (!logged) {
+            logged = true;
+            g_log.line("the keyboard can be seen (through nfsmw_controller_support)");
+        }
+        bool down = false;
+        for (const int key : kStartKeys) down |= (keys[key] & 0x80) != 0;
+        if (g_key_was_down && !down && released == kNotChosen) released = kKeyboard;
+        g_key_was_down = down;
     }
-    for (const int key : kKeysEnterSpace)
-        if (keys[key] & 0x80) g_key_start_at = now | 1;
-    const bool enter_down = (keys[kEnterKeys[0]] | keys[kEnterKeys[1]]) & 0x80;
-    if (g_enter_was_down && !enter_down && g_press_start_screen && split_screen())
-        hook_press_start(g_press_start_screen, nullptr, kStartReleased, nullptr, 1, 0);  // joystick 0, as every press is
-    g_enter_was_down = enter_down;
+    if (released != kNotChosen) press_start(released);
 }
 
-// What reaches the game: one device (a controller 0-3 or kKeyboard), every device, or the default.
+// Which device drives player 1's vehicle: one device (a controller 0-3 or kKeyboard), or every device. All devices reach
+// the game's menus in any case.
 void give_controls(int device) {
-    static const api::PadsFn pads = api::find_pads();
-    static const api::KeyboardFn keyboard = api::find_keyboard();
+    static const api::VehicleSourceFn vehicle = api::find_vehicle_source();
     static bool warned = false;
     g_controls_asked = device != kNormal;
-    if (!pads || !keyboard) {
+    if (!vehicle) {
         if (!warned && g_controls_asked) {
             warned = true;
-            g_log.line("nfsmw_controller_support is not loaded: only the game's own device reaches it, for both players");
+            g_log.line("nfsmw_controller_support is not loaded: every device drives player 1's vehicle, and player 2 has no input");
         }
         return;
     }
-    if (device >= 0) {
-        pads(device);
-        keyboard(0);
-    } else if (device == kKeyboard) {
-        pads(api::kNoPad);
-        keyboard(1);
-    } else if (device == kEveryone) {
-        pads(api::kMergedPads);
-        keyboard(1);
-    } else {
-        pads(api::kDefault);
-        keyboard(1);
-    }
+    vehicle(device == kKeyboard ? api::kSourceKeyboard : device >= 0 ? device : api::kDefault);
 }
 
 // Player 2's input: a game input device of their own. nfsmw_controller_support makes it, fills it with what the Controls
@@ -206,27 +202,13 @@ void on_frame() {
 using PressStartFn = void(__fastcall *)(void *screen, void *, unsigned, void *, unsigned, unsigned);
 PressStartFn g_orig_press_start;
 void __fastcall hook_press_start(void *screen, void *edx, unsigned message, void *object, unsigned param1, unsigned param2) {
-    if (message == kStartReleased) {
+    if (message == kStartReleased && split_screen()) {
+        if (g_pressed_by == kNotChosen) return;  // the game's own Start message: it cannot tell the devices apart, press_start() does
         const int player = *reinterpret_cast<int *>(static_cast<char *>(screen) + 0x2C);
-        const DWORD now = GetTickCount();
-        int device = kKeyboard;  // nothing recent: the keyboard, which cannot be seen without nfsmw_controller_support
-        DWORD newest = 0;
-        const auto consider = [&](int candidate, DWORD at) {
-            if (at && now - at < kStartWindow && (newest == 0 || static_cast<LONG>(at - newest) > 0)) {
-                device = candidate;
-                newest = at;
-            }
-        };
-        for (int i = 0; i < 4; ++i) consider(i, g_start_down_at[i]);
-        consider(kKeyboard, g_key_start_at);
-        if (newest) {  // the press is used up: the next player's own press has to be a new one
-            if (device >= 0) g_start_down_at[device] = 0;
-            else g_key_start_at = 0;
-        }
         if (player == 0 || player == 1) {
-            g_chosen[player] = device;
-            g_log.line("Press Start: player %d on %s", player + 1, describe(device));
-            give_controls(device);  // their menus, their device
+            g_chosen[player] = g_pressed_by;
+            g_log.line("Press Start: player %d on %s", player + 1, describe(g_pressed_by));
+            give_controls(g_pressed_by);  // their car
         }
     }
     g_orig_press_start(screen, edx, message, object, param1, param2);

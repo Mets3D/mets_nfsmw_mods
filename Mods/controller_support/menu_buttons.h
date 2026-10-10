@@ -12,6 +12,6 @@ void patch_default_table();  // the game's default bindings, at start-up
 void apply_live();           // the live bindings, on every poll (cheap: it writes only what is different)
 // The buttons of an XInput controller (DirectInput numbering: A B X Y LB RB View Menu), on every
 // poll: presses the menus' hotkeys.
-void pad_buttons(const unsigned char buttons[32]);
+void pad_buttons(int controller, const unsigned char buttons[32]);  // controller: the game controller's index (0-7)
 
 }  // namespace pad::menu_buttons

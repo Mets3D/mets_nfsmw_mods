@@ -68,27 +68,32 @@ void patch_default_table() {
     if (g_enabled) log_line("menu buttons: default table, %d change(s)", patch_table(kDefaultBindingTable));
 }
 
-void pad_buttons(const unsigned char buttons[32]) {
+// The hotkeys 2 / 3 / 4 and Quit follow the buttons of every controller: a key is down while any of them holds its button.
+void pad_buttons(int controller, const unsigned char buttons[32]) {
     if (!g_enabled) return;
+    if (controller < 0 || controller >= 8) controller = 0;
     struct Hotkey {
         int button;
         unsigned key;
-        bool down;
+        bool down[8];  // per controller
+        bool set;      // what the key state was last set to
     };
-    static Hotkey hotkeys[] = {{kButtonX, kKey2, false}, {kButtonView, kKey3, false}, {kButtonMenu, kKey4, false}};
+    static Hotkey hotkeys[] = {{kButtonX, kKey2, {}, false}, {kButtonView, kKey3, {}, false}, {kButtonMenu, kKey4, {}, false}};
     for (Hotkey &h : hotkeys) {
-        const bool down = (buttons[h.button] & 0x80) != 0;
-        if (down == h.down) continue;  // only when it changes, so that the keyboard can set the same key states
-        h.down = down;
-        *reinterpret_cast<int *>(kKeyStates + h.key) = down ? 1 : 0;
+        h.down[controller] = (buttons[h.button] & 0x80) != 0;
+        bool any = false;
+        for (const bool d : h.down) any |= d;
+        if (any == h.set) continue;  // only when it changes, so that the keyboard can set the same key states
+        h.set = any;
+        *reinterpret_cast<int *>(kKeyStates + h.key) = any ? 1 : 0;
     }
-    static bool b_down = false;
+    static bool b_down[8] = {};
     const bool b = (buttons[kButtonB] & 0x80) != 0;
-    if (b && !b_down && *reinterpret_cast<int *>(kGameState) == kStateMenus && button_icons::quit_prompt_shown()) {
+    if (b && !b_down[controller] && *reinterpret_cast<int *>(kGameState) == kStateMenus && button_icons::quit_prompt_shown()) {
         keybd_event('Q', 0, 0, 0);
         keybd_event('Q', 0, KEYEVENTF_KEYUP, 0);
     }
-    b_down = b;
+    b_down[controller] = b;
 }
 
 void apply_live() {
