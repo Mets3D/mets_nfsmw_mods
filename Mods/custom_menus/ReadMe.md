@@ -33,7 +33,9 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
 
 ## TODO
 - Translation support?
+- The Advanced Video menu has a scrollbar - Can we have unlimited options, and the scrollbar automatically appear when needed?
 - Ability to add not just sub-menus under "Options", but also in the pause menu.
+- We now have the ability to add entries in the Player Options, but what about to the other menus? Should probably support all of them.
 - Maybe investigate other menus later.
 - In the main menu, we currently get a "Quit" button hint that shows a stick down. Is this a bug in the vanilla game, the widescreen fix, in this mod, or the controller support mod? It's not clear from the symbol which stick it means, and neither of them do anything anyways.
 - Is there a limit on how many entries can be in a page?

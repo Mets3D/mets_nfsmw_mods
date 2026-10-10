@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <initializer_list>
 #include <cstring>
+#include <share.h>
 
 namespace nfsmw {
 
@@ -50,10 +51,20 @@ inline void data_file(const char *name, char *out, size_t out_size) {
     strncat(out, name, out_size - strlen(out) - 1);
 }
 
+// Opens the log for writing, starting it afresh. When another copy of the game already has it open (two copies of the
+// game from one folder), the next free name is used instead: name.log, name.2.log, name.3.log...
 inline void Logger::open_in_data_folder(const char *name) {
     char path[MAX_PATH];
     data_file(name, path, sizeof(path));
-    file_ = fopen(path, "w");
+    file_ = _fsopen(path, "w", _SH_DENYWR);
+    const char *dot = strrchr(name, '.');
+    for (int copy = 2; !file_ && copy <= 9; ++copy) {
+        char other[MAX_PATH];
+        snprintf(other, sizeof(other), "%.*s.%d%s", dot ? static_cast<int>(dot - name) : static_cast<int>(strlen(name)), name,
+                 copy, dot ? dot : "");
+        data_file(other, path, sizeof(path));
+        file_ = _fsopen(path, "w", _SH_DENYWR);
+    }
 }
 
 // ---- hashes -----------------------------------------------------------------------------------------------------
