@@ -8,6 +8,7 @@
 
 #include "hooks.h"
 #include "input.h"
+#include "menu_buttons.h"
 
 namespace pad::input {
 
@@ -145,6 +146,7 @@ HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
         }
     }
     if (pad_active(s, true)) g_last_input_pad = true;
+    menu_buttons::pad_buttons(s.buttons);
     return hr;
 }
 

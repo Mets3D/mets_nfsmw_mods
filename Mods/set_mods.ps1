@@ -20,9 +20,12 @@ $ours = $all | Where-Object { $Only -contains ($_ -replace '^nfsmw_', '' -replac
 # Texture packs: <name>.tpk in the data folder, built from the PNGs of a folder in Mods/ (the texture's name is the file's)
 $packs = @(
     @{ Mod = 'camera_settings';    Name = 'nfsmw_camera_settings';    Pngs = 'camera_settings\OPTIONS_*.png' },     # the Options > Camera icon
-    @{ Mod = 'controller_support'; Name = 'nfsmw_controller_support'; Pngs = 'controller_support\OPTIONS_*.png' },  # the Options > Rumble icon
-    @{ Mod = 'controller_support'; Name = 'nfsmw_controller_buttons'; Pngs = 'controller_support\buttons\*.png' }   # the controller buttons in the menus
+    @{ Mod = 'controller_support'; Name = 'nfsmw_controller_support'; Pngs = 'controller_support\OPTIONS_*.png' }   # the Options > Rumble icon
 )
+# The controller button pictures are one texture per prompt of buttons\prompts.ini (Tools\button_pack.py); the plugin reads
+# that file too, so it is copied next to the pack.
+$buttons = "$PSScriptRoot\controller_support\buttons"
+$buttonsPack = 'nfsmw_controller_buttons'
 New-Item -ItemType Directory $off -Force | Out-Null
 Get-ChildItem "$on\*.asi" | Move-Item -Destination $off -Force
 if ($Mode -in 'all', 'ours') {
@@ -40,8 +43,16 @@ if ($Mode -eq 'ours') {
             Remove-Item "$data\$name.tpk" -ErrorAction SilentlyContinue
         }
     }
+    if ($Only -contains 'controller_support') {
+        python "$PSScriptRoot\..\Tools\button_pack.py" $buttons "$PSScriptRoot\build\$buttonsPack.tpk" ($buttonsPack.ToUpper()) | Select-Object -Last 1
+        Copy-Item "$PSScriptRoot\build\$buttonsPack.tpk" "$data\$buttonsPack.tpk" -Force
+        Copy-Item "$buttons\prompts.ini" "$data\$buttonsPack.ini" -Force
+    } else {
+        Remove-Item "$data\$buttonsPack.tpk", "$data\$buttonsPack.ini" -ErrorAction SilentlyContinue
+    }
 } else {
     foreach ($pack in $packs) { Remove-Item "$data\$($pack.Name).tpk" -ErrorAction SilentlyContinue }
+    Remove-Item "$data\$buttonsPack.tpk", "$data\$buttonsPack.ini" -ErrorAction SilentlyContinue
 }
 foreach ($pack in $packs) { Remove-Item "$on\$($pack.Name).tpk" -ErrorAction SilentlyContinue }  # where older versions put them
 foreach ($n in $all) { Remove-Item "$off\$n" -ErrorAction SilentlyContinue }

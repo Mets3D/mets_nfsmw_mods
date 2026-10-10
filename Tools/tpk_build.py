@@ -91,11 +91,14 @@ def pad_to(offset, align):
 
 
 def build(out_path, pack_name, pngs):
+    """pngs: paths, or (texture name, path) pairs."""
     filename = pack_name + '.tpk'
     file_hash = bhash(filename)
     textures = []
-    for path in pngs:
-        full_name = os.path.splitext(os.path.basename(path))[0].upper()
+    for item in pngs:
+        # a PNG named after its file, or (texture name, PNG) when the texture is to be named otherwise
+        path = item[1] if isinstance(item, tuple) else item
+        full_name = (item[0] if isinstance(item, tuple) else os.path.splitext(os.path.basename(path))[0]).upper()
         name = full_name[:23]  # the pack stores 23 characters; the hash (what the game looks it up by) is of the full name
         w, h, rgba = read_png(path)
         if w & (w - 1) or h & (h - 1):

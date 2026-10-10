@@ -8,7 +8,15 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 
 ### Input
 
-- Automatically switch to controller button prompts as soon as controller input is detected, and vice versa.
+- Automatically switch to controller button prompts as soon as controller input is detected, and vice versa. Xbox
+  pictures by default, PlayStation ones with `icons=playstation` in the ini. The pictures are PNGs you can edit, in
+  [`buttons/`](buttons/ReadMe.md).
+- **Menu buttons like on a console**: A accepts, B goes back, Y is the "1" hotkey (in the vanilla game that is B, X and A).
+  X, View and Menu press the hotkeys 2, 3 and 4 that many menu prompts show: the video settings' Advanced Options, the car
+  Showcase, a rival's movie and car, "View Tutorial", the EA Trax preview... The vanilla controller cannot press those.
+  B quits from the main menu, where it has no screen to go back to (the "Quit" prompt shows B). The car Showcase shows
+  the left stick instead of the D-pad, and LB / RB for the zoom. `menu_layout=0` in the ini turns the layout, the hotkeys
+  and the quit off and keeps the game's own.
 - **Analog steering, gas and brake**: The vanilla game maps them as on/off inputs, so even a stick bound to them was not analog. This mod enables analog throttle and reversing, however, the mod does not change the default keybinds - **you must set them to the triggers and the sticks yourself, in the Controls options menu**.
 - **Triggers**: In the vanilla game, both triggers share one axis, so gas and brake on the triggers cancel each other. LT and RT now report
   as two separate axes (Slider 1 and 2) and bind like anything else, so they do not cancel each other.
@@ -39,7 +47,8 @@ collisions) that were never connected to anything on PC. With this mod, they now
 - Required: [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
 - Recommended: [Custom Menus](../custom_menus/ReadMe.md) mod if you want to customize cameras in-game instead of digging in an .ini file.
 - Recommended but **must be configured**: WideScreenFix: Set the following settings in that mod:
-  - `ImproveGamepadSupport = 1` for better controller icons.
+  - `ImproveGamepadSupport`: not needed, this mod has the controller icons and the menu buttons. If you leave it at 1, the
+    widescreen fix's icons are used (they are the same pictures) and ours stay out of the way.
   - `LeftStickDeadzone = 0` and `RightStickDeadzone = 0` because this mod will handle deadzones.
   - `[CAMERA] Enable = 0` because our mod adds camera look to all third-person camera types instead of just two arbitrary ones.
 - Incompatible: NFS-XtendedInput, potentially other similar mods that mess with controller functions.
@@ -57,8 +66,11 @@ collisions) that were never connected to anything on PC. With this mod, they now
 - Test other controllers through DS4Windows and SteamInput. Currently only an Xbox 1 controller was tested. I also own PS5 and Switch controllers.
 - Make a custom icon for the rumble menu - but maybe it becomes a "Controller" menu instead, since we want to add more options than just Rumble:
 - Add options to tweak deadzones of triggers and sticks from the menu
-- Add option to switch to Playstation icons
-- Become independent of WideScreenFix: Take their icons, improve the "A" button icon which is currently blue when it should be green.
+- A menu option for the button pictures (Xbox / PlayStation / keyboard): for now it is `icons=` in the ini.
+- Improve the button pictures: the "A" icon is currently blue when it should be green. They are PNGs in `buttons/` now.
+- The widescreen fix's `ImproveGamepadSupport` also changes the title screen's "Press START" text; we did not take that over.
+- If another screen's prompt still shows a keyboard key on a controller: `log_images=1` in the ini lists everything a
+  screen draws, to find it.
 - Test and support 2-players.
 
 <details>
@@ -78,6 +90,10 @@ right_stick_deadzone=0.15
 split_triggers=1
 analog_mapping=1
 labels=1                  ; direction names in the Controls menu
+[buttons]
+icons=xbox                ; the pictures of the menus' button prompts while the controller was used last: xbox, playstation or off
+menu_layout=1             ; A accepts, B goes back, X / View / Menu = the hotkeys 2 / 3 / 4, B quits from the main menu; 0 = the game's own
+log_images=0              ; 1 = write every image and string the game draws to the log (to find button prompts)
 [look]
 enabled=1
 stick_speed=150           ; degrees per second at full tilt
@@ -110,10 +126,12 @@ engine_blown=80
 |---|---|
 | `main.cpp` | the plugin entry: loads the settings, installs each part's hooks |
 | `settings.cpp`, `pad.h` | `nfsmw_controller_support.ini`, the log, shared helpers |
-| `input.cpp` | DirectInput state (dead zones, triggers, mouse deltas), analog action mapping |
+| `input.cpp` | DirectInput state (dead zones, triggers, mouse deltas, what was touched last), analog action mapping |
 | `bindings.cpp` | the PC binding table: the four look entries, a log of every binding change |
 | `controls_menu.cpp` | the Controls menu: look rows, direction names |
 | `look.cpp` | camera look |
+| `button_icons.cpp` | the controller pictures in the menus' button prompts (which prompt shows which picture: `buttons/prompts.ini`, the pictures: `buttons/xbox/`, `buttons/playstation/`) |
+| `menu_buttons.cpp` | A accepts, B goes back in the menus; X, View and Menu press the hotkeys 2, 3, 4; B quits from the main menu |
 | `rumble.cpp` | rumble: the force feedback object the game talks to, the effects, the motors thread |
 | `rumble_page.cpp` | Options > Rumble, a page of nfsmw_custom_menus |
 

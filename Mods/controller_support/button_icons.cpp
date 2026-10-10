@@ -1,10 +1,16 @@
 // The game draws its button prompts as images of keyboard keys (PC_KEY_ENTER, ...). Each frame, every such image on
-// screen is switched to the controller picture (XBOX_KEY_ENTER, or PS_KEY_ENTER) while the last input was from a
-// controller, and back to the key picture otherwise. The pictures are in our own texture pack, built from the PNGs in
-// controller_support/buttons/; the game's per-frame UI update (FEngine::Update) is the hook that finds the images.
+// screen is switched to the controller picture while the last input was from a controller, and back to the key picture
+// otherwise. Which prompts, and which picture each shows, is in prompts.ini (controller_support/buttons/, copied to the
+// data folder as nfsmw_controller_buttons.ini); the pictures are built from the PNGs there into our own texture pack,
+// nfsmw_controller_buttons.tpk, with one texture per prompt, named <STYLE>_<prompt> (XBOX_PC_KEY_ENTER). The game's
+// per-frame UI update (FEngine::Update) is the hook that finds the images.
 //
 // The same idea, and the pictures, are from ThirteenAG's WidescreenFixesPack (MIT License, see buttons/LICENSE).
 #include "button_icons.h"
+
+#include <algorithm>
+#include <string>
+#include <vector>
 
 #include "hooks.h"
 #include "input.h"
@@ -17,37 +23,26 @@ namespace {
 enum class Style { kOff, kXbox, kPlayStation };
 Style g_style = Style::kXbox;
 
-// The game's name for a picture, and its two controller versions.
-struct Mapping {
-    const char *pc, *xbox, *playstation;
-};
-const Mapping kMappings[] = {
-    {"L1", "XBOX_L1", "PS_L1"},
-    {"PC_KEY_Q", "XBOX_KEY_Q", "PS_KEY_Q"},
-    {"PC_GREATERTHAN_LESSTHAN", "XBOX_GREATERTHAN_LESSTHAN", "PS_GREATERTHAN_LESSTHAN"},
-    {"R1", "XBOX_R1", "PS_R1"},
-    {"PC_KEY_ENTER", "XBOX_KEY_ENTER", "PS_KEY_ENTER"},
-    {"PC_KEY_ESC_FRENCH", "XBOX_KEY_ESC_FRENCH", "PS_KEY_ESC_FRENCH"},
-    {"PC_KEY_ESC", "XBOX_KEY_ESC", "PS_KEY_ESC"},
-    {"PC_KEY_1", "XBOX_KEY_1", "PS_KEY_1"},
-    {"PC_KEY_2", "XBOX_KEY_2", "PS_KEY_2"},
-    {"PC_KEY_3", "XBOX_KEY_3", "PS_KEY_3"},
-    {"PC_KEY_4", "XBOX_KEY_4", "PS_KEY_4"},
-    {"PC_ARROW_KEYS_UP_DOWN", "XBOX_ARROW_KEYS_UP_DOWN", "PS_ARROW_KEYS_UP_DOWN"},
-    {"PC_LOAD", "XBOX_LOAD", "PS_LOAD"},
-    {"PC_ARROW_KEYS", "XBOX_ARROW_KEYS", "PS_ARROW_KEYS"},
-};
-constexpr int kMappingCount = sizeof(kMappings) / sizeof(kMappings[0]);
-
+// A prompt picture of the game and its two controller versions (the texture hashes).
 struct Hashes {
     unsigned pc, xbox, playstation;
 };
-Hashes g_hashes[kMappingCount];
+std::vector<Hashes> g_hashes;
+unsigned g_quit_key, g_back_key, g_back_key_french;  // the picture hashes of the "Quit" (Q) and "Back" (Esc) prompts
+
+// While the objects are walked each frame: is a Quit prompt (key Q) / a Back prompt (key Esc) on screen? On the main menu
+// the first is and the second is not, and the controller's B quits there.
+bool g_quit_prompt_seen = false, g_back_prompt_seen = false;
+bool g_quit_available = false;  // what the last frame showed
+
+bool g_pack_tried = false;
+bool g_pack_loaded = false;  // the texture pack with the controller pictures is in the game
 
 // An FEng object: type at +0x18, flags at +0x1C, the texture (for an image) at +0x24.
 constexpr unsigned kType = 0x18, kFlags = 0x1C, kTexture = 0x24;
 constexpr int kImage = 1;
 constexpr unsigned kTextureChanged = 0x2400000;  // flags the engine needs to pick up a new texture
+constexpr unsigned kInvisible = 1;               // the game's FEngSetInvisible sets this (and the changed flags) on an object
 
 // The engine's callback for ForAllObjects: an object whose first member points to {destructor, function}. The function
 // is called once per object, with the object as its argument.
@@ -56,12 +51,43 @@ struct CallbackVtable {
     void *function;
 };
 
+// For finding out which pictures a screen uses: [buttons] log_images=1 writes every image and string the game draws
+// (the object's name and texture or text, as hashes) to the log, once each.
+bool g_log_images = false;
+constexpr unsigned kNameHash = 0x10, kStringLabel = 0x60;
+constexpr int kString = 2;
+
+void log_new_object(void *object) {
+    static unsigned seen[2048][3];
+    static int seen_count = 0;
+    const int type = field<int>(object, kType);
+    if (type != kImage && type != kString) return;
+    const unsigned name = field<unsigned>(object, kNameHash);
+    const unsigned what = type == kImage ? field<unsigned>(object, kTexture) : field<unsigned>(object, kStringLabel);
+    for (int i = 0; i < seen_count; ++i)
+        if (seen[i][0] == name && seen[i][1] == static_cast<unsigned>(type) && seen[i][2] == what) return;
+    if (seen_count >= 2048) return;
+    seen[seen_count][0] = name;
+    seen[seen_count][1] = static_cast<unsigned>(type);
+    seen[seen_count][2] = what;
+    ++seen_count;
+    log_line("fe %s object %08x %s %08x", type == kImage ? "image" : "string", name,
+             type == kImage ? "texture" : "text", what);
+}
+
 char __stdcall visit_object(void *object) {
+    if (g_log_images) log_new_object(object);
     if (field<int>(object, kType) != kImage) return 1;
     unsigned &texture = field<unsigned>(object, kTexture);
     const bool pad = input::last_input_was_pad();
+    const bool visible = (field<unsigned>(object, kFlags) & kInvisible) == 0;
     for (const Hashes &h : g_hashes) {
         if (texture != h.pc && texture != h.xbox && texture != h.playstation) continue;
+        if (visible) {
+            if (h.pc == g_quit_key) g_quit_prompt_seen = true;
+            if (h.pc == g_back_key || h.pc == g_back_key_french) g_back_prompt_seen = true;
+        }
+        if (!g_pack_loaded || g_style == Style::kOff) break;
         const unsigned wanted = !pad ? h.pc : g_style == Style::kPlayStation ? h.playstation : h.xbox;
         if (texture != wanted) {
             texture = wanted;
@@ -79,20 +105,20 @@ const auto ForAllObjects = reinterpret_cast<ForAllObjectsFn>(0x5B1560);  // FEPa
 // (next package at +4).
 using UpdateFn = void(FASTCALL *)(void *, void *, int, unsigned);
 UpdateFn g_orig_update;
-bool g_pack_tried = false;
-bool g_pack_loaded = false;
 
 void FASTCALL hook_update(void *engine, void *edx, int ticks, unsigned lock) {
     if (!g_pack_tried) {
         g_pack_tried = true;
         char path[MAX_PATH];
         nfsmw::data_file("nfsmw_controller_buttons.tpk", path, sizeof(path));
-        g_pack_loaded = nfsmw::load_texture_pack(path, g_log);
-        if (!g_pack_loaded) log_line("button icons: the texture pack is missing; the pictures stay as the game has them");
+        if (g_style != Style::kOff) g_pack_loaded = nfsmw::load_texture_pack(path, g_log);
+        if (g_style != Style::kOff && !g_pack_loaded)
+            log_line("button icons: the texture pack is missing; the pictures stay as the game has them");
     }
-    if (g_pack_loaded) {
+    {
         static const CallbackVtable vtable = {nullptr, reinterpret_cast<void *>(&visit_object)};
         const CallbackVtable *callback = &vtable;  // the callback object: its first member is the table
+        g_quit_prompt_seen = g_back_prompt_seen = false;
         for (void *package = field<void *>(engine, 0xE0); package;) {
             ForAllObjects(package, nullptr, &callback);
             void *next = field<void *>(package, 4);
@@ -100,10 +126,52 @@ void FASTCALL hook_update(void *engine, void *edx, int ticks, unsigned lock) {
             package = next;
         }
     }
+    g_quit_available = g_quit_prompt_seen && !g_back_prompt_seen;
     g_orig_update(engine, edx, ticks, lock);
 }
 
+const char *style_name(const char *section) { return !_stricmp(section, "xbox") ? "XBOX" : "PLAYSTATION"; }
+
+// The prompts of one style in prompts.ini: the names left of the "=" (the picture on the right is only for the pack).
+std::vector<std::string> read_prompts(const char *ini, const char *section) {
+    static char buffer[16384];
+    std::vector<std::string> prompts;
+    const DWORD n = GetPrivateProfileSectionA(section, buffer, sizeof(buffer), ini);
+    for (const char *line = buffer; line < buffer + n && *line; line += strlen(line) + 1) {
+        std::string text(line, strcspn(line, ";"));
+        const size_t eq = text.find('=');
+        if (eq == std::string::npos) continue;
+        text.resize(eq);
+        while (!text.empty() && isspace(static_cast<unsigned char>(text.back()))) text.pop_back();
+        size_t first = 0;
+        while (first < text.size() && isspace(static_cast<unsigned char>(text[first]))) ++first;
+        if (first < text.size()) prompts.push_back(text.substr(first));
+    }
+    return prompts;
+}
+
+// The hashes of every prompt in the file. A prompt a style does not list stays as the game has it in that style.
+void load_prompts() {
+    char path[MAX_PATH];
+    nfsmw::data_file("nfsmw_controller_buttons.ini", path, sizeof(path));
+    const std::vector<std::string> xbox = read_prompts(path, "xbox"), playstation = read_prompts(path, "playstation");
+    std::vector<std::string> all = xbox;
+    for (const std::string &p : playstation)
+        if (std::find(all.begin(), all.end(), p) == all.end()) all.push_back(p);
+    for (const std::string &prompt : all) {
+        const unsigned pc = nfsmw::texture_hash(prompt.c_str());
+        const bool in_xbox = std::find(xbox.begin(), xbox.end(), prompt) != xbox.end();
+        const bool in_playstation = std::find(playstation.begin(), playstation.end(), prompt) != playstation.end();
+        g_hashes.push_back({pc, in_xbox ? nfsmw::texture_hash((std::string(style_name("xbox")) + "_" + prompt).c_str()) : pc,
+                            in_playstation ? nfsmw::texture_hash((std::string(style_name("playstation")) + "_" + prompt).c_str()) : pc});
+    }
+    log_line("button icons: %u prompts from %s%s", static_cast<unsigned>(all.size()), path,
+             all.empty() ? " (missing or empty: the pictures stay as the game has them)" : "");
+}
+
 }  // namespace
+
+bool quit_prompt_shown() { return g_quit_available; }
 
 void load_settings() {
     char text[32] = {};
@@ -111,14 +179,15 @@ void load_settings() {
     if (!_stricmp(text, "off") || !_stricmp(text, "0") || !_stricmp(text, "none")) g_style = Style::kOff;
     else if (!_stricmp(text, "playstation") || !_stricmp(text, "ps")) g_style = Style::kPlayStation;
     else g_style = Style::kXbox;
+    g_log_images = GetPrivateProfileIntA("buttons", "log_images", 0, g_ini) != 0;
     log_line("button icons: %s", g_style == Style::kOff ? "off" : g_style == Style::kXbox ? "xbox" : "playstation");
 }
 
 void install_hooks() {
-    if (g_style == Style::kOff) return;
-    for (int i = 0; i < kMappingCount; ++i)
-        g_hashes[i] = {nfsmw::texture_hash(kMappings[i].pc), nfsmw::texture_hash(kMappings[i].xbox),
-                       nfsmw::texture_hash(kMappings[i].playstation)};
+    load_prompts();
+    g_quit_key = nfsmw::texture_hash("PC_KEY_Q");
+    g_back_key = nfsmw::texture_hash("PC_KEY_ESC");
+    g_back_key_french = nfsmw::texture_hash("PC_KEY_ESC_FRENCH");
     const nfsmw::Hook hooks[] = {
         {"icons", "FEngine::Update", 0x5C53C0, {0x83, 0xEC, 0x0C, 0x56, 0x8B, 0xF1, 0x8A}, false,
          nfsmw::detour(&hook_update), nfsmw::orig(&g_orig_update)},

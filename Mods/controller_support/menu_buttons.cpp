@@ -3,10 +3,17 @@
 // button 0 (A). Xbox controllers do it the other way round: A accepts and B goes back, and Y takes the "1" action. The
 // button numbers are changed in the default table and in the live one, which the game can rebuild from it.
 //
-// The same layout as the widescreen fix's ImproveGamepadSupport, which changes the same three numbers.
+// The hotkeys "2", "3" and "4" of the menus (the "Advanced Options" of the video settings, the car Showcase, the rival's
+// movie, "View Tutorial", the EA Trax preview...) are keys the game reads from a table of key states
+// (0x514B90 looks a key up in it). A controller has no binding for them, so the buttons X, View and Menu set the key
+// states themselves, the way the keys do. The main menu's "Quit" is the key Q: B presses it where a Quit prompt is on
+// screen and no Back prompt (the main menu: B has nothing to go back to, and the Quit prompt shows B there).
+//
+// The same layout and hotkeys as the widescreen fix's ImproveGamepadSupport (which quits with both stick clicks).
 #include "menu_buttons.h"
 
 #include "bindings.h"
+#include "button_icons.h"
 
 namespace pad::menu_buttons {
 
@@ -26,6 +33,13 @@ const Remap kRemaps[] = {
 };
 constexpr int kControllerSlot = 2;
 constexpr uintptr_t kDefaultBindingTable = 0x8F6D80;
+
+// The key-state table (a dword per key, 0x1C bytes apart) and the offsets of the keys "4", "3" and "2" in it.
+constexpr uintptr_t kKeyStates = 0x8F3448;
+constexpr unsigned kKey4 = 0xB0, kKey3 = 0xCC, kKey2 = 0x13C;
+constexpr int kButtonB = 1, kButtonX = 2, kButtonView = 6, kButtonMenu = 7;
+constexpr uintptr_t kGameState = 0x925E90;  // 3 = the main menu and the other menus
+constexpr int kStateMenus = 3;
 
 // Changes the three buttons in a table, where the entry is the one we expect (name, and a button in the controller slot).
 int patch_table(uintptr_t table) {
@@ -52,6 +66,29 @@ void load_settings() {
 
 void patch_default_table() {
     if (g_enabled) log_line("menu buttons: default table, %d change(s)", patch_table(kDefaultBindingTable));
+}
+
+void pad_buttons(const unsigned char buttons[32]) {
+    if (!g_enabled) return;
+    struct Hotkey {
+        int button;
+        unsigned key;
+        bool down;
+    };
+    static Hotkey hotkeys[] = {{kButtonX, kKey2, false}, {kButtonView, kKey3, false}, {kButtonMenu, kKey4, false}};
+    for (Hotkey &h : hotkeys) {
+        const bool down = (buttons[h.button] & 0x80) != 0;
+        if (down == h.down) continue;  // only when it changes, so that the keyboard can set the same key states
+        h.down = down;
+        *reinterpret_cast<int *>(kKeyStates + h.key) = down ? 1 : 0;
+    }
+    static bool b_down = false;
+    const bool b = (buttons[kButtonB] & 0x80) != 0;
+    if (b && !b_down && *reinterpret_cast<int *>(kGameState) == kStateMenus && button_icons::quit_prompt_shown()) {
+        keybd_event('Q', 0, 0, 0);
+        keybd_event('Q', 0, KEYEVENTF_KEYUP, 0);
+    }
+    b_down = b;
 }
 
 void apply_live() {
