@@ -160,7 +160,7 @@ front of it: it passes every call on to the game's object, and turns the events 
 thinks a wheel is connected, which it does for any joystick, so that call is hidden for XInput controllers. DoFFB
 checks the Vibration setting only through a path the PC build left out, so the plugin checks it. A separate thread sends
 the level to the controller (`XInputSetState`) at most every 30 ms. Findings, addresses and the measurements the strengths
-were calibrated on are in [`notes.md`](../../notes.md).
+were calibrated on are in [`docs/controller-support.md`](../../docs/controller-support.md).
 
 </details>
 

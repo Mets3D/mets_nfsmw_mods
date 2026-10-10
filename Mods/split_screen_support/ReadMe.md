@@ -19,7 +19,9 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 
 ## TODO
 - In Bumper view, the car is not being rendered. This needs to be integrated, such that each of the 2 screens only stops rendering their own car if it is using bumper view. Currently, a player1 using bumper view is invisible on player2's screen, and a player2 using bumper view has their camera clip into their car, since it's still being rendered on their screen.
-- Currently it seems only one player can open or control the pause menu.
+- Currently it seems only player 1 can control the pause menu, although player 2 can open it too. This can be a bit of a big problem:
+    - Let's say player 1 is on controller. They can go into the keyboard's input mappings, and try to change a value. This gets the game hard stuck, because the menu is only listening to the controller, and the controller can't give any valid input in this context, not even escaping out with the B key.
+    - Ideally, all input devices should be able to control the pause menu - The exclusive control per device should only apply to vehicle controls during gameplay, never any menus.
 - The same controller can press Start to add both players - though the result still works, I think this is a bit strange. I might expect that when the same player presses Start after having already picked their car, they might be able to re-pick their car, or to do nothing.
 - Minimap currently is centered around strictly player 1. Would be nice if it either zoomed out to fit both, or if each player had one minimap, or if it switched to whoever is in last place.
 - Something is off about the drawing of shadows - In one example, Player 1 (top)'s shadows popped in as Player 2 caught up to them, suggesting that detailed shadows (of trees in this case, maybe the trees themselves?) are only drawn near Player 2, but that would be surprising, so I'm not sure. Maybe it's a two-way street in some way.

@@ -156,6 +156,6 @@ A page's screen is the game's `UIOptionsScreen` in its **Player** category, with
 `IconScroller::SetInitialPos` lays the icons out. The Help hint is a clone of the layout's Defaults hint
 (`FEGroup::Clone` plus fixes for what the game leaves broken in a clone), and the Help key is polled on the screen's
 per-frame tick, because the layout does not forward that key as a message. Offsets come from the PC disassembly (the decomp's
-are from console builds); findings and addresses are in [`notes.md`](../../notes.md).
+are from console builds); findings and addresses are in [`docs/menus-and-camera.md`](../../docs/menus-and-camera.md).
 
 </details>

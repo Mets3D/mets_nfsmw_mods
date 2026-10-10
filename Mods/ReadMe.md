@@ -91,4 +91,4 @@ To uninstall a mod, delete its `.asi` (and `.tpk`) from `scripts/`.
 2. Use `common/hooks.h` for hooks (a table of the function's address and first 7 bytes; hooks over a changed function
    are skipped), `common/nfsmw_util.h` for the log, strings and language table.
 3. A menu page: export `nfsmw_custom_menus_provide` (see [custom_menus/ReadMe.md](custom_menus/ReadMe.md)).
-4. Add the mod to `set_mods.ps1`, and note installs and findings in `../notes.md`.
+4. Add the mod to `set_mods.ps1`, and note findings in `../docs/` (see `docs/README.md`).

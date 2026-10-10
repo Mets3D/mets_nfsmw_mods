@@ -3,6 +3,7 @@
   python -I Tools/re/re.py dis  <speed.exe> <addr hex> <bytes>   x86 listing; calls and jumps get the decomp's names
   python -I Tools/re/re.py xref <speed.exe> <addr hex>           every direct call / jmp to that address in .text
   python -I Tools/re/re.py name <addr hex>                       function containing the address (decomp symbols)
+  python -I Tools/re/re.py unnamed                               functions the docs/ pages mention that are still sub_XXXXXX (add them to names.json)
 
 capstone: pip install capstone --target Tools/re/pylib   (the folder is ignored by git)
 Names come from Tools/nfsmw-decomp/config/SPEED_EXE_1_3/symbols.json, overlaid with Tools/re/names.json (ours). Always run with -I (no implicit imports).
@@ -80,9 +81,30 @@ def xref(exe, target):
                     print(hex(va + i), 'call' if data[i] == 0xE8 else 'jmp')
 
 
+def unnamed():
+    """Addresses in docs/*.md that start a function the decomp still calls sub_XXXXXX / nullsub and names.json does not name."""
+    import glob
+    data = json.load(open(SYMBOLS))['functions']
+    decomp = {int(s['start'], 16): s['name'] for s in data}
+    ours = {int(k, 16) for k in json.load(open(os.path.join(HERE, 'names.json'))) if k.startswith('0x')}
+    found = {}
+    for path in sorted(glob.glob(os.path.join(HERE, '..', '..', 'docs', '*.md'))):
+        text = open(path, encoding='utf-8').read()
+        for m in re.finditer(r'0x([0-9A-Fa-f]{6})\b', text):
+            a = int(m.group(1), 16)
+            if a in decomp and a not in ours and re.match(r'(sub_|nullsub|unknown_libname)', decomp[a]):
+                found.setdefault(a, (text[max(0, m.start() - 50):m.start()].replace(chr(10), ' '), os.path.basename(path)))
+    for a, (context, page) in sorted(found.items()):
+        print(f'{a:#x} {decomp[a]}  | ...{context} | {page}')
+    if not found:
+        print('every function the docs mention has a name')
+
+
 if __name__ == '__main__':
     mode = sys.argv[1]
-    if mode == 'name':
+    if mode == 'unnamed':
+        unnamed()
+    elif mode == 'name':
         table, starts = functions()
         print(name_of(int(sys.argv[2], 16), table, starts))
     else:
