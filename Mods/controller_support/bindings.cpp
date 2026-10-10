@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include "bindings.h"
+#include "pad_sets.h"
 #include "hooks.h"
 #include "input.h"
 #include "menu_buttons.h"
@@ -116,6 +117,11 @@ Slot g_last_slots[kBindingCount][4];
 bool g_have_slots = false;
 DWORD g_next_binding_check = 0;
 
+void resync_changes() {
+    for (int e = 0; e < kBindingCount; ++e)
+        memcpy(g_last_slots[e], reinterpret_cast<const unsigned char *>(kBindingTable + e * kEntrySize) + 4, sizeof(g_last_slots[e]));
+}
+
 void log_binding_changes() {
     if (GetTickCount() < g_next_binding_check) return;
     g_next_binding_check = GetTickCount() + 1000;
@@ -131,13 +137,15 @@ void log_binding_changes() {
                 n += snprintf(text + n, sizeof(text) - n, " [%d: type %d dev %d obj %d]", s, slots[s].type,
                               slots[s].device, slots[s].object);
         if (!n) snprintf(text, sizeof(text), " (none)");
-        if (g_have_slots || n) log_line("binding %2d %-24s%s", e, *reinterpret_cast<const char *const *>(entry), text);
+        // The first pass is the table as it was loaded (all of it): only what changes after that is the user's doing.
+        if (g_have_slots) log_line("binding %2d %-24s%s", e, *reinterpret_cast<const char *const *>(entry), text);
+        else if (n) log_debug("binding %2d %-24s%s", e, *reinterpret_cast<const char *const *>(entry), text);
         if (g_have_slots)
             for (int l = 0; l < L_COUNT; ++l) look_changed |= kLookEntry[l] == e;
         memcpy(g_last_slots[e], slots, sizeof(g_last_slots[e]));
     }
     g_have_slots = true;
-    if (look_changed && g_look_entries_ok) save_look_bindings();
+    if (look_changed && g_look_entries_ok && pad_sets::live_pad() == 0) save_look_bindings();
 }
 
 MethodFn g_orig_poll;
@@ -153,6 +161,7 @@ void FASTCALL hook_poll(void *self, void *edx) {
     }
     if (field<int>(self, 0x24) != 0) return;  // GameDevice port: only port 0 polls
     const float *current = field<float *>(self, 0x20);
+    if (current) pad_sets::add_values(const_cast<float *>(current));  // the other controllers' sets
     for (int l = 0; l < L_COUNT && current; ++l) g_look_input[l] = current[kLookEntry[l]];
     log_binding_changes();
 }

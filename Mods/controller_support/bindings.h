@@ -35,6 +35,7 @@ void prepare_default_look_entries();                      // the default table, 
 void set_look_slots(uintptr_t table, int look, const Slot *slots, int first, int count);
 void look_default_slots(int look, Slot out[4]);
 void ensure_look_language();  // the Controls menu's names for the rows, in the language table
+void resync_changes();        // takes the table as it is now as the one to compare with (after a swap)
 void install_hooks();         // GameDevice::PollDevice
 
 }  // namespace pad::bindings

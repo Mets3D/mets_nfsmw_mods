@@ -14,6 +14,7 @@
 #include "bindings.h"
 #include "button_icons.h"
 #include "controls_menu.h"
+#include "pad_sets.h"
 #include "input.h"
 #include "look.h"
 #include "menu_buttons.h"
@@ -29,12 +30,14 @@ NFSMW_PLUGIN_MAIN() {
     load_settings();
     if (!g_cfg.enabled) return NFSMW_OK;
     xinput::load(&g_log);
+    pad_sets::load_settings();
     bindings::prepare_default_look_entries();
     if (bindings::g_look_entries_ok) controls_menu::add_rows();
     menu_buttons::patch_default_table();
     input::install_hooks();
     bindings::install_hooks();
     controls_menu::install_hooks();
+    pad_sets::install_hooks();
     look::install_hooks();
     button_icons::install_hooks();
     rumble::install_hooks();

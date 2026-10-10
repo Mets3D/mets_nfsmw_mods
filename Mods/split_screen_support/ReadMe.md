@@ -99,3 +99,5 @@ With this plugin, leave `ExperimentalSplitScreenFix = 0` in `NFSMWExtraOptionsSe
 | `player2_input.cpp` | player 2's car |
 | `state_log.cpp` | the log of the game's split screen state |
 | `events.cpp` | the game functions several parts need (a race loading, each frame) |
+
+Player 2 on a controller uses the bindings of that controller in the Controls menu (through Controller Support's `pad_actions` export); the `[player2]` button names in the ini are used only when those cannot be read.

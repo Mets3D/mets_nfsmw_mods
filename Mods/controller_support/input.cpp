@@ -10,6 +10,7 @@
 #include "hooks.h"
 #include "input.h"
 #include "menu_buttons.h"
+#include "pad_sets.h"
 
 namespace pad::input {
 
@@ -94,6 +95,8 @@ void apply_deadzone(LONG *ax, LONG *ay, float deadzone) {
 
 // Mouse movement since the camera look last read it (DIMOUSESTATE / DIMOUSESTATE2: lX, lY, lZ, then the buttons).
 volatile LONG g_mouse_dx = 0, g_mouse_dy = 0;
+void *g_own_mouse = nullptr;          // the DirectInput mouse of our own (see poll_own_mouse), if there is one
+volatile bool g_other_mouse_seen = false;  // some other device has been read as a mouse (the widescreen fix does)
 constexpr DWORD kMouseStateSize = 0x10, kMouseState2Size = 0x14, kKeyboardStateSize = 256;
 
 // The game's own controller polling is hooked (not DirectInput's function): see install_game_level_joystick_hook.
@@ -141,6 +144,63 @@ volatile LONG g_keyboard_allowed = 1;
 BYTE g_real_keyboard[256];
 volatile LONG g_keyboard_seen = 0;
 
+bool in_use(const xinput::Gamepad &p) {
+    return p.buttons || std::abs(p.lx) > 12000 || std::abs(p.ly) > 12000 || std::abs(p.rx) > 12000 || std::abs(p.ry) > 12000 ||
+           p.left_trigger > 40 || p.right_trigger > 40;
+}
+
+// The XInput slot of one of the game's XInput controllers: they are the connected slots in order. -1 when there is only
+// one such controller (or this is not one): they then share the merged state.
+int own_slot_unlogged(void *device) {
+    // Which XInput slots have a controller, looked at again every 2 seconds (asking about an empty slot is slow).
+    static bool connected[4];
+    static DWORD next_scan = 0;
+    const DWORD now = GetTickCount();
+    const bool scan = static_cast<LONG>(now - next_scan) >= 0;
+    if (scan) {
+        next_scan = now + 2000;
+        for (int slot = 0; slot < 4; ++slot) {
+            xinput::Gamepad p;
+            connected[slot] = xinput::read_slot(slot, &p);
+        }
+    }
+    int rank = 0, mine = -1;
+    for (int k = 0, n = pad_sets::joystick_count(); k < n; ++k) {
+        void *other = pad_sets::joystick_di_device(k);
+        if (!other || !is_xinput_device(other)) continue;
+        if (other == device) mine = rank;
+        ++rank;
+    }
+    if (mine < 0 || rank < 2) return -1;
+    for (int slot = 0; slot < 4; ++slot)
+        if (connected[slot] && mine-- == 0) return slot;
+    return -1;
+}
+
+int own_slot(void *device) {
+    const int slot = own_slot_unlogged(device);
+    static void *seen[8];
+    static int slots[8];
+    static int count = 0;
+    for (int i = 0; i < count; ++i)
+        if (seen[i] == device) {
+            if (slots[i] != slot) log_line("controller %d reports XInput controller %d now", pad_sets::joystick_of_device(device) + 1, slot + 1);
+            slots[i] = slot;
+            return slot;
+        }
+    if (count < 8) {
+        seen[count] = device;
+        slots[count++] = slot;
+        log_line("controller %d reports XInput controller %d", pad_sets::joystick_of_device(device) + 1, slot + 1);
+    }
+    return slot;
+}
+
+int xinput_slot_of_joystick(int index) {
+    void *device = pad_sets::joystick_di_device(index);
+    return device ? own_slot_unlogged(device) : -1;
+}
+
 // All connected XInput controllers as one: any button, each stick axis and trigger from the pad pushing it furthest.
 // An empty slot is asked about again every 2 seconds at most (that is slow).
 bool read_merged(xinput::Gamepad *out) {
@@ -158,10 +218,7 @@ bool read_merged(xinput::Gamepad *out) {
         connected[i] = xinput::read_slot(i, &p);
         if (!connected[i]) continue;
         any = true;
-        // The controller in use is the one that rumbles.
-        if (p.buttons || std::abs(p.lx) > 12000 || std::abs(p.ly) > 12000 || std::abs(p.rx) > 12000 || std::abs(p.ry) > 12000 ||
-            p.left_trigger > 40 || p.right_trigger > 40)
-            xinput::port = i;
+        if (in_use(p)) xinput::port = i;  // the controller in use is the one that rumbles
         merged.buttons |= p.buttons;
         merged.left_trigger = p.left_trigger > merged.left_trigger ? p.left_trigger : merged.left_trigger;
         merged.right_trigger = p.right_trigger > merged.right_trigger ? p.right_trigger : merged.right_trigger;
@@ -215,10 +272,21 @@ void process_pad_state(void *device, JoyState *state) {
         return;
     }
     LONG exclusive = g_exclusive;
-    if (exclusive == nfsmw::controller_api::kDefault && g_cfg.merge_controllers) exclusive = nfsmw::controller_api::kMergedPads;
+    if (exclusive == nfsmw::controller_api::kDefault && g_cfg.merge_controllers) {
+        // Each XInput controller reports its own state (every controller has bindings of its own); a single one, or
+        // none that can be told apart, gets the merged state.
+        const int slot = own_slot(device);
+        exclusive = slot >= 0 ? slot : nfsmw::controller_api::kMergedPads;
+        xinput::Gamepad p;
+        if (slot >= 0 && xinput::read_slot(slot, &p) && in_use(p)) xinput::port = slot;
+    }
     xinput::Gamepad chosen = {};  // the state reported instead of the device's own, when another mod asked for one
     const bool replaced = exclusive >= 0 || exclusive == nfsmw::controller_api::kMergedPads;
     if (exclusive == nfsmw::controller_api::kNoPad) return report_at_rest(s);
+    if (exclusive >= 0) {  // one controller reaches the game: the game controller that is its own, the others are at rest
+        const int own = own_slot(device);
+        if (own >= 0 && own != exclusive) return report_at_rest(s);
+    }
     if (replaced) {
         if (!(exclusive >= 0 ? xinput::read_slot(exclusive, &chosen) : read_merged(&chosen))) return report_at_rest(s);
         report_xinput(s, chosen);
@@ -227,14 +295,16 @@ void process_pad_state(void *device, JoyState *state) {
     static bool logged_raw = false;
     if (!logged_raw && (s.z < 30000 || s.z > 35500)) {
         logged_raw = true;
-        log_line("raw trigger reading: z=%ld rz=%ld slider=%ld/%ld", s.z, s.rz, s.slider[0], s.slider[1]);
+        log_debug("raw trigger reading: z=%ld rz=%ld slider=%ld/%ld", s.z, s.rz, s.slider[0], s.slider[1]);
     }
 
     apply_deadzone(&s.x, &s.y, g_cfg.left_deadzone);
     apply_deadzone(&s.rx, &s.ry, g_cfg.right_deadzone);
     if (g_cfg.split_triggers) {
+        // The triggers are the device's own controller's (not the one in use: with several, each reports its own).
         xinput::Gamepad pad = chosen;
-        if (replaced || xinput::read(&pad)) {
+        const int own = replaced ? -1 : own_slot(device);
+        if (replaced || (own >= 0 ? xinput::read_slot(own, &pad) : xinput::read(&pad))) {
             s.z = kAxisCentre;
             s.slider[0] = kAxisCentre - pad.left_trigger * kAxisCentre / 255;
             s.slider[1] = kAxisCentre - pad.right_trigger * kAxisCentre / 255;
@@ -242,6 +312,46 @@ void process_pad_state(void *device, JoyState *state) {
     }
     if (pad_active(s, true)) g_last_input_pad = true;
     menu_buttons::pad_buttons(s.buttons);
+}
+
+// A controller's state as the game gets it from this controller (dead zones, triggers as two axes), for bindings read
+// without the game's polling (a second player's).
+JoyState state_of_pad(const xinput::Gamepad &p) {
+    JoyState s = {};
+    report_xinput(s, p);
+    apply_deadzone(&s.x, &s.y, g_cfg.left_deadzone);
+    apply_deadzone(&s.rx, &s.ry, g_cfg.right_deadzone);
+    if (g_cfg.split_triggers) {
+        s.z = kAxisCentre;
+        s.slider[0] = kAxisCentre - p.left_trigger * kAxisCentre / 255;
+        s.slider[1] = kAxisCentre - p.right_trigger * kAxisCentre / 255;
+    }
+    return s;
+}
+
+// What a controller binding {type, object} (see bindings.h) reads from a controller: 0..1.
+float binding_value(int type, int object, const xinput::Gamepad &p) {
+    const JoyState s = state_of_pad(p);
+    const LONG axes[] = {s.x, s.y, s.z, s.rx, s.ry, s.rz};
+    const auto low = [](LONG a) { return clamp01((kAxisCentre - a) / 32767.0f); };
+    const auto high = [](LONG a) { return clamp01((a - kAxisCentre) / 32767.0f); };
+    switch (type) {
+        case 2: return object >= 0 && object < 32 && (s.buttons[object] & 0x80) ? 1.0f : 0.0f;
+        case 3: {
+            const DWORD pov = s.pov[0] & 0xFFFF;
+            if (pov == 0xFFFF || object < 0 || object > 3) return 0.0f;
+            const int angle = object * 9000;  // up, right, down, left
+            const int diff = std::abs(static_cast<int>(pov) - angle);
+            return std::min(diff, 36000 - diff) <= 4500 ? 1.0f : 0.0f;
+        }
+        case 4: return object >= 0 && object < 3 ? low(axes[object]) : 0.0f;
+        case 5: return object >= 0 && object < 3 ? high(axes[object]) : 0.0f;
+        case 6: return object >= 0 && object < 3 ? low(axes[3 + object]) : 0.0f;
+        case 7: return object >= 0 && object < 3 ? high(axes[3 + object]) : 0.0f;
+        case 8: return object >= 0 && object < 2 ? low(s.slider[object]) : 0.0f;
+        case 9: return object >= 0 && object < 2 ? high(s.slider[object]) : 0.0f;
+        default: return 0.0f;
+    }
 }
 
 void __cdecl process_pad_state_from_game(void *device, JoyState *state) { process_pad_state(device, state); }
@@ -308,10 +418,11 @@ HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
     for (int i = 0; i < seen_count; ++i) known |= seen[i].device == device && seen[i].size == size;
     if (!known && seen_count < 16) {
         seen[seen_count++] = {device, size};
-        log_line("GetDeviceState: device %p, state of %lu bytes (%s)", device, size,
+        log_debug("GetDeviceState: device %p, state of %lu bytes (%s)", device, size,
                  hr >= 0 ? "ok" : "not available");
     }
     if (hr >= 0 && data && (size == kMouseStateSize || size == kMouseState2Size)) {
+        if (device != g_own_mouse) g_other_mouse_seen = true;
         const LONG *mouse = static_cast<const LONG *>(data);
         g_mouse_dx += mouse[0];
         g_mouse_dy += mouse[1];
@@ -418,7 +529,7 @@ void *FASTCALL hook_mapping_ctor(void *self, void *edx, void *device, void *spec
         const bool convert = (type >= 1 && type <= 4) || (type == 0 && (lower != 0.0f || upper != 0.0f));
         static int logged = 0;
         if (logged++ < 32)
-            log_line("mapping: action %d scalar %d type %d dead zones %.2f/%.2f%s", action, field<int>(node, 0x18), type,
+            log_debug("mapping: action %d scalar %d type %d dead zones %.2f/%.2f%s", action, field<int>(node, 0x18), type,
                      lower, upper, convert ? " -> analog" : "");
         if (convert) {
             type = 0;
@@ -426,11 +537,81 @@ void *FASTCALL hook_mapping_ctor(void *self, void *edx, void *device, void *spec
             ++changed;
         }
     }
-    if (changed) log_line("mapping %p: %d steering/throttle entries made analog", self, changed);
+    if (changed) log_debug("mapping %p: %d steering/throttle entries made analog", self, changed);
     return result;
 }
 
+// The vanilla game takes the mouse from Windows (the cursor of its menus), not from DirectInput, so there is no
+// movement to look around with. Without another mod reading one, a DirectInput mouse of our own (shared, only while the
+// game is in front) is read through the same hooked GetDeviceState, which adds its movement up like any other.
+void poll_own_mouse() {
+    static bool tried = false;
+    static DWORD next_try = 0;
+    if (g_other_mouse_seen) return;
+    using GetStateFn = HRESULT(WINAPI *)(void *, DWORD, void *);
+    if (!g_own_mouse) {
+        if (tried && static_cast<LONG>(GetTickCount() - next_try) < 0) return;
+        tried = true;
+        next_try = GetTickCount() + 5000;
+        HWND window = *reinterpret_cast<HWND *>(0x982BF4);  // the game's window
+        HMODULE dinput = GetModuleHandleA("dinput8.dll");
+        using CreateFn = HRESULT(WINAPI *)(HINSTANCE, DWORD, const GUID *, void **, void *);
+        const auto create = dinput ? reinterpret_cast<CreateFn>(reinterpret_cast<void *>(GetProcAddress(dinput, "DirectInput8Create"))) : nullptr;
+        void *di = nullptr, *mouse = nullptr;
+        if (!window || !create || create(GetModuleHandleA(nullptr), 0x0800, &kIID_IDirectInput8A, &di, nullptr) < 0 || !di) return;
+        // DIMOUSESTATE: X, Y, Z axes and four buttons (c_dfDIMouse, which dinput8 does not export).
+        static const GUID kSysMouse = {0x6F1D2B60, 0xD5A0, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+        static const GUID kXAxis = {0xA36D02E0, 0xC9F3, 0x11CF, {0xBF, 0xC4, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+        static const GUID kYAxis = {0xA36D02E1, 0xC9F3, 0x11CF, {0xBF, 0xC4, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+        static const GUID kZAxis = {0xA36D02E2, 0xC9F3, 0x11CF, {0xBF, 0xC4, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+        struct ObjectFormat {
+            const GUID *guid;
+            DWORD offset, type, flags;
+        };
+        constexpr DWORD kAxis = 0x3, kButton = 0xC, kAnyInstance = 0xFFFF00, kOptional = 0x80000000;  // DIDFT_*
+        static const ObjectFormat objects[] = {
+            {&kXAxis, 0, kAxis | kAnyInstance, 0}, {&kYAxis, 4, kAxis | kAnyInstance, 0},
+            {&kZAxis, 8, kOptional | kAxis | kAnyInstance, 0}, {nullptr, 12, kButton | kAnyInstance, 0},
+            {nullptr, 13, kButton | kAnyInstance, 0}, {nullptr, 14, kButton | kOptional | kAnyInstance, 0},
+            {nullptr, 15, kButton | kOptional | kAnyInstance, 0}};
+        struct DataFormat {
+            DWORD size, object_size, flags, data_size, object_count;
+            const ObjectFormat *objects;
+        } format = {sizeof(DataFormat), sizeof(ObjectFormat), 2 /* DIDF_RELAXIS */, 16, 7, objects};
+        void **di_vtbl = *static_cast<void ***>(di);
+        using CreateDeviceFn = HRESULT(WINAPI *)(void *, const GUID *, void **, void *);
+        using SetFormatFn = HRESULT(WINAPI *)(void *, const void *);
+        using SetLevelFn = HRESULT(WINAPI *)(void *, HWND, DWORD);
+        using ReleaseFn = ULONG(WINAPI *)(void *);
+        const bool made = reinterpret_cast<CreateDeviceFn>(di_vtbl[3])(di, &kSysMouse, &mouse, nullptr) >= 0 && mouse;
+        if (made) {
+            void **vtbl = *static_cast<void ***>(mouse);
+            const bool ok = reinterpret_cast<SetFormatFn>(vtbl[11])(mouse, &format) >= 0 &&
+                            reinterpret_cast<SetLevelFn>(vtbl[13])(mouse, window, 2 | 4) >= 0;  // non-exclusive, foreground
+            if (ok) {
+                g_own_mouse = mouse;
+                log_line("mouse: reading it through our own DirectInput device (the game takes it from Windows)");
+            } else {
+                reinterpret_cast<ReleaseFn>(vtbl[2])(mouse);
+                log_line("mouse: could not set up a DirectInput mouse");
+            }
+        } else {
+            log_line("mouse: could not create a DirectInput mouse");
+        }
+        reinterpret_cast<ReleaseFn>(di_vtbl[2])(di);
+        if (!g_own_mouse) return;
+    }
+    void **vtbl = *static_cast<void ***>(g_own_mouse);
+    BYTE state[16];
+    HRESULT hr = reinterpret_cast<GetStateFn>(vtbl[9])(g_own_mouse, sizeof(state), state);  // the hook adds the movement up
+    if (hr == static_cast<HRESULT>(0x8007001E) || hr == static_cast<HRESULT>(0x8007000C)) {  // input lost / not acquired
+        using AcquireFn = HRESULT(WINAPI *)(void *);
+        reinterpret_cast<AcquireFn>(vtbl[7])(g_own_mouse);
+    }
+}
+
 void take_mouse_delta(LONG *dx, LONG *dy) {
+    poll_own_mouse();
     *dx = InterlockedExchange(&g_mouse_dx, 0);
     *dy = InterlockedExchange(&g_mouse_dy, 0);
 }
@@ -477,6 +658,12 @@ extern "C" __declspec(dllexport) void nfsmw_controller_support_pads(int which) {
     } else {
         log_line("the game's controllers: the default again (%s)", g_cfg.merge_controllers ? "all XInput controllers merged" : "the game's own");
     }
+}
+
+// The actions (binding entries, see common/controller_api.h) that XInput controller `slot` is asking for, through the
+// bindings of the game controller that reports it: values[0..75]. Returns 0 when no game controller does.
+extern "C" __declspec(dllexport) int nfsmw_controller_support_pad_actions(int slot, float *values) {
+    return pad::pad_sets::actions_of_slot(slot, values) ? 1 : 0;
 }
 
 extern "C" __declspec(dllexport) void nfsmw_controller_support_second_player(int slot) {

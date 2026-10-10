@@ -40,7 +40,6 @@ After launching the game with the mod installed, it will store camera settings i
   - "DRIFT" camera mode added by [`NFSMWExtraOptions`](https://github.com/ExOptsTeam/NFSMWExOpts).
 
 ## Ideas / TODO
-- Double check our requirements.
 - New "Speed FoV" option: FoV rising with speed, lag falling.
 - A way to try values while driving without pausing.
 - Add keybind for "Previous Camera"

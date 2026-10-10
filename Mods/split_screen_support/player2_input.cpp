@@ -25,6 +25,7 @@
 
 #include <cmath>
 
+#include "controller_api.h"
 #include "hooks.h"
 #include "players.h"
 #include "split_screen_support.h"
@@ -32,28 +33,30 @@
 namespace split_screen_support::player2_input {
 
 namespace xinput = nfsmw::xinput;
+namespace api = nfsmw::controller_api;
 
 namespace {
 
 constexpr uintptr_t kFeDatabase = 0x91CF90;
 constexpr uintptr_t kDoShifting = 0x69CE20;
+constexpr uintptr_t kScrollDriveCam = 0x5A3850;  // PlayerSettings::ScrollDriveCam(int): the next camera
 constexpr float kStickDeadzone = 0.15f;
 
 struct Buttons {
-    WORD handbrake = xinput::kButtonB, nitrous = xinput::kButtonA, look_back = xinput::kButtonY;
+    WORD handbrake = xinput::kButtonB, nitrous = xinput::kButtonA, look_back = xinput::kButtonY, camera = xinput::kRightThumb;
     WORD shift_up = xinput::kRightShoulder, shift_down = xinput::kLeftShoulder;
 } g_buttons;
 
 struct Keys {  // DirectInput key codes
     int steer_left = 0xCB, steer_right = 0xCD, gas = 0xC8, brake = 0xD0;
-    int handbrake = 0x39, nitrous = 0x38, look_back = 0x26, shift_up = 0x2A, shift_down = 0x1D;
+    int handbrake = 0x39, nitrous = 0x38, look_back = 0x26, shift_up = 0x2A, shift_down = 0x1D, camera = 0x2E;
 } g_keys;
 
 // What the player is doing, from either device.
 struct Controls {
     float steer = 0.0f;  // -1 left .. 1 right
     float gas = 0.0f, brake = 0.0f;
-    bool handbrake = false, nitrous = false, look_back = false;
+    bool handbrake = false, nitrous = false, look_back = false, camera = false;  // camera: change the camera
     bool shift_up = false, shift_down = false;  // held; a shift happens when it goes down
 };
 
@@ -143,6 +146,7 @@ Controls controls_from_pad(const xinput::Gamepad &p) {
     c.handbrake = held(p.buttons, g_buttons.handbrake);
     c.nitrous = held(p.buttons, g_buttons.nitrous);
     c.look_back = held(p.buttons, g_buttons.look_back);
+    c.camera = held(p.buttons, g_buttons.camera);
     c.shift_up = held(p.buttons, g_buttons.shift_up);
     c.shift_down = held(p.buttons, g_buttons.shift_down);
     return c;
@@ -157,9 +161,29 @@ Controls controls_from_keys(const unsigned char *keys) {
     c.handbrake = down(g_keys.handbrake);
     c.nitrous = down(g_keys.nitrous);
     c.look_back = down(g_keys.look_back);
+    c.camera = down(g_keys.camera);
     c.shift_up = down(g_keys.shift_up);
     c.shift_down = down(g_keys.shift_down);
     return c;
+}
+
+// A controller by the bindings of the Controls menu (Controller Support); false when they cannot be read.
+bool controls_from_bindings(int slot, Controls *out) {
+    static const api::PadActionsFn actions = api::find_pad_actions();
+    float v[76];
+    if (!actions || !actions(slot, v)) return false;
+    Controls c;
+    c.steer = v[3] - v[2];
+    c.gas = v[0];
+    c.brake = v[1];
+    c.handbrake = v[4] > 0.5f;
+    c.nitrous = v[6] > 0.5f;
+    c.look_back = v[16] > 0.5f;
+    c.camera = v[15] > 0.5f;
+    c.shift_down = v[7] > 0.5f;
+    c.shift_up = v[8] > 0.5f;
+    *out = c;
+    return true;
 }
 
 // Player 2's device, as it is now: a controller that is not there, or a keyboard the game cannot show, is idle.
@@ -167,6 +191,13 @@ Controls read_controls() {
     xinput::Gamepad p;
     unsigned char keys[256];
     if (players::device(1) == players::kKeyboard) return players::read_keyboard(keys) ? controls_from_keys(keys) : Controls();
+    Controls c;
+    if (controls_from_bindings(players::device(1), &c)) return c;
+    static bool told = false;
+    if (!told) {
+        told = true;
+        g_log.line("player 2: the Controls menu bindings of controller %d cannot be read; using the fixed layout", players::device(1));
+    }
     return players::read_pad(1, &p) ? controls_from_pad(p) : Controls();
 }
 
@@ -185,6 +216,15 @@ int apply(void *self) {
         at<float>(controls, 0x1C) = c.handbrake ? 1.0f : 0.0f;
         at<bool>(controls, 0x21) = c.nitrous;
     }
+    // The camera button: the game's own queue of actions has nothing for this player (no controller port), so the
+    // press is turned into the camera change FetchInput would have made.
+    static bool camera_was = false;
+    if (c.camera && !camera_was) {
+        void *player = call_virtual<void *>(at<void *>(self, -0x40), 0x20);
+        void *settings = player ? call_virtual<void *>(player, 0x14) : nullptr;
+        if (settings) reinterpret_cast<void(__fastcall *)(void *, void *, int)>(kScrollDriveCam)(settings, nullptr, 1);
+    }
+    camera_was = c.camera;
     const int shift = (c.shift_up && !shift_up_was) ? 1 : (c.shift_down && !shift_down_was) ? -1 : 0;
     shift_up_was = c.shift_up;
     shift_down_was = c.shift_down;
@@ -215,6 +255,7 @@ void install() {
     g_buttons.handbrake = button_from_ini("handbrake", g_buttons.handbrake);
     g_buttons.nitrous = button_from_ini("nitrous", g_buttons.nitrous);
     g_buttons.look_back = button_from_ini("look_back", g_buttons.look_back);
+    g_buttons.camera = button_from_ini("camera", g_buttons.camera);
     g_buttons.shift_up = button_from_ini("shift_up", g_buttons.shift_up);
     g_buttons.shift_down = button_from_ini("shift_down", g_buttons.shift_down);
     g_keys.steer_left = key_from_ini("steer_left", g_keys.steer_left);
@@ -224,6 +265,7 @@ void install() {
     g_keys.handbrake = key_from_ini("handbrake", g_keys.handbrake);
     g_keys.nitrous = key_from_ini("nitrous", g_keys.nitrous);
     g_keys.look_back = key_from_ini("look_back", g_keys.look_back);
+    g_keys.camera = key_from_ini("camera", g_keys.camera);
     g_keys.shift_up = key_from_ini("shift_up", g_keys.shift_up);
     g_keys.shift_down = key_from_ini("shift_down", g_keys.shift_down);
     const nfsmw::Hook hooks[] = {

@@ -23,6 +23,7 @@ bool enabled();         // [rumble] enabled, and XInput can vibrate
 void load_settings();   // [rumble] from the ini
 void save_levels();     // to the ini
 void play_preview(int effect);  // a sample of the effect at its level (the menu uses it)
+void pulse(int slot);  // a short rumble on one XInput controller (the Controls menu shows which one is selected)
 void start();           // the thread that talks to the controller
 void install_hooks();
 

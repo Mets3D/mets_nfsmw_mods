@@ -15,6 +15,14 @@ void log_line(const char *fmt, ...) {
     va_end(ap);
 }
 
+void log_debug(const char *fmt, ...) {
+    if (!g_cfg.verbose) return;
+    va_list ap;
+    va_start(ap, fmt);
+    g_log.vline(fmt, ap);
+    va_end(ap);
+}
+
 char g_ini[MAX_PATH];
 Settings g_cfg;
 LookSettings g_look_cfg;
@@ -34,6 +42,8 @@ void load_settings() {
     g_cfg.left_deadzone = ini_float("stick_deadzone", g_cfg.left_deadzone);
     g_cfg.right_deadzone = ini_float("right_stick_deadzone", g_cfg.right_deadzone);
     g_cfg.labels = GetPrivateProfileIntA("pad", "labels", 1, g_ini) != 0;
+    g_cfg.verbose = GetPrivateProfileIntA("log", "verbose", 0, g_ini) != 0;
+    g_cfg.log_inputs = GetPrivateProfileIntA("log", "inputs", 0, g_ini) != 0;
     LookSettings &l = g_look_cfg;
     l.enabled = GetPrivateProfileIntA("look", "enabled", 1, g_ini) != 0;
     l.stick_speed = ini_float("stick_speed", l.stick_speed, "look");

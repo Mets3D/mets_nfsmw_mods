@@ -13,6 +13,9 @@
 //                      controller `slot` (-1: nobody): it rumbles for their car, and their right stick looks around in
 //                      their camera
 //   nfsmw_controller_support_mouse_player(int player)  whose camera the mouse looks around in: 0 (the default) or 1
+//   int nfsmw_controller_support_pad_actions(int slot, float *values)  what XInput controller `slot` asks for through the
+//                      bindings of its game controller, per binding entry (0 gas, 1 brake, 2 steer left, 3 steer right,
+//                      4 handbrake, 6 nitrous, 7 shift down, 8 shift up, 16 look back; 76 floats, 0..1); 0 = cannot tell
 //   nfsmw_controller_support_keyboard(int allowed)  whether the keyboard reaches the game (1, the default) or not (0)
 //   nfsmw_controller_support_keyboard_state(unsigned char *out)  the keyboard as DirectInput shows it (256 bytes, a key is
 //                      down when the byte has bit 7 set), whether or not it reaches the game; 0 until the game has read it
@@ -27,6 +30,7 @@ constexpr int kDefault = -1, kNoPad = -2, kMergedPads = -3;
 using PadsFn = void (*)(int which);
 using KeyboardFn = void (*)(int allowed);
 using SecondPlayerFn = void (*)(int slot);
+using PadActionsFn = int (*)(int slot, float *values);
 using MousePlayerFn = void (*)(int player);
 using KeyboardStateFn = int (*)(unsigned char *out);
 
@@ -44,6 +48,9 @@ inline SecondPlayerFn find_second_player() {
 }
 inline MousePlayerFn find_mouse_player() {
     return reinterpret_cast<MousePlayerFn>(detail::find("nfsmw_controller_support_mouse_player"));
+}
+inline PadActionsFn find_pad_actions() {
+    return reinterpret_cast<PadActionsFn>(detail::find("nfsmw_controller_support_pad_actions"));
 }
 inline KeyboardFn find_keyboard() { return reinterpret_cast<KeyboardFn>(detail::find("nfsmw_controller_support_keyboard")); }
 inline KeyboardStateFn find_keyboard_state() {

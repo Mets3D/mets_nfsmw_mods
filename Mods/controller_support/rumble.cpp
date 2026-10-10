@@ -112,7 +112,7 @@ bool read_surface(const void *surface, SurfaceData *out) {
         if (seen[i] == layout) return true;
     if (seen_count < 96) {
         seen[seen_count++] = layout;
-        log_line("rumble: surface \"%s\" (%08X): road noise %.1f Hz %.2f degrees at %.0f-%.0f m/s, wheel effect "
+        log_debug("rumble: surface \"%s\" (%08X): road noise %.1f Hz %.2f degrees at %.0f-%.0f m/s, wheel effect "
                  "frequency %u intensity %u", out->name ? out->name : "?", out->key, out->noise_freq, out->noise_amp,
                  out->noise_min,
                  out->noise_max, out->wheel_freq, out->wheel_intensity);
@@ -177,7 +177,7 @@ void send_level(int player, float level, int port) {
     if (result != ERROR_SUCCESS && failures++ < 5) log_line("rumble: XInputSetState(%d) failed: %lu", port, result);
     const DWORD trace_start = g_trace_start;
     if (trace_start && static_cast<LONG>(now - trace_start) < 2500)
-        log_line("rumble:   sent %3.0f%% at +%4ld ms (took %lu ms)", v * 100.0f / 65535.0f,
+        log_debug("rumble:   sent %3.0f%% at +%4ld ms (took %lu ms)", v * 100.0f / 65535.0f,
                  static_cast<long>(static_cast<LONG>(now - trace_start)), GetTickCount() - t0);
     sent[player] = v;
     last_send[player] = now;
@@ -317,7 +317,7 @@ void start_jolt(int effect, float severity) {
     if (v >= 0.5f && traced < 6 && (!g_trace_start || GetTickCount() - g_trace_start > 3000)) {
         ++traced;
         g_trace_start = GetTickCount();
-        log_line("rumble: %s jolt at %.0f%%, tracing what is sent:", kEffects[effect].key, v * 100.0f);
+        log_debug("rumble: %s jolt at %.0f%%, tracing what is sent:", kEffects[effect].key, v * 100.0f);
     }
     rs().jolt_hold = jolt_hold(severity);
     rs().jolt_fade = jolt_fade(severity);
@@ -339,8 +339,8 @@ bool g_vibration_on[2] = {true, true};
 void log_rumble_event(const char *what, int value = -1) {
     static int lines = 0;
     if (lines++ >= 300) return;
-    if (value >= 0) log_line("rumble: %s %d at %.1f s", what, value, rs().time);
-    else log_line("rumble: %s at %.1f s", what, rs().time);
+    if (value >= 0) log_debug("rumble: %s %d at %.1f s", what, value, rs().time);
+    else log_debug("rumble: %s at %.1f s", what, rs().time);
 }
 
 void update_rumble() {
@@ -360,7 +360,7 @@ void update_rumble() {
     ++rate_count;
     if (GetTickCount() - rate_start >= 5000) {
         if (rate_start && rate_lines++ < 12)
-            log_line("rumble: %.0f updates per second from the game; since the last line: %ld pauses, %ld resets, "
+            log_debug("rumble: %.0f updates per second from the game; since the last line: %ld pauses, %ld resets, "
                      "%ld zero frames, cut by Vibration %ld / idle controller %ld / focus %ld (of %ld frames)",
                      rate_count * 1000.0f / (GetTickCount() - rate_start), InterlockedExchange(&g_n_pauses, 0),
                      InterlockedExchange(&g_n_resets, 0), InterlockedExchange(&g_n_zero_frames, 0),
@@ -475,7 +475,7 @@ void update_rumble() {
         for (int e = 0; e < E_COUNT; ++e)
             if (contrib[e] >= 0.02f)
                 n += snprintf(parts + n, sizeof(parts) - n, " %s %.0f", kEffects[e].key, contrib[e] * 100.0f);
-        log_line("rumble: player %d: %.0f m/s, road %.2f, skid %.1f, slip %.1f, revs %.2f, throttle %.2f%s -> %.0f%% (%s )",
+        log_debug("rumble: player %d: %.0f m/s, road %.2f, skid %.1f, slip %.1f, revs %.2f, throttle %.2f%s -> %.0f%% (%s )",
                  g_cur + 1, rs().speed, rs().road, rs().skid, rs().slip, pb, rs().throttle, rs().nos ? ", NOS" : "",
                  out * 100.0f, parts);
     }
@@ -501,7 +501,7 @@ void FASTCALL fb_pause(Feedback *self, void *) { g_cur = self->index;
     pass_on(1);
     InterlockedIncrement(&g_n_pauses);
     static bool logged = false;
-    if (!logged) log_line("rumble: first pause from the game (paused, AI control, or the profile's Rumble setting off)");
+    if (!logged) log_debug("rumble: first pause from the game (paused, AI control, or the profile's Rumble setting off)");
     logged = true;
     clear_rumble_effects();
     set_motors(0.0f);
@@ -524,7 +524,7 @@ void FASTCALL fb_begin(Feedback *self, void *) { g_cur = self->index;
 void FASTCALL fb_end(Feedback *self, void *) { g_cur = self->index;
     pass_on(5);
     static bool logged = false;
-    if (!logged) log_line("rumble: first update from the game");
+    if (!logged) log_debug("rumble: first update from the game");
     logged = true;
     update_rumble();
 }
@@ -593,7 +593,7 @@ void FASTCALL fb_collision(Feedback *self, void *, const unsigned char *info, in
     static int logged = 0;
     if ((dv > 0.3f || sliding) && logged < 80) {
         ++logged;
-        log_line("rumble: collision type %u%s%s, speed change %.2f m/s, closing %.1f m/s, force %.0f, sliding %.1f m/s "
+        log_debug("rumble: collision type %u%s%s, speed change %.2f m/s, closing %.1f m/s, force %.0f, sliding %.1f m/s "
                  "-> severity %.2f", bits & 7, (iam_a & 0xFF) ? "" : " (as B)", sliding ? ", sliding" : "", dv,
                  std::sqrt(closing[0] * closing[0] + closing[1] * closing[1] + closing[2] * closing[2]),
                  *reinterpret_cast<const float *>(info + 0x2C), sliding_speed, severity);
@@ -680,7 +680,7 @@ void FASTCALL hook_do_ffb(void *player, void *edx) {
     for (int i = 0; i < seen_count; ++i) known |= seen[i] == player;
     if (!known && seen_count < 4) {
         seen[seen_count++] = player;
-        log_line("rumble: DoFFB for the player at %p (feedback object %p)", player, field<void *>(player, 0x58));
+        log_debug("rumble: DoFFB for the player at %p (feedback object %p)", player, field<void *>(player, 0x58));
     }
     // DoFFB's view of the player has the feedback object at +0x58 and the steering wheel at +0x5C; SetControllerPort's
     // view (0x4C further on) has the object at +0xC. A player without a feedback object is the second one: the game's
@@ -715,7 +715,7 @@ SetPortFn g_orig_set_controller_port;
 void FASTCALL hook_set_controller_port(void *player, void *edx, int port) {
     g_orig_set_controller_port(player, edx, port);
     static int logged = 0;
-    if (logged++ < 8) log_line("rumble: SetControllerPort(%d) for the player at %p", port, player);
+    if (logged++ < 8) log_debug("rumble: SetControllerPort(%d) for the player at %p", port, player);
     install_feedback(field<void *>(player, 0x0C), port);
 }
 
@@ -724,7 +724,7 @@ void play_preview(int effect) {
     if (traced < 4 && (!g_trace_start || GetTickCount() - g_trace_start > 3000)) {
         ++traced;
         g_trace_start = GetTickCount();
-        log_line("rumble: preview of %s at %.0f%%, tracing what is sent:", kEffects[effect].key, g_level[effect] * 100.0f);
+        log_debug("rumble: preview of %s at %.0f%%, tracing what is sent:", kEffects[effect].key, g_level[effect] * 100.0f);
     }
     g_preview_start = GetTickCount();
     g_preview_effect = effect;
@@ -743,6 +743,21 @@ void install_hooks() {
          nfsmw::detour(&hook_do_ffb), nfsmw::orig(&g_orig_do_ffb)},
     };
     nfsmw::install_hooks(hooks, 2, g_log, nullptr, "rumble");
+}
+
+DWORD WINAPI pulse_thread(LPVOID arg) {
+    const int port = static_cast<int>(reinterpret_cast<intptr_t>(arg));
+    xinput::Vibration on = {30000, 30000}, off = {0, 0};
+    xinput::set_state(port, &on);
+    Sleep(300);
+    xinput::set_state(port, &off);
+    return 0;
+}
+
+void pulse(int slot) {
+    if (slot < 0 || slot > 3 || !xinput::set_state) return;
+    HANDLE thread = CreateThread(nullptr, 0, pulse_thread, reinterpret_cast<LPVOID>(static_cast<intptr_t>(slot)), 0, nullptr);
+    if (thread) CloseHandle(thread);
 }
 
 }  // namespace pad::rumble

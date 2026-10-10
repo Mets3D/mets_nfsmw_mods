@@ -28,7 +28,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 - Four extra rows at the end of both lists: **Look Left / Right / Up / Down**, remappable like the rest.
 
 ### Camera look
-All 3rd-person cameras can be controlled with either the mouse, or the inputs bound to the new "Look" keybindings which you can find in the Controls menu. Bound to the right stick by default. After letting go of the "Look" inputs for a few seconds, the camera returns to normal.
+All 3rd-person cameras can be controlled with either the mouse, or the inputs bound to the new "Look" keybindings which you can find in the Controls menu. Bound to the right stick by default. After letting go of the "Look" inputs for a few seconds, the camera returns to normal. The vanilla game takes the mouse from Windows and gives the camera nothing to look around with, so the mod reads a DirectInput mouse of its own (unless another mod, like the widescreen fix, already does).
 
 <TODO: Screenshot of new options.>
 
@@ -80,6 +80,8 @@ collisions) that were never connected to anything on PC. With this mod, they now
 - Add options to tweak deadzones of triggers and sticks from the menu
 - The widescreen fix's `ImproveGamepadSupport` also changes the title screen's "Press START" text; we did not take that over.
 - Support split-screen with various device combinations.
+  - Kinda done...
+- Clean up the nonsensical .ini file, remove logging code and options.
 
 <details>
 
@@ -103,6 +105,9 @@ labels=1                  ; direction names in the Controls menu
 icons=xbox                ; the pictures of the menus' button prompts while the controller was used last: xbox, playstation or off
 menu_layout=1             ; A accepts, B goes back, X / View / Menu = the hotkeys 2 / 3 / 4, B quits from the main menu; 0 = the game's own
 log_images=0              ; 1 = write every image and string the game draws to the log (to find button prompts)
+[log]
+inputs=0                ; 1 = log which binding entries are active and from whose set (a line whenever that changes)
+verbose=0               ; 1 = also write the traces made for working on the mod (rumble per effect and collision, camera modes, device readings, the loaded Controls table)
 [look]
 enabled=1
 stick_speed=150           ; degrees per second at full tilt
@@ -158,3 +163,7 @@ the level to the controller (`XInputSetState`) at most every 30 ms. Findings, ad
 were calibrated on are in [`notes.md`](../../notes.md).
 
 </details>
+
+## One set of bindings per controller
+
+The game's Controls menu can only show the keyboard and controller 0, and every rebind is recorded for controller 0. With more than one controller, the menu's device switch now goes keyboard, controller 1, controller 2, ... (the header shows `#n`). Controller 1's bindings are the game's own (they are in the profile); the others are kept in the ini (`[pad_bindings]`, written when you switch away from one you edited). A controller you have not edited uses controller 1's bindings. All controllers play at the same time, each with its own bindings; each reports its own XInput controller's state (the connected controllers in order).
