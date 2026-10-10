@@ -6,6 +6,7 @@
 #include <cwchar>
 #include <cwctype>
 
+#include "controller_api.h"
 #include "hooks.h"
 #include "input.h"
 #include "menu_buttons.h"
@@ -124,6 +125,75 @@ bool pad_active(const JoyState &s, bool xinput) {
 
 bool last_input_was_pad() { return g_last_input_pad; }
 
+// ------------------------------------------------------------------------------------------------
+// Which controllers reach the game, when another mod asks (common/controller_api.h; split screen gives each player's
+// screens and car to that player's controller): every XInput controller DirectInput shows the game reports the chosen
+// XInput slot's state instead of its own, all slots merged, or a controller at rest. The game reads its controller by
+// DirectInput device, and which DirectInput device is which XInput slot cannot be told; reporting the same state on all
+// of them makes that not matter.
+// ------------------------------------------------------------------------------------------------
+volatile LONG g_exclusive = nfsmw::controller_api::kEveryPad;
+
+// All connected XInput controllers as one: any button, each stick axis and trigger from the pad pushing it furthest.
+// An empty slot is asked about again every 2 seconds at most (that is slow).
+bool read_merged(xinput::Gamepad *out) {
+    static bool connected[4];
+    static DWORD next_scan = 0;
+    const DWORD now = GetTickCount();
+    const bool scan = static_cast<LONG>(now - next_scan) >= 0;
+    if (scan) next_scan = now + 2000;
+    const auto furthest = [](SHORT a, SHORT b) { return std::abs(static_cast<int>(b)) > std::abs(static_cast<int>(a)) ? b : a; };
+    xinput::Gamepad merged = {};
+    bool any = false;
+    for (int i = 0; i < 4; ++i) {
+        if (!connected[i] && !scan) continue;
+        xinput::Gamepad p;
+        connected[i] = xinput::read_slot(i, &p);
+        if (!connected[i]) continue;
+        any = true;
+        merged.buttons |= p.buttons;
+        merged.left_trigger = p.left_trigger > merged.left_trigger ? p.left_trigger : merged.left_trigger;
+        merged.right_trigger = p.right_trigger > merged.right_trigger ? p.right_trigger : merged.right_trigger;
+        merged.lx = furthest(merged.lx, p.lx);
+        merged.ly = furthest(merged.ly, p.ly);
+        merged.rx = furthest(merged.rx, p.rx);
+        merged.ry = furthest(merged.ry, p.ry);
+    }
+    *out = merged;
+    return any;
+}
+
+void report_at_rest(JoyState &s) {
+    s.x = s.y = s.z = s.rx = s.ry = s.rz = kAxisCentre;
+    s.slider[0] = s.slider[1] = kAxisCentre;
+    for (DWORD &pov : s.pov) pov = 0xFFFFFFFF;
+    memset(s.buttons, 0, sizeof(s.buttons));
+}
+
+// The XInput state as DirectInput shows an XInput controller: sticks 0..65535 with Y down, both triggers on Z, buttons
+// A B X Y LB RB Back Start LS RS, the D-pad as the first hat (hundredths of a degree, clockwise from up).
+void report_xinput(JoyState &s, const xinput::Gamepad &p) {
+    report_at_rest(s);
+    s.x = p.lx + 32768L;
+    s.y = 32767L - p.ly;
+    s.rx = p.rx + 32768L;
+    s.ry = 32767L - p.ry;
+    s.z = kAxisCentre + (p.left_trigger - p.right_trigger) * 128L;
+    const WORD order[10] = {xinput::kButtonA, xinput::kButtonB, xinput::kButtonX, xinput::kButtonY, xinput::kLeftShoulder,
+                            xinput::kRightShoulder, xinput::kBack, xinput::kStart, xinput::kLeftThumb, xinput::kRightThumb};
+    for (int i = 0; i < 10; ++i) s.buttons[i] = (p.buttons & order[i]) ? 0x80 : 0;
+    const bool up = p.buttons & xinput::kDpadUp, down = p.buttons & xinput::kDpadDown;
+    const bool left = p.buttons & xinput::kDpadLeft, right = p.buttons & xinput::kDpadRight;
+    if (up && right) s.pov[0] = 4500;
+    else if (down && right) s.pov[0] = 13500;
+    else if (down && left) s.pov[0] = 22500;
+    else if (up && left) s.pov[0] = 31500;
+    else if (up) s.pov[0] = 0;
+    else if (right) s.pov[0] = 9000;
+    else if (down) s.pov[0] = 18000;
+    else if (left) s.pov[0] = 27000;
+}
+
 // A controller's state, as the game is about to use it (called from the game's own polling code, see below, or from the
 // DirectInput hook when that cannot be done): the dead zones, the triggers as two axes, what the player touched last, and
 // the buttons of the menus' hotkeys.
@@ -132,6 +202,14 @@ void process_pad_state(void *device, JoyState *state) {
     if (!is_xinput_device(device)) {
         if (pad_active(s, false)) g_last_input_pad = true;
         return;
+    }
+    const LONG exclusive = g_exclusive;
+    xinput::Gamepad chosen = {};  // the state reported instead of the device's own, when another mod asked for one
+    const bool replaced = exclusive >= 0 || exclusive == nfsmw::controller_api::kMergedPads;
+    if (exclusive == nfsmw::controller_api::kNoPad) return report_at_rest(s);
+    if (replaced) {
+        if (!(exclusive >= 0 ? xinput::read_slot(exclusive, &chosen) : read_merged(&chosen))) return report_at_rest(s);
+        report_xinput(s, chosen);
     }
 
     static bool logged_raw = false;
@@ -143,8 +221,8 @@ void process_pad_state(void *device, JoyState *state) {
     apply_deadzone(&s.x, &s.y, g_cfg.left_deadzone);
     apply_deadzone(&s.rx, &s.ry, g_cfg.right_deadzone);
     if (g_cfg.split_triggers) {
-        xinput::Gamepad pad;
-        if (xinput::read(&pad)) {
+        xinput::Gamepad pad = chosen;
+        if (replaced || xinput::read(&pad)) {
             s.z = kAxisCentre;
             s.slider[0] = kAxisCentre - pad.left_trigger * kAxisCentre / 255;
             s.slider[1] = kAxisCentre - pad.right_trigger * kAxisCentre / 255;
@@ -362,3 +440,14 @@ void install_hooks() {
 }
 
 }  // namespace pad::input
+
+// For other mods (common/controller_api.h).
+extern "C" __declspec(dllexport) void nfsmw_controller_support_exclusive_pad(int slot) {
+    using namespace pad;
+    if (InterlockedExchange(&input::g_exclusive, slot) == slot) return;
+    if (slot >= 0) xinput::port = slot;  // the triggers and the rumble follow that controller too
+    if (slot >= 0) log_line("the game's controller: XInput controller %d only (asked for by another mod)", slot);
+    else if (slot == nfsmw::controller_api::kNoPad) log_line("the game's controller: none, keyboard only (asked for by another mod)");
+    else if (slot == nfsmw::controller_api::kMergedPads) log_line("the game's controller: all XInput controllers merged (asked for by another mod)");
+    else log_line("the game's controller: as normal again");
+}

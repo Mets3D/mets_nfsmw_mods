@@ -18,7 +18,10 @@ struct State {
 struct Vibration {
     WORD left, right;  // the heavy (low frequency) and the light (high frequency) motor
 };
-constexpr WORD kButtonX = 0x4000;
+// Gamepad::buttons
+constexpr WORD kDpadUp = 0x0001, kDpadDown = 0x0002, kDpadLeft = 0x0004, kDpadRight = 0x0008, kStart = 0x0010,
+               kBack = 0x0020, kLeftThumb = 0x0040, kRightThumb = 0x0080, kLeftShoulder = 0x0100,
+               kRightShoulder = 0x0200, kButtonA = 0x1000, kButtonB = 0x2000, kButtonX = 0x4000, kButtonY = 0x8000;
 
 using GetStateFn = DWORD(WINAPI *)(DWORD, State *);
 using SetStateFn = DWORD(WINAPI *)(DWORD, Vibration *);
@@ -80,6 +83,15 @@ inline bool read(Gamepad *out) {
         }
     }
     return false;
+}
+
+// One slot's state, whichever controller `port` is. False when nothing is connected there; the caller paces how often
+// it asks about an empty slot (that is slow).
+inline bool read_slot(int slot, Gamepad *out) {
+    State s;
+    if (!get_state || slot < 0 || slot > 3 || get_state(slot, &s) != ERROR_SUCCESS) return false;
+    *out = s.pad;
+    return true;
 }
 
 }  // namespace nfsmw::xinput

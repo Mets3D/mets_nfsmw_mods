@@ -9,7 +9,7 @@ own source file and its own switch in `nfsmw_dev_tools.ini`.
 | Tool | What | Switch |
 |---|---|---|
 | [Multiple instances](#multiple-instances) | lets the game start more than once on one PC | `[multiple_instances] enabled` |
-| [Network](#network) | a log of the game's network calls, and what two copies on one PC need to find each other | `[network] log`, `reuse_address`, `alias_other_copy` |
+| [Network](#network) | a log of the game's network calls | `[network] log` |
 | [Diagnostics](#diagnostics) | where the game ends itself and where it has an access violation | `[diagnostics] enabled` |
 
 All switches are 1 (on) by default. Ideas for more tools (not written): spawning cars, teleporting to locations, testing
@@ -46,15 +46,11 @@ Starting two copies is only the first step; what happens next belongs to the gam
 
 The game finds LAN games with UDP broadcasts on port 9999 (384-byte packets that start with `67 45 41`) and plays over TCP
 port 9900. The tool logs the game's Winsock calls (the first 800 lines: sockets, binds, sends, the packets received) and
-tries to make two copies on one PC find each other:
-- **Reuse address** (`reuse_address`): the game binds port 9999 without allowing it to be shared, so a second copy on the
-  same PC could not bind it and never heard the first. The tool sets the "reuse address" option on that socket first.
-  This works: the searching copy receives the host's announcements.
-- **Other copy aliased** (`alias_other_copy`): an announcement this copy did not send is shown to the game as coming from
-  127.0.0.2 (the game may drop packets that come from its own address, and both copies have the same one), and the game's
-  connections to that address go to the PC's real one. This did not make the host appear in the LAN list either: the
-  game still did not try to ping or connect to the host. **Two copies on one PC do not find each other yet**; the cause is
-  not known. It may work between two PCs, which has not been tried.
+the first announcements in full (the 384 bytes without their trailing zeros). It changes nothing.
+
+LAN games work between two PCs (a Windows PC and a Linux laptop running the game in Proton were tried). Two copies on one
+PC do not find each other: the second copy cannot bind port 9999, and sharing the port and hiding the copies' common address
+from the game (both tried) did not make the host appear in the list.
 
 ## Diagnostics
 

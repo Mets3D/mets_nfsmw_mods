@@ -12,6 +12,7 @@ the game.
 | **Camera Settings** (`nfsmw_camera_settings.asi`) | camera settings: per-view FOV, height, distance, pitch, offset, stiffness, tilting (Options > Camera) | [camera_settings/ReadMe.md](camera_settings/ReadMe.md) |
 | **Controller Support** (`nfsmw_controller_support.asi`) | Xbox controller: analog steering and separate triggers, camera look, rumble (Options > Rumble) | [controller_support/ReadMe.md](controller_support/ReadMe.md) |
 | **Dev Tools** (`nfsmw_dev_tools.asi`) | for making mods, not for playing: a second copy of the game, a log of its network calls, what ends it | [dev_tools/ReadMe.md](dev_tools/ReadMe.md) |
+| **Split Screen Support** (`nfsmw_split_screen_support.asi`) | experimental: Quick Race > Split Screen, the screen split in two, player 2 driving from their own controller | [split_screen_support/ReadMe.md](split_screen_support/ReadMe.md) |
 
 `nfsmw_camera_settings` and `nfsmw_controller_support` work without `nfsmw_custom_menus`, only without their menu pages.
 
@@ -58,6 +59,7 @@ Mods/
   camera_settings/     nfsmw_camera_settings: camera presets (OPTIONS_CAMERA.png -> nfsmw_camera_settings.tpk, the page's icon)
   controller_support/  nfsmw_controller_support: XInput input, camera look, rumble (several files, see its ReadMe)
   dev_tools/           nfsmw_dev_tools: tools for making mods (a second copy of the game, network log, diagnostics)
+  split_screen_support/ nfsmw_split_screen_support: Quick Race > Split Screen: the menu entry, two views, two players (experimental)
   set_mods.ps1         deploys to the test copy of the game
 ```
 

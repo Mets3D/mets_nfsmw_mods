@@ -45,6 +45,29 @@ const char *hex_prefix(const char *data, int length, char *out, size_t out_size)
     return out;
 }
 
+bool is_announcement(const char *data, int length) { return data && length >= 12 && data[0] == 'g' && data[1] == 'E' && data[2] == 'A'; }
+
+// The whole announcement (384 bytes, mostly zeros) is logged for the first few packets of each kind, to compare what two copies
+// send: everything up to the last byte that is not zero, as hex, and the printable characters beside it.
+void log_payload(const char *what, const char *data, int length) {
+    static volatile LONG shown[2] = {};
+    if (!g_logger || !is_announcement(data, length) || data[3] == 0) return;  // type 0 is the search, all zeros
+    if (InterlockedIncrement(&shown[what[0] == 's' ? 0 : 1]) > 6) return;
+    int last = length - 1;
+    while (last > 12 && data[last] == 0) --last;
+    last = last < 191 ? last : 191;
+    char hex[3 * 192 + 1], text[193];
+    size_t n = 0;
+    for (int i = 0; i <= last; ++i) {
+        n += snprintf(hex + n, sizeof(hex) - n, "%02x ", static_cast<unsigned char>(data[i]));
+        text[i] = data[i] >= 32 && data[i] < 127 ? data[i] : '.';
+    }
+    hex[n] = 0;
+    text[last + 1] = 0;
+    g_logger->line("net: %s payload (%d bytes, last non-zero byte %d): %s", what, length, last, hex);
+    g_logger->line("net:   as text: %s", text);
+}
+
 const char *option_name(int level, int name) {
     if (level == 0xFFFF) {  // SOL_SOCKET
         switch (name) {
@@ -61,61 +84,6 @@ const char *option_name(int level, int name) {
 
 unsigned long id(SOCKET s) { return static_cast<unsigned long>(s); }
 
-// ------------------------------------------------------------------------------------------------
-// Two copies on one PC have the same address. The game's LAN announcements (UDP port 9999, "gEA" packets) reach both, but a
-// copy that sees a packet from its own address takes it for its own echo and drops it. So a packet that this copy did not
-// send gets a made-up source address (127.0.0.2) on its way in, and the game's connections to that address are sent to the
-// PC's real one on their way out.
-// ------------------------------------------------------------------------------------------------
-constexpr unsigned char kPeerAddress[4] = {127, 0, 0, 2};
-bool g_alias_other_copy = true;
-unsigned char g_real_address[4] = {};
-bool g_have_real_address = false;
-unsigned char g_sent[16][12];  // the first 12 bytes of the announcements this copy sent (they hold a random id)
-int g_sent_count = 0;
-CRITICAL_SECTION g_alias_lock;
-volatile LONG g_alias_logged = 0;
-
-bool is_announcement(const char *data, int length) { return data && length >= 12 && data[0] == 'g' && data[1] == 'E' && data[2] == 'A'; }
-
-void note_sent(const char *data, int length) {
-    if (!is_announcement(data, length)) return;
-    EnterCriticalSection(&g_alias_lock);
-    bool known = false;
-    for (int i = 0; i < g_sent_count; ++i) known |= memcmp(g_sent[i], data, 12) == 0;
-    if (!known && g_sent_count < 16) memcpy(g_sent[g_sent_count++], data, 12);
-    LeaveCriticalSection(&g_alias_lock);
-}
-
-// A received announcement: if this copy did not send it, the other copy did: its source address becomes the made-up one.
-void alias_if_foreign(const char *data, int length, void *from, int from_length) {
-    if (!g_alias_other_copy || !is_announcement(data, length) || !from || from_length < static_cast<int>(sizeof(SockAddrIn))) return;
-    SockAddrIn *address = static_cast<SockAddrIn *>(from);
-    bool ours = false;
-    EnterCriticalSection(&g_alias_lock);
-    for (int i = 0; i < g_sent_count && !ours; ++i) ours = memcmp(g_sent[i], data, 12) == 0;
-    if (ours && !g_have_real_address && memcmp(address->addr, kPeerAddress, 4) != 0) {
-        memcpy(g_real_address, address->addr, 4);
-        g_have_real_address = true;
-    }
-    LeaveCriticalSection(&g_alias_lock);
-    if (ours) return;
-    if (InterlockedIncrement(&g_alias_logged) <= 3 && g_logger)
-        g_logger->line("net: an announcement from the other copy (%u.%u.%u.%u) is shown to the game as coming from 127.0.0.2",
-                    address->addr[0], address->addr[1], address->addr[2], address->addr[3]);
-    memcpy(address->addr, kPeerAddress, 4);
-}
-
-// An address the game uses for sending: the made-up one stands for this PC.
-const void *unalias(const void *to, int length, SockAddrIn *copy) {
-    if (!g_alias_other_copy || !g_have_real_address || !to || length < static_cast<int>(sizeof(SockAddrIn))) return to;
-    const SockAddrIn *address = static_cast<const SockAddrIn *>(to);
-    if (address->family != 2 || memcmp(address->addr, kPeerAddress, 4) != 0) return to;
-    *copy = *address;
-    memcpy(copy->addr, g_real_address, 4);
-    return copy;
-}
-
 using SocketFn = SOCKET(WINAPI *)(int, int, int);
 SocketFn g_orig_socket;
 SOCKET WINAPI hook_socket(int af, int type, int protocol) {
@@ -128,25 +96,10 @@ SOCKET WINAPI hook_socket(int af, int type, int protocol) {
 
 using BindFn = int(WINAPI *)(SOCKET, const void *, int);
 using SetSockOptFn = int(WINAPI *)(SOCKET, int, int, const char *, int);
-using GetSockOptFn = int(WINAPI *)(SOCKET, int, int, char *, int *);
 BindFn g_orig_bind;
 SetSockOptFn g_orig_setsockopt;
-GetSockOptFn g_get_sockopt;
-bool g_reuse_address = true;
-
-// The game binds its LAN socket (UDP, 0.0.0.0:9999) without SO_REUSEADDR, so a second copy on the same PC cannot bind it
-// and never hears the first one. With the option set before the bind, both copies get the broadcasts.
-void allow_shared_bind(SOCKET s) {
-    constexpr int kSolSocket = 0xFFFF, kSoReuseAddr = 4, kSoType = 0x1008, kSockDgram = 2;
-    int type = 0, size = sizeof(type);
-    if (!g_get_sockopt || g_get_sockopt(s, kSolSocket, kSoType, reinterpret_cast<char *>(&type), &size) != 0 || type != kSockDgram) return;
-    const int on = 1;
-    const int r = g_orig_setsockopt(s, kSolSocket, kSoReuseAddr, reinterpret_cast<const char *>(&on), sizeof(on));
-    if (allowed()) g_logger->line("net: SO_REUSEADDR added to datagram socket %lu before its bind = %d", static_cast<unsigned long>(s), r);
-}
 
 int WINAPI hook_bind(SOCKET s, const void *name, int length) {
-    if (g_reuse_address) allow_shared_bind(s);
     const int r = g_orig_bind(s, name, length);
     const DWORD err = GetLastError();
     char text[80];
@@ -169,10 +122,9 @@ int WINAPI hook_setsockopt(SOCKET s, int level, int name, const char *value, int
 using SendToFn = int(WINAPI *)(SOCKET, const char *, int, int, const void *, int);
 SendToFn g_orig_sendto;
 int WINAPI hook_sendto(SOCKET s, const char *data, int length, int flags, const void *to, int to_length) {
-    SockAddrIn real;
-    const int r = g_orig_sendto(s, data, length, flags, unalias(to, to_length, &real), to_length);
+    const int r = g_orig_sendto(s, data, length, flags, to, to_length);
     const DWORD err = GetLastError();
-    if (r > 0) note_sent(data, length);
+    if (r > 0 && allowed()) log_payload("sent", data, length);
     char text[80], hex[48];
     if (allowed())
         g_logger->line("net: sendto(%lu, %d bytes [%s], %s) = %d%s", id(s), length, hex_prefix(data, length, hex, sizeof(hex)),
@@ -185,8 +137,7 @@ int WINAPI hook_sendto(SOCKET s, const char *data, int length, int flags, const 
 using ConnectFn = int(WINAPI *)(SOCKET, const void *, int);
 ConnectFn g_orig_connect;
 int WINAPI hook_connect(SOCKET s, const void *name, int length) {
-    SockAddrIn real;
-    const int r = g_orig_connect(s, unalias(name, length, &real), length);
+    const int r = g_orig_connect(s, name, length);
     const DWORD err = GetLastError();
     char text[80];
     if (allowed()) g_logger->line("net: connect(%lu, %s) = %d (error %lu)", id(s), describe(name, length, text, sizeof(text)), r, r ? err : 0);
@@ -248,7 +199,9 @@ int WINAPI hook_WSARecvFrom(SOCKET s, WsaBuf *buffers, DWORD count, DWORD *recei
     static LONG posted = 0;
     char text[80];
     if (r == 0) {
-        if (received && buffers) alias_if_foreign(buffers[0].buf, static_cast<int>(*received), from, from_length ? *from_length : 0);
+        if (received && buffers) {
+            if (allowed()) log_payload("received", buffers[0].buf, static_cast<int>(*received));
+        }
         if (allowed())
             g_logger->line("net: WSARecvFrom(%lu) = 0, %lu bytes from %s", id(s), received ? static_cast<unsigned long>(*received) : 0,
                         describe(from, from_length ? *from_length : 0, text, sizeof(text)));
@@ -268,13 +221,12 @@ BOOL WINAPI hook_WSAGetOverlappedResult(SOCKET s, void *overlapped, DWORD *trans
     const DWORD err = GetLastError();
     PostedReceive receive;
     if (r && transferred && *transferred && take(overlapped, &receive)) {
-        alias_if_foreign(receive.data, static_cast<int>(*transferred), const_cast<void *>(receive.from),
-                         receive.from_length ? *receive.from_length : 0);
         char text[80], hex[48];
         if (allowed())
             g_logger->line("net: received %lu bytes [%s] on %lu from %s", static_cast<unsigned long>(*transferred),
                         hex_prefix(receive.data, static_cast<int>(*transferred), hex, sizeof(hex)), id(s),
                         describe(receive.from, receive.from_length ? *receive.from_length : 0, text, sizeof(text)));
+        if (allowed()) log_payload("received", receive.data, static_cast<int>(*transferred));
     }
     SetLastError(err);
     return r;
@@ -301,15 +253,9 @@ void hook(const char *name, Fn detour, Fn *orig) {
 
 }  // namespace
 
-void install(bool write_log, bool reuse_address, bool alias_other_copy) {
+void install() {
     g_logger = &g_log;
-    if (!write_log) g_budget = 0;
-    if (!write_log && !reuse_address && !alias_other_copy) return;
     InitializeCriticalSection(&g_posted_lock);
-    InitializeCriticalSection(&g_alias_lock);
-    g_alias_other_copy = alias_other_copy;
-    g_reuse_address = reuse_address;
-    g_get_sockopt = reinterpret_cast<GetSockOptFn>(reinterpret_cast<void *>(GetProcAddress(GetModuleHandleA("ws2_32.dll"), "getsockopt")));
     hook("socket", &hook_socket, &g_orig_socket);
     hook("bind", &hook_bind, &g_orig_bind);
     hook("setsockopt", &hook_setsockopt, &g_orig_setsockopt);
@@ -320,8 +266,7 @@ void install(bool write_log, bool reuse_address, bool alias_other_copy) {
     hook("WSAGetOverlappedResult", &hook_WSAGetOverlappedResult, &g_orig_WSAGetOverlappedResult);
     hook("recvfrom", &hook_recvfrom, &g_orig_recvfrom);
     MH_EnableHook(MH_ALL_HOOKS);
-    g_log.line("net: Winsock calls are hooked (log %s, reuse address %s, other copy aliased %s)", write_log ? "on" : "off",
-               reuse_address ? "on" : "off", alias_other_copy ? "on" : "off");
+    g_log.line("net: Winsock calls are hooked (logging only)");
 }
 
 }  // namespace dev_tools::network

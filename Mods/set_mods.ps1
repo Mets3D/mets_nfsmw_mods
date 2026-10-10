@@ -4,18 +4,18 @@
 #          controller_support, with their texture packs
 #   none = no plugins at all
 # -Game picks another install, for example the vanilla 1.3 one, and -Only which of our mods go there (folder names of
-# Mods/, default the first three; dev_tools is only added when asked for): set_mods.ps1 -Mode ours -Game '...\1.3' -Only controller_support
+# Mods/, default the first three; dev_tools and split_screen_support are only added when asked for): set_mods.ps1 -Mode ours -Game '...\1.3' -Only controller_support
 param(
     [Parameter(Mandatory)][ValidateSet('all', 'ours', 'none')][string]$Mode,
     [string]$Game = 'E:\Git\NFS-MW\Game Versions\GameTest',
-    [ValidateSet('custom_menus', 'camera_settings', 'controller_support', 'dev_tools')][string[]]$Only = @('custom_menus', 'camera_settings', 'controller_support')
+    [ValidateSet('custom_menus', 'camera_settings', 'controller_support', 'dev_tools', 'split_screen_support')][string[]]$Only = @('custom_menus', 'camera_settings', 'controller_support')
 )
 $game = $Game
 $on = "$game\scripts"; $off = "$game\scripts_disabled"
 $data = "$game\scripts\mets_mods"  # settings, logs and texture packs of our mods
 New-Item -ItemType Directory $data -Force | Out-Null
 Remove-Item "$game\nfsmw_mods" -Recurse -ErrorAction SilentlyContinue  # where the previous layout kept them
-$all = 'nfsmw_custom_menus.asi', 'nfsmw_camera_settings.asi', 'nfsmw_controller_support.asi', 'nfsmw_dev_tools.asi'
+$all = 'nfsmw_custom_menus.asi', 'nfsmw_camera_settings.asi', 'nfsmw_controller_support.asi', 'nfsmw_dev_tools.asi', 'nfsmw_split_screen_support.asi'
 $ours = $all | Where-Object { $Only -contains ($_ -replace '^nfsmw_', '' -replace '\.asi$', '') }
 # Texture packs: <name>.tpk in the data folder, built from the PNGs of a folder in Mods/ (the texture's name is the file's)
 $packs = @(

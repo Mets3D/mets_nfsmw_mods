@@ -64,7 +64,10 @@ collisions) that were never connected to anything on PC. With this mod, they now
 
 - **XInput controllers only** (Xbox 360 / One / Series, and anything that looks like one: PlayStation and Switch pads
   through DS4Windows, Steam Input, ...). The plugin touches no other DirectInput device.
-- **One player.** Only the first XInput controller and the game's port 0 are handled: no split-screen.
+- **One controller at a time.** The game reads the triggers of the first XInput controller and the rest from whichever
+  controller it opened, so two connected controllers mix (one steers, the other accelerates). In a split screen race
+  ([Split Screen Support](../split_screen_support/ReadMe.md)) only player 1's controller reaches the game, asked for by
+  that mod through `nfsmw_controller_support_exclusive_pad` (`common/controller_api.h`).
 - **The look bindings are not in the game's profile**: the profile saves only the game's own 19 controls, so the four look
   rows are kept in `nfsmw_controller_support.ini` (shared by all profiles).
 

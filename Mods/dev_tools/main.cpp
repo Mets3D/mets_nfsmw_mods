@@ -38,6 +38,6 @@ NFSMW_PLUGIN_MAIN() {
     nfsmw::data_file("nfsmw_dev_tools.ini", g_ini, sizeof(g_ini));
     if (ini_flag("multiple_instances", "enabled")) multiple_instances::install();
     if (ini_flag("diagnostics", "enabled")) diagnostics::install();
-    network::install(ini_flag("network", "log"), ini_flag("network", "reuse_address"), ini_flag("network", "alias_other_copy"));
+    if (ini_flag("network", "log")) network::install();
     return NFSMW_OK;
 }
