@@ -23,12 +23,9 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - For supported controllers, see the [Controller Support](../controller_support/ReadMe.md) mod - The game natively supports Xbox controllers, and for everything else, Steam Input is tested and works as a translation layer.
 
 ## TODO
-- Something is off about the drawing of shadows - In one example, Player 1 (top)'s shadows popped in as Player 2 caught up to them, suggesting that detailed shadows (of trees in this case, maybe the trees themselves?) are only drawn near Player 2, but that would be surprising, so I'm not sure. Maybe it's a two-way street in some way.
-
 - Would be nice if each player had a different color on the minimap.
 - Minimap currently is centered around strictly player 1. Would be nice if it either zoomed out to fit both, or if each player had one minimap, or if it switched to whoever is in last place.
 - Make install instructions more detailed; Where should users copy the files? Maybe add some CI/CD.
-
 
 <details><summary> Claude nonsense </summary>
 
@@ -37,7 +34,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 | Part | What | Switch |
 |---|---|---|
 | Menu entry | adds **Split Screen** to the Quick Race menu, after Quick Play and Custom Race | `[menu] entry` |
-| Split view | switches player 2's view on (the game then loads the world around them, lights and sets up their view) and draws the world once for each player: player 1 on the top half of the screen, player 2 on the bottom half | `[render] split` |
+| Split view | switches player 2's view on (the game then loads the world around them, lights and sets up their view) and draws the world once for each player: player 1 on the top half of the screen, player 2 on the bottom half | `[render] split`, `shadow_fix` |
 | Players | finds out who pressed Start (a controller, or Enter / Space on the keyboard); that device alone drives that player's car (every device can still use the menus: car select, pause, Controls); the other devices drive no vehicle | `[players] enabled` |
 | Shared device | lets player 2 get past the Press Start screen at all (the game sees every press as player 1's device) | `[fixes] shared_device` |
 | Loading screen | uses the normal loading screen: the split screen one crashes | `[fixes] loading_screen` |

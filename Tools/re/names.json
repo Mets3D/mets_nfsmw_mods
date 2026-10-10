@@ -169,5 +169,25 @@
     "name": "DirtySock::ReceiveThread",
     "confidence": "guess",
     "note": "posts the overlapped WSARecvFrom for the LAN socket"
+  },
+  "0x6E44C0": {
+    "name": "eRenderShadowMap",
+    "confidence": "guess",
+    "note": "cdecl (view, ?, shadow map index 0/1, 1): puts the shadow camera (view 15 + index) around the camera of the given view along the light direction and draws the shadow map"
+  },
+  "0x6E54E0": {
+    "name": "eRenderShadowPass",
+    "confidence": "guess",
+    "note": "(view, ?): sets two render states and calls eRenderShadowMap(view, ?, 0, 1) when [0x8FAED0]"
+  },
+  "0x6D7950": {
+    "name": "eGetShadowMapView",
+    "confidence": "guess",
+    "note": "(index) -> eViews[15 + index] (0x919C70 + index*0x70)"
+  },
+  "0x6BFDD0": {
+    "name": "eStartFrameCulling",
+    "confidence": "guess",
+    "note": "called once at the top of ___eDisplayFrame; queues scenery culling for views including the shadow map view (flags 0x4100) then DoCulling"
   }
 }

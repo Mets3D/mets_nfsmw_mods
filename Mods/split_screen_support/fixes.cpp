@@ -67,9 +67,21 @@ void view_mode() {
     report("view_mode", nfsmw::jump_to_stub(kSite, kExpected, sizeof(kExpected), stub), true);
 }
 
+// DrawAScenery (0x729120) picks a scenery model from its size on screen (pixels, measured against the picture the pass draws, which
+// here is the full screen): in the two view modes (3 and up) only objects over 22 pixels are drawn, with their low detail model
+// (0x729280: cmp eax,3; jl 0x729296), against 17 pixels and the model of the right detail in one view. Small objects and the shadows
+// of the far ones vanished. Each pass here draws a full size picture, so the one view rule is the right one.
+void scenery_detail() {
+    static const unsigned char kExpected[2] = {0x7C, 0x11};  // jl 0x729296: the one view rule, for view modes below 3
+    static const unsigned char kPatched[2] = {0xEB, 0x11};   // jmp 0x729296: for every mode
+    const bool wanted = ini_flag("fixes", "scenery_detail");
+    report("scenery_detail", wanted && nfsmw::patch_bytes(0x729283, kExpected, kPatched, sizeof(kExpected)), wanted);
+}
+
 }  // namespace
 
 void install() {
+    scenery_detail();
     shared_device();
     loading_screen();
     view_mode();

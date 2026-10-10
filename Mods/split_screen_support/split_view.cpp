@@ -194,9 +194,38 @@ void update_env_map_for_view1() {
     }
 }
 
+// The shadow map's view (15) gets its camera and matrices (PlatInfo) only when the shadow map is drawn, which is after the
+// scenery for it was picked (eStartFrameCulling, at the top of ___eDisplayFrame). So the picking uses the camera and matrices of
+// the previous shadow map drawn: with two passes that is the other player's, and the shadows around each player were chosen by the
+// distance to the other one. For the second pass view 15 gets a camera and PlatInfo of its own (copies of its static objects: the
+// cameras are 0x2C0 bytes apart, the PlatInfos 0x1A0, GimmeMyViewPlatInfo), so each pass finds its own player's shadow camera from
+// the previous frame (the same one frame of lag as in a single player game). View 16 has no camera to trade with: the game
+// crashes reading it. Only trading the camera made it worse: the camera and the matrices must stay a pair.
+constexpr uintptr_t kShadowView1 = 0x919C70;
+constexpr size_t kCameraSize = 0x2C0, kPlatInfoSize = 0x1A0;
+void *g_shadow_camera2 = nullptr;
+void *g_shadow_plat_info2 = nullptr;
+
+void *copy_of(void *original, size_t size) {
+    void *copy = original ? VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE) : nullptr;
+    if (copy) memcpy(copy, original, size);
+    return copy;
+}
+
+void make_shadow_copies() {
+    static const bool wanted = ini_flag("render", "shadow_fix");  // [render] shadow_fix=0: the game's own shadow picking
+    if (!wanted || (g_shadow_camera2 && g_shadow_plat_info2)) return;
+    g_shadow_camera2 = copy_of(at<void *>(kShadowView1, kViewCamera), kCameraSize);
+    g_shadow_plat_info2 = copy_of(at<void *>(kShadowView1, kViewPlatInfo), kPlatInfoSize);
+}
+
 // Player 2's view for the world pass, or back.
 void trade_views() {
     for (const int offset : kTraded) std::swap(at<void *>(kView1, offset), at<void *>(kView2, offset));
+    if (g_shadow_camera2 && g_shadow_plat_info2) {
+        std::swap(at<void *>(kShadowView1, kViewCamera), g_shadow_camera2);
+        std::swap(at<void *>(kShadowView1, kViewPlatInfo), g_shadow_plat_info2);
+    }
     swap_mover_lists();
 }
 
@@ -246,6 +275,13 @@ void split_frame(IDirect3DDevice9 *device) {
     const RECT source = {0, band_top, w, band_top + half};
     const RECT top = {0, 0, w, half}, bottom = {0, half, w, 2 * half};
 
+    make_shadow_copies();
+    // ___eDisplayFrame culls the scenery of every active view into one table of draw entries (about 3,700, shared by all of
+    // them, filled in order) but only draws view 1. With view 2 active it was culled in both passes for nothing, and could
+    // fill the table before the last views in the order (the shadow map's). View 2 is off for the passes: less work, and no
+    // visible downside seen.
+    static const bool single_cull = ini_flag("render", "single_cull");
+    if (single_cull) at<unsigned char>(kView2, kViewActive) = 0;
     g_orig_display_frame();  // player 1
     bool ok = copy(device, back_buffer, source, g_canvas, top, "player 1");
     clear_screen(device, back_buffer);
@@ -253,6 +289,7 @@ void split_frame(IDirect3DDevice9 *device) {
     update_env_map_for_view1();  // reflections around player 2's car
     g_orig_display_frame();  // player 2
     trade_views();
+    if (single_cull) at<unsigned char>(kView2, kViewActive) = 1;
     ok = ok && copy(device, back_buffer, source, g_canvas, bottom, "player 2");
     const RECT both = {0, 0, w, 2 * half};
     ok = ok && copy(device, g_canvas, both, back_buffer, both, "to the screen");
