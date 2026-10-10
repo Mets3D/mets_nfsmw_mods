@@ -23,6 +23,14 @@ Input for player 2: see [input-system.md](input-system.md) (extra device). Marks
   `FEManager::Render` (menus, HUD), EndScene, Present. The game clears colour and depth once per frame, after Present. `split_view.cpp` runs `___eDisplayFrame` twice in mode 3: view 1, copy a
   half-height band of the back buffer into a canvas (top), clear screen and depth, swap view 1 and 2's PlatInfo / camera / lighting (+0 / +0x40 / +0x5C), run again, copy the band (bottom), swap
   back, StretchRect the canvas to the back buffer. The canvas is released in an `IDirect3DDevice9::Reset` hook (vtable slot 16).
+- **What a view is, for the second pass** (swapped between view 1 and 2 around the second `___eDisplayFrame`): PlatInfo `+0`, camera `+0x40`, lighting `+0x5C`, and the **camera mover list** (`+0x44`, the head node of
+  an intrusive circular list: every node points back to it, so the lists are swapped node by node). `eView::GetCameraMover` is the list's first node. Car rendering asks it: `CarRenderConn::OnRender` skips the car
+  the mover follows when `RenderCarPOV` is false (bumper / hood views) and, for the cube-map views, skips the car of view 1's mover. Without the swap player 1's bumper view hid player 1's car in player 2's picture [guess,
+  untested fix].
+- **Reflections**: the car reflection is a cube map drawn from six extra views (18-23 on PC), pointed at view 1's followed car once per frame by `UpdateEnvironmentMapCameras` (0x756060, only when `[0x9017B8]`) and set up by
+  `SetupPerView` in `eDisplayFrame`'s loop; `___eDisplayFrame` draws them before the world. For the second pass both are done again after the swap [guess, untested].
+- **Shadows (open)**: not understood yet. `GrandSceneryCullInfo::WhatSectionsShouldWeDraw` picks the scenery sections of the shadow-map views from the camera of view `id - 12` (GC numbering). Unknown on PC which views
+  are the shadow maps (the PC enum is shifted by 2 at the env maps) and whether view 2's shadow map ever runs.
 - Streaming: `UpdateCameraMovers` 0x47C880 gives the track streamer (0x9AA9D0) a position for each **active** view (`PredictStreamingPosition` 0x7238D0); with view 2 active the world around
   player 2 loads natively. The streamer has two positions (entries of 0x64 at +0xC0) and a split screen flag (+0xB0, from `InitRegion` 0x72C070) under which it keeps both sets of sections.
 - Seen/expected: the HUD is player 1's and drawn over the whole screen; reflections (view 4) follow player 1; effects updated in `___eDisplayFrame` (rain) run twice per frame; motion blur could

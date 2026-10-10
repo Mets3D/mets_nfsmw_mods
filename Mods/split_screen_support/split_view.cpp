@@ -148,9 +148,56 @@ void clear_screen(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer) {
     if (old_depth) old_depth->Release();
 }
 
+// A view's camera movers are an intrusive circular list whose head node (next, prev) sits in the view (+0x44). The game asks
+// the view's first mover which car it follows and whether that car's inside is seen (bumper view: not), so this list is part of
+// what makes a view what it is. The two lists trade places node by node: every node points back to its list's head.
+struct ListNode {
+    ListNode *next, *prev;
+};
+constexpr int kViewMoverList = 0x44;
+
+void swap_mover_lists() {
+    auto *a = reinterpret_cast<ListNode *>(kView1 + kViewMoverList);
+    auto *b = reinterpret_cast<ListNode *>(kView2 + kViewMoverList);
+    const ListNode from_a = *a, from_b = *b;
+    const bool a_empty = from_a.next == a, b_empty = from_b.next == b;
+    if (b_empty) a->next = a->prev = a;
+    else {
+        *a = from_b;
+        a->next->prev = a;
+        a->prev->next = a;
+    }
+    if (a_empty) b->next = b->prev = b;
+    else {
+        *b = from_a;
+        b->next->prev = b;
+        b->prev->next = b;
+    }
+}
+
+// The reflection on the cars is a cube map drawn from six extra views (18-23) around the followed car. The game points those
+// views at the first player's car once per frame (UpdateEnvironmentMapCameras, 0x756060, only when [0x9017B8] is set), sets
+// them up (SetupPerView, 0x6CF400, with the arguments eDisplayFrame gives it) and ___eDisplayFrame then draws them before the
+// world. For the second pass the same is done again: the cube map is redrawn around player 2's car.
+constexpr uintptr_t kEnvMapEnabled = 0x9017B8, kUpdateEnvMapCameras = 0x756060, kViews = 0x9195E0;
+constexpr int kViewSize = 0x70, kFirstEnvMapView = 18, kLastEnvMapView = 23;
+constexpr unsigned kFarPlane = 0x466A6000;  // 15000.0f, as eDisplayFrame passes it
+
+void update_env_map_for_view1() {
+    if (!*reinterpret_cast<int *>(kEnvMapEnabled)) return;
+    reinterpret_cast<void(__cdecl *)()>(kUpdateEnvMapCameras)();
+    using SetupPerViewFn = void(__fastcall *)(void *plat_info, void *edx, void *view, int unused, unsigned far_plane, int zero, int one);
+    const auto setup = reinterpret_cast<SetupPerViewFn>(0x6CF400);
+    for (int id = kFirstEnvMapView; id <= kLastEnvMapView; ++id) {
+        void *view = reinterpret_cast<void *>(kViews + id * kViewSize);
+        setup(*static_cast<void **>(view), nullptr, view, 0, kFarPlane, 0, 1);
+    }
+}
+
 // Player 2's view for the world pass, or back.
 void trade_views() {
     for (const int offset : kTraded) std::swap(at<void *>(kView1, offset), at<void *>(kView2, offset));
+    swap_mover_lists();
 }
 
 // View 2 on for a split screen race, and off again afterwards (see the top).
@@ -203,6 +250,7 @@ void split_frame(IDirect3DDevice9 *device) {
     bool ok = copy(device, back_buffer, source, g_canvas, top, "player 1");
     clear_screen(device, back_buffer);
     trade_views();
+    update_env_map_for_view1();  // reflections around player 2's car
     g_orig_display_frame();  // player 2
     trade_views();
     ok = ok && copy(device, back_buffer, source, g_canvas, bottom, "player 2");
