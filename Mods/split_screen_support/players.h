@@ -14,8 +14,6 @@ bool split_screen();
 
 // The device of player 0 or player 1 in this race (0-3 an XInput controller, or kKeyboard).
 int device(int player);
-// A controller player's state; false for the keyboard or a controller that is not connected.
-bool read_pad(int player, nfsmw::xinput::Gamepad *out);
 // The keyboard as DirectInput shows it (256 bytes, bit 7 = down), whoever it reaches; false when it is not known.
 bool read_keyboard(unsigned char *out);
 

@@ -2,6 +2,7 @@
 
 #include "hooks.h"
 #include "input.h"
+#include "extra_device.h"
 #include "rumble.h"
 
 namespace pad::rumble {
@@ -133,7 +134,7 @@ bool on_ground(const void *surface) {
 // thread talks to the controller: in a race the game thread just sets the level it should play (each frame), and
 // Options > Rumble's previews are played by the thread itself, so a crash and its preview reach the controller the same
 // way. The thread also stops the motors when the game stops updating (loading, a hang).
-// Two players can rumble (a second local player, see input::second_player_slot); g_cur is the one the game thread is
+// Two players can rumble (the second one reads the extra device, see extra_device.h); g_cur is the one the game thread is
 // working on, set at every entry from the game (the feedback objects know their player).
 int g_cur = 0;
 volatile float g_game_level[2] = {};
@@ -221,9 +222,9 @@ bool preview_shape(int effect, float t, float *out) {
 }
 
 // Which controller a player's rumble goes to: player 1 the one in use (or none, when no controller reaches the game),
-// player 2 the one that was given to them (-1: none).
+// player 2 the one that is the source of their device (-1: none, or the keyboard).
 int player_slot(int player) {
-    if (player == 1) return input::second_player_slot();
+    if (player == 1) return extra_device::source_slot();
     return input::no_pads() ? -1 : xinput::port;
 }
 
@@ -658,7 +659,7 @@ int install_feedback(void *&ffb, int port) {
     for (int i = 0; i < 2; ++i)
         if (ffb == &g_feedbacks[i]) return i;
     if (!g_rumble_enabled || !xinput::can_vibrate()) return -1;
-    const int index = port >= 0 ? 0 : input::second_player_slot() >= 0 ? 1 : -1;
+    const int index = port < 0 ? -1 : port == extra_device::port() ? 1 : 0;
     if (index < 0) return -1;
     Feedback &feedback = g_feedbacks[index];
     feedback.vtbl = g_feedback_vtbl;
@@ -683,10 +684,8 @@ void FASTCALL hook_do_ffb(void *player, void *edx) {
         log_debug("rumble: DoFFB for the player at %p (feedback object %p)", player, field<void *>(player, 0x58));
     }
     // DoFFB's view of the player has the feedback object at +0x58 and the steering wheel at +0x5C; SetControllerPort's
-    // view (0x4C further on) has the object at +0xC. A player without a feedback object is the second one: the game's
-    // SetControllerPort found no device for them.
+    // view (0x4C further on) has the object at +0xC.
     void *&ffb = field<void *>(player, 0x58);
-    if (!ffb && input::second_player_slot() >= 0) install_feedback(ffb, -1);
     int index = -1;
     for (int i = 0; i < 2; ++i)
         if (ffb == &g_feedbacks[i]) index = i;
@@ -713,6 +712,7 @@ void FASTCALL hook_do_ffb(void *player, void *edx) {
 using SetPortFn = void(FASTCALL *)(void *, void *, int);
 SetPortFn g_orig_set_controller_port;
 void FASTCALL hook_set_controller_port(void *player, void *edx, int port) {
+    port = extra_device::port_for_player(port);  // the second player reads the extra device
     g_orig_set_controller_port(player, edx, port);
     static int logged = 0;
     if (logged++ < 8) log_debug("rumble: SetControllerPort(%d) for the player at %p", port, player);

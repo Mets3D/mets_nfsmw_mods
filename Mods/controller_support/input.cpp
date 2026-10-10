@@ -138,8 +138,6 @@ bool last_input_was_pad() { return g_last_input_pad; }
 volatile LONG g_exclusive = nfsmw::controller_api::kDefault;
 
 // Whether the keyboard reaches the game, and the keyboard as DirectInput last showed it, wanted or not.
-volatile LONG g_mouse_player = 0;
-volatile LONG g_second_player = -1;  // see nfsmw_controller_support_second_player
 volatile LONG g_keyboard_allowed = 1;
 BYTE g_real_keyboard[256];
 volatile LONG g_keyboard_seen = 0;
@@ -617,8 +615,7 @@ void take_mouse_delta(LONG *dx, LONG *dy) {
 }
 
 bool no_pads() { return g_exclusive == nfsmw::controller_api::kNoPad; }
-int second_player_slot() { return g_second_player; }
-int mouse_player() { return g_mouse_player; }
+bool key_down(int dik) { return dik > 0 && dik < 256 && (g_real_keyboard[dik] & 0x80) != 0; }
 
 bool any_xinput_device() {
     for (int i = 0; i < g_device_count; ++i)
@@ -658,26 +655,6 @@ extern "C" __declspec(dllexport) void nfsmw_controller_support_pads(int which) {
     } else {
         log_line("the game's controllers: the default again (%s)", g_cfg.merge_controllers ? "all XInput controllers merged" : "the game's own");
     }
-}
-
-// The actions (binding entries, see common/controller_api.h) that XInput controller `slot` is asking for, through the
-// bindings of the game controller that reports it: values[0..75]. Returns 0 when no game controller does.
-extern "C" __declspec(dllexport) int nfsmw_controller_support_pad_actions(int slot, float *values) {
-    return pad::pad_sets::actions_of_slot(slot, values) ? 1 : 0;
-}
-
-extern "C" __declspec(dllexport) void nfsmw_controller_support_second_player(int slot) {
-    using namespace pad;
-    if (InterlockedExchange(&input::g_second_player, slot < 0 ? -1 : slot) == (slot < 0 ? -1 : slot)) return;
-    if (slot >= 0) log_line("a second player has XInput controller %d: their rumble and camera look (asked for by another mod)", slot);
-    else log_line("no second player any more (asked for by another mod)");
-}
-
-extern "C" __declspec(dllexport) void nfsmw_controller_support_mouse_player(int player) {
-    using namespace pad;
-    const LONG wanted = player == 1 ? 1 : 0;
-    if (InterlockedExchange(&input::g_mouse_player, wanted) == wanted) return;
-    log_line("the mouse looks around for the %s player (asked for by another mod)", wanted ? "second" : "first");
 }
 
 extern "C" __declspec(dllexport) void nfsmw_controller_support_keyboard(int allowed) {

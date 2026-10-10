@@ -1,4 +1,5 @@
 #include "bindings.h"
+#include "extra_device.h"
 #include "hooks.h"
 #include "input.h"
 #include "look.h"
@@ -12,7 +13,7 @@ using namespace pad::bindings;
 // turned around the target (to) by the look offsets. The mover's camera mode (+0x9C) is the view type (0 bumper,
 // 1 hood, 2 close, 3 far, ...), +0xA1 is set while looking back. Based on the widescreen fix's Camera.ixx (MIT,
 // ThirteenAG), generalised to every chase view and fed from the game's bindings. A second player (another mod gave
-// them a controller: input::second_player_slot) looks around with that controller's right stick, in their own view
+// them a device: extra_device.h) looks around with the look bindings of that device, in their own view
 // (view 2, whose camera mover is the second one); the first player's look and the mouse stay with the first.
 // ------------------------------------------------------------------------------------------------
 struct Vec3 {
@@ -39,16 +40,10 @@ void *second_mover() {
     return first && first != kList ? reinterpret_cast<void *>(first - 4) : nullptr;
 }
 
-// The second player's right stick (-1..1 each way, a dead zone applied), from their controller.
+// The second player's look (-1..1 each way): their device's look entries, with the same bindings and dead zone as anybody's.
 void second_stick(float *x, float *y) {
-    *x = *y = 0.0f;
-    xinput::Gamepad p;
-    if (!xinput::read_slot(input::second_player_slot(), &p)) return;
-    const float sx = p.rx / 32767.0f, sy = p.ry / 32767.0f, r = std::sqrt(sx * sx + sy * sy);
-    if (r <= g_cfg.right_deadzone) return;
-    const float k = (r - g_cfg.right_deadzone) / (1.0f - g_cfg.right_deadzone) / r;
-    *x = sx * k;
-    *y = sy * k;
+    *x = extra_device::value(kLookEntry[L_RIGHT]) - extra_device::value(kLookEntry[L_LEFT]);
+    *y = extra_device::value(kLookEntry[L_UP]) - extra_device::value(kLookEntry[L_DOWN]);
 }
 
 using MoverUpdateFn = void(FASTCALL *)(void *, void *, float);
@@ -78,7 +73,7 @@ void look_at(void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
     }
     LookState &l = g_state[g_who];
     LONG mouse_x = 0, mouse_y = 0;
-    if (g_who == input::mouse_player()) {
+    if (g_who == (extra_device::keyboard_source() ? 1 : 0)) {  // the mouse is the keyboard player's
         input::take_mouse_delta(&mouse_x, &mouse_y);
         // Mouse movement collected while no chase camera ran (menus, pause, other views) is dropped.
         static DWORD last_tick = 0;

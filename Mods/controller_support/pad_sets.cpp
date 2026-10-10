@@ -101,6 +101,17 @@ void select(int pad) {
 
 int live_pad() { return g_live; }
 
+bool actions_of_keyboard(float *values) {
+    for (int e = 0; e < kBindingCount; ++e) {
+        values[e] = 0.0f;
+        for (int s = 0; s < 2; ++s) {
+            const Slot slot = slots_of(kBindingTable, e)[s];
+            if (slot.type == kKey && input::key_down(slot.device)) values[e] = 1.0f;
+        }
+    }
+    return true;
+}
+
 // The entries' values that one XInput controller asks for through the set of the game controller that reports it (for
 // players the game does not poll: the second one of a split screen).
 bool actions_of_slot(int xinput_slot, float *values) {

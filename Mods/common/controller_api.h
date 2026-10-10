@@ -9,13 +9,9 @@
 //       kNoPad (-2)    none
 //       kMergedPads (-3)  all XInput controllers merged into one (any button; each stick and trigger from the pad pushing
 //                      it furthest)
-//   nfsmw_controller_support_second_player(int slot)  a second local player (the one of the second view) has XInput
-//                      controller `slot` (-1: nobody): it rumbles for their car, and their right stick looks around in
-//                      their camera
-//   nfsmw_controller_support_mouse_player(int player)  whose camera the mouse looks around in: 0 (the default) or 1
-//   int nfsmw_controller_support_pad_actions(int slot, float *values)  what XInput controller `slot` asks for through the
-//                      bindings of its game controller, per binding entry (0 gas, 1 brake, 2 steer left, 3 steer right,
-//                      4 handbrake, 6 nitrous, 7 shift down, 8 shift up, 16 look back; 76 floats, 0..1); 0 = cannot tell
+//   int nfsmw_controller_support_extra_device(int source)  a second game input device (own port) for a second local
+//                      player, saying what the bindings of `source` ask for: an XInput controller 0-3, kSourceKeyboard or
+//                      kSourceNone. Returns the port for the player's joystick port (FEDatabase), or -1 when there is none
 //   nfsmw_controller_support_keyboard(int allowed)  whether the keyboard reaches the game (1, the default) or not (0)
 //   nfsmw_controller_support_keyboard_state(unsigned char *out)  the keyboard as DirectInput shows it (256 bytes, a key is
 //                      down when the byte has bit 7 set), whether or not it reaches the game; 0 until the game has read it
@@ -26,12 +22,11 @@
 namespace nfsmw::controller_api {
 
 constexpr int kDefault = -1, kNoPad = -2, kMergedPads = -3;
+constexpr int kSourceKeyboard = -10, kSourceNone = -11;  // sources of the extra device (besides XInput controllers 0-3)
 
 using PadsFn = void (*)(int which);
 using KeyboardFn = void (*)(int allowed);
-using SecondPlayerFn = void (*)(int slot);
-using PadActionsFn = int (*)(int slot, float *values);
-using MousePlayerFn = void (*)(int player);
+using ExtraDeviceFn = int (*)(int source);
 using KeyboardStateFn = int (*)(unsigned char *out);
 
 namespace detail {
@@ -43,14 +38,8 @@ inline void *find(const char *name) {
 
 // Each is null when nfsmw_controller_support is not loaded.
 inline PadsFn find_pads() { return reinterpret_cast<PadsFn>(detail::find("nfsmw_controller_support_pads")); }
-inline SecondPlayerFn find_second_player() {
-    return reinterpret_cast<SecondPlayerFn>(detail::find("nfsmw_controller_support_second_player"));
-}
-inline MousePlayerFn find_mouse_player() {
-    return reinterpret_cast<MousePlayerFn>(detail::find("nfsmw_controller_support_mouse_player"));
-}
-inline PadActionsFn find_pad_actions() {
-    return reinterpret_cast<PadActionsFn>(detail::find("nfsmw_controller_support_pad_actions"));
+inline ExtraDeviceFn find_extra_device() {
+    return reinterpret_cast<ExtraDeviceFn>(detail::find("nfsmw_controller_support_extra_device"));
 }
 inline KeyboardFn find_keyboard() { return reinterpret_cast<KeyboardFn>(detail::find("nfsmw_controller_support_keyboard")); }
 inline KeyboardStateFn find_keyboard_state() {

@@ -12,8 +12,9 @@
  *  - on a Press Start screen (CreateQRPressStart, 0x570C60): all of them, so that either player can press;
  *  - after a player pressed Start: that player's device alone, for the menus that follow (their car select). The other
  *    devices are ignored: a keyboard player's controllers do nothing, a controller player's keyboard does nothing;
- *  - when the race loads: player 1's device alone. Player 2's joystick port is set to -1 (no game device;
- *    player2_input.cpp drives that car from player 2's device). A player who did not press Start, or who pressed
+ *  - when the race loads: player 1's device alone. Player 2's joystick port is set to -1 and they
+ *    read a game input device of their own, made by nfsmw_controller_support from the bindings of player 2's device
+ *    (without it they have no input). A player who did not press Start, or who pressed
  *    Start on the device the other player used, gets another one: a free controller, else the keyboard;
  *  - back in the menus (no longer a split screen game): as normal, all devices.
  * Without nfsmw_controller_support only the game's own device reaches it, for both players.
@@ -118,20 +119,24 @@ void give_controls(int device) {
     }
 }
 
-// The second player's controller (rumble, camera look) goes to nfsmw_controller_support; the keyboard has none, but the
-// mouse then looks around in their camera.
-void start_second_player(int device) {
-    static const api::SecondPlayerFn second = api::find_second_player();
-    static const api::MousePlayerFn mouse = api::find_mouse_player();
-    if (second) second(device >= 0 ? device : -1);
-    if (mouse) mouse(device == kKeyboard ? 1 : 0);
+// Player 2's input: a game input device of their own. nfsmw_controller_support makes it, fills it with what the Controls
+// menu bindings of player 2's device ask for, and gives it to the player whose joystick port is -1 (their database port
+// stays -1: the menus' input knows no other port and crashes on one), so the game's own input path serves them: steering,
+// camera change, pause, rumble, the mouse look of a keyboard player. Returns false without nfsmw_controller_support.
+bool start_second_player(int device) {
+    static const api::ExtraDeviceFn extra_device = api::find_extra_device();
+    if (!extra_device) {
+        g_log.line("nfsmw_controller_support is not loaded: player 2 has no input");
+        return false;
+    }
+    const int port = extra_device(device == kKeyboard ? api::kSourceKeyboard : device);
+    g_log.line("player 2 reads %s", port >= 0 ? "a game input device of their own" : "no game input device (none could be made)");
+    return port >= 0;
 }
 
 void end_second_player() {
-    static const api::SecondPlayerFn second = api::find_second_player();
-    static const api::MousePlayerFn mouse = api::find_mouse_player();
-    if (second) second(-1);
-    if (mouse) mouse(0);
+    static const api::ExtraDeviceFn extra_device = api::find_extra_device();
+    if (extra_device) extra_device(api::kSourceNone);
 }
 
 // A device that is not `taken`: a connected controller, else the keyboard (which may be the same: nothing else is there).
@@ -159,7 +164,7 @@ void on_world_load() {
     if (p1 == p2) g_log.line("both players are on the keyboard: they will drive together (connect a controller)");
     g_race[0] = p1;
     g_race[1] = p2;
-    fe_database()[0x0D] = 0xFF;  // player 2's joystick port: -1, no game device
+    fe_database()[0x0D] = 0xFF;  // player 2's joystick port: -1 (see start_second_player)
     give_controls(p1);
     start_second_player(p2);
     g_phase = Phase::kRace;
@@ -257,11 +262,6 @@ bool split_screen() {
 }
 
 int device(int player) { return player == 0 || player == 1 ? g_race[player] : kKeyboard; }
-
-bool read_pad(int player, xinput::Gamepad *out) {
-    const int d = device(player);
-    return d >= 0 && xinput::read_slot(d, out);
-}
 
 bool read_keyboard(unsigned char *out) {
     static const api::KeyboardStateFn fn = api::find_keyboard_state();

@@ -16,6 +16,7 @@ int joystick_count();                  // controllers in the game's joystick tab
 void *joystick_di_device(int index);   // the DirectInput device of one (the game's own object has it at +0x468)
 int joystick_of_device(void *di_device);  // its index in the table, or -1
 bool actions_of_slot(int xinput_slot, float *values);  // the entries' values a controller asks for through its set
+bool actions_of_keyboard(float *values);  // the same for the keyboard (the keyboard slots of the live table)
 int live_pad();                        // whose set the live table holds (0 unless the Controls screen shows another)
 void add_values(float *entry_values);  // after the game polled: what the other controllers' sets say, per entry
 void load_settings();

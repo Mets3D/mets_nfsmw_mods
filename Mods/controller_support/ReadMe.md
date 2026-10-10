@@ -68,7 +68,7 @@ collisions) that were never connected to anything on PC. With this mod, they now
   controller it opened, and its triggers came from the first XInput controller, so two connected controllers used to
   mix (one steered, the other accelerated). `merge_controllers=0` in the ini turns the merging off. The controller that
   was used last is the one that rumbles. Other mods can ask for particular controllers, or for the keyboard to be left
-  out, through the exports described in `common/controller_api.h`; nothing here depends on them. One of them tells the mod about a second local player and their controller: it then rumbles for their car and their right stick looks around in their own camera.
+  out, through the exports described in `common/controller_api.h`; nothing here depends on them. One of them makes a game input device for a second local player (split screen), which reads the bindings of their controller or the keyboard; it then rumbles for their car and their look bindings look around in their own camera.
 - **The look bindings are not in the game's profile**: the profile saves only the game's own 19 controls, so the four look
   rows are kept in `nfsmw_controller_support.ini` (shared by all profiles).
 

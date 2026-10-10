@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include "bindings.h"
+#include "extra_device.h"
 #include "pad_sets.h"
 #include "hooks.h"
 #include "input.h"
@@ -159,6 +160,7 @@ void FASTCALL hook_poll(void *self, void *edx) {
         input::hook_dinput();
         if (g_look_entries_ok) load_live_look_entries();
     }
+    if (extra_device::is_extra(self)) return extra_device::poll(self);  // the second player's device
     if (field<int>(self, 0x24) != 0) return;  // GameDevice port: only port 0 polls
     const float *current = field<float *>(self, 0x20);
     if (current) pad_sets::add_values(const_cast<float *>(current));  // the other controllers' sets

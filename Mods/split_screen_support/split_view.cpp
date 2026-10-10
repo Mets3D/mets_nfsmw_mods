@@ -18,11 +18,11 @@
  *   3. The canvas is copied onto the back buffer; the HUD and menus are drawn on it after this, as usual.
  *
  * A band of the whole picture is what a view half as high with the same horizontal field of view shows: no distortion,
- * less above and below. [render] band_center (0..1, default 0.55) moves the band down to keep more of the car in it;
- * layout=squash instead squeezes the whole picture into the half (everything shown, half as tall).
+ * less above and below. The band is centred a little below the middle of the picture (kBandCenter) to keep more of the
+ * car in it.
  *
- * Costs: the world is drawn twice per frame. Effects that keep the previous frame (motion blur) mix the two players'
- * pictures. MaybeChangeViewMode only knows views modes 0-2; the view_mode fix (fixes.cpp) sets view 1 up as for one view
+ * Costs: the world is drawn twice per frame. Effects that keep the previous frame (motion blur) could mix the two players'
+ * pictures (expected from the code; not seen in game). MaybeChangeViewMode only knows views modes 0-2; the view_mode fix (fixes.cpp) sets view 1 up as for one view
  * when the mode is 3.
  *
  * The canvas lives in video memory; it is released when the game resets the device (a hook on IDirect3DDevice9::Reset,
@@ -56,9 +56,7 @@ constexpr int kViewLighting = 0x5C;  // set by SetupWorldLightContext
 // What makes a view what it is for ___eDisplayFrame, as far as it is known: the matrices, the camera, the lighting.
 constexpr int kTraded[] = {kViewPlatInfo, kViewCamera, kViewLighting};
 
-enum class Layout { kCrop, kSquash };
-Layout g_layout = Layout::kCrop;
-float g_band_center = 0.55f;
+constexpr float kBandCenter = 0.55f;  // where the band is centred, as a fraction of the picture's height
 
 void (*g_orig_display_frame)();
 IDirect3DSurface9 *g_canvas = nullptr;
@@ -178,10 +176,9 @@ void log_first(IDirect3DDevice9 *, IDirect3DSurface9 *back_buffer, const D3DSURF
     g_logged_first = true;
     const uintptr_t target = at<uintptr_t>(kView1, kViewRenderTarget);
     void *view_surface = target ? *reinterpret_cast<void **>(target + 8) : nullptr;
-    g_log.line("split view: first frame: screen %u x %u, format %d, multisampling %d; view 1's surface %s the back buffer; "
-               "layout %s, band centre %.2f",
+    g_log.line("split view: first frame: screen %u x %u, format %d, multisampling %d; view 1's surface %s the back buffer",
                d.Width, d.Height, static_cast<int>(d.Format), static_cast<int>(d.MultiSampleType),
-               view_surface == back_buffer ? "is" : "is not", g_layout == Layout::kCrop ? "crop" : "squash", g_band_center);
+               view_surface == back_buffer ? "is" : "is not");
 }
 
 void split_frame(IDirect3DDevice9 *device) {
@@ -190,18 +187,16 @@ void split_frame(IDirect3DDevice9 *device) {
     D3DSURFACE_DESC d;
     back_buffer->GetDesc(&d);
     if (!g_logged_first) log_first(device, back_buffer, d);
-    const bool squash = g_layout == Layout::kSquash;
-    if (!canvas_fits(d) && !make_canvas(device, d, !squash && d.MultiSampleType != D3DMULTISAMPLE_NONE)) {
+    if (!canvas_fits(d) && !make_canvas(device, d, d.MultiSampleType != D3DMULTISAMPLE_NONE)) {
         back_buffer->Release();
         g_failed = true;
         return g_orig_display_frame();
     }
     const LONG w = d.Width, h = d.Height, half = h / 2;
-    LONG band_top = static_cast<LONG>(g_band_center * h) - half / 2;
+    LONG band_top = static_cast<LONG>(kBandCenter * h) - half / 2;
     if (band_top < 0) band_top = 0;
     if (band_top > h - half) band_top = h - half;
-    const RECT whole = {0, 0, w, h};
-    const RECT source = squash ? whole : RECT{0, band_top, w, band_top + half};
+    const RECT source = {0, band_top, w, band_top + half};
     const RECT top = {0, 0, w, half}, bottom = {0, half, w, 2 * half};
 
     g_orig_display_frame();  // player 1
@@ -236,13 +231,6 @@ void hook_display_frame() {
 }  // namespace
 
 void install() {
-    char text[16];
-    GetPrivateProfileStringA("render", "layout", "crop", text, sizeof(text), g_ini);
-    g_layout = _stricmp(text, "squash") == 0 ? Layout::kSquash : Layout::kCrop;
-    GetPrivateProfileStringA("render", "band_center", "0.55", text, sizeof(text), g_ini);
-    g_band_center = static_cast<float>(atof(text));
-    if (g_band_center < 0.25f) g_band_center = 0.25f;
-    if (g_band_center > 0.75f) g_band_center = 0.75f;
     events::on_world_load(&on_world_load);
     events::on_frame(&on_frame);
     const nfsmw::Hook hooks[] = {
