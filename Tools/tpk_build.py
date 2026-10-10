@@ -4,7 +4,8 @@ usage: python tpk_build.py <out.tpk> <PACK_NAME> <image.png> [image.png ...]
 
 Each PNG becomes one texture named after its file name in upper case (OPTIONS_CAMERA.png -> OPTIONS_CAMERA), stored
 as uncompressed 32-bit BGRA with one mip level, like the game's own menu icons. The texture's hash is the game's
-bHash of that name (h = 0xFFFFFFFF; h = h * 33 + c), which is what the game and the mods look it up by.
+bHash of that name (h = 0xFFFFFFFF; h = h * 33 + c), which is what the game and the mods look it up by. A pack stores
+at most 23 characters of a name; a longer name is cut there, but the hash stays the one of the full name.
 
 The chunk layout copies the game's own packs (and the standalone ones other mods ship): padding chunks keep the data
 chunk and every texture at 0x80-byte boundaries, because the game reads texture data from the first 0x80-aligned
@@ -94,15 +95,14 @@ def build(out_path, pack_name, pngs):
     file_hash = bhash(filename)
     textures = []
     for path in pngs:
-        name = os.path.splitext(os.path.basename(path))[0].upper()
-        if len(name) > 23:
-            raise ValueError(f'{name}: texture names are limited to 23 characters')
+        full_name = os.path.splitext(os.path.basename(path))[0].upper()
+        name = full_name[:23]  # the pack stores 23 characters; the hash (what the game looks it up by) is of the full name
         w, h, rgba = read_png(path)
         if w & (w - 1) or h & (h - 1):
             raise ValueError(f'{path}: width and height must be powers of two (got {w}x{h})')
         bgra = bytearray(rgba)
         bgra[0::4], bgra[2::4] = rgba[2::4], rgba[0::4]
-        textures.append({'name': name, 'hash': bhash(name), 'w': w, 'h': h, 'data': bytes(bgra)})
+        textures.append({'name': name, 'hash': bhash(full_name), 'w': w, 'h': h, 'data': bytes(bgra)})
     textures.sort(key=lambda t: t['hash'])
 
     data = bytearray()

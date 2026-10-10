@@ -22,11 +22,13 @@ else's, and `nfsmw_camera_settings` and `nfsmw_controller_support` do not depend
 They have only been tested with this set of mods in the test copy (and nothing else): BloomResIncreaser,
 NextGenGraphics, the widescreen fix (ThirteenAG, 2026-09-12 release), NFSMWExtraOptions, NFSMWFEShadows, NFSMWGraphics,
 NFSMWHDContentSupport, NFSMWHDReflections, NFSMWMotionBlurController, NFSMWRaceFixes, NFSMWUnlimiter,
-NFSMW_NOAIRSTABILIZER, NFSMW_XenonEffects, SpeedReflect and XNFS-ShaderLoader. Not yet tested: a vanilla install.
+NFSMW_NOAIRSTABILIZER, NFSMW_XenonEffects, SpeedReflect and XNFS-ShaderLoader. A vanilla 1.3 install with only nfsmw_controller_support was also tried (it works).
 
 **Optional interplay** (nothing breaks without them):
-- *The widescreen fix*: with `ImproveGamepadSupport = 1` it gives the colourful button icons, which also show on our Help
-  hint (the 2 key glyph appears as X on a controller). Its direction-less binding names are replaced by ours.
+- *The widescreen fix*: nfsmw_controller_support has its own controller button icons (the same pictures) and menu
+  buttons, so `ImproveGamepadSupport` is not needed; with it on, the widescreen fix's icons are used and ours stay out of
+  the way. The icons also show on the Help hint of nfsmw_custom_menus (the 2 key glyph appears as X on a controller). Its
+  direction-less binding names are replaced by ours.
 - *NFSMWExtraOptions*: its extra camera views (Drift) appear in the camera page; nfsmw_camera_settings shows the Drift view's
   name with the game's own string instead of its all-caps one.
 
@@ -69,10 +71,10 @@ Needs the MSYS2 MINGW32 toolchain (gcc, cmake, make) and the SDK clone in `../To
 cd Mods
 cmake -S . -B build -G "MinGW Makefiles"     # once
 cmake --build build                          # build/nfsmw_*.asi
-powershell -File set_mods.ps1 -Mode ours      # copy to GameTest/scripts (+ texture packs); -Mode all = only the other mods, none of ours
+powershell -File set_mods.ps1 -Mode ours      # copy to Game Versions/GameTest/scripts (+ texture packs); -Mode all = only the other mods, none of ours
 ```
 
-`GameTest/` is a copy of the game; the original install is not touched. Close the game before deploying (it keeps the old
+`Game Versions/GameTest/` is a copy of the game; the original install is not touched. Close the game before deploying (it keeps the old
 `.asi` loaded). Settings, logs and texture packs of all our mods are in one folder, `scripts/mets_mods/`, so the game folder stays tidy. The logs: `nfsmw_custom_menus.log`, `nfsmw_camera_settings.log`, `nfsmw_controller_support.log`, and
 `nfsmw_custom_menus_crash.log` for access violations anywhere in the game.
 

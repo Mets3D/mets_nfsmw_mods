@@ -6,13 +6,17 @@
  *   bindings.cpp       the PC binding table: the camera look entries, a log of binding changes
  *   controls_menu.cpp  Options > Controls: the look rows, readable names
  *   look.cpp           camera look
+ *   button_icons.cpp   controller pictures in the button prompts of the menus, instead of keyboard keys
+ *   menu_buttons.cpp   A accepts, B goes back in the menus
  *   rumble.cpp         rumble (the force feedback events, the controller's motors)
  *   rumble_page.cpp    Options > Rumble, a page of nfsmw_custom_menus
  */
 #include "bindings.h"
+#include "button_icons.h"
 #include "controls_menu.h"
 #include "input.h"
 #include "look.h"
+#include "menu_buttons.h"
 #include "pad.h"
 #include "rumble.h"
 
@@ -27,10 +31,12 @@ NFSMW_PLUGIN_MAIN() {
     xinput::load(&g_log);
     bindings::prepare_default_look_entries();
     if (bindings::g_look_entries_ok) controls_menu::add_rows();
+    menu_buttons::patch_default_table();
     input::install_hooks();
     bindings::install_hooks();
     controls_menu::install_hooks();
     look::install_hooks();
+    button_icons::install_hooks();
     rumble::install_hooks();
     rumble::start();
     return NFSMW_OK;

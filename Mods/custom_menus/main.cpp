@@ -34,6 +34,7 @@
 #include "hooks.h"
 #include "nfsmw_util.h"
 #include "custom_menus_api.h"
+#include "texture_pack.h"
 #include "title_icon.h"
 #include "xinput.h"
 
@@ -143,9 +144,6 @@ Fn at(uintptr_t addr) { return reinterpret_cast<Fn>(addr); }
 
 const auto Alloc = at<void *(*)(unsigned)>(0x652AD0);  // operator new
 const auto IsPaused = at<bool(THISCALL *)(void *)>(0x64B680);  // GameFlowManager::IsPaused
-const auto LoadResourceFile = at<void *(*)(const char *, int type, int flags, void *callback, void *param, int offset,
-                                           int size)>(0x661760);  // returns ResourceFile*
-const auto ServiceResourceLoading = at<int (*)()>(0x6626B0);  // advances queued loads
 const auto GetTextureInfo = at<void *(*)(unsigned hash, int return_default, int include_unloaded)>(0x503400);
 
 // Strings and images
@@ -854,30 +852,14 @@ void FASTCALL hook_initialpos(void *row, void *edx, int index) {
     g_orig_initialpos(row, edx, index);
 }
 
-// A mod's icons live in its own texture pack (a .tpk in the data folder). It goes through the game's own resource
-// loader, like the packs other mods add, which registers its textures by hash.
+// A mod's icons live in its own texture pack (a .tpk in the data folder), loaded once, the first time a page needs it.
 void load_texture_pack(const char *path) {
     static std::vector<std::string> tried;
     if (!path || !*path || !GetPrivateProfileIntA("features", "texture_pack", 1, g_ini)) return;
     for (const std::string &t : tried)
         if (t == path) return;
     tried.push_back(path);
-    if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) return;  // optional: a mod ships one only with icons
-    char game_dir[MAX_PATH] = {};
-    GetModuleFileNameA(nullptr, game_dir, sizeof(game_dir));
-    char *game_slash = strrchr(game_dir, '\\');
-    if (!game_slash) return;
-    // Relative to the game folder, like the game's own file names, when the .asi lives inside it.
-    const size_t game_len = static_cast<size_t>(game_slash + 1 - game_dir);
-    const char *name = _strnicmp(path, game_dir, game_len) == 0 ? path + game_len : path;
-    void *file = game::LoadResourceFile(name, 1, 0, nullptr, nullptr, 0, 0);  // RESOURCE_FILE_GLOBAL
-    const DWORD start = GetTickCount();
-    while (file && !field<int>(file, 0x30) && static_cast<LONG>(GetTickCount() - start) < 3000) {  // LoadingFinishedFlag
-        game::ServiceResourceLoading();
-        Sleep(1);
-    }
-    log_line("texture pack %s: %s after %lu ms", name, file && field<int>(file, 0x30) ? "loaded" : "NOT loaded",
-             GetTickCount() - start);
+    nfsmw::load_texture_pack(path, g_log);  // optional: a mod ships one only with icons
 }
 
 MethodFn g_orig_optmain_setup;

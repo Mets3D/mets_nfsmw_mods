@@ -1,4 +1,6 @@
 // nfsmw_controller_support.ini, the log, and the settings every part reads.
+#include "button_icons.h"
+#include "menu_buttons.h"
 #include "pad.h"
 #include "rumble.h"
 
@@ -43,6 +45,8 @@ void load_settings() {
     log_line("look: enabled=%d stick_speed=%.0f mouse_sensitivity=%.2f invert_y=%d return after %.1fs at %.1f, "
              "pitch %.0f..%.0f", l.enabled, l.stick_speed, l.mouse_sensitivity, l.invert_y, l.return_delay,
              l.return_speed, l.min_pitch, l.max_pitch);
+    button_icons::load_settings();
+    menu_buttons::load_settings();
     rumble::load_settings();
     log_line("settings: enabled=%d analog_mapping=%d split_triggers=%d stick_deadzone=%.2f right_stick_deadzone=%.2f",
              g_cfg.enabled, g_cfg.analog_mapping, g_cfg.split_triggers, g_cfg.left_deadzone, g_cfg.right_deadzone);

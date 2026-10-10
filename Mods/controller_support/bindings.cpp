@@ -5,6 +5,7 @@
 #include "bindings.h"
 #include "hooks.h"
 #include "input.h"
+#include "menu_buttons.h"
 
 namespace pad::bindings {
 
@@ -143,6 +144,7 @@ MethodFn g_orig_poll;
 
 void FASTCALL hook_poll(void *self, void *edx) {
     g_orig_poll(self, edx);
+    menu_buttons::apply_live();
     static bool first = true;
     if (first) {
         first = false;

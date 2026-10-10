@@ -7,10 +7,8 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 ## What it does
 
 ### Input
-The game reads controllers through DirectInput, where an XInput controller has three problems. This plugin fixes them in
-`IDirectInputDevice8::GetDeviceState` (only for XInput controllers, found by `IG_` in the device path) and in the game's
-action mapping:
 
+- Automatically switch to controller button prompts as soon as controller input is detected, and vice versa.
 - **Analog steering, gas and brake**: The vanilla game maps them as on/off inputs, so even a stick bound to them was not analog. This mod enables analog throttle and reversing, however, the mod does not change the default keybinds - **you must set them to the triggers and the sticks yourself, in the Controls options menu**.
 - **Triggers**: In the vanilla game, both triggers share one axis, so gas and brake on the triggers cancel each other. LT and RT now report
   as two separate axes (Slider 1 and 2) and bind like anything else, so they do not cancel each other.
@@ -37,7 +35,7 @@ collisions) that were never connected to anything on PC. With this mod, they now
 
 ## Compatibility
 
-- Required: Game version 1.3
+- Required: Game version 1.3. Black Edition or not, doesn't matter.
 - Required: [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
 - Recommended: [Custom Menus](../custom_menus/ReadMe.md) mod if you want to customize cameras in-game instead of digging in an .ini file.
 - Recommended but **must be configured**: WideScreenFix: Set the following settings in that mod:

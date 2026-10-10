@@ -2,6 +2,7 @@
 // steering, gas and brake).
 #include <MinHook.h>
 
+#include <cstdlib>
 #include <cwchar>
 #include <cwctype>
 
@@ -77,19 +78,55 @@ void apply_deadzone(LONG *ax, LONG *ay, float deadzone) {
     *ay = static_cast<LONG>(lroundf(32767.5f + y * scale * 32767.5f));
 }
 
-// Mouse movement since the camera look last read it (DIMOUSESTATE / DIMOUSESTATE2: lX, lY first).
+// Mouse movement since the camera look last read it (DIMOUSESTATE / DIMOUSESTATE2: lX, lY, lZ, then the buttons).
 volatile LONG g_mouse_dx = 0, g_mouse_dy = 0;
-constexpr DWORD kMouseStateSize = 0x10, kMouseState2Size = 0x14;
+constexpr DWORD kMouseStateSize = 0x10, kMouseState2Size = 0x14, kKeyboardStateSize = 256;
+
+// What the player touched last: a controller, or the keyboard or mouse (the button icons follow it).
+volatile bool g_last_input_pad = false;
+
+bool any_pressed(const BYTE *states, int count) {
+    for (int i = 0; i < count; ++i)
+        if (states[i] & 0x80) return true;
+    return false;
+}
+
+// A button down, a stick away from the centre, or the hat pressed; for an XInput controller also a trigger (the
+// triggers of other controllers can be anywhere at rest).
+bool pad_active(const JoyState &s, bool xinput) {
+    constexpr LONG kMargin = 1500;  // about 5% of the range
+    const LONG sticks[] = {s.x, s.y, s.rx, s.ry};
+    for (const LONG stick : sticks)
+        if (std::labs(stick - kAxisCentre) > kMargin) return true;
+    if (xinput) {
+        if (std::labs(s.z - kAxisCentre) > kMargin) return true;
+        for (const LONG slider : s.slider)
+            if (kAxisCentre - slider > kMargin) return true;  // triggers (split into the sliders) pull towards 0
+    }
+    return any_pressed(s.buttons, 32) || (s.pov[0] & 0xFFFF) != 0xFFFF;
+}
+
+bool last_input_was_pad() { return g_last_input_pad; }
 
 HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
     const HRESULT hr = g_orig_get_device_state(device, size, data);
     if (hr >= 0 && data && (size == kMouseStateSize || size == kMouseState2Size)) {
-        g_mouse_dx += static_cast<const LONG *>(data)[0];
-        g_mouse_dy += static_cast<const LONG *>(data)[1];
+        const LONG *mouse = static_cast<const LONG *>(data);
+        g_mouse_dx += mouse[0];
+        g_mouse_dy += mouse[1];
+        if (mouse[0] || mouse[1] || mouse[2] || any_pressed(static_cast<const BYTE *>(data) + 12, 4)) g_last_input_pad = false;
         return hr;
     }
-    if (hr < 0 || !data || (size != kJoyStateSize && size != kJoyState2Size) || !is_xinput_device(device)) return hr;
+    if (hr >= 0 && data && size == kKeyboardStateSize) {
+        if (any_pressed(static_cast<const BYTE *>(data), kKeyboardStateSize)) g_last_input_pad = false;
+        return hr;
+    }
+    if (hr < 0 || !data || (size != kJoyStateSize && size != kJoyState2Size)) return hr;
     JoyState &s = *static_cast<JoyState *>(data);
+    if (!is_xinput_device(device)) {
+        if (pad_active(s, false)) g_last_input_pad = true;
+        return hr;
+    }
 
     static bool logged_raw = false;
     if (!logged_raw && (s.z < 30000 || s.z > 35500)) {
@@ -107,6 +144,7 @@ HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
             s.slider[1] = kAxisCentre - pad.right_trigger * kAxisCentre / 255;
         }
     }
+    if (pad_active(s, true)) g_last_input_pad = true;
     return hr;
 }
 
