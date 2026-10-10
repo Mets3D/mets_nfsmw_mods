@@ -41,7 +41,15 @@ collisions) that were never connected to anything on PC. With this mod, they now
 
 <TODO: Screenshot, after mod is finalized.>
 
-## Compatibility
+## Controller Compatibility
+
+- xBox 1 Controller: Tested raw, works.
+- xBox 360 Controller: Not tested, expected to work.
+- PS5 DualSense Controller: Tested with Steam Input, works, including rumble.
+- Other controllers: Not tested, expected to work with Steam Input. Just add `speed.exe` to Steam as a non-steam game.
+- Gyro controls: Not tested, not sure what you would use it for, but Steam Input can do it for you without a doubt.
+
+## Mod Compatibility
 
 - Required: Game version 1.3. Black Edition or not, doesn't matter.
 - Required: [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
@@ -72,6 +80,10 @@ collisions) that were never connected to anything on PC. With this mod, they now
 - If another screen's prompt still shows a keyboard key on a controller: `log_images=1` in the ini lists everything a
   screen draws, to find it.
 - Test and support 2-players.
+- **DualSense through Steam Input** (a non-Steam shortcut of `speed.exe`): it works, but needs checking after the fix for
+  "the mod never saw the controller" (see `notes.md`): the dead zones (the camera drifted with the right stick at rest),
+  the controller button prompts and names in the Controls menu should now work. Also open: with an Xbox controller on
+  as well, the game only takes the DualSense when the Xbox controller is off.
 
 <details>
 

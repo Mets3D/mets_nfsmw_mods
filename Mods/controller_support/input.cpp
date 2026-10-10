@@ -33,7 +33,8 @@ using GetDeviceStateFn = HRESULT(WINAPI *)(void *, DWORD, void *);
 using GetPropertyFn = HRESULT(WINAPI *)(void *, const GUID *, void *);
 GetDeviceStateFn g_orig_get_device_state = nullptr;
 
-// Which DirectInput devices are XInput controllers: their device path contains "IG_".
+// Which DirectInput devices are XInput controllers: their device path contains "IG_". Steam Input's virtual controller
+// (vendor 28DE, product 11FF) is one too: it is the pad's XInput controller as DirectInput shows it.
 struct DeviceKind {
     void *device;
     bool xinput;
@@ -59,8 +60,19 @@ bool is_xinput_device(void *device) {
         for (WCHAR *p = prop.path; *p; ++p) *p = towupper(*p);
         xinput = wcsstr(prop.path, L"IG_") != nullptr;
     }
-    log_line("DirectInput controller %p: %s (path %ls)", device, xinput ? "XInput controller" : "other controller",
-             hr >= 0 ? prop.path : L"?");
+    struct {
+        DWORD size, header_size, obj, how;  // DIPROPHEADER
+        DWORD data;
+    } vid_pid = {};
+    vid_pid.size = sizeof(vid_pid);
+    vid_pid.header_size = 16;
+    const GUID *kVidPid = reinterpret_cast<const GUID *>(24);  // DIPROP_VIDPID: product << 16 | vendor
+    const bool have_ids = get_property(device, kVidPid, &vid_pid) >= 0;
+    const bool steam_virtual = have_ids && vid_pid.data == 0x11FF28DE;
+    xinput = xinput || steam_virtual;
+    log_line("DirectInput controller %p: %s (vendor %04lx product %04lx, path %ls)", device,
+             xinput ? (steam_virtual ? "XInput controller (Steam's virtual controller)" : "XInput controller") : "other controller",
+             have_ids ? vid_pid.data & 0xFFFF : 0, have_ids ? vid_pid.data >> 16 : 0, hr >= 0 ? prop.path : L"?");
     if (g_device_count < 16) g_devices[g_device_count++] = {device, xinput};
     return xinput;
 }
@@ -82,6 +94,9 @@ void apply_deadzone(LONG *ax, LONG *ay, float deadzone) {
 // Mouse movement since the camera look last read it (DIMOUSESTATE / DIMOUSESTATE2: lX, lY, lZ, then the buttons).
 volatile LONG g_mouse_dx = 0, g_mouse_dy = 0;
 constexpr DWORD kMouseStateSize = 0x10, kMouseState2Size = 0x14, kKeyboardStateSize = 256;
+
+// The game's own controller polling is hooked (not DirectInput's function): see install_game_level_joystick_hook.
+bool g_joystick_hooked_in_game = false;
 
 // What the player touched last: a controller, or the keyboard or mouse (the button icons follow it).
 volatile bool g_last_input_pad = false;
@@ -109,24 +124,14 @@ bool pad_active(const JoyState &s, bool xinput) {
 
 bool last_input_was_pad() { return g_last_input_pad; }
 
-HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
-    const HRESULT hr = g_orig_get_device_state(device, size, data);
-    if (hr >= 0 && data && (size == kMouseStateSize || size == kMouseState2Size)) {
-        const LONG *mouse = static_cast<const LONG *>(data);
-        g_mouse_dx += mouse[0];
-        g_mouse_dy += mouse[1];
-        if (mouse[0] || mouse[1] || mouse[2] || any_pressed(static_cast<const BYTE *>(data) + 12, 4)) g_last_input_pad = false;
-        return hr;
-    }
-    if (hr >= 0 && data && size == kKeyboardStateSize) {
-        if (any_pressed(static_cast<const BYTE *>(data), kKeyboardStateSize)) g_last_input_pad = false;
-        return hr;
-    }
-    if (hr < 0 || !data || (size != kJoyStateSize && size != kJoyState2Size)) return hr;
-    JoyState &s = *static_cast<JoyState *>(data);
+// A controller's state, as the game is about to use it (called from the game's own polling code, see below, or from the
+// DirectInput hook when that cannot be done): the dead zones, the triggers as two axes, what the player touched last, and
+// the buttons of the menus' hotkeys.
+void process_pad_state(void *device, JoyState *state) {
+    JoyState &s = *state;
     if (!is_xinput_device(device)) {
         if (pad_active(s, false)) g_last_input_pad = true;
-        return hr;
+        return;
     }
 
     static bool logged_raw = false;
@@ -147,7 +152,119 @@ HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
     }
     if (pad_active(s, true)) g_last_input_pad = true;
     menu_buttons::pad_buttons(s.buttons);
+}
+
+void __cdecl process_pad_state_from_game(void *device, JoyState *state) { process_pad_state(device, state); }
+
+// The game reads a controller in sub_7F28A4 (GameDevice's DirectInput controller): it calls the controller's
+// GetDeviceState through the device object's own table, into a DIJOYSTATE2 on its stack (at ebp-0x13C), and goes on with
+// that. A controller that does not go through dinput8's own function (Steam Input's virtual one does not) would never
+// reach a hook on DirectInput, so the state is processed here instead, right after the call: the instruction after it,
+// `mov eax, [esi+0x464]` (6 bytes), is replaced by a jump to a few instructions of our own that call process_pad_state
+// with the device (esi+0x468) and the state, and then do what it did. (The widescreen fix hooks the same function, a few
+// instructions further on.)
+bool install_game_level_joystick_hook() {
+    constexpr uintptr_t kSite = 0x7F2927;
+    static const unsigned char kExpected[6] = {0x8B, 0x86, 0x64, 0x04, 0x00, 0x00};  // mov eax, [esi+0x464]
+    if (memcmp(reinterpret_cast<void *>(kSite), kExpected, sizeof(kExpected)) != 0) {
+        log_line("controller state hook: the game's code at %#x was changed by another mod; using DirectInput instead",
+                 static_cast<unsigned>(kSite));
+        return false;
+    }
+    unsigned char *code = static_cast<unsigned char *>(VirtualAlloc(nullptr, 64, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+    if (!code) return false;
+    unsigned char *c = code;
+    const auto emit = [&c](std::initializer_list<unsigned char> bytes) {
+        for (const unsigned char b : bytes) *c++ = b;
+    };
+    const auto emit_rel32 = [&c](unsigned char opcode, const void *target) {
+        *c++ = opcode;
+        const intptr_t rel = reinterpret_cast<intptr_t>(target) - reinterpret_cast<intptr_t>(c + 4);
+        memcpy(c, &rel, 4);
+        c += 4;
+    };
+    emit({0x9C, 0x60});                                // pushfd, pushad
+    emit({0x8B, 0x86, 0x68, 0x04, 0x00, 0x00});        // mov eax, [esi+0x468]   the DirectInput device
+    emit({0x8D, 0x8D, 0xC4, 0xFE, 0xFF, 0xFF});        // lea ecx, [ebp-0x13C]   the state the game just read
+    emit({0x51, 0x50});                                // push ecx, push eax
+    emit_rel32(0xE8, reinterpret_cast<const void *>(&process_pad_state_from_game));  // call
+    emit({0x83, 0xC4, 0x08});                          // add esp, 8
+    emit({0x61, 0x9D});                                // popad, popfd
+    emit({0x8B, 0x86, 0x64, 0x04, 0x00, 0x00});        // mov eax, [esi+0x464]   what the game had here
+    emit_rel32(0xE9, reinterpret_cast<const void *>(kSite + 6));                     // jmp back
+    FlushInstructionCache(GetCurrentProcess(), code, 64);
+
+    DWORD old = 0;
+    VirtualProtect(reinterpret_cast<void *>(kSite), 6, PAGE_EXECUTE_READWRITE, &old);
+    unsigned char *site = reinterpret_cast<unsigned char *>(kSite);
+    site[0] = 0xE9;
+    const intptr_t rel = reinterpret_cast<intptr_t>(code) - static_cast<intptr_t>(kSite + 5);
+    memcpy(site + 1, &rel, 4);
+    site[5] = 0x90;
+    VirtualProtect(reinterpret_cast<void *>(kSite), 6, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), site, 6);
+    log_line("controller state hook: installed in the game's controller polling (%#x)", static_cast<unsigned>(kSite));
+    return true;
+}
+
+HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
+    const HRESULT hr = g_orig_get_device_state(device, size, data);
+    static struct {
+        void *device;
+        DWORD size;
+    } seen[16];
+    static int seen_count = 0;
+    bool known = false;
+    for (int i = 0; i < seen_count; ++i) known |= seen[i].device == device && seen[i].size == size;
+    if (!known && seen_count < 16) {
+        seen[seen_count++] = {device, size};
+        log_line("GetDeviceState: device %p, state of %lu bytes (%s)", device, size,
+                 hr >= 0 ? "ok" : "not available");
+    }
+    if (hr >= 0 && data && (size == kMouseStateSize || size == kMouseState2Size)) {
+        const LONG *mouse = static_cast<const LONG *>(data);
+        g_mouse_dx += mouse[0];
+        g_mouse_dy += mouse[1];
+        if (mouse[0] || mouse[1] || mouse[2] || any_pressed(static_cast<const BYTE *>(data) + 12, 4)) g_last_input_pad = false;
+        return hr;
+    }
+    if (hr >= 0 && data && size == kKeyboardStateSize) {
+        if (any_pressed(static_cast<const BYTE *>(data), kKeyboardStateSize)) g_last_input_pad = false;
+        return hr;
+    }
+    if (hr < 0 || !data || (size != kJoyStateSize && size != kJoyState2Size)) return hr;
+    if (!g_joystick_hooked_in_game) process_pad_state(device, static_cast<JoyState *>(data));
     return hr;
+}
+
+// What DirectInput and XInput have attached, for the log: when a controller is not recognised, this is where to look.
+struct DeviceInstance {  // DIDEVICEINSTANCEA
+    DWORD size;
+    GUID instance, product;
+    DWORD type;
+    char instance_name[260], product_name[260];
+    GUID ff_driver;
+    WORD usage_page, usage;
+};
+
+BOOL WINAPI log_device(const DeviceInstance *d, void *) {
+    // guidProduct = PID << 16 | VID, then a fixed tail
+    log_line("DirectInput game controller: \"%s\" / \"%s\", vendor %04lx product %04lx, type %#lx", d->instance_name,
+             d->product_name, d->product.Data1 & 0xFFFF, d->product.Data1 >> 16, d->type);
+    return 1;  // DIENUM_CONTINUE
+}
+
+void log_attached_devices(void **di_vtbl, void *di) {
+    using EnumDevicesFn = HRESULT(WINAPI *)(void *, DWORD, BOOL(WINAPI *)(const DeviceInstance *, void *), void *, DWORD);
+    constexpr DWORD kClassGameControllers = 4, kAttachedOnly = 1;
+    const HRESULT hr = reinterpret_cast<EnumDevicesFn>(di_vtbl[4])(di, kClassGameControllers, &log_device, nullptr, kAttachedOnly);
+    if (hr < 0) log_line("DirectInput: EnumDevices failed (%#lx)", static_cast<unsigned long>(hr));
+    for (int i = 0; i < 4 && xinput::get_state; ++i) {
+        xinput::State state;
+        const DWORD r = xinput::get_state(i, &state);
+        log_line("XInput slot %d: %s", i, r == ERROR_SUCCESS ? "a controller" : r == ERROR_DEVICE_NOT_CONNECTED ? "empty" : "error");
+    }
+    log_line("Steam overlay in this process: %s", GetModuleHandleA("gameoverlayrenderer.dll") ? "yes" : "no");
 }
 
 void hook_dinput() {
@@ -173,6 +290,7 @@ void hook_dinput() {
     } else {
         log_line("CreateDevice(keyboard) failed");
     }
+    log_attached_devices(di_vtbl, di);
     reinterpret_cast<ReleaseFn>(di_vtbl[2])(di);
 }
 
@@ -234,6 +352,7 @@ bool only_xinput_controllers() {
 }
 
 void install_hooks() {
+    g_joystick_hooked_in_game = install_game_level_joystick_hook();
     const nfsmw::Hook hooks[] = {
         {"InputMapping::InputMapping", "InputMapping::InputMapping", 0x6479D0,
          {0x6A, 0xFF, 0x68, 0xA8, 0x9E, 0x87, 0x00}, false, nfsmw::detour(&hook_mapping_ctor),
