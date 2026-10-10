@@ -221,7 +221,8 @@ constexpr unsigned kRowChanged = 0x2A;  // set by the game's rows when their val
 constexpr unsigned kRowTitle = 0x2C;    // FEString* label
 constexpr unsigned kRowData = 0x30;     // FEString* value
 constexpr unsigned kRowIndex = 0x5C;    // ours: the row's index in its page, after the 0x5C-byte widget
-constexpr unsigned kRowSize = kRowIndex + 4;
+constexpr unsigned kRowPage = kRowIndex + 4;  // ours: the page (PageInfo) the row belongs to
+constexpr unsigned kRowSize = kRowPage + 4;
 constexpr unsigned kEntryPage = 0x5C;   // ours: the page of an Options menu entry (IconOption, 0x5C bytes)
 
 // Hashes: FEng objects, messages, scripts, textures, language strings.
@@ -372,8 +373,9 @@ void THISCALL value_row_act(void *self, const char *pkg, unsigned data) {
     (void)pkg;
     if (data != kPadLeft && data != kPadRight) return;
     const int row = field<int>(self, kRowIndex);
-    if (!g_page || row < 0 || row >= g_page->page->row_count) return;
-    if (g_page->page->change) g_page->page->change(row, data == kPadRight ? 1 : -1, (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
+    const PageInfo *page = field<PageInfo *>(self, kRowPage);
+    if (!page || row < 0 || row >= page->page->row_count) return;
+    if (page->page->change) page->page->change(row, data == kPadRight ? 1 : -1, (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
     field<unsigned char>(self, kRowChanged) = 1;  // as PODriveCam::Act does
     void **vtbl = field<void **>(self, 0);
     reinterpret_cast<BlinkFn>(vtbl[14])(self, data);  // arrow blink
@@ -382,13 +384,14 @@ void THISCALL value_row_act(void *self, const char *pkg, unsigned data) {
 
 void THISCALL value_row_draw(void *self) {
     const int row = field<int>(self, kRowIndex);
-    if (!g_page || row < 0 || row >= g_page->page->row_count) return;
+    const PageInfo *page = field<PageInfo *>(self, kRowPage);
+    if (!page || row < 0 || row >= page->page->row_count) return;
     // The label goes in as a language hash, like PODriveCam::Draw does for "Camera". FEStatWidget::Position
     // centres a label on the column edge using the width of its literal text, which a language-hash label leaves
     // out, so the game's labels end at the edge (right-aligned). Text set with FESetString was measured and centred.
-    game::FEngSetLanguageHash(field<void *>(self, kRowTitle), g_page->row_label_hash[row]);
+    game::FEngSetLanguageHash(field<void *>(self, kRowTitle), page->row_label_hash[row]);
     char text[64] = {};
-    const unsigned hash = g_page->page->value ? g_page->page->value(row, text, sizeof(text)) : 0;
+    const unsigned hash = page->page->value ? page->page->value(row, text, sizeof(text)) : 0;
     if (hash) game::FEngSetLanguageHash(field<void *>(self, kRowData), hash);
     else set_wide_text(field<void *>(self, kRowData), text);
 }
@@ -423,6 +426,7 @@ void build_page_screen(void *screen) {
             field<void **>(w, 0) = g_row_vtbl;
         }
         field<int>(w, kRowIndex) = r;
+        field<PageInfo *>(w, kRowPage) = g_page;
         game::AddToggleOption(screen, w, 1);
     }
     // The title object is a group of strings (text and shadow). Set the hash the way the game's own screens do, then
@@ -436,13 +440,54 @@ void build_page_screen(void *screen) {
     log_line("Options > %s built", page.entry_text);
 }
 
+// Rows that mods add to the game's own Player options (Placement kPlayerOptions): after the game's rows, in the pages
+// that were available when the screen was built. Back, Defaults and Accept ask these pages as well as the game.
+PageInfo *g_player_pages[kMaxPages];
+int g_player_page_count = 0;
+bool g_player_rows_open = false;  // the open Player screen has such rows
+
+void add_player_rows(void *screen) {
+    g_player_page_count = 0;
+    g_player_rows_open = false;
+    for (int i = 0; i < g_page_count; ++i) {
+        PageInfo &info = g_pages[i];
+        const opt::Page &page = *info.page;
+        if (page.placement != opt::kPlayerOptions || (page.available && !page.available())) continue;
+        if (page.opened) page.opened();
+        for (int r = 0; r < page.row_count; ++r) {
+            void *w = game::Alloc(kRowSize);
+            if (!w) continue;
+            game::ToggleWidgetCtor(w, 1);
+            field<void **>(w, 0) = g_row_vtbl;
+            field<int>(w, kRowIndex) = r;
+            field<PageInfo *>(w, kRowPage) = &info;
+            game::AddToggleOption(screen, w, 1);
+        }
+        g_player_pages[g_player_page_count++] = &info;
+        log_line("Options > Player: %d row(s) from \"%s\"", page.row_count, page.id);
+    }
+    g_player_rows_open = g_player_page_count > 0;
+    if (g_player_rows_open) game::RefreshWidgets(screen);
+}
+
+bool player_rows_changed() {
+    if (!g_player_rows_open || options_category() != kCategoryPlayer) return false;
+    for (int i = 0; i < g_player_page_count; ++i)
+        if (g_player_pages[i]->page->changed && g_player_pages[i]->page->changed()) return true;
+    return false;
+}
+
 MethodFn g_orig_setupplayer;
 void FASTCALL hook_setupplayer(void *self, void *edx) {
     g_orig_setupplayer(self, edx);
     g_page = g_page_next;
     g_page_next = nullptr;
-    if (!g_page) return;
     ensure_language_entries();
+    if (!g_page) {
+        add_player_rows(self);  // the game's own Player options
+        return;
+    }
+    g_player_rows_open = false;
     build_page_screen(self);
 }
 
@@ -453,17 +498,23 @@ BoolMethodFn g_orig_didnotchange;
 bool FASTCALL hook_didnotchange(void *self, void *edx) {
     const bool unchanged = g_orig_didnotchange(self, edx);
     if (g_page && self == g_options_screen && page_changed()) return false;
+    if (!g_page && player_rows_changed()) return false;
     return unchanged;
 }
 
 // The discard was confirmed: the game puts its own values back; put the page's back too.
 MethodFn g_orig_restoreoriginals;
 void FASTCALL hook_restoreoriginals(void *self, void *edx) {
+    const bool player_rows = !g_page && player_rows_changed();
     g_orig_restoreoriginals(self, edx);
     if (g_page && self == g_options_screen && page_changed() && g_page->page->discard) {
         g_page->page->discard();
         log_line("%s: changes discarded", g_page->page->id);
     }
+    if (player_rows)
+        for (int i = 0; i < g_player_page_count; ++i)
+            if (g_player_pages[i]->page->discard) g_player_pages[i]->page->discard();
+    if (player_rows) log_line("Options > Player: changes to the added rows discarded");
 }
 
 // Defaults was confirmed: reset the page instead of the Player settings.
@@ -476,6 +527,12 @@ void FASTCALL hook_restoredefaults(void *self, void *edx) {
         return;
     }
     g_orig_restoredefaults(self, edx);
+    if (!g_page && g_player_rows_open && options_category() == kCategoryPlayer) {
+        for (int i = 0; i < g_player_page_count; ++i)
+            if (g_player_pages[i]->page->defaults) g_player_pages[i]->page->defaults();
+        log_line("Options > Player: defaults for the added rows");
+        game::RefreshWidgets(self);
+    }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -743,7 +800,7 @@ void show_help_for_current_row(void *screen) {
     void **vtbl = field<void **>(row, 0);
     if (vtbl != g_row_vtbl && vtbl != g_selector_vtbl) return;
     const int index = field<int>(row, kRowIndex);
-    if (index < 0 || index >= g_page->page->row_count) return;
+    if (field<PageInfo *>(row, kRowPage) != g_page || index < 0 || index >= g_page->page->row_count) return;
     g_help_dialog_open = true;
     g_help_dialog_pending = true;
     game::ShowOneButton(field<const char *>(screen, kScreenPackage), reinterpret_cast<const char *>(game::kInGameDialogName),
@@ -807,6 +864,17 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
                 log_line("%s: changes applied", g_page->page->id);
             }
         }
+    }
+    if (!g_page && msg == kExitComplete && g_player_rows_open && options_category() == kCategoryPlayer) {
+        // Left the Player screen: a discard has already put the values back, so what differs now was accepted.
+        for (int i = 0; i < g_player_page_count; ++i) {
+            const opt::Page &page = *g_player_pages[i]->page;
+            if (page.changed && page.changed() && page.accept) {
+                page.accept();
+                log_line("Options > Player: changes to the rows of \"%s\" applied", page.id);
+            }
+        }
+        g_player_rows_open = false;
     }
     g_orig_notify(self, edx, msg, obj, p1, p2);
 }
@@ -877,6 +945,7 @@ void FASTCALL hook_optmain_setup(void *self, void *edx) {
         bool any = false;
         for (int i = 0; i < g_page_count; ++i) {
             PageInfo &p = g_pages[i];
+            if (p.page->placement != opt::kNewEntry) continue;  // rows of the Player options, not an entry
             p.available = !p.page->available || p.page->available();
             if (!p.available) continue;
             any = true;

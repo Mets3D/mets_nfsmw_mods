@@ -8,9 +8,8 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 
 ### Input
 
-- Automatically switch to controller button prompts as soon as controller input is detected, and vice versa. Xbox
-  pictures by default, PlayStation ones with `icons=playstation` in the ini. The pictures are PNGs you can edit, in
-  [`buttons/`](buttons/ReadMe.md).
+- Automatically switch to controller button prompts as soon as controller input is detected, and vice versa.
+- Button prompts show Xbox buttons by default. If [Custom Menus](../custom_menus/ReadMe.md) is installed, you can switch to Playstation button prompts via **Options > Player > Controller Prompts**. Otherwise, you can set `icons=playstation` in the ini.
 - **Menu buttons like on a console**: A accepts, B goes back, Y is the "1" hotkey (in the vanilla game that is B, X and A).
   X, View and Menu press the hotkeys 2, 3 and 4 that many menu prompts show: the video settings' Advanced Options, the car
   Showcase, a rival's movie and car, "View Tutorial", the EA Trax preview... The vanilla controller cannot press those.

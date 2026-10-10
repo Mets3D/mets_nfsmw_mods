@@ -20,7 +20,6 @@ namespace pad::button_icons {
 
 namespace {
 
-enum class Style { kOff, kXbox, kPlayStation };
 Style g_style = Style::kXbox;
 
 // A prompt picture of the game and its two controller versions (the texture hashes).
@@ -107,13 +106,12 @@ using UpdateFn = void(FASTCALL *)(void *, void *, int, unsigned);
 UpdateFn g_orig_update;
 
 void FASTCALL hook_update(void *engine, void *edx, int ticks, unsigned lock) {
-    if (!g_pack_tried) {
+    if (!g_pack_tried && g_style != Style::kOff) {  // the first time the pictures are wanted
         g_pack_tried = true;
         char path[MAX_PATH];
         nfsmw::data_file("nfsmw_controller_buttons.tpk", path, sizeof(path));
-        if (g_style != Style::kOff) g_pack_loaded = nfsmw::load_texture_pack(path, g_log);
-        if (g_style != Style::kOff && !g_pack_loaded)
-            log_line("button icons: the texture pack is missing; the pictures stay as the game has them");
+        g_pack_loaded = nfsmw::load_texture_pack(path, g_log);
+        if (!g_pack_loaded) log_line("button icons: the texture pack is missing; the pictures stay as the game has them");
     }
     {
         static const CallbackVtable vtable = {nullptr, reinterpret_cast<void *>(&visit_object)};
@@ -172,6 +170,12 @@ void load_prompts() {
 }  // namespace
 
 bool quit_prompt_shown() { return g_quit_available; }
+
+Style style() { return g_style; }
+void set_style(Style new_style) { g_style = new_style; }
+void save_style() {
+    WritePrivateProfileStringA("buttons", "icons", g_style == Style::kOff ? "off" : g_style == Style::kXbox ? "xbox" : "playstation", g_ini);
+}
 
 void load_settings() {
     char text[32] = {};

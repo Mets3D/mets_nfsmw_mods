@@ -1,5 +1,6 @@
 #include "custom_menus_api.h"
 #include "rumble.h"
+#include "rumble_page.h"
 
 namespace pad {
 namespace opt = nfsmw::custom_menus;
@@ -85,8 +86,7 @@ opt::Page g_page;
 
 }  // namespace pad
 
-// Called by nfsmw_custom_menus when the Options menu first opens.
-extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const nfsmw::custom_menus::Host *host) {
+void pad::rumble_page::provide(const nfsmw::custom_menus::Host *host) {
     using namespace pad;
     g_rows[0] = {opt::kValueRow, "Vibration", kVibrationText, "Turns rumble on or off. This is the game's own "
                  "Vibration setting, kept in your profile."};

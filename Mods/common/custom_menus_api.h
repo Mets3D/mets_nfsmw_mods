@@ -24,6 +24,14 @@ struct Row {
     const char *help;     // the Help message box (2 key / X button)
 };
 
+// Where a page's rows go.
+enum Placement {
+    kNewEntry,       // a page of its own: an entry in the pause menu's Options, with an icon, a title and its own screen
+    kPlayerOptions,  // the rows are added to the end of the game's own Player options (Options > Player, in the pause menu and
+                     // the main menu); entry_text, title, help_title, icon, fallback_icon and texture_pack are not used, the
+                     // Help button has no text for them, and the callbacks work as for a page, for those rows
+};
+
 struct Page {
     const char *id;            // unique, e.g. "camera"
     const char *entry_text;    // the Options menu entry, title case
@@ -46,6 +54,7 @@ struct Page {
     void (*accept)();    // the page was left with changes: keep and save them
     void (*discard)();   // Back was confirmed: put the values from when the page opened back
     void (*defaults)();  // Defaults was confirmed: reset the page (the selected view, for the camera)
+    Placement placement;  // where the rows go; leave it out for kNewEntry
 };
 
 struct Host {

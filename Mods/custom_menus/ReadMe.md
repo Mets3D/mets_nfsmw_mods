@@ -17,6 +17,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
   the hint, or the **X** button on an XInput controller opens a message box with the highlighted row's help text.
 - Game strings: all texts a page gives are added to the game's language table, so the game's own label, title and
   dialog code shows them.
+- **Rows in the game's own Player options**: a page can also put its rows at the end of Options > Player (`placement = kPlayerOptions`).
 - Row kinds: a normal value row, and the game's own **Camera selector** (it switches the player's camera view; the other
   rows are redrawn, so a camera page can show the selected view's values).
 
