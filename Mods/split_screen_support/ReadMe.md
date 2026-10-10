@@ -7,19 +7,22 @@ A plugin (`nfsmw_split_screen_support.asi`) for Need for Speed: Most Wanted (200
 The console versions of the game have **Quick Race > Split Screen**. The PC version still contains much of it (the icon, the text, the two player screens, a camera for player 2, the code that handles the choice), but its Quick Race menu is built without the entry, its renderer draws one view, and its input has one device for player 1 that merges the keyboard and every controller.
 
 ## TODO
-- Claude warns that Motion Blur won't work properly. Test this, and if it is true, see if we can disable Motion Blur whenever in split screen mode.
 - Keyboard player is currently not able to be added as a player, though they can control the first controller's car. Would be nice if they could be added as a unique player, and even nicer if they were a different player than the first controller player. That way, two players could play against each other, one of them on keyboard, the other on controller.
 - Currently it seems only one player can open the pause menu, and only one player's controls can be customized.
-- What happens if the same controller presses Start to add both players?
+- The same controller can press Start to add both players - though the result still works, I think this is a bit strange. I might expect that when the same player presses Start after having already picked their car, they might be able to re-pick their car, for example.
 - The camera mod's camera rotation currently rotates the camera for both players.
+- Rumble also only works on player 1's controller.
+- Minimap currently favors the player on the top window, I guess player 1. Would be nice if it either zoomed out to fit both, or if each player had one minimap.
+- Something is off about the drawing of shadows - In one example, Player 1 (top)'s shadows popped in as Player 2 caught up to them, suggesting that detailed shadows (of trees in this case, maybe the trees themselves?) are only drawn near Player 2, but that would be surprising, so I'm not sure. Maybe it's a two-way street in some way.
+- Reflections on player 2's car change based on player 1's position in the world.
+
 
 ## What it does
 
 | Part | What | Switch |
 |---|---|---|
 | Menu entry | adds **Split Screen** to the Quick Race menu, after Quick Play and Custom Race | `[menu] entry` |
-| Split view | draws the world once for each player: player 1 on the top half of the screen, player 2 on the bottom half | `[render] split`, `layout`, `band_center` |
-| Streaming | loads the world around player 2 as well as around player 1 | `[streaming] player2` |
+| Split view | switches player 2's view on (the game then loads the world around them, lights and sets up their view) and draws the world once for each player: player 1 on the top half of the screen, player 2 on the bottom half | `[render] split`, `layout`, `band_center` |
 | Players | lets either controller press Start, finds out whose it was, then gives each player's screens (car select) to their own controller; in the race only player 1's controller (or the keyboard) reaches the game | `[players] enabled` |
 | Player 2 input | drives player 2's car from player 2's controller | `[player2] enabled`, buttons |
 | Shared device | lets player 2 get past the Press Start screen at all (the game sees every press as player 1's device) | `[fixes] shared_device` |
@@ -78,7 +81,6 @@ With this plugin, leave `ExperimentalSplitScreenFix = 0` in `NFSMWExtraOptionsSe
 | `menu_entry.cpp` | the Quick Race menu entry |
 | `fixes.cpp` | the three changes to the game's code (`../common/patch.h` does the patching) |
 | `split_view.cpp` | the two halves of the screen |
-| `streaming.cpp` | the world loaded around player 2 |
 | `players.cpp` | which controller is whose |
 | `player2_input.cpp` | player 2's car |
 | `state_log.cpp` | the log of the game's split screen state |

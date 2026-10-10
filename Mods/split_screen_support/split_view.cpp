@@ -1,15 +1,20 @@
 /*
  * The PC renderer draws one 3D view. eUpdateViewMode (0x6CFA10) does say "two views" (EVIEWMODE_TWOH, 3) in a split
  * screen race, and player 2's view (eViews[2], 0x9196C0) has its camera (+0x40) kept up to date, but ___eDisplayFrame
- * (0x6DE300), which draws the world with its effects, is written for view 1 (0x919650) only, and view 2 has no render
- * target. So the frame is drawn twice:
+ * (0x6DE300), which draws the world with its effects, is written for view 1 (0x919650) only.
+ *
+ * View 2 is switched on for a split screen race (Active, +8), with view 1's render target (+0x60; the per-view setup
+ * reads the target's size, so a view without one would be a null pointer there). The game then does for it what it
+ * does for view 1, every frame, before ___eDisplayFrame: the view's matrices (eViewPlatInfo, set up by 0x6CF400), its
+ * lighting (eView::SetupWorldLightContext, 0x5029F0) and its place in the track streamer (UpdateCameraMovers, 0x47C880,
+ * gives the streamer a position for each active view), so none of that needs doing here.
+ * What cannot be done is drawing it: ___eDisplayFrame is hard-wired to view 1. So the frame is drawn twice:
  *
  *   1. ___eDisplayFrame as usual: player 1's view, the whole screen. Its middle band, half the screen's height, is copied
  *      into the top half of a canvas (a render target of the screen's size).
- *   2. The screen and the depth buffer are cleared (the game does that only once per frame, after Present), and
- *      view 1 is given player 2's camera: the view's matrices (eViewPlatInfo, set up per view by 0x6CF400 just before
- *      the frame) and its lighting (eView::SetupWorldLightContext, 0x5029F0) are made again for it, and ___eDisplayFrame
- *      runs again. Its band goes into the canvas's bottom half. View 1 gets player 1's camera back.
+ *   2. The screen and the depth buffer are cleared (the game does that only once per frame, after Present), view 1 and
+ *      view 2 trade the fields that make a view what it is (matrices, camera, lighting), and ___eDisplayFrame runs
+ *      again. Its band goes into the canvas's bottom half. The views trade back.
  *   3. The canvas is copied onto the back buffer; the HUD and menus are drawn on it after this, as usual.
  *
  * A band of the whole picture is what a view half as high with the same horizontal field of view shows: no distortion,
@@ -17,8 +22,8 @@
  * layout=squash instead squeezes the whole picture into the half (everything shown, half as tall).
  *
  * Costs: the world is drawn twice per frame. Effects that keep the previous frame (motion blur) mix the two players'
- * pictures: turn motion blur off. MaybeChangeViewMode only knows views modes 0-2; the view_mode fix (fixes.cpp) sets
- * view 1 up as for one view when the mode is 3.
+ * pictures. MaybeChangeViewMode only knows views modes 0-2; the view_mode fix (fixes.cpp) sets view 1 up as for one view
+ * when the mode is 3.
  *
  * The canvas lives in video memory; it is released when the game resets the device (a hook on IDirect3DDevice9::Reset,
  * taken from the device's table) and when the split screen game is over. If a copy fails, the split is turned off for
@@ -28,9 +33,13 @@
 
 #include <d3d9.h>
 
+#include <utility>
+
 #include <MinHook.h>
 
+#include "events.h"
 #include "hooks.h"
+#include "players.h"
 #include "split_screen_support.h"
 
 namespace split_screen_support::split_view {
@@ -41,12 +50,11 @@ constexpr uintptr_t kDevice = 0x982BDC;    // IDirect3DDevice9 *
 constexpr uintptr_t kViewMode = 0x982B40;  // the current EVIEWMODE
 constexpr int kTwoViews = 3;               // EVIEWMODE_TWOH
 constexpr uintptr_t kView1 = 0x919650, kView2 = 0x9196C0;
-constexpr int kViewPlatInfo = 0x00, kViewCamera = 0x40, kViewRenderTarget = 0x60;
-constexpr uintptr_t kSetupView = 0x6CF400;    // eViewPlatInfo method (view, rear view mirror value, far, 0, 1)
-constexpr uintptr_t kSetupLights = 0x5029F0;  // eView::SetupWorldLightContext
-
-using SetupViewFn = void(__fastcall *)(void *plat_info, void *, void *view, int mirror, float far_clip, int, int);
-using SetupLightsFn = void(__fastcall *)(void *view, void *);
+// eView fields (0x70 bytes on PC)
+constexpr int kViewPlatInfo = 0x00, kViewActive = 0x08, kViewCamera = 0x40, kViewRenderTarget = 0x60;
+constexpr int kViewLighting = 0x5C;  // set by SetupWorldLightContext
+// What makes a view what it is for ___eDisplayFrame, as far as it is known: the matrices, the camera, the lighting.
+constexpr int kTraded[] = {kViewPlatInfo, kViewCamera, kViewLighting};
 
 enum class Layout { kCrop, kSquash };
 Layout g_layout = Layout::kCrop;
@@ -142,11 +150,28 @@ void clear_screen(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer) {
     if (old_depth) old_depth->Release();
 }
 
-void use_camera(void *camera) {
-    at<void *>(kView1, kViewCamera) = camera;
-    reinterpret_cast<SetupViewFn>(kSetupView)(at<void *>(kView1, kViewPlatInfo), nullptr, reinterpret_cast<void *>(kView1),
-                                              0, 15000.0f, 0, 1);
-    reinterpret_cast<SetupLightsFn>(kSetupLights)(reinterpret_cast<void *>(kView1), nullptr);
+// Player 2's view for the world pass, or back.
+void trade_views() {
+    for (const int offset : kTraded) std::swap(at<void *>(kView1, offset), at<void *>(kView2, offset));
+}
+
+// View 2 on for a split screen race, and off again afterwards (see the top).
+bool g_view2_on = false;
+
+void switch_view2(bool on) {
+    if (on == g_view2_on) return;
+    g_view2_on = on;
+    at<void *>(kView2, kViewRenderTarget) = on ? at<void *>(kView1, kViewRenderTarget) : nullptr;
+    at<unsigned char>(kView2, kViewActive) = on ? 1 : 0;
+    g_log.line("split view: view 2 %s", on ? "on" : "off");
+}
+
+void on_world_load() {
+    if (players::split_screen()) switch_view2(true);
+}
+
+void on_frame() {
+    if (g_view2_on && !players::split_screen()) switch_view2(false);
 }
 
 void log_first(IDirect3DDevice9 *, IDirect3DSurface9 *back_buffer, const D3DSURFACE_DESC &d) {
@@ -159,7 +184,7 @@ void log_first(IDirect3DDevice9 *, IDirect3DSurface9 *back_buffer, const D3DSURF
                view_surface == back_buffer ? "is" : "is not", g_layout == Layout::kCrop ? "crop" : "squash", g_band_center);
 }
 
-void split_frame(IDirect3DDevice9 *device, void *camera1, void *camera2) {
+void split_frame(IDirect3DDevice9 *device) {
     IDirect3DSurface9 *back_buffer = nullptr;
     if (FAILED(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &back_buffer)) || !back_buffer) return g_orig_display_frame();
     D3DSURFACE_DESC d;
@@ -182,10 +207,10 @@ void split_frame(IDirect3DDevice9 *device, void *camera1, void *camera2) {
     g_orig_display_frame();  // player 1
     bool ok = copy(device, back_buffer, source, g_canvas, top, "player 1");
     clear_screen(device, back_buffer);
-    use_camera(camera2);
+    trade_views();
     g_orig_display_frame();  // player 2
+    trade_views();
     ok = ok && copy(device, back_buffer, source, g_canvas, bottom, "player 2");
-    use_camera(camera1);
     const RECT both = {0, 0, w, 2 * half};
     ok = ok && copy(device, g_canvas, both, back_buffer, both, "to the screen");
     back_buffer->Release();
@@ -197,15 +222,15 @@ void split_frame(IDirect3DDevice9 *device, void *camera1, void *camera2) {
 }
 
 void hook_display_frame() {
-    void *camera1 = at<void *>(kView1, kViewCamera), *camera2 = at<void *>(kView2, kViewCamera);
     auto *device = *reinterpret_cast<IDirect3DDevice9 **>(kDevice);
     const bool two_views = *reinterpret_cast<int *>(kViewMode) == kTwoViews;
-    if (!two_views || g_failed || !device || !camera1 || !camera2 || camera1 == camera2) {
+    if (!two_views || g_failed || !device || !g_view2_on || !at<void *>(kView1, kViewCamera) ||
+        !at<void *>(kView2, kViewCamera)) {
         if (!two_views && g_canvas) release_canvas();
         return g_orig_display_frame();
     }
     if (!g_reset_hooked) hook_device_reset(device);
-    split_frame(device, camera1, camera2);
+    split_frame(device);
 }
 
 }  // namespace
@@ -218,6 +243,8 @@ void install() {
     g_band_center = static_cast<float>(atof(text));
     if (g_band_center < 0.25f) g_band_center = 0.25f;
     if (g_band_center > 0.75f) g_band_center = 0.75f;
+    events::on_world_load(&on_world_load);
+    events::on_frame(&on_frame);
     const nfsmw::Hook hooks[] = {
         {"displayframe", "___eDisplayFrame", 0x6DE300, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x81}, false,
          nfsmw::detour(&hook_display_frame), nfsmw::orig(&g_orig_display_frame)},
