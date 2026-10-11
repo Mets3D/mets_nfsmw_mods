@@ -189,5 +189,85 @@
     "name": "eStartFrameCulling",
     "confidence": "guess",
     "note": "called once at the top of ___eDisplayFrame; queues scenery culling for views including the shadow map view (flags 0x4100) then DoCulling"
+  },
+  "0x5A6600": {
+    "name": "FEngHud::FEngHud",
+    "confidence": "tested",
+    "note": "(type, package, IPlayer*, player number), ret 0x10; type at +0x20, Minimap at +0x320, made with malloc(0x338) for types 1 and 3; split screen makes type 3 HUD_Player1.fng and type 4 HUD_Player2.fng"
+  },
+  "0x5A0910": {
+    "name": "FEngHud::~FEngHud",
+    "confidence": "read",
+    "note": "deletes the HUD elements, then pops its package"
+  },
+  "0x58CA30": {
+    "name": "FEngHud::Update",
+    "confidence": "tested",
+    "note": "(IPlayer*, float dT), ret 8; calls DetermineHudFeatures, SetHudFeatures when they change, then each element visible under the features (Minimap::Update among them)"
+  },
+  "0x57CA60": {
+    "name": "FEngHud::DetermineHudFeatures",
+    "confidence": "tested",
+    "note": "thiscall (IPlayer*), u64 in edx:eax; bits 0x10000 | 0x4000 = minimap"
+  },
+  "0x59D500": {
+    "name": "Minimap::Minimap",
+    "confidence": "tested",
+    "note": "(package name, player number); looks its objects up by hash in that package (FEngFindObject), reads the map layout's centre; PC members are the decomp's offset + 8 (layout +0x38, markers +0x90 / +0x94, centre +0xB8)"
+  },
+  "0x59DB50": {
+    "name": "Minimap::Update",
+    "confidence": "tested",
+    "note": "thiscall (IPlayer*): centres the map on that player, north up in split screen; calls SetupMinimap, UpdatePlayer2Element"
+  },
+  "0x579900": {
+    "name": "Minimap::SetupMinimap",
+    "confidence": "read",
+    "note": "thiscall (IPlayer*): picks the 4 map tiles around the player, asks ChoppedMiniMapManager::UncompressMaps for them, sets the tiles' UVs and the layout position (default - displacement)"
+  },
+  "0x5672F0": {
+    "name": "ChoppedMiniMapManager::UncompressMaps",
+    "confidence": "tested",
+    "note": "thiscall (short *tiles, count): unloads every loaded tile not in the list, loads the missing ones (9 slots); two minimaps have to pass both lists"
+  },
+  "0x594EA0": {
+    "name": "Minimap::UpdatePlayer2Element",
+    "confidence": "tested",
+    "note": "thiscall: draws the last entry of the local player list (0x92D87C, count 0x92D884) as the second marker (+0x94), split screen only"
+  },
+  "0x5675D0": {
+    "name": "Minimap::UpdateElementArt",
+    "confidence": "read",
+    "note": "thiscall (pos*, dir*, FEObject*, pulse), ret 0x10: places an element at the map centre + (position - target) * zoom * 1024, absolute screen coordinates"
+  },
+  "0x5678A0": {
+    "name": "Minimap::AdjustForWidescreen",
+    "confidence": "read",
+    "note": "thiscall (bool outwards), ret 4: moves the map centre, the map pieces and the own marker by +-120; sets the own marker's y to the centre's"
+  },
+  "0x516AF0": {
+    "name": "cFEng::FindPackage",
+    "confidence": "read",
+    "note": "thiscall (name): the pushed package of that name (the idle list next); the instance is [0x91CADC]"
+  },
+  "0x50DB90": {
+    "name": "FEPackage::AddObject",
+    "confidence": "tested",
+    "note": "thiscall (FEObject*), ret 4: appends a top level object (list at +0x44, head +0x4C)"
+  },
+  "0x50DBB0": {
+    "name": "FEPackage::RemoveObject",
+    "confidence": "read",
+    "note": "thiscall (FEObject*): removes a top level object from the list"
+  },
+  "0x5C3470": {
+    "name": "FEObject::Clone",
+    "confidence": "tested",
+    "note": "virtual entry 1 of the FEObject family (entry 0 = deleting destructor), thiscall (bool reference); copies scripts and responses with new GUIDs but NOT the object data (colour, position, size: zeroed) nor a multi image's textures"
+  },
+  "0x5C31A0": {
+    "name": "FEObject::FEObject(const FEObject&, bool)",
+    "confidence": "tested",
+    "note": "zero-fills the data (rep stosd); reads the source's current script without a null check"
   }
 }

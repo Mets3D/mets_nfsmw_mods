@@ -276,12 +276,6 @@ void split_frame(IDirect3DDevice9 *device) {
     const RECT top = {0, 0, w, half}, bottom = {0, half, w, 2 * half};
 
     make_shadow_copies();
-    // ___eDisplayFrame culls the scenery of every active view into one table of draw entries (about 3,700, shared by all of
-    // them, filled in order) but only draws view 1. With view 2 active it was culled in both passes for nothing, and could
-    // fill the table before the last views in the order (the shadow map's). View 2 is off for the passes: less work, and no
-    // visible downside seen.
-    static const bool single_cull = ini_flag("render", "single_cull");
-    if (single_cull) at<unsigned char>(kView2, kViewActive) = 0;
     g_orig_display_frame();  // player 1
     bool ok = copy(device, back_buffer, source, g_canvas, top, "player 1");
     clear_screen(device, back_buffer);
@@ -289,7 +283,6 @@ void split_frame(IDirect3DDevice9 *device) {
     update_env_map_for_view1();  // reflections around player 2's car
     g_orig_display_frame();  // player 2
     trade_views();
-    if (single_cull) at<unsigned char>(kView2, kViewActive) = 1;
     ok = ok && copy(device, back_buffer, source, g_canvas, bottom, "player 2");
     const RECT both = {0, 0, w, 2 * half};
     ok = ok && copy(device, g_canvas, both, back_buffer, both, "to the screen");

@@ -18,8 +18,9 @@ description: How to read and document the code of speed.exe 1.3 (NFS Most Wanted
 ## Method
 1. Find the owner of the data: who reads this field, who writes it (a global's relocation list in `symbols.json`, `xref` of its function).
 2. Work out the calling convention from the prologue and epilogue (`ret N` = callee pops; thiscall = ecx; floats return in st0).
-3. Prefer a model that explains *all* observations; a log line or a crash that contradicts the model beats the model. Say so and correct the doc line instead of adding a contradicting one.
-4. Test by the smallest hook or log line, and let the user run it; never assume a guess about structure layout is right before the game confirmed it.
+3. **The decomp's struct layouts can be wrong for the PC exe** (the `Minimap` / `HudElement` members are 8 bytes higher, `FEngHud` 0x14 lower): take member offsets from the constructor's disassembly (stores to `[esi+X]` after each call), never from the headers alone. A header's class tells you what the fields mean; the exe tells you where they are.
+4. Prefer a model that explains *all* observations; a log line or a crash that contradicts the model beats the model. Say so and correct the doc line instead of adding a contradicting one.
+5. Test by the smallest hook or log line, and let the user run it; never assume a guess about structure layout is right before the game confirmed it.
 
 ## Record it (same turn)
 - A function: an entry in `Tools/re/names.json` (`address: {name, confidence, note}`). Data layouts, globals, flows, gotchas: the page of the subject in `docs/` with a mark per claim:

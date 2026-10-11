@@ -5,7 +5,8 @@
  * Each part has its own file, header and namespace, and its own switch in nfsmw_split_screen_support.ini:
  *   menu_entry.cpp     the "Split Screen" entry of the Quick Race menu                      [menu] entry
  *   fixes.cpp          the changes that let the race load and show                           [fixes] shared_device, loading_screen, view_mode
- *   split_view.cpp     the screen in two: the world drawn once per player                     [render] split
+ *   split_view.cpp     the screen in two: the world drawn once per player                     [render] split, shadow_fix
+ *   minimap.cpp        a minimap for each player, a colour for each player's marker            [hud] minimap
  *   players.cpp        which controller is whose (XInput), player 1's alone reaches the game  [players] enabled
  *   state_log.cpp      a log of the player count, devices and view mode                       [log] state
  *   events.cpp         the game functions several parts need (world load, each frame)
@@ -17,6 +18,7 @@
 #include "events.h"
 #include "fixes.h"
 #include "menu_entry.h"
+#include "minimap.h"
 #include "players.h"
 #include "split_view.h"
 #include "state_log.h"
@@ -38,6 +40,7 @@ NFSMW_PLUGIN_MAIN() {
     if (ini_flag("menu", "entry")) menu_entry::install();
     fixes::install();
     if (ini_flag("render", "split")) split_view::install();
+    if (ini_flag("hud", "minimap")) minimap::install();
     if (ini_flag("players", "enabled")) players::install();  // before state_log: the world load log shows its ports
     if (ini_flag("log", "state")) state_log::install();
     events::install();

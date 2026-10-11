@@ -38,14 +38,35 @@ Input for player 2: see [input-system.md](input-system.md) (extra device). Marks
 - **Scenery draw table** [read; the vanishing shadows fix is untested]: each `___eDisplayFrame` call culls the scenery of every *active* view with an enabled cull job (views 1-4, the env maps, the shadow map view, last)
   into one table of draw entries (`DoCulling` 0x731B80: 0x994368..0x9A2DC8, about 3,700 entries, filled in job order). The game only draws view 1 per call, but in split screen view 2 is active too, so it is culled twice per frame for
   nothing, which can fill the table before the shadow map's job (last in the order): whole areas of shadow casters vanish (seen: shadows just behind the car, with or without the shadow camera fix, so not our regression).
-  View 2 is switched off for the two passes (`[render] single_cull`). **Did not fix the vanishing shadows** behind the car (seen with every fix on and off: not our regression; whether the single player game has it is unchecked).
+  Switching view 2 off for the two passes (so it is not culled for nothing) **did not fix the vanishing shadows** behind the car and was removed (seen with every fix on and off: not our regression; whether the single player game has it is unchecked).
   Also tried without effect: pre-culler off (`PrecullerMode` 0x903160 = 0), the scenery detail patch below. Not tried: the shadow map's extent / fade (the shadow camera sits at the chase camera + sun direction * `[0x8FAEB8]`, looking at the chase camera position).
 - **Scenery detail by view mode** [read; effect untested]: `ScenerySectionHeader::DrawAScenery` (0x729120) turns a pixel size into a model. In view modes >= 3 (`cmp eax,3; jl` at 0x729280) only objects over 22 px are
   drawn, always with the low detail model (`pModel[2]`); in one view over 17 px with the model the size calls for. Shadow casters go through the same test. Patched to the one view rule (`[fixes] scenery_detail`).
 - Streaming: `UpdateCameraMovers` 0x47C880 gives the track streamer (0x9AA9D0) a position for each **active** view (`PredictStreamingPosition` 0x7238D0); with view 2 active the world around
   player 2 loads natively. The streamer has two positions (entries of 0x64 at +0xC0) and a split screen flag (+0xB0, from `InitRegion` 0x72C070) under which it keeps both sets of sections.
-- Seen/expected: the HUD is player 1's and drawn over the whole screen; reflections (view 4) follow player 1; effects updated in `___eDisplayFrame` (rain) run twice per frame; motion blur could
+- Seen/expected: effects updated in `___eDisplayFrame` (rain) run twice per frame; motion blur could
   blend the two pictures (not seen); shadows pop in oddly (maybe an old streaming issue).
+
+## HUD and minimap
+- Split screen makes two HUDs (`FEngHud` 0x5A6600): type 3 `HUD_Player1.fng` (player number 0) and type 4 `HUD_Player2.fng` (1) [tested: log]. The files are in `GLOBAL/InGameSplitScreen.bun` (JDLZ chunks, 0x30210).
+  Only `HUD_Player1.fng` has the minimap objects (TRACK_MAP, the markers, ...); the `Minimap` is made in `FEngHud`'s constructor for types 1 and 3. Console design: one minimap at (-221, 0) in FEng coordinates
+  (origin screen centre, 640 x 480), on the line between the halves, centred on player 1, player 2 as a second marker [tested].
+- **The decomp's struct layouts do not match the PC exe** for these classes: `HudElement` is 0x30 bytes (object list +8, package name +0x10, mask +0x18, features +0x20), so every `Minimap` member is the decomp's offset + 8
+  (map layout +0x38, own marker +0x90, other player's marker +0x94, default position +0x9C, map centre +0xB8), size 0x338, made with `malloc`; `FEngHud`: type +0x20, minimap +0x320; `FEPackage` object list head +0x4C;
+  `FEGroup` first child +0x64 (matches); `FEObject` up to +0x5C matches. Virtual tables of the FEObject family: entry 0 deleting destructor, entry 1 `Clone` [read, tested].
+- `Minimap::Update(player)` centres on the player it is given, north up in split screen. `UpdatePlayer2Element` draws the *last entry of the local player list* (0x92D87C, count 0x92D884) as the second marker.
+  The map picture comes from `ChoppedMiniMapManager::UncompressMaps` (9 tile slots): it unloads every tile not in the list it is given, so two minimaps need one list with both sets.
+  The Minimap places markers and icons itself, in absolute screen coordinates around its map centre (`UpdateElementArt`); only the map picture group's position is derived (default - displacement, every frame).
+- `FEObject::Clone` (vtable entry 1) copies the scripts and responses but **not the object's data** (`pData`: colour, position, size - zeroed, so the clone is invisible) nor a multi image's texture fields, and it gives new GUIDs
+  [read: the copy constructor 0x5C31A0 zero-fills; tested: clones with zero data were invisible]. Only images, groups and multi images (no pointers in their data) are copied by hand.
+- **A clone plays its scripts from the start, which sets the position the object was made with**: a shift applied to a clone's data is lost on the next package update [tested: the clone of the ring / backdrop group stayed at (0, 0) while
+  the original, whose scripts had finished, kept its shift]. The map picture group is exempt (set every frame); the others are put back every frame.
+- The minimap's circular backdrop is a black 128 x 128 image (hash 7af9160b) in the ring group (`TRACKMAPTARGETRING`, 382d2fc9) under the map picture. `HUD_Player2.fng` has an unrelated group with the same hash 157c5b37 at (-226, 7).
+- FEng colours are 0xAARRGGBB (ints b, g, r, a in `FEObjData`); an object with alpha 0 is not drawn.
+- **Built in `minimap.cpp`** [tested]: when player 2's HUD is made, the top level objects of `HUD_Player1.fng` that contain what the Minimap registered are cloned into `HUD_Player2.fng`; everything but the group holding the markers is moved
+  +-120 (`[hud] minimap_offset`; the map picture, ring and backdrop); a second `Minimap` is built on the clones and shown / updated from player 2's `FEngHud::Update`; each minimap's second marker is the other player (hooked
+  `UpdatePlayer2Element`); the markers are orange (player 1) and blue (player 2); the tile list passed to `UncompressMaps` is the union of both minimaps'; `AdjustForWidescreen` is repeated on the second. Not done: the rest of player 2's HUD
+  is as the console has it (speedometer bottom right).
 
 ## Press Start and players
 `FEngMapJoyParamToJoyport` 0x572FF0 (bit 0..3 to port 0..3, else -1): every FE press on PC is port 0, so the Press Start screen cannot tell devices apart. `uiQRPressStart` screen:
