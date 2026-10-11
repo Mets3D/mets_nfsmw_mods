@@ -11,11 +11,11 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 3. Pick the cars, the track and the options, and race.
 
 ## Features
-- Each player gets their own minimap and minimap color, not present in the base game.
+- Each player gets their own minimap and minimap color, not present in the base game. Can be disabled in .ini.
 - Each player can fully control their own camera.
 - Either player can invoke the pause menu, and change their keybinds during a race.
-- Each player's screen renders with its own shadows, reflection cubemap.
-- Performance optimization culling smaller objects is disabled, since it's not needed on modern computers.
+- Each player's screen renders with its own shadows, reflection cubemap, geometry culling.
+- Performance optimization culling smaller objects is disabled, since it's not needed on modern computers. Can be disabled in .ini.
 
 ## Mod Compatibility
 
@@ -30,11 +30,10 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - For supported controllers, see the [Controller Support](../controller_support/ReadMe.md) mod - The game natively supports Xbox controllers, and for everything else, Steam Input is tested and works as a translation layer.
 
 ## TODO
-- Mouse look doesn't work still.
-- Weird bug?: In at least a sprint (didn't test other race modes), if either player reverses from the starting line, the race will be restarted. Seems unnecessary if this is intended, since the race can be restarted from the pause menu anyways.
+- BUG: 2nd minimap is still displayed even in menus!
+- Bug: Mouse look doesn't work still.
+- Bug?: In at least a sprint (didn't test other race modes), if either player reverses from the starting line, the race will be restarted. Seems unnecessary if this is intended, since the race can be restarted from the pause menu anyways.
 - Make install instructions more detailed; Where should users copy the files? Maybe add some CI/CD.
-
-<details><summary> Claude nonsense </summary>
 
 ## .ini settings
 
@@ -42,9 +41,13 @@ All in `scripts/mets_mods/nfsmw_split_screen_support.ini`, all switches are 1 (o
 
 | Setting | What |
 |---|---|
-| `[hud] minimap_offset` | how far each player's minimap is from the middle line of the screen (default 120) |
 | `[fixes] scenery_detail` | draws the scenery with the single player detail rule (more small objects, more far detail; a little slower) |
-| `[hud] minimap` | each player has a minimap of their own, centred on themselves (player 1's in the top half, player 2's in the bottom half), with the other player as a differently coloured arrow (orange: player 1, blue: player 2) |
+| `[hud] minimap` | each player has a minimap of their own, instead of just 1 minimap that favors player 1 |
+| `[hud] minimap_offset` | how far each player's minimap is from the middle line of the screen (default 120) |
+
+<details>
+
+<summary> Developer notes </summary>
 
 ## Developer options
 

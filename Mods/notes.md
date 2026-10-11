@@ -1,7 +1,6 @@
 TODO:
 - Write ReadMe for each mod.
     - Done, but update it with images and videos, and remove Claude's nonsense. Maybe let Claude write a separate doc about the code's structure.
-- Implement new camera option: Speed FoV (FoV increases with speed, and Lag / Distance maybe decreases with speed?)
 
 OTHER MOD IDEAS:
 - Add piss filter toggle in the settings somewhere.

@@ -73,6 +73,7 @@ collisions) that were never connected to anything on PC. With this mod, they now
   rows are kept in `nfsmw_controller_support.ini` (shared by all profiles).
 
 ## TODOs
+- BUG: Binding to the shoulder buttons exits the current screen at the same time, since it's the button to switch to the next device. Uh oh!
 - Figure out whether input remapping code should live in this mod or be moved to the Custom Menus mod.
 - The "Controller Prompts" menu entry would be better if it was customizable per input device, so that when we switch from one controller to another, it might switch symbols.
 - Make a custom icon for the rumble menu - but maybe it becomes a "Controller" menu instead, since we want to add more options than just Rumble:
@@ -82,7 +83,7 @@ collisions) that were never connected to anything on PC. With this mod, they now
 
 <details>
 
-<summary>Code Notes</summary>
+<summary>Developer Notes</summary>
 
 ## Settings, files
 

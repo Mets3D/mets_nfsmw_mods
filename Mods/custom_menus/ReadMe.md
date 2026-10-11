@@ -42,7 +42,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
 
 <details>
 
-<summary>Code Notes</summary>
+<summary>Developer Notes</summary>
 
 ## Using it from your own plugin
 

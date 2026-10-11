@@ -10,7 +10,7 @@
 ## Our mods (`Mods/`, one folder each, built together)
 `custom_menus` (Options menu framework, crash log), `camera_settings` (camera presets, Options > Camera), `controller_support` (controller input, bindings
 per controller, camera look, rumble, button icons; namespaces are `pad::`), `split_screen_support`, `dev_tools` (multiple copies, network log), `common/`
-(header-only: log file, `hooks.h`, language table merge, XInput, the APIs between mods). Each mod has a ReadMe; `Mods/ReadMe.md` is the overview.
+(header-only: log file, `hooks.h`, language table merge, XInput, the APIs between mods). Each mod has a ReadMe for players; how to work on them is in `.claude/skills/nfsmw-modding`, what we know about the game in `docs/`.
 - Everything our mods write or ship lives in `<game>/scripts/mets_mods/` (`nfsmw::data_file()`): `.ini`, `.log`, `nfsmw_custom_menus_crash.log`, texture packs.
   Uninstall = delete the `.asi` files and that folder.
 - `common/hooks.h` `install_hooks`: checks the first 7 bytes, skips a changed function, optional `[hooks]` skip list in the mod's ini, required hooks
