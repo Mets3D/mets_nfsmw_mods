@@ -17,11 +17,12 @@ Binding table, devices and queues: see [input-system.md](input-system.md). Marks
   DirectInput mouse on the copy that has it installed; without it we make our own (`poll_own_mouse`, a hand-built DIMOUSESTATE format, shared, foreground).
 
 ## Controls menu (UIOptionsPCController)
-- Rows are binding entries by index: 0-17 keyboard list, 0-18 controller list; 4 look rows (entries 25-28, once SC_W/A/S/D which no input mapping refers to) are appended.
-  Patches (see `controls_menu.cpp`): object size 0x2B4 to 0x314 (`push` at 0x571D16), its byte field +0x2B0 to +0x310 (0x52ACA1, 0x51D56D, 0x51D645), row count `add r,0x12` to 0x16 at
+- Rows are binding entries by index: 0-17 keyboard list, 0-18 controller list; 4 look rows (entries 25-28, once SC_W/A/S/D which no input mapping refers to) are appended; other mods can add rows too (Previous Camera View, entry 67, under the game's Change Camera View: [menus-and-camera.md](menus-and-camera.md)).
+  Patches (`custom_menus/controls_rows.cpp`, applied the first time the Options menu opens, for the rows the mods register; the entries stay with the mod that owns them): object size 0x2B4 to 0x32C (`push` at 0x571D16), its byte field +0x2B0 to +0x328 (0x52ACA1, 0x51D56D, 0x51D645), row count `add r,0x12` to 0x17 at
   0x52ACE8, 0x52AE1D, 0x51D42E, 0x51D498, 0x51D4E7, 0x51D555, 0x51D5C7, 0x51D636. Row to entry translation in 0x628CB0 (only when called from the Controls screen code: the
   profile save/load 0x56E180 / 0x56E200 uses it for entries 0-18), 0x627BB0 (name), 0x628230 (label), 0x628560 (clear), 0x628C00 (start remap). A row's name is the language
   string keyed bStringHash(entry name), merged into the language table.
+- Row layout: the game's rows, with each added row placed after its `after_row` (or at the end), as a row -> entry table per list; the hooks below read it.
 - The screen keeps a copy of each row's two bindings (0x18 bytes per row from +0xE8) to detect and undo changes.
 - Look camera: `CubicCameraMover::Update` 0x47D3C0 hooked (mover `+0x9C` view/mode, `+0xA1` looking back), the look-at call at 0x47DCBC redirected; driven by entries 25-28.
 - The title icon fix lives in `custom_menus/title_icon.cpp` (hook on `UIOptionsPCController::Setup` 0x52A7B0).

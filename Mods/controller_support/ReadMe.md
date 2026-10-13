@@ -23,9 +23,9 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
   They are analog now, with whatever you bound them to (stick, trigger, keys still work).
 
 ### Controls menu
-- Direction names for controller bindings ("Left stick Left", "D-pad Up", "LT" instead of the widescreen fix's
-  direction-less names).
+- Direction names for controller bindings ("Left stick Left", "D-pad Up", "LT" instead of the widescreen fix's direction-less names).
 - Four extra rows at the end of both lists: **Look Left / Right / Up / Down**, remappable like the rest.
+- These rows need [Custom Menus](../custom_menus/ReadMe.md), which adds them to the screen. Without it, the Look bindings can only be set in the ini (`[look_bindings]`).
 
 ### Camera look
 All 3rd-person cameras can be controlled with either the mouse, or the inputs bound to the new "Look" keybindings which you can find in the Controls menu. Bound to the right stick by default. After letting go of the "Look" inputs for a few seconds, the camera returns to normal. The vanilla game takes the mouse from Windows and gives the camera nothing to look around with, so the mod reads a DirectInput mouse of its own (unless another mod, like the widescreen fix, already does).
@@ -73,11 +73,27 @@ collisions) that were never connected to anything on PC. With this mod, they now
   rows are kept in `nfsmw_controller_support.ini` (shared by all profiles).
 
 ## TODOs
-- BUG: Binding to the shoulder buttons exits the current screen at the same time, since it's the button to switch to the next device. Uh oh!
-- Figure out whether input remapping code should live in this mod or be moved to the Custom Menus mod.
-- The "Controller Prompts" menu entry would be better if it was customizable per input device, so that when we switch from one controller to another, it might switch symbols.
+- Improve default controller bindings with our opinionated set:
+  - Accelerate: RT
+  - Brake/Reverse: LT
+  - Handbrake: RB
+  - Speedbreaker: X
+  - N2O: A
+  - Shift Down: D-pad Down
+  - Shift Up: LB
+  - Reset Car Position: Right stick press
+  - Engage Event: Left stick press
+  - View Blacklist: Y
+  - View World Map: View
+  - View SMS Messages: Unbound
+  - Next Camera View: D-pad Right
+  - Previous Camera View: D-pad Left
+  - Look Behind: B
+  - Things not mentioned would be the same as current defaults (look with right stick, pause with menu button, etc)
+- Ability to orbit camera while in reverse camera?
 - Make a custom icon for the rumble menu - but maybe it becomes a "Controller" menu instead, since we want to add more options than just Rumble:
-- Add options to tweak deadzones of triggers and sticks from the menu
+  - The "Controller Prompts" menu entry would be better if it was customizable per input device, so that when we switch from one controller to another, it might switch symbols.
+  - Add options to tweak deadzones of triggers and sticks from the menu
 - The widescreen fix's `ImproveGamepadSupport` also changes the title screen's "Press START" text; we did not take that over.
 - Clean up the nonsensical .ini file, remove logging code and options.
 
@@ -140,7 +156,7 @@ engine_blown=80
 | `settings.cpp`, `pad.h` | `nfsmw_controller_support.ini`, the log, shared helpers |
 | `input.cpp` | DirectInput state (dead zones, triggers, mouse deltas, what was touched last), analog action mapping |
 | `bindings.cpp` | the PC binding table: the four look entries, a log of every binding change |
-| `controls_menu.cpp` | the Controls menu: look rows, direction names |
+| `controls_menu.cpp` | the Controls menu: direction names |
 | `look.cpp` | camera look |
 | `button_icons.cpp` | the controller pictures in the menus' button prompts (which prompt shows which picture: `buttons/prompts.ini`, the pictures: `buttons/xbox/`, `buttons/playstation/`) |
 | `menu_buttons.cpp` | A accepts, B goes back in the menus; X, View and Menu press the hotkeys 2, 3, 4; B quits from the main menu |

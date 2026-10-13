@@ -77,5 +77,10 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
   `camerainfo`; hooking it and overwriting the result is the override point. POV layout: type@0 s16, angle@2 u16, lag@4, height@8, lat@0xC, fov@0x10 u16, stiffness@0x14, tilting@0x18.
   `GameFlowManager::IsPaused` 0x64B680 (ecx 0x925e70).
 - `CameraAnchor` (PC) [read]: the car's velocity is at +0x00..0x08 and its magnitude (m/s) at +0x10, written by `CameraAnchor::Update` 0x468FA0 each frame; `mZoom` +0xC4, camerainfo `Instance` +0x100. The decomp's offsets from +0xB4 on are 0x10 too high.
+- **Previous Camera View** (`camera_settings/previous_camera.cpp`) [read]: binding entry 67 (SC_NUMPAD5; nothing in the data refers to it) is renamed `CAM_ACTION_PREVIOUS` in both tables, bound to nothing, and
+  its bindings kept in our ini (`[previous_camera] binding`; saved when the Controls screen refreshes and the live table holds controller 0's set). Its row goes under the game's Change Camera View (row 15) through
+  nfsmw_custom_menus, which also replaces that row's text (the language string keyed bStringHash("CAM_ACTION_CHANGE")) with "Next Camera View". The action: `InputPlayer::FetchInput` 0x6A8870 is hooked; the entry's value
+  is read from the player's device (`IOModule` 0x920DE0: +4 count, +8 devices, indexed by the player's controller port; a GameDevice has vtable 0x8A7B9C and its values at +0x20) and a rising edge calls
+  `PlayerSettings::ScrollDriveCam(settings, -1)`. FetchInput only runs for a human player in a race, so a press in a menu does nothing.
 - `GLOBAL/attributes.bin` (VPAK) holds at least 81 `camerainfo` collections (class definition at 0x2b1a0: FOV 0x263E9452, HEIGHT 0x762B7718, STIFFNESS 0x7F8EEA1A, LAG 0xDE0857E3; collections from
   0x2b230, 6 float pairs each); they differ per car and view, and the blend between a pair is not worked out. So the page stores **offsets** from the driven car's value, added in the GetPov hook.

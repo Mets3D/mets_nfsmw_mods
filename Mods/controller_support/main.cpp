@@ -3,8 +3,8 @@
  * files, each with its own header and namespace:
  *   settings.cpp       nfsmw_controller_support.ini and the log
  *   input.cpp          DirectInput state (dead zones, separate triggers, mouse) and the analog action mapping
- *   bindings.cpp       the PC binding table: the camera look entries, a log of binding changes
- *   controls_menu.cpp  Options > Controls: the look rows, readable names
+ *   bindings.cpp       the PC binding table: our entries (camera look, Previous Camera View), a log of binding changes
+ *   controls_menu.cpp  Options > Controls: readable names for XInput bindings, defaults of our entries
  *   look.cpp           camera look
  *   button_icons.cpp   controller pictures in the button prompts of the menus, instead of keyboard keys
  *   menu_buttons.cpp   A accepts, B goes back in the menus
@@ -32,7 +32,6 @@ NFSMW_PLUGIN_MAIN() {
     xinput::load(&g_log);
     pad_sets::load_settings();
     bindings::prepare_default_look_entries();
-    if (bindings::g_look_entries_ok) controls_menu::add_rows();
     menu_buttons::patch_default_table();
     input::install_hooks();
     bindings::install_hooks();

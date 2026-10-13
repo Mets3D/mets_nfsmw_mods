@@ -57,8 +57,29 @@ struct Page {
     Placement placement;  // where the rows go; leave it out for kNewEntry
 };
 
+// Rows added to Options > Controls (Pause > Options > Controls, and the main menu's). Each row edits one entry of the game's binding
+// table (0x91F418; 0x34 bytes per entry: the name, then 4 slots {type, device, object}); the framework adds the rows, translates
+// row -> entry for the screen, and leaves the entries' names, default and saved bindings and what they do to the mod that owns them.
+// The row's title is the language string keyed by bStringHash(the entry's name in the table): register it with register_text.
+struct ControlsRow {
+    int entry;       // the binding table entry the row edits; it must be one the game's own screen does not list
+    int after_row;   // the game's row it goes under (rows below move down by one), or -1 at the end of both lists. The game's rows are its
+                     // entries 0-17 (keyboard list) and 0-18 (controller list)
+};
+// Called after the game wrote a binding's label ("Button 2"...) in the Controls screen, to rewrite it. `entry` is the table's entry.
+using BindingLabelFn = void (*)(char *label, int column, int entry, bool primary);
+
 struct Host {
     void (*register_page)(const Page *page);  // the page must stay valid for the whole run
+    // Rows of the Controls screen (the array must stay valid for the whole run). Only effective when called from the provide
+    // export, which runs before the Controls screen exists.
+    void (*register_controls_rows)(const ControlsRow *rows, int count);
+    // A language string: added to the game's table, or replacing the game's own text for that hash. `text` must stay valid.
+    void (*register_text)(unsigned hash, const char *text);
+    void (*set_binding_label)(BindingLabelFn fn);  // one mod may do this
+    // Called each time the Controls screen refreshes its rows (it opens, and after every rebinding): where a mod notices that the
+    // bindings of its entries changed. Any number of mods may add one.
+    void (*add_controls_refresh)(void (*fn)());
 };
 
 using ProvideFn = void (*)(const Host *);

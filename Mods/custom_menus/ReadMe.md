@@ -21,6 +21,13 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
 - Row kinds: a normal value row, and the game's own **Camera selector** (it switches the player's camera view; the other
   rows are redrawn, so a camera page can show the selected view's values).
 
+- **Rows on the Controls screen**: a mod that owns binding entries of the game's binding table can have rows for them added to Options > Controls
+  (in both the keyboard and the controller list, anywhere between the game's own rows), through `register_controls_rows` in
+  [`common/custom_menus_api.h`](../common/custom_menus_api.h). The framework makes room in the screen, translates the rows to the
+  entries (editing, clearing and rebinding work like the game's own rows), and can rewrite the binding labels; the mod keeps
+  the entries' names, default and saved bindings, and what they do (`controls_rows.cpp`). `register_text` adds a language string,
+  or replaces the game's own text (for example to rename one of the game's rows). Registered in the same `provide` export as pages.
+
 ## Other fixes
 
 - **Controls screen title icon.** Pause > Options > Controls showed the audio icon as its title icon (a base game bug:
@@ -29,9 +36,10 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
 
 ## Example Mods
 - [Camera Settings](../camera_settings/ReadMe.md): Adds the Options > Camera page.
-- [Controller Support](../controller_support/ReadMe.md): Adds the Options > Rumble page.
+- [Controller Support](../controller_support/ReadMe.md): Adds the Options > Rumble page, and the Look and Previous Camera View rows on the Controls screen.
 
 ## TODO
+- Added menus don't appear in the main menu, only in the pause menu.
 - Translation support?
 - Is there a limit on how many entries can be in a page?
   - The Advanced Video menu has a scrollbar - Can we have unlimited options, and the scrollbar automatically appear when needed?

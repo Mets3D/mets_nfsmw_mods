@@ -5,6 +5,8 @@
  *    per-preset changes (differences from the car's own values) are applied to what it returns, so switching views with the game's hotkey keeps them.
  *  - Pause > Options > Camera (a page of nfsmw_custom_menus, which builds the screen): row 1 is the game's own Camera
  *    selector, the rows below edit the selected view (hold Shift or LB for finer steps). Edits are kept on Accept.
+ *  - Previous Camera View (previous_camera.cpp): a Controls screen binding that scrolls the camera backwards; the game's Change
+ *    Camera View is renamed Next Camera View.
  *  - The Drift camera's name ("DRIFT", from NFSMWExtraOptions) is shown with the game's own "Drift" string.
  *
  * Files in <game>/scripts/mets_mods/: nfsmw_camera_settings.ini (your changes and settings), nfsmw_camera_settings.log, nfsmw_camera_settings.tpk (the Options icon).
@@ -26,6 +28,7 @@
 #include "hooks.h"
 #include "nfsmw_util.h"
 #include "custom_menus_api.h"
+#include "previous_camera.h"
 
 NFSMW_PLUGIN_DECLARE("NFSMW Camera Editor", "1.1.0", "Demeter Dzadik")
 
@@ -425,6 +428,7 @@ extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const opt::Host
               1 + NPARAM, g_rows, page_available, page_opened, page_value, page_change, camera_changed, page_accept,
               page_discard, page_defaults};
     host->register_page(&g_page);
+    camera_settings::previous_camera::provide(host);
 }
 
 namespace {
@@ -451,5 +455,7 @@ NFSMW_PLUGIN_MAIN() {
     ini_path_init();
     ini_load();
     install_hooks();
+    camera_settings::previous_camera::init(g_log, g_ini);
+    camera_settings::previous_camera::install_hooks(g_log, g_ini);
     return NFSMW_OK;
 }

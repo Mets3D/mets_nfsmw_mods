@@ -34,6 +34,7 @@
 #include "hooks.h"
 #include "nfsmw_util.h"
 #include "custom_menus_api.h"
+#include "controls_rows.h"
 #include "texture_pack.h"
 #include "title_icon.h"
 #include "xinput.h"
@@ -307,7 +308,8 @@ void register_page(const opt::Page *page) {
 void discover_pages() {
     if (g_discovered) return;
     g_discovered = true;
-    const opt::Host host = {&register_page};
+    const opt::Host host = {&register_page, &custom_menus::controls_rows::add_rows, &custom_menus::controls_rows::add_text,
+                            &custom_menus::controls_rows::set_binding_label, &custom_menus::controls_rows::add_refresh};
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId());
     if (snapshot == INVALID_HANDLE_VALUE) {
         log_line("could not list the loaded modules");
@@ -325,6 +327,7 @@ void discover_pages() {
     }
     CloseHandle(snapshot);
     log_line("%d page(s) registered", g_page_count);
+    custom_menus::controls_rows::apply(g_log, g_ini);
 }
 
 void ensure_language_entries() {

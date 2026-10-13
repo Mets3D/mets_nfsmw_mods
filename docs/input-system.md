@@ -21,6 +21,7 @@ Marks: [read] disassembly, [tested] confirmed in game or by a crash, [guess].
   Entries: 0 GAS, 1 BRAKE, 2 STEERLEFT, 3 STEERRIGHT, 4 HANDBRAKE, 5 GAMEBREAKER, 6 NOS, 7 SHIFTDOWN, 8 SHIFTUP, 9 RESET, 10 HUD ENGAGE_EVENT,
   11-13 HUD PAD DOWN/LEFT/RIGHT, 14 FE_ACTION_B2, 15 CAM_ACTION_CHANGE, 16 CAM_ACTION_LOOKBACK, 17 CAM_ACTION_PULLBACK, 18 HUD PAUSEREQUEST,
   19-22 FE LEFT/RIGHT/UP/DOWN, 32 FE ACCEPT, 33 CANCEL, 34 START.
+  Entries whose names no data refers to (no hash hit in `GLOBAL/attributes.bin`): 25-28 SC_W/A/S/D (our look), 42 / 43 DEBUG_ACTION_TOGGLECAM / CARCOLOR, 58 SC_RETURN, 67 SC_NUMPAD5 (nfsmw_camera_settings: Previous Camera View).
 - An entry's value is the strongest of its 4 slots (`BindingValue`, called only by `PollDevice`).
 - **Joystick table** (0x91F150) [read]: 8 pointers, one object per DirectInput game controller in enumeration order; the object has the DirectInput device at
   `+0x468`, the name at `+0x114`, state arrays at `+0x218` / `+0x220`. A slot's `device` indexes this table. Keyboard object 0x91F1D8, mouse 0x91F1E0.
@@ -36,7 +37,7 @@ vehicle source (`vehicle_source`: split screen), replaces the **vehicle entries*
 ## Queues and players
 - **ActionQueue** [read]: `+0x268` port, `+0x26C` has entries, `+0x270` entries, `+0x280/0x281` flags. A queue reads `IOModule.devices[port]`.
 - **InputPlayer::FetchInput** [read]: sets the queue's port from `player->GetControllerPort()`, then pops actions: steer `+0x2A0/0x2A4`, gas `+0x2A8`,
-  brake `+0x2AC`, look back `+0x2B0`; camera change calls `PlayerSettings::ScrollDriveCam(settings, 1)`.
+  brake `+0x2AC`, look back `+0x2B0`; camera change calls `PlayerSettings::ScrollDriveCam(settings, 1)` 0x5A3850 (-1 scrolls back; `CurCam` at +0xC of the settings). In `FetchInput`, the owner is at `this-0x40`; its vtable +0x20 is the player, whose +0x14 is the settings and +0x34 the controller port [read].
 - **LocalPlayer**: controller port `+0x18`, feedback `+0xC`, wheel `+0x10` (taken from `devices[port]` by `SetControllerPort`).
 
 ## FEDatabase (0x91CF90) joystick ports

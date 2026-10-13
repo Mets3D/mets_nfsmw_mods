@@ -103,9 +103,11 @@ void select(int pad) {
 int live_pad() { return g_live; }
 
 // The entries the game's input mapping turns into the vehicle, its camera and its HUD actions: 0-13 (gas ... HUD pad), 15-18
-// (camera change / look back / pull back, pause request) and the look entries 25-28. The rest (14, 19-24, 29 and up) are the
-// menus' and hotkeys', and come from every device.
-bool is_vehicle_entry(int e) { return e <= 13 || (e >= 15 && e <= 18) || (e >= 25 && e <= 28); }
+// (camera change / look back / pull back, pause request), the look entries 25-28 and Previous Camera View (nfsmw_camera_settings'
+// entry). The rest (14, 19-24, 29 and up) are the menus' and hotkeys', and come from every device.
+bool is_vehicle_entry(int e) {
+    return e <= 13 || (e >= 15 && e <= 18) || (e >= 25 && e <= 28) || e == nfsmw::binding_table::kPreviousCameraEntry;
+}
 
 void restrict_vehicle_entries(float *values) {
     const int source = input::vehicle_source();
@@ -295,3 +297,5 @@ void install_hooks() {
 }
 
 }  // namespace pad::pad_sets
+
+extern "C" __declspec(dllexport) int nfsmw_controller_support_live_pad() { return pad::pad_sets::live_pad(); }
