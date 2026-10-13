@@ -25,7 +25,7 @@ It was my goal to integrate this mod into the original game's design as if it wa
 - A button to reset to defaults.
 - A help button that explains what the current setting does.
 - Controller input supported for all of the above.
-- You can hold Shift to change with smaller increments. This is only available on keyboard.
+- You can hold Shift or LB to change with smaller increments.
 
 ## Settings, files
 

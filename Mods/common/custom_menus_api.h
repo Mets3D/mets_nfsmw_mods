@@ -48,7 +48,7 @@ struct Page {
     void (*opened)();
     // The row's value: returns a language hash of the game to show, or 0 and writes text to `out` ('\x01' = degree sign).
     unsigned (*value)(int row, char *out, unsigned out_size);
-    // Left (-1) or right (+1) was pressed on the row; `fine` while Shift is held. Takes effect at once.
+    // Left (-1) or right (+1) was pressed on the row; `fine` while Shift or the controller's left shoulder button (LB, L1 on PlayStation pads) is held. Takes effect at once.
     void (*change)(int row, int direction, bool fine);
     bool (*changed)();   // do the values differ from when the page was opened? (Back then asks before discarding)
     void (*accept)();    // the page was left with changes: keep and save them

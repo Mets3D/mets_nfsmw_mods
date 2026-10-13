@@ -4,7 +4,7 @@
  *  - CameraAnchor::GetPov builds the active camera preset (POV) from the car's attributes every frame. Our
  *    per-preset changes (differences from the car's own values) are applied to what it returns, so switching views with the game's hotkey keeps them.
  *  - Pause > Options > Camera (a page of nfsmw_custom_menus, which builds the screen): row 1 is the game's own Camera
- *    selector, the rows below edit the selected view (hold Shift for finer steps). Edits are kept on Accept.
+ *    selector, the rows below edit the selected view (hold Shift or LB for finer steps). Edits are kept on Accept.
  *  - The Drift camera's name ("DRIFT", from NFSMWExtraOptions) is shown with the game's own "Drift" string.
  *
  * Files in <game>/scripts/mets_mods/: nfsmw_camera_settings.ini (your changes and settings), nfsmw_camera_settings.log, nfsmw_camera_settings.tpk (the Options icon).
@@ -90,16 +90,16 @@ const char *kLabel[NPARAM] = {"FOV", "Speed FoV", "Height", "Lag / Distance", "P
 // inferred from the field names and values, so adjust here if a description does not match what you see.
 const char *kHelp[NPARAM + 1] = {
     "Field of view in degrees. Higher values show more of the scene and exaggerate the feeling of speed. "
-    "Lower values zoom in. Hold Shift for finer steps.",
+    "Lower values zoom in. Hold Shift or LB for finer steps.",
     "Extra field of view in degrees, added on top of the base FoV as you speed up, to exaggerate the feeling of "
-    "speed. It reaches this value at 300 km/h. 0 turns it off. Hold Shift for finer steps.",
-    "How high the camera sits above the car. Higher values give a more top-down view. Hold Shift for finer steps.",
+    "speed. It reaches this value at 300 km/h. 0 turns it off. Hold Shift or LB for finer steps.",
+    "How high the camera sits above the car. Higher values give a more top-down view. Hold Shift or LB for finer steps.",
     "Camera lag distance. Negative values place the camera behind the car, and larger negative values pull it "
-    "further back. Values near zero place it at the car. Hold Shift for finer steps.",
-    "Tilts the camera up or down, in degrees. Hold Shift for finer steps.",
-    "Moves the camera sideways, away from the center line of the car. Hold Shift for finer steps.",
+    "further back. Values near zero place it at the car. Hold Shift or LB for finer steps.",
+    "Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps.",
+    "Moves the camera sideways, away from the center line of the car. Hold Shift or LB for finer steps.",
     "How tightly the camera follows the car. Higher values keep it close to the car, lower values let it "
-    "drift and lag behind. Hold Shift for finer steps.",
+    "drift and lag behind. Hold Shift or LB for finer steps.",
     "Lets the camera lean with the car as it rolls and turns.",
     "Selects the camera view whose settings you are editing. This is the same setting as the Camera option "
     "under Player.",

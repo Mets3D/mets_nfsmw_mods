@@ -369,13 +369,19 @@ void *g_entry_vtbl[2];      // Options menu entries
 
 int &options_category() { return field<int>(field<void *>(*reinterpret_cast<void **>(game::kFEDatabase), 0x10), 0x24); }
 
+// A button of the first XInput controller, read directly (no controller_support needed).
+bool pad_button_down(WORD button) {
+    nfsmw::xinput::Gamepad pad;
+    return nfsmw::xinput::read(&pad) && (pad.buttons & button) != 0;
+}
+
 void THISCALL value_row_act(void *self, const char *pkg, unsigned data) {
     (void)pkg;
     if (data != kPadLeft && data != kPadRight) return;
     const int row = field<int>(self, kRowIndex);
     const PageInfo *page = field<PageInfo *>(self, kRowPage);
     if (!page || row < 0 || row >= page->page->row_count) return;
-    if (page->page->change) page->page->change(row, data == kPadRight ? 1 : -1, (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
+    if (page->page->change) page->page->change(row, data == kPadRight ? 1 : -1, (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0 || pad_button_down(nfsmw::xinput::kLeftShoulder));
     field<unsigned char>(self, kRowChanged) = 1;  // as PODriveCam::Act does
     void **vtbl = field<void **>(self, 0);
     reinterpret_cast<BlinkFn>(vtbl[14])(self, data);  // arrow blink
@@ -823,10 +829,7 @@ void FASTCALL hook_dialog_build(void *self, void *edx) {
 
 // The controller's X button opens Help too: with the widescreen fix's gamepad icons, the "2" key glyph on our hint is
 // drawn as X.
-bool pad_x_down() {
-    nfsmw::xinput::Gamepad pad;
-    return nfsmw::xinput::read(&pad) && (pad.buttons & nfsmw::xinput::kButtonX) != 0;
-}
+bool pad_x_down() { return pad_button_down(nfsmw::xinput::kButtonX); }
 
 // The Options layout only forwards the input messages it has responses for (Defaults, Accept, Back, arrows), so a
 // "2" key press never reaches this screen as a message. The screen does receive FEMSG_SCREEN_TICK every frame, so

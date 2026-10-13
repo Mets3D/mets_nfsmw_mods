@@ -10,7 +10,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
 - Builds the screen from the game's own Options layout, so fonts, sounds, animations, mouse hover and the controller
   all work as they do in the vanilla game's screens.
 - Left / right on a row tells the mod that owns the page (through its `change` callback) to raise or lower that value.
-  The mod decides what the stepping value of that row is. Holding **Shift** tells it to take a smaller step.
+  The mod decides what the stepping value of that row is. Holding **Shift** or the controller's **LB** (L1 on PlayStation pads) tells it to take a smaller step.
 - **Accept / Back** work like the game's own: Leaving the menu with "Accept" keeps changes; "Back" asks "discard changes?" if something changed
 - **Defaults**: Asks for confirmation, then resets the page.
 - **Help**: a "2 Help" hint next to the game's "1 Defaults" hint (a copy of it, so it matches). The **2** key, a click on
@@ -56,7 +56,7 @@ static int g_strength = 50, g_opened_strength;  // your own state
 
 static const opt::Row kRows[] = {
     // kind, label, label_hash (0 = use the label), help text
-    {opt::kValueRow, "Strength", 0, "How strong the effect is. Hold Shift for finer steps."},
+    {opt::kValueRow, "Strength", 0, "How strong the effect is. Hold Shift or LB for finer steps."},
 };
 
 static unsigned value(int row, char *out, unsigned size) {
@@ -96,7 +96,7 @@ Rules for the callbacks (all called on the game's thread):
 | `available` | each time the pause menu's Options opens | `nullptr` = always. Return false to hide the entry (no race loaded, no controller, ...). |
 | `opened` | the page opens | Remember what is current: it is what Back restores. |
 | `value(row, out, size)` | whenever a row is drawn | Write text to `out` (63 characters at most; `\x01` is the degree sign) and return 0, or return a **language hash** of the game and leave `out` alone. **Required.** |
-| `change(row, direction, fine)` | left (-1) or right (+1) on a row | Take effect immediately. Hold Shift = `fine`. **Required.** |
+| `change(row, direction, fine)` | left (-1) or right (+1) on a row | Take effect immediately. Hold Shift or LB = `fine`. **Required.** |
 | `changed` | Back is pressed, and when the screen is left | Do the values differ from when the page opened? |
 | `accept` | the screen is left and `changed()` is true | Keep and save the values. After Back and confirm, `discard` ran first, so `changed()` is false and `accept` is not called. |
 | `discard` | Back and "discard" confirmed | Put back what `opened` saw. |
