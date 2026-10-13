@@ -18,8 +18,11 @@ description: How to work on the NFS Most Wanted (2005) ASI mods in this repo - w
 - Each mod has a file per part, a header, a namespace, and an ini switch per part. Keep comments short and about why.
 
 ## Build and deploy
-- Build in a shell with `C:\msys64\mingw32\bin` first on PATH: `cd Mods && cmake -S . -B build -G "MinGW Makefiles" && cmake --build build` (re-run the configure after adding files).
-- Deploy by copying `Mods/build/nfsmw_<mod>.asi` into `Game Versions/1.3/scripts/` and `Game Versions/GameTest/scripts/` (or `Mods/set_mods.ps1`). **Never launch the game.** The user tests; kill a running
+- Build: Windows, in a shell with `C:\msys64\mingw32\bin` first on PATH: `cd Mods && cmake -S . -B build -G "MinGW Makefiles" && cmake --build build`.
+  Linux, cross-compiling: `cd Mods && cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=../Tools/nfsmw-2005-sdk/cmake/nfsmw-toolchain-mingw-i686.cmake && cmake --build build`.
+  Re-run the configure after adding files. Details: `docs/project.md`.
+- Deploy by copying `Mods/build/nfsmw_<mod>.asi` into each game install's `scripts/` (or `python Mods/set_mods.py --mode ours --game <dir>`; no install path is hard-coded, always pass `--game`).
+  **Never launch the game.** The user tests; kill a running
   `speed.exe` before deploying (the file is locked).
 - Our files at run time: `<game>/scripts/mets_mods/` (ini, logs, crash log, packs).
 
@@ -27,7 +30,7 @@ description: How to work on the NFS Most Wanted (2005) ASI mods in this repo - w
 1. `Mods/<name>/main.cpp` with `NFSMW_PLUGIN_DECLARE` / `NFSMW_PLUGIN_MAIN` (`camera_settings/main.cpp` is a small one), a line in `Mods/CMakeLists.txt` (`nfsmw_add_plugin(...)`, and the `foreach` list below it).
 2. Hooks through `common/hooks.h` (address + first 7 bytes; a changed function is skipped), log / strings / language table through `common/nfsmw_util.h`.
 3. An Options menu page: export `nfsmw_custom_menus_provide` (see `Mods/custom_menus/ReadMe.md`).
-4. Add it to `Mods/set_mods.ps1` (`$all`, the `-Only` list, texture packs), write the mod's own `ReadMe.md` (what it does for a player; no build or developer notes there), and put findings in `docs/`.
+4. Add it to `Mods/set_mods.py` (`ALL_MODS`, the `--only` choices, texture packs), write the mod's own `ReadMe.md` (what it does for a player; no build or developer notes there), and put findings in `docs/`.
 5. Uninstall = delete the mod's `.asi` (and `.tpk`) from `scripts/`; everything else of ours is in `scripts/mets_mods/`.
 
 ## After the user tests

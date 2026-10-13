@@ -4,7 +4,7 @@
 - `main()` 0x666590 begins with `IsTheGameAlreadyRunning("speed.exe", 1)` (0x6CBC00, cdecl): a Toolhelp process snapshot, counts processes by exe name, retries up to 3 times with `Sleep(1000)`.
   The ASI loader loads plugins about when `main` runs (~2 s after process start), so hooking the function is too late for the first count; `dev_tools` instead refuses
   `CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS)` (the function reads `INVALID_HANDLE_VALUE` as "not running" on its next count, ~1 s later) [tested].
-- GameTest (widescreen fix `WindowedMode = 4`): both copies run. Vanilla 1.3: the second copy dies at 0x6E6D5F (null Direct3D device: no windowed mode without the widescreen fix).
+- With the widescreen fix (`WindowedMode = 4`): both copies run. Without it: the second copy dies at 0x6E6D5F (null Direct3D device: no windowed mode without the widescreen fix).
 - The profile directory is shared (`Documents\NFS Most Wanted\<profile>`): use two profile names. `Logger::open_in_data_folder` falls back to `name.2.log` ... `name.9.log` if another copy holds the file.
 
 ## LAN

@@ -1,7 +1,7 @@
 """Export the textures of NFS Most Wanted texture packs (TPK chunks) as PNG files, plus an index.html gallery.
 
 usage: python tpk_export.py <out_dir> <file.bun|.lzc>[:PACKNAME,PACKNAME...] ...
-       python tpk_export.py ../Exports/fe_textures ../GameTest/GLOBAL/InGameA.bun:INGAMETEXTURES
+       python tpk_export.py ../Exports/fe_textures "../Game Versions/<copy>/GLOBAL/InGameA.bun:INGAMETEXTURES"
 
 Writes <out_dir>/<PACKNAME>/<TEXTURE_NAME>_<hash>.png and <out_dir>/index.html. Needs numpy.
 Handles DXT1/3/5 (0x22/0x24/0x26), 32-bit BGRA (0x20) and 8-bit paletted (0x08/0x81) textures, top mip only.

@@ -27,7 +27,7 @@ folder of the style. A picture can be used by any number of prompts. The style i
 
 ## Changing something
 
-Edit a PNG or `prompts.ini`, then run `Mods/set_mods.ps1 -Mode ours`: it builds the pictures into
+Edit a PNG or `prompts.ini`, then run `python Mods/set_mods.py --mode ours`: it builds the pictures into
 `nfsmw_controller_buttons.tpk` (with `Tools/button_pack.py`) and copies it and `prompts.ini` to the game's
 `scripts/mets_mods/` folder. The plugin reads `prompts.ini` from there.
 

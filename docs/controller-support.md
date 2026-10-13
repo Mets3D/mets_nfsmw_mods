@@ -7,14 +7,14 @@ Binding table, devices and queues: see [input-system.md](input-system.md). Marks
   `ebp-0x13C`; the instruction after it, `0x7F2927 mov eax,[esi+0x464]`, is where `process_pad_state` is called (dead zones, triggers as two sliders, "last input was a
   pad", menu hotkeys) [tested]. **Steam Input's virtual controller** (vendor 0x28DE, product 0x11FF, shows as "Controller (XBOX 360 For Windows)") does not go through
   dinput8's own `GetDeviceState`, so a hook on that never sees it; the game-level hook does. The widescreen fix hooks the same function further on (`0x7F2AE2`,
-  writes the hotkey table) and, in its gamepad mode, rewrites FE Accept/Cancel/Defaults bindings on every read; GameTest's ini has `[CAMERA] Enable = 0` and dead zones 0.
+  writes the hotkey table) and, in its gamepad mode, rewrites FE Accept/Cancel/Defaults bindings on every read; the widescreen fix's own ini has `[CAMERA] Enable = 0` and dead zones 0.
 - XInput as DirectInput shows it: sticks 0..65535 with Y down, both triggers on Z (we hold Z centred and put the triggers on sliders 1 / 2), buttons A B X Y LB RB Back Start LS RS,
   D-pad as hat 0. The k-th XInput game controller is the k-th connected XInput slot (`own_slot`) [tested: rumble pulse on the selected controller].
 - **InputMapping** (ctor 0x6479D0): entries `{type, lowerDZ, upperDZ, action, scalar, prev, current}`; type 0 analog through the dead zones, 1/2 press / release;
   actions 1 steer left, 2 steer right, 5 gas, 6 brake. We turn steering / gas / brake entries analog.
 - **Mouse**: the vanilla game never reads the mouse through DirectInput. It is Win32: `__UpdateCursorPos` 0x6C9B60 (`GetCursorPos`, HWND at `[0x982BF4]`) feeds the FE mouse
   object at 0x987F50 (x/y `+4/+8`, buttons `+0x20/+0x23`); the OS cursor is hidden once at window setup, the pointer drawn is an FE object. The widescreen fix supplies a
-  DirectInput mouse in GameTest; without it we make our own (`poll_own_mouse`, a hand-built DIMOUSESTATE format, shared, foreground).
+  DirectInput mouse on the copy that has it installed; without it we make our own (`poll_own_mouse`, a hand-built DIMOUSESTATE format, shared, foreground).
 
 ## Controls menu (UIOptionsPCController)
 - Rows are binding entries by index: 0-17 keyboard list, 0-18 controller list; 4 look rows (entries 25-28, once SC_W/A/S/D which no input mapping refers to) are appended.
