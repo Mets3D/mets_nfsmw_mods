@@ -79,18 +79,20 @@ struct Pov {
     short tilting;         // 0x18
 };
 
-enum Param { P_FOV, P_HEIGHT, P_LAG, P_ANGLE, P_LAT, P_STIFF, P_TILT, NPARAM };
+enum Param { P_FOV, P_SPEED, P_HEIGHT, P_LAG, P_ANGLE, P_LAT, P_STIFF, P_TILT, NPARAM };
 constexpr int kNumPresets = 7;
 
 const char *kPresetName[kNumPresets] = {"bumper", "hood", "close", "far", "super_far", "drift", "pursuit"};
-const char *kKey[NPARAM] = {"fov", "height", "lag", "angle", "lat", "stiffness", "tilting"};
-const char *kLabel[NPARAM] = {"FOV", "Height", "Lag / Distance", "Pitch", "Lateral Offset", "Stiffness", "Tilting"};
+const char *kKey[NPARAM] = {"fov", "speed_fov", "height", "lag", "angle", "lat", "stiffness", "tilting"};
+const char *kLabel[NPARAM] = {"FOV", "Speed FoV", "Height", "Lag / Distance", "Pitch", "Lateral Offset", "Stiffness", "Tilting"};
 
 // Help texts (2 key on the Camera options screen). Wording for lag, pitch, lateral offset and tilting is
 // inferred from the field names and values, so adjust here if a description does not match what you see.
 const char *kHelp[NPARAM + 1] = {
     "Field of view in degrees. Higher values show more of the scene and exaggerate the feeling of speed. "
     "Lower values zoom in. Hold Shift for finer steps.",
+    "Extra field of view in degrees, added on top of the base FoV as you speed up, to exaggerate the feeling of "
+    "speed. It reaches this value at 300 km/h. 0 turns it off. Hold Shift for finer steps.",
     "How high the camera sits above the car. Higher values give a more top-down view. Hold Shift for finer steps.",
     "Camera lag distance. Negative values place the camera behind the car, and larger negative values pull it "
     "further back. Values near zero place it at the car. Hold Shift for finer steps.",
@@ -108,6 +110,7 @@ struct Range {
 };
 const Range kRange[NPARAM] = {
     {20.0f, 140.0f, 5.0f, 1.0f},    // FOV
+    {0.0f, 50.0f, 5.0f, 1.0f},      // speed FoV, degrees at full speed (the game has no value of its own: base is 0)
     {0.0f, 8.0f, 0.25f, 0.05f},     // height
     {-30.0f, 3.0f, 0.5f, 0.1f},     // lag (negative = behind the car)
     {-20.0f, 20.0f, 0.5f, 0.1f},    // pitch
@@ -146,7 +149,8 @@ float get_field(const Pov &p, int i) {
         case P_ANGLE: return ang_to_deg(p.angle);
         case P_LAT: return p.lat_offset;
         case P_STIFF: return p.stiffness;
-        default: return p.tilting ? 1.0f : 0.0f;
+        case P_TILT: return p.tilting ? 1.0f : 0.0f;
+        default: return 0.0f;
     }
 }
 
@@ -158,7 +162,8 @@ void apply_field(Pov *p, int i, float v) {
         case P_ANGLE: p->angle = deg_to_ang(v); break;
         case P_LAT: p->lat_offset = v; break;
         case P_STIFF: p->stiffness = v; break;
-        default: p->tilting = v >= 0.5f ? 1 : 0; break;
+        case P_TILT: p->tilting = v >= 0.5f ? 1 : 0; break;
+        default: break;  // P_SPEED is applied by apply_speed_fov
     }
 }
 
@@ -234,6 +239,40 @@ void ini_save() {
     }
 }
 
+// ---- Speed FoV: wider FoV and a camera dollied toward the car, growing with the car's speed ----
+constexpr unsigned kAnchorVelMag = 0x10;  // CameraAnchor: speed of the car in m/s (written by CameraAnchor::Update)
+constexpr float kFullSpeed = 300.0f / 3.6f; // m/s (300 km/h) where the effect reaches its full strength
+constexpr float kMaxFov = 140.0f;         // the FoV row's maximum
+constexpr float kSmoothing = 0.04f;       // per GetPov call (~110/s): the effect eases in and out over ~0.2 s
+
+struct SpeedState {
+    void *anchor;
+    float t;  // 0..1 share of full speed, smoothed
+};
+SpeedState g_speed[2];  // one per player's anchor
+
+void apply_speed_fov(void *anchor, Pov *p, float max_gain_deg) {
+    SpeedState *st = nullptr;
+    for (SpeedState &s : g_speed)
+        if (s.anchor == anchor) st = &s;
+    if (!st)
+        for (SpeedState &s : g_speed)
+            if (!s.anchor) { s.anchor = anchor; st = &s; break; }
+    if (!st) return;
+    float target = field<float>(anchor, kAnchorVelMag) / kFullSpeed;
+    target = target < 0.0f ? 0.0f : (target > 1.0f ? 1.0f : target);
+    st->t += (target - st->t) * kSmoothing;
+    // Dolly zoom: distance * tan(fov / 2) stays constant, so the car keeps its size on screen while the
+    // background widens; the camera moves in by tan(old / 2) / tan(new / 2). Only the square root of that is
+    // used: the full amount left the camera so close that braking made it overshoot above the car.
+    const float old_deg = ang_to_deg(p->fov);
+    float new_deg = old_deg + max_gain_deg * st->t;
+    if (new_deg > kMaxFov) new_deg = kMaxFov > old_deg ? kMaxFov : old_deg;
+    constexpr float kHalfRad = 3.14159265f / 360.0f;
+    if (old_deg > 1.0f) p->lag *= sqrtf(tanf(old_deg * kHalfRad) / tanf(new_deg * kHalfRad));
+    p->fov = deg_to_ang(new_deg);
+}
+
 // ---- GetPov hook: apply the changes to the preset the game just built ----
 using GetPovFn = Pov *(FASTCALL *)(void *, void *, int);
 GetPovFn g_orig_getpov = nullptr;
@@ -256,6 +295,7 @@ Pov *FASTCALL hook_getpov(void *self, void *edx, int type) {
         }
         for (int i = 0; i < NPARAM; ++i)
             if (g_ovr[type].set[i]) apply_field(p, i, resolved(g_ovr[type], i, now[i]));
+        if (g_ovr[type].set[P_SPEED]) apply_speed_fov(self, p, resolved(g_ovr[type], P_SPEED, 0.0f));
     }
     return p;
 }
@@ -294,6 +334,7 @@ void format_value(char *out, size_t n, int param, float v) {
         case P_ANGLE: snprintf(out, n, "%.1f%s", v, deg); break;
         case P_LAT: snprintf(out, n, "%.2f", v); break;
         case P_STIFF: snprintf(out, n, "%.2f", v); break;
+        case P_SPEED: snprintf(out, n, "%.0f%s", v, deg); break;
         default: snprintf(out, n, "%s", v >= 0.5f ? "On" : "Off"); break;
     }
 }

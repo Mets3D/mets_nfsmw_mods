@@ -20,7 +20,8 @@ In the base game, every car has its own camera values. This mod preserves that b
 It was my goal to integrate this mod into the original game's design as if it was a native feature that shipped with the game. If used with the Custom Menus mod, the Camera menu has:
 - A custom hand-made icon.
 - Separate customization for each camera type, applied as offsets to the current car's base camera values.
-- Hit **Apply** to save. Otherwise, hitting **Back** will ask if you want to quit without saving.
+- Hit **Apply** to save. Otherwise, hitting **Back** will ask if you want to discard your changes.
+- A "Speed FoV" slider (0 = off, up to 50 degrees): extra FoV added on top of the base as you speed up, reaching the full amount at 300 km/h. Set per camera view.
 - A button to reset to defaults.
 - A help button that explains what the current setting does.
 - Controller input supported for all of the above.
@@ -40,7 +41,6 @@ After launching the game with the mod installed, it will store camera settings i
   - "DRIFT" camera mode added by [`NFSMWExtraOptions`](https://github.com/ExOptsTeam/NFSMWExOpts).
 
 ## Ideas / TODO
-- New "Speed FoV" option: FoV rising with speed, lag falling.
 - A way to try values while driving without pausing.
 - Add keybind for "Previous Camera"
 - Update the YT link above, possibly make it an embed.

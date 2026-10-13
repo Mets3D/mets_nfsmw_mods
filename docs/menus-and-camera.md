@@ -76,5 +76,6 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
 - `CameraAnchor::GetPov` 0x4713C0 (thiscall, 1 arg = preset 0..6, returns POV*) runs every unpaused frame (~110/s) from `CubicCameraMover::Update` and rebuilds the POV (at anchor+0xC8 on PC) from the car's
   `camerainfo`; hooking it and overwriting the result is the override point. POV layout: type@0 s16, angle@2 u16, lag@4, height@8, lat@0xC, fov@0x10 u16, stiffness@0x14, tilting@0x18.
   `GameFlowManager::IsPaused` 0x64B680 (ecx 0x925e70).
+- `CameraAnchor` (PC) [read]: the car's velocity is at +0x00..0x08 and its magnitude (m/s) at +0x10, written by `CameraAnchor::Update` 0x468FA0 each frame; `mZoom` +0xC4, camerainfo `Instance` +0x100. The decomp's offsets from +0xB4 on are 0x10 too high.
 - `GLOBAL/attributes.bin` (VPAK) holds at least 81 `camerainfo` collections (class definition at 0x2b1a0: FOV 0x263E9452, HEIGHT 0x762B7718, STIFFNESS 0x7F8EEA1A, LAG 0xDE0857E3; collections from
   0x2b230, 6 float pairs each); they differ per car and view, and the blend between a pair is not worked out. So the page stores **offsets** from the driven car's value, added in the GetPov hook.
