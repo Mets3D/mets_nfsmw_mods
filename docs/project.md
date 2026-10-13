@@ -12,7 +12,7 @@ first 7 bytes of each function, so the same addresses install on both):
 
 ## Our mods (`Mods/`, one folder each, built together)
 `custom_menus` (Options menu framework, crash log), `camera_settings` (camera presets, Options > Camera), `controller_support` (controller input, bindings
-per controller, camera look, rumble, button icons; namespaces are `pad::`), `split_screen_support`, `dev_tools` (multiple copies, network log), `common/`
+per controller, camera look, rumble, button icons; namespaces are `pad::`), `split_screen_support`, `dev_tools` (start-up and diagnostic tools), `common/`
 (header-only: log file, `hooks.h`, language table merge, XInput, the APIs between mods). Each mod has a ReadMe for players; how to work on them is in `.claude/skills/nfsmw-modding`, what we know about the game in `docs/`.
 - Everything our mods write or ship lives in `<game>/scripts/mets_mods/` (`nfsmw::data_file()`): `.ini`, `.log`, `nfsmw_custom_menus_crash.log`, texture packs.
   Uninstall = delete the `.asi` files and that folder.
@@ -43,7 +43,8 @@ loader fails with "Error 126" (missing `libgcc_s_dw2-1.dll`).
   "<proton>/files/bin/wine" winedbg --command "bt all"` (works on a Steam-launched game too); map `.asi` offsets with `i686-w64-mingw32-nm -n` on `Mods/build/*.dll` (offset + ImageBase).
 - **Black screen at start-up, no frame drawn** [tested]: the main thread hangs in DirectSound's start-up (`EAXSND8Wrapper::Initialize` -> dsound -> Wine `mmdevapi`) when PipeWire has no real output - cards' profiles "off", only
   "Dummy Output", no default sink (`pactl info`, `wpctl status`). Not the mods: it happens with none loaded. `systemctl --user restart wireplumber pipewire pipewire-pulse` brought the outputs back and the game booted every time.
-  `dev_tools`'s boot trace shows it: "screen (none)" and "eFrameCounter +0" in every heartbeat.
+  How to tell: the boot flow has no current screen (`*0x91CF48` null or its screen unset) and `eFrameCounter` (0x982B78) / `RealTimeFrames` (0x8F82F4) do not advance. The other start-up stalls are the save-directory check
+  waiting on a message (MemoryCard +0x14, see `menus-and-camera.md`) or never finishing.
 - On the copy with the widescreen fix and other mods (`AllMods/`), always keep those other mods on: without them the game renders no 3D and garbled text.
 - Direct3D 9: patching the device's vtable gets reverted within ~13 frames on this install; hook the `d3d9.dll` function bodies with MinHook. The device
   pointer is `[0x982BDC]`.

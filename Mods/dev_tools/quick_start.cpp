@@ -4,7 +4,7 @@
  * it was (the EA logo, the PSA, the attract movie, or any later in-game one) is torn down the normal way, never shown.
  * NFSMWExtraOptions's SkipMovies and the widescreen fix's SkipIntro set the same byte for the same reason. This is a
  * race against the game reaching each movie's check: our plugin loads from a worker thread the ASI loader starts
- * sometime after it finds every .asi (about 2 seconds in, normally - see dev-tools-lan.md), and whichever movie that
+ * sometime after it finds every .asi (about 2 seconds in, normally), and whichever movie that
  * happens to land before stays unskippable, independent of this tool. (Hooking MovieScreen's constructor instead let
  * the real movie start, since the constructor runs before Callback does, and the later skip crashed.)
  *
