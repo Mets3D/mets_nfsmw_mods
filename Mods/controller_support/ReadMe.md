@@ -21,6 +21,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 ### Camera look
 All 3rd-person car cameras can be controlled with either the mouse, or the right stick - The latter is remappable in the Controls menu, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
 - After letting go of the "Look" inputs for a few seconds, the camera returns to its default position.
+- This also works in the Look Behind view.
 
 ### Menu Navigation
 - Menu navigation tested in all menus I could think of, including obscure menus like Showroom, Blacklist bio screen, Advanced Video Settings.
@@ -50,7 +51,6 @@ All 3rd-person car cameras can be controlled with either the mouse, or the right
 
 
 ## TODOs
-- Ability to orbit camera while in reverse camera?
 - Make a custom icon for the rumble menu - but maybe it becomes a "Controller" menu instead, since we want to add more options than just Rumble:
   - Or maybe we should replace the Rumble toggle button in the controls screen with a button that takes us to the rumble customization menu??
   - The "Controller Prompts" menu entry would be better if it was customizable per input device, so that when we switch from one controller to another, it might switch symbols.

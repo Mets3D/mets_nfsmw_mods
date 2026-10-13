@@ -11,7 +11,7 @@ using namespace pad::bindings;
 // Camera look. CubicCameraMover::Update (the chase cameras) builds the camera matrix with
 // eCreateLookAtMatrix(out, from, to, up) at 0x47DCBC; that call is redirected here and the eye position (from) is
 // turned around the target (to) by the look offsets. The mover's camera mode (+0x9C) is the view type (0 bumper,
-// 1 hood, 2 close, 3 far, ...), +0xA1 is set while looking back. Based on the widescreen fix's Camera.ixx (MIT,
+// 1 hood, 2 close, 3 far, ...), +0xA1 is set while looking back (that view can be orbited too). Based on the widescreen fix's Camera.ixx (MIT,
 // ThirteenAG), generalised to every chase view and fed from the game's bindings. A second player (another mod gave
 // them a device: extra_device.h) looks around with the look bindings of that device, in their own view
 // (view 2, whose camera mover is the second one); the first player's look and the mouse stay with the first.
@@ -81,7 +81,13 @@ void look_at(void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
         if (now - last_tick > 250 || !l.prev_target_valid) mouse_x = mouse_y = 0;
         last_tick = now;
     }
-    if (!g_look_cfg.enabled || mode < 2 || looking_back) {
+    // The look-back view is orbited like the others; switching between it and the normal view starts from the view's own angle.
+    static bool was_looking_back[2];
+    if (looking_back != was_looking_back[g_who]) {
+        was_looking_back[g_who] = looking_back;
+        reset_look();
+    }
+    if (!g_look_cfg.enabled || mode < 2) {
         reset_look();
         return original(out, from, to, up);
     }
