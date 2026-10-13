@@ -37,7 +37,13 @@ loader fails with "Error 126" (missing `libgcc_s_dw2-1.dll`).
 ## Testing the game
 - The `.asi` cannot be replaced while the game runs. Windows: a hung `speed.exe` that `taskkill` cannot kill dies with
   `Get-CimInstance Win32_Process -Filter "Name='speed.exe'" | Invoke-CimMethod -MethodName Terminate`. Linux, running under Steam Proton Experimental:
-  `pkill -9 -f speed.exe` [guess, untested: the game has not been run yet from this machine].
+  kill the game's own process by PID (`pgrep -f '(^Z:.*|^\./)speed\.exe$'`); `pkill -f speed.exe` also matches and kills the shell running it.
+- Linux: launching without Steam, and backtraces. `cd <install> && STEAM_COMPAT_DATA_PATH=~/.local/share/Steam/steamapps/compatdata/<id> STEAM_COMPAT_CLIENT_INSTALL_PATH=~/.local/share/Steam
+  "<Proton - Experimental>/proton" run ./speed.exe` (`<id>`: the non-Steam shortcut's compatdata folder). Backtraces of a running game: `WINEPREFIX=<compatdata>/pfx WINEDLLPATH="<proton>/files/lib/wine:<proton>/files/lib64/wine"
+  "<proton>/files/bin/wine" winedbg --command "bt all"` (works on a Steam-launched game too); map `.asi` offsets with `i686-w64-mingw32-nm -n` on `Mods/build/*.dll` (offset + ImageBase).
+- **Black screen at start-up, no frame drawn** [tested]: the main thread hangs in DirectSound's start-up (`EAXSND8Wrapper::Initialize` -> dsound -> Wine `mmdevapi`) when PipeWire has no real output - cards' profiles "off", only
+  "Dummy Output", no default sink (`pactl info`, `wpctl status`). Not the mods: it happens with none loaded. `systemctl --user restart wireplumber pipewire pipewire-pulse` brought the outputs back and the game booted every time.
+  `dev_tools`'s boot trace shows it: "screen (none)" and "eFrameCounter +0" in every heartbeat.
 - On the copy with the widescreen fix and other mods (`AllMods/`), always keep those other mods on: without them the game renders no 3D and garbled text.
 - Direct3D 9: patching the device's vtable gets reverted within ~13 frames on this install; hook the `d3d9.dll` function bodies with MinHook. The device
   pointer is `[0x982BDC]`.

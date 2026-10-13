@@ -49,6 +49,28 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
   at startup skips all three (and any later FEng movie the same way); `NFSMWExtraOptions`'s `SkipMovies` and the widescreen fix's `SkipIntro` set the same byte. Constructing the
   `MovieScreen` itself (ctor 0x58ECA0) does not start the movie - only `Callback` does, later - so skipping from the constructor is too early: it tears down a movie that has already
   started opening rather than one that is finished, which crashes.
+- **Late "movie finished"** [tested]: with the byte set, a movie screen gets `0xc3960eb9` more than once - the switch to the next screen is only queued, the old screen lives on a frame or two, and each late
+  message runs `MovieScreen::NotificationMessage` 0x57DDA0 -> `ChangeToNextBootFlowScreen` again (seen: six advances in two frames, all from 0x57DE71), skipping the splash screen and `MC_Main.fng`: a main menu with no
+  profile and no 3D car viewer. `dev_tools` passes `0xc3960eb9` on only while the screen's package (MenuScreen +0x10) is the current boot screen.
+- **Skipping the splash screen** [tested]: `MW_LS_Splash.fng` ("click to continue", `SplashScreen`) takes ~4 s to post `FEHASH_INITCOMPLETE` 0x35F8620B (it loads the game's resources meanwhile); its `NotificationMessage` 0x5A32A0
+  then sets `bAllowContinue` (+0x2C) and advances (`ChangeToNextBootFlowScreen(0xff)`) on `__PAD_ACCEPT__` / `__PAD_START__`. Making that call on `INITCOMPLETE` works; `INITCOMPLETE` is posted more than once (also on `UIMain`),
+  so only on the first.
+- **`MC_Bootup` / `MC_Main`** [read]: `MC_Bootup.fng` (`UIMemcardBoot`, decomp `uiMemcard.cpp`) starts `MemoryCard::BootupCheck` 0x518440 on `INITCOMPLETE` and moves on when the check reports back
+  (`MemcardCallbacks::BootupCheckDone` 0x559AC0 queues 0x461A18EE); a check can stop on a message that waits for an answer (`MemcardCallbacks::ShowMessage` 0x560980). `MC_Main.fng` (`UIMemcardMain`) loads the profile - the only
+  one on its own, else a list - and ends with "Load complete." [Continue] [tested]. The choice is `UIMemcardMain::ListDone` 0x563E90: for the boot flow (`gMemcardSetup` 0x91CBAC, op & 0xF0 == 0x20; in-boot-flow byte +0x30) with one save it copies the save's name (list at `this`+0x7C, node name at +8 after `MemoryCard::GetPrefixLength` 0x518350 characters) to `this`+0x40 and calls `MemoryCard::Load` 0x5189F0; doing the same for a chosen save among several loads that one [tested]. MemoryCard (`*0x91CB20`, PC): waiting for an answer +0x14 (byte), operation +0x40 (1 boot-up check, 5 load), last error +0x48.
+- **The tail destroys the manager** [tested]: a `ChangeToNextBootFlowScreen` / `JumpToScreen` that reaches `MainMenu.fng` calls `Destroy`, deleting the `BootFlowManager` inside the call: a hook must not read the screen through
+  `this` after the original returns (that crashed); read `mInstance` again (null once destroyed). PC layout: `CurrentScreen` +0xC, `BootFlowScreen` name +0xC.
+
+## Skipping the frontend (SkipFE) and loading a profile directly
+- **main()'s SkipFE switch** [read]: `main` 0x666590, right after `InitializeEverything` 0x665FC0, checks the dword at 0x926064: if set, `RaceStarter::StartSkipFERace` 0x57ECD0 runs instead of `GameFlowManager::LoadFrontend`
+  0x6645C0. It only copies race settings into gameplay globals (track 0x8F86A4, laps 0x8F86BC, player/AI car counts 0x8F86B8 / 0x926080, direction 0x926084, race type 0x926098, cops off 0x8F86C0, max cops 0x926088, traffic 0x926090
+  (float), difficulty 0x8F86CC, POV 0x8F86C4, split screen 0x92607C, car names as string pointers at 0x8F86A8 / 0x8F86AC); it does not start a race. Same addresses as xan1242's `xnfs-skipfe`. Set from an ASI plugin, the byte
+  usually lands after `main()` has checked it. With it set and no profile, the game once saved a profile literally named `NAME` (a text field's placeholder) [tested].
+- **`QuickGame::OnBeginState` 0x6F4EA0 also reads it** [tested]: on any `QuickGame`'s first state (a Quick Race from the menu included) `HandleSkipFEOptions` 0x6EA040, if SkipFE is set, no startup race is queued yet
+  (`GRaceDatabase::GetStartupRace` 0x5DCA00) and the race ID at 0x926068 (11 characters) is not empty, builds a race from that ID (`StringHash32` 0x4519D0 -> `GRaceDatabase::GetRaceFromHash` 0x5FB710) with the settings above
+  and calls `SetStartupRace`; `sub_741690` likewise replaces the car. Race IDs look like `"5.1.1"` (decomp `uiQRTrackSelect.cpp` `IsRaceValidForMike`; `GRaceDatabase.cpp` `sDDayRaces` are the scripted D-Day races).
+- **Loading a profile with `cFrontendDatabase::LoadUserProfileFromBuffer` 0x5ACDD0 does not work** [tested]: reading `<Documents>\NFS Most Wanted\<name>\<name>` and passing it in (thiscall: buffer, size, player; `*0x91CF90`)
+  failed `UserProfile::LoadFromBuffer` 0x5ACB70's version check against `*[FEDatabase+8]`, and failing still emptied the car stable (crashes later). The Load Game screens are the way in.
 
 ## Camera presets (camera_settings)
 - `CameraAnchor::GetPov` 0x4713C0 (thiscall, 1 arg = preset 0..6, returns POV*) runs every unpaused frame (~110/s) from `CubicCameraMover::Update` and rebuilds the POV (at anchor+0xC8 on PC) from the car's

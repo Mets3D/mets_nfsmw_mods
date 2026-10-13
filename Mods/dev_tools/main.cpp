@@ -4,12 +4,14 @@
  *   multiple_instances.cpp  lets the game start more than once on one PC
  *   network.cpp             the game's network calls: a log, and what two copies on one PC need to find each other
  *   diagnostics.cpp         where the game ends itself and where it has an access violation
- *   quick_start.cpp         skips the boot flow (EA logo, intro movies) straight to the main menu
+ *   quick_start.cpp         skips the boot flow (EA logo, intro movies, splash screen) straight to the main menu
+ *   boot_trace.cpp          a log of start-up: boot screen, save-directory check, whether the game draws
  *
  * Files in <game>/scripts/mets_mods/: nfsmw_dev_tools.log, nfsmw_dev_tools.ini (optional).
  */
 #include "dev_tools.h"
 
+#include "boot_trace.h"
 #include "diagnostics.h"
 #include "multiple_instances.h"
 #include "network.h"
@@ -40,6 +42,7 @@ NFSMW_PLUGIN_MAIN() {
     nfsmw::data_file("nfsmw_dev_tools.ini", g_ini, sizeof(g_ini));
     if (ini_flag("multiple_instances", "enabled")) multiple_instances::install();
     if (ini_flag("diagnostics", "enabled")) diagnostics::install();
+    if (ini_flag("boot_trace", "enabled")) boot_trace::install();
     if (ini_flag("network", "log")) network::install();
     if (ini_flag("quick_start", "enabled")) quick_start::install();
     return NFSMW_OK;

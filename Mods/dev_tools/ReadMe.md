@@ -11,9 +11,10 @@ own source file and its own switch in `nfsmw_dev_tools.ini`.
 | [Multiple instances](#multiple-instances) | lets the game start more than once on one PC | `[multiple_instances] enabled` |
 | [Network](#network) | a log of the game's network calls | `[network] log` |
 | [Diagnostics](#diagnostics) | where the game ends itself and where it has an access violation | `[diagnostics] enabled` |
-| [Quick start](#quick-start) | skips the boot flow (EA logo, intro movies) straight to the main menu | `[quick_start] enabled` |
+| [Quick start](#quick-start) | skips the intro movies (`skip_intros`); with `auto_load_alias`, also the splash screen and the save choice | `[quick_start] enabled` |
+| [Boot trace](#boot-trace) | a log of start-up: which screen, the save-directory check, whether the game draws | `[boot_trace] enabled` |
 
-All switches are 1 (on) by default. Ideas for more tools (not written): auto-loading a save and landing in the world,
+All switches are 1 (on) by default; the ini written next to the game lists every option. Ideas for more tools (not written): auto-loading a save and landing in the world,
 spawning cars, teleporting to locations, testing the AI in preset scenarios.
 
 ## Compatibility
@@ -63,8 +64,21 @@ found.)
 
 Sets the same flag `NFSMWExtraOptions`'s "Skip Movies" and the widescreen fix's "Skip Intro" use: a byte the game checks
 before opening any FEng movie (the EA logo, the PSA, the attract movie at startup, and any later in-game one), posting
-that movie's "finished" message right away instead of playing it. Cuts the time to reach the main menu to about as long
-as the bootup and splash screens take by themselves - those two aren't movies, so they still show briefly.
+that movie's "finished" message right away instead of playing it. Our plugin sets it a couple of seconds after the
+game starts, so the first movie sometimes plays anyway; renaming a movie's file (the game then skips it) has no such
+race.
+
+**Auto load:** set `auto_load_alias=<save name>` under `[quick_start]` in `nfsmw_dev_tools.ini` (independent of `skip_intros=1`, which controls the movie skip). If a save with
+that name exists, the splash screen ("click to continue") moves on by itself once it has loaded, and that save is
+loaded straight away, even when there are several (no list to pick from); you land on its "Load complete" message.
+Empty, or a name with no save: the game starts as usual.
+
+## Boot trace
+
+Writes what start-up is doing to `nfsmw_dev_tools.log`: each change of boot screen, of the save-directory check
+(running, waiting for an answer to a message, and the message's text), and every 5 seconds how many frames the game
+drew. It stops 10 seconds after the main menu, or after 3 minutes. "screen (none)" and "eFrameCounter +0" in every line
+means the game has not started drawing at all (see `docs/project.md`, Testing the game).
 
 ## Files
 
@@ -77,4 +91,5 @@ In the folder `scripts/mets_mods/`: `nfsmw_dev_tools.log` (and `.2.log`... for l
 | `multiple_instances.cpp` | the check for another copy |
 | `network.cpp` | the Winsock hooks |
 | `diagnostics.cpp` | the exit and access violation logs |
-| `quick_start.cpp` | the movie-skip flag |
+| `quick_start.cpp` | the movie-skip flag, the splash-screen skip |
+| `boot_trace.cpp` | the start-up log |
