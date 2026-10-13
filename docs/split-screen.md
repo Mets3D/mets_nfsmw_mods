@@ -67,6 +67,10 @@ Input for player 2: see [input-system.md](input-system.md) (extra device). Marks
   +-120 (`[hud] minimap_offset`; the map picture, ring and backdrop); a second `Minimap` is built on the clones and shown / updated from player 2's `FEngHud::Update`; each minimap's second marker is the other player (hooked
   `UpdatePlayer2Element`); the markers are orange (player 1) and blue (player 2); the tile list passed to `UncompressMaps` is the union of both minimaps'; `AdjustForWidescreen` is repeated on the second. Not done: the rest of player 2's HUD
   is as the console has it (speedometer bottom right).
+- **Minimap visibility on pause** [tested]: `FEngHud::DetermineHudFeatures` 0x57CA60 makes all HUD hide on pause (checks `FEManager::IsPaused()` and whether `Pause_Main.fng` is pushed, no per-player case: decomp
+  `FEPkg_Hud.cpp`), called from `FEngHud::Update` 0x58CA30, which then `HudElement::Toggle`s (0x5793F0) whatever that hud owns. Player 2's clone minimap (`g_b`) isn't owned by `FEngHud`, so `minimap.cpp` calls the
+  same two functions itself to mirror the native path - but from `events::on_frame` (the `eDisplayFrame` hook), not `FEngHud::Update`: that does not run at all while paused, so a hook on it never sees the
+  pause/unpause edge.
 
 ## Press Start and players
 `FEngMapJoyParamToJoyport` 0x572FF0 (bit 0..3 to port 0..3, else -1): every FE press on PC is port 0, so the Press Start screen cannot tell devices apart. `uiQRPressStart` screen:

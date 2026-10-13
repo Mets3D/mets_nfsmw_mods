@@ -16,6 +16,7 @@
 
 #include <cstring>
 
+#include "events.h"
 #include "hooks.h"
 #include "split_screen_support.h"
 
@@ -278,17 +279,24 @@ void *__fastcall hook_minimap(void *self, void *edx, const char *package, int nu
     return result;
 }
 
-void __fastcall hook_hud_update(void *self, void *edx, void *player, float dt) {
-    g_orig_hud_update(self, edx, player, dt);
-    if (self != g_hud2 || !g_b) return;
-    pin_clones();
-    const unsigned long long features = reinterpret_cast<FeaturesFn>(0x57CA60)(self, nullptr, player);
+// DetermineHudFeatures (0x57CA60) hides all HUD on pause (FEManager::IsPaused(), Pause_Main.fng pushed; no per-player
+// case) via HudElement::Toggle (0x5793F0) on whatever the hud owns. g_b isn't owned by FEngHud, so this mirrors that
+// call for it - from events::on_frame rather than FEngHud::Update, which does not run at all while paused.
+void update_visibility() {
+    if (!g_hud2 || !g_b) return;
+    const unsigned long long features = reinterpret_cast<FeaturesFn>(0x57CA60)(g_hud2, nullptr, g_player2);
     if (features != g_features) {
         g_features = features;
         reinterpret_cast<ToggleFn>(0x5793F0)(g_b, nullptr, features);
     }
+}
+
+void __fastcall hook_hud_update(void *self, void *edx, void *player, float dt) {
+    g_orig_hud_update(self, edx, player, dt);
+    if (self != g_hud2 || !g_b) return;
+    pin_clones();
     const bool visible = reinterpret_cast<VisibleFn>(0x564A00)(g_b, nullptr);
-    if (features != 0 && visible) reinterpret_cast<UpdateFn>(0x59DB50)(g_b, nullptr, player);
+    if (g_features != 0 && visible) reinterpret_cast<UpdateFn>(0x59DB50)(g_b, nullptr, player);
 }
 
 void colour(void *marker, unsigned rgb) {
@@ -371,6 +379,7 @@ void install() {
          nfsmw::detour(&hook_widescreen), nfsmw::orig(&g_orig_widescreen)},
     };
     nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), g_log, g_ini, "minimap");
+    events::on_frame(update_visibility);
 }
 
 }  // namespace split_screen_support::minimap
