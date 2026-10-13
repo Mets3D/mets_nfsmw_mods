@@ -46,10 +46,10 @@ void ensure_live() {
     char text[128] = {};
     GetPrivateProfileStringA("previous_camera", "binding", "", text, sizeof(text), g_ini);
     const bool saved = text[0] && bt::parse_slots(text, g_saved);
-    if (!saved) memset(g_saved, 0, sizeof(g_saved));
+    if (!saved) memcpy(g_saved, bt::slots_of(bt::kDefault, kEntry), sizeof(g_saved));
     bt::set_slots(bt::kLive, kEntry, g_saved, 0, 4);
     g_live_ready = true;
-    g_log->line("previous camera: binding from %s", saved ? "the ini" : "the defaults (none)");
+    g_log->line("previous camera: binding from %s", saved ? "the ini" : "the defaults");
 }
 
 nfsmw::controller_api::LivePadFn g_live_pad = nullptr;
@@ -127,10 +127,11 @@ void init(nfsmw::Logger &log, const char *ini) {
                  bt::name_of(bt::kDefault, kEntry) ? bt::name_of(bt::kDefault, kEntry) : "?", kOldName);
         return;
     }
-    // The default table is what Defaults and the start-up copy: renamed, and bound to nothing (the entry had a numpad key).
+    // The default table is what Defaults and the start-up copy: renamed, and no keyboard key (the entry had a numpad key). The
+    // controller slots are left to nfsmw_controller_support's default layout, if it is installed (nothing otherwise).
     const bt::Slot none[4] = {};
     bt::set_name(bt::kDefault, kEntry, kName);
-    bt::set_slots(bt::kDefault, kEntry, none, 0, 4);
+    bt::set_slots(bt::kDefault, kEntry, none, 0, 2);
     g_ok = true;
 }
 

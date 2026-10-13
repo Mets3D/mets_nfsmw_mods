@@ -6,39 +6,27 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 
 ## What it does
 
-### Input
+### Car Controls
 
-- Automatically switch to controller button prompts as soon as controller input is detected, and vice versa.
-- Button prompts show Xbox buttons by default. If [Custom Menus](../custom_menus/ReadMe.md) is installed, you can switch to Playstation button prompts via **Options > Player > Controller Prompts**. Otherwise, you can set `icons=playstation` in the ini.
-- **Menu buttons like on a console**: A accepts, B goes back, Y is the "1" hotkey (in the vanilla game that is B, X and A).
-  X, View and Menu press the hotkeys 2, 3 and 4 that many menu prompts show: the video settings' Advanced Options, the car
-  Showcase, a rival's movie and car, "View Tutorial", the EA Trax preview... The vanilla controller cannot press those.
-  B quits from the main menu, where it has no screen to go back to (the "Quit" prompt shows B). The car Showcase shows
-  the left stick instead of the D-pad, and LB / RB for the zoom. `menu_layout=0` in the ini turns the layout, the hotkeys
-  and the quit off and keeps the game's own.
-- **Analog steering, gas and brake**: The vanilla game maps them as on/off inputs, so even a stick bound to them was not analog. This mod enables analog throttle and reversing, however, the mod does not change the default keybinds - **you must set them to the triggers and the sticks yourself, in the Controls options menu**.
-- **Triggers**: In the vanilla game, both triggers share one axis, so gas and brake on the triggers cancel each other. LT and RT now report
-  as two separate axes (Slider 1 and 2) and bind like anything else, so they do not cancel each other.
+- **Analog steering, gas and brake**: The vanilla game maps them as on/off inputs, so even a stick bound to them was not analog. This mod enables analog throttle and reversing.
+- Better default controller bindings. They can also be fully remapped in the game's controls menu, which will show accurate and precise button names.
+- **Independent Triggers**: In the vanilla game, both triggers share one axis, so gas and brake on the triggers cancel each other. With this mod, you can hold gas and brake at the same time, just like you can on keyboard, causing a burnout.
 - **Dead zones**: Currently the mod comes with hard-coded deadzones to address stick drift, customization for this is a TODO.
-  They are analog now, with whatever you bound them to (stick, trigger, keys still work).
-
-### Controls menu
-- Direction names for controller bindings ("Left stick Left", "D-pad Up", "LT" instead of the widescreen fix's direction-less names).
-- Four extra rows at the end of both lists: **Look Left / Right / Up / Down**, remappable like the rest.
-- These rows need [Custom Menus](../custom_menus/ReadMe.md), which adds them to the screen. Without it, the Look bindings can only be set in the ini (`[look_bindings]`).
-
-### Camera look
-All 3rd-person cameras can be controlled with either the mouse, or the inputs bound to the new "Look" keybindings which you can find in the Controls menu. Bound to the right stick by default. After letting go of the "Look" inputs for a few seconds, the camera returns to normal. The vanilla game takes the mouse from Windows and gives the camera nothing to look around with, so the mod reads a DirectInput mouse of its own (unless another mod, like the widescreen fix, already does).
-
-<TODO: Screenshot of new options.>
-
-For this to work, the widescreen fix mod's camera look must be disabled; its `[CAMERA] Enable` must be set to 0.
 
 ### Rumble (Options > Rumble)
-The vanilla game has force feedback events (road surface, tire slip and skid, engine revs, nitrous, gear changes, blown engine,
-collisions) that were never connected to anything on PC. With this mod, they now drive the controller's rumble motors. If you have Custom Menus installed with this mod, you can customize the rumble strength of each event in a dedicated options menu. As you change a slider, the controller will rumble to show you how strong that setting feels.
+- Hook up various events to controller rumble, such as gear shifts, collisions, driving on grass, and more.
+- The rumble strength of each type of event can be cutomized in a new "Rumble" menu, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
+- Supports multiple controllers when used with my [Split Screen Support](,,/split_screen_support/ReadMe.md) mod.
 
-<TODO: Screenshot, after mod is finalized.>
+### Camera look
+All 3rd-person car cameras can be controlled with either the mouse, or the right stick - The latter is remappable in the Controls menu, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
+- After letting go of the "Look" inputs for a few seconds, the camera returns to its default position.
+
+### Menu Navigation
+- Menu navigation tested in all menus I could think of, including obscure menus like Showroom, Blacklist bio screen, Advanced Video Settings.
+- Automatically switch to controller button prompts as soon as controller input is detected, and vice versa.
+- Button prompts show Xbox buttons by default. If [Custom Menus](../custom_menus/ReadMe.md) is installed, you can switch to Playstation button prompts via **Options > Player > Controller Prompts**. Otherwise, you can set `icons=playstation` in the ini.
+
 
 ## Controller Compatibility
 
@@ -52,7 +40,7 @@ collisions) that were never connected to anything on PC. With this mod, they now
 
 - Required: Game version 1.3. Black Edition or not, doesn't matter.
 - Required: [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
-- Recommended: [Custom Menus](../custom_menus/ReadMe.md) mod if you want to customize cameras in-game instead of digging in an .ini file.
+- Recommended: [Custom Menus](../custom_menus/ReadMe.md) mod if you want to customize rumble and camera look keybindings.
 - Recommended but **must be configured**: WideScreenFix: Set the following settings in that mod:
   - `ImproveGamepadSupport`: not needed, this mod has the controller icons and the menu buttons. If you leave it at 1, the
     widescreen fix's icons are used (they are the same pictures) and ours stay out of the way.
@@ -60,42 +48,16 @@ collisions) that were never connected to anything on PC. With this mod, they now
   - `[CAMERA] Enable = 0` because our mod adds camera look to all third-person camera types instead of just two arbitrary ones.
 - Incompatible: NFS-XtendedInput, potentially other similar mods that mess with controller functions.
 
-## Limitations
-
-- **XInput controllers only** (Xbox 360 / One / Series, and anything that looks like one: PlayStation and Switch pads
-  through DS4Windows, Steam Input, ...). The plugin touches no other DirectInput device.
-- **XInput controllers are merged into one** (any number of them, and the keyboard): the game itself reads only the first
-  controller it opened, and its triggers came from the first XInput controller, so two connected controllers used to
-  mix (one steered, the other accelerated). `merge_controllers=0` in the ini turns the merging off. The controller that
-  was used last is the one that rumbles. Other mods can ask for particular controllers, or for the keyboard to be left
-  out, through the exports described in `common/controller_api.h`; nothing here depends on them. One of them makes a game input device for a second local player (split screen), which reads the bindings of their controller or the keyboard; it then rumbles for their car and their look bindings look around in their own camera.
-- **The look bindings are not in the game's profile**: the profile saves only the game's own 19 controls, so the four look
-  rows are kept in `nfsmw_controller_support.ini` (shared by all profiles).
 
 ## TODOs
-- Improve default controller bindings with our opinionated set:
-  - Accelerate: RT
-  - Brake/Reverse: LT
-  - Handbrake: RB
-  - Speedbreaker: X
-  - N2O: A
-  - Shift Down: D-pad Down
-  - Shift Up: LB
-  - Reset Car Position: Right stick press
-  - Engage Event: Left stick press
-  - View Blacklist: Y
-  - View World Map: View
-  - View SMS Messages: Unbound
-  - Next Camera View: D-pad Right
-  - Previous Camera View: D-pad Left
-  - Look Behind: B
-  - Things not mentioned would be the same as current defaults (look with right stick, pause with menu button, etc)
 - Ability to orbit camera while in reverse camera?
 - Make a custom icon for the rumble menu - but maybe it becomes a "Controller" menu instead, since we want to add more options than just Rumble:
+  - Or maybe we should replace the Rumble toggle button in the controls screen with a button that takes us to the rumble customization menu??
   - The "Controller Prompts" menu entry would be better if it was customizable per input device, so that when we switch from one controller to another, it might switch symbols.
   - Add options to tweak deadzones of triggers and sticks from the menu
 - The widescreen fix's `ImproveGamepadSupport` also changes the title screen's "Press START" text; we did not take that over.
 - Clean up the nonsensical .ini file, remove logging code and options.
+- Add pictures and videos showcasing the mod to this ReadMe.
 
 <details>
 
@@ -117,6 +79,7 @@ analog_mapping=1
 labels=1                  ; direction names in the Controls menu
 [buttons]
 icons=xbox                ; the pictures of the menus' button prompts while the controller was used last: xbox, playstation or off
+driving_layout=1          ; our default controller bindings (RT accelerates, ...); 0 = the game's own
 menu_layout=1             ; A accepts, B goes back, X / View / Menu = the hotkeys 2 / 3 / 4, B quits from the main menu; 0 = the game's own
 log_images=0              ; 1 = write every image and string the game draws to the log (to find button prompts)
 [log]
@@ -157,6 +120,7 @@ engine_blown=80
 | `input.cpp` | DirectInput state (dead zones, triggers, mouse deltas, what was touched last), analog action mapping |
 | `bindings.cpp` | the PC binding table: the four look entries, a log of every binding change |
 | `controls_menu.cpp` | the Controls menu: direction names |
+| `default_layout.cpp` | our default controller bindings |
 | `look.cpp` | camera look |
 | `button_icons.cpp` | the controller pictures in the menus' button prompts (which prompt shows which picture: `buttons/prompts.ini`, the pictures: `buttons/xbox/`, `buttons/playstation/`) |
 | `menu_buttons.cpp` | A accepts, B goes back in the menus; X, View and Menu press the hotkeys 2, 3, 4; B quits from the main menu |

@@ -23,7 +23,7 @@ It was my goal to integrate this mod into the original game's design as if it wa
 - Hit **Apply** to save. Otherwise, hitting **Back** will ask if you want to discard your changes.
 - A "Speed FoV" slider (0 = off, up to 50 degrees): extra FoV added on top of the base as you speed up, reaching the full amount at 300 km/h. Set per camera view.
 - A button to reset to defaults.
-- **Previous Camera View**: the game's "Change Camera View" control is renamed "Next Camera View", and a new "Previous Camera View" row sits under it in **Options > Controls** (needs [Custom Menus](../custom_menus/ReadMe.md); bound to nothing by default). It scrolls through the camera views backwards, for the keyboard or a controller. The binding is saved in `nfsmw_camera_settings.ini` (`[previous_camera]`), not in the game's profile.
+- **Previous Camera View**: the game's "Change Camera View" control is renamed "Next Camera View", and a new "Previous Camera View" row sits under it in **Options > Controls** (needs [Custom Menus](../custom_menus/ReadMe.md); bound to nothing by default). It scrolls through the camera views backwards, for the keyboard or a controller. On a controller it is D-pad Left if [Controller Support](../controller_support/ReadMe.md) is installed (its default layout frees the D-pad); otherwise the binding is empty. The binding is saved in `nfsmw_camera_settings.ini` (`[previous_camera]`), not in the game's profile.
 - A help button that explains what the current setting does.
 - Controller input supported for all of the above.
 - You can hold Shift or LB to change with smaller increments.

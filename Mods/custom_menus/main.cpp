@@ -309,7 +309,8 @@ void discover_pages() {
     if (g_discovered) return;
     g_discovered = true;
     const opt::Host host = {&register_page, &custom_menus::controls_rows::add_rows, &custom_menus::controls_rows::add_text,
-                            &custom_menus::controls_rows::set_binding_label, &custom_menus::controls_rows::add_refresh};
+                            &custom_menus::controls_rows::set_binding_label, &custom_menus::controls_rows::add_refresh,
+                            &custom_menus::controls_rows::add_controller_defaults};
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId());
     if (snapshot == INVALID_HANDLE_VALUE) {
         log_line("could not list the loaded modules");

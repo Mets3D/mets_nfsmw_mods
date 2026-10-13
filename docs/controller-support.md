@@ -29,6 +29,13 @@ Binding table, devices and queues: see [input-system.md](input-system.md). Marks
 - The game has a generic scrolled list (`ArrayScroller` / `ArrayScrollerMenu`, ctor 0x593090 / 0x5938A0, `AddSlot` 0x5881F0, `AddDatum` 0x59BD30) used by the Controls screen,
   rap sheets, milestones, My Cars; our Options pages use `UIOptionsScreen`'s fixed rows (at most 40). Unexplored: a page on the scroller for unlimited rows.
 
+## Default controller bindings
+- **`sub_63CD80`** (the controller defaults, per controller model by the hash of the joystick's name at `[0x91F150]+0x114`) [read] is called by `GameDevice::InitInputs` (start-up, tail jumps), by the Controls screen's Defaults (0x51D702) and by the profile
+  load `UserProfile::BindingsIO_B` 0x56E200 (0x56E27D) when the profile's saved controller type differs from the connected one. It rewrites the controller slots of the live table (and, as far as we saw, clears those of entries it does not know: our look entries
+  needed theirs put back). The default table 0x8F6D80 has controller slots only for the menu entries. So: start-up defaults come first, then the profile's saved entries 0-18 replace them; Defaults and a profile of another controller type run 63CD80 again.
+- `default_layout.cpp` writes our layout (slot 2, slot 3 cleared) into the default table at start-up, into the live table at the first poll (after InitInputs) and, through `nfsmw_custom_menus` (`add_controller_defaults`, which hooks 63CD80), after every later reset.
+  Entry names for the Controls rows [read from English.bin]: 11 View Blacklist, 12 View World Map, 13 View SMS Messages (the HUD pad entries), 15 Change Camera View, 16 Look Behind, 17 Pull Camera Back.
+
 ## Button prompts and menu hotkeys
 - Prompt pictures: hook `FEngine::Update` 0x5C53C0, walk the packages (`+0xE0`, next at `+4`) and `FEPackage::ForAllObjects` 0x5B1560 with a callback object (first member
   points to `{destructor, function}`); an FEImage (type 1 at +0x18) whose texture (+0x24) is one of the 14 PC / `XBOX_` / `PS_` pairs gets the right one, `flags(+0x1C) |= 0x2400000`.

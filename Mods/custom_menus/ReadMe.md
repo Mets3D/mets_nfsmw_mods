@@ -26,7 +26,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
   [`common/custom_menus_api.h`](../common/custom_menus_api.h). The framework makes room in the screen, translates the rows to the
   entries (editing, clearing and rebinding work like the game's own rows), and can rewrite the binding labels; the mod keeps
   the entries' names, default and saved bindings, and what they do (`controls_rows.cpp`). `register_text` adds a language string,
-  or replaces the game's own text (for example to rename one of the game's rows). Registered in the same `provide` export as pages.
+  or replaces the game's own text (for example to rename one of the game's rows). `add_controller_defaults` runs a callback right after the game resets the controller bindings to its defaults (the Defaults button, a profile saved with another controller), which also clears the controller slots of entries the game does not know. Registered in the same `provide` export as pages.
 
 ## Other fixes
 
@@ -40,6 +40,16 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
 
 ## TODO
 - Added menus don't appear in the main menu, only in the pause menu.
+- Reduce amount of unnecessary pop-ups in the main menu:
+  - "Do you wish to apply these items to your vehicle?" (always Yes)
+  - "Do you wish to add all maximum unlocked performance packages to your shopping cars?" (always Yes)
+  - "Save Complete" (OK) (when exiting car customization)
+  - "Load complete" (OK) (when loading a save file)
+  - "Are you sure you want to leave the Safe House to resume free roam?" (always Yes)
+  - "Are you sure you want to launch this event?" (always Yes)
+  - "Are you sure you want to save the alias named <name>"? (always Yes)
+  - "Do you want to overwrite previously saved game?" (always Yes)
+  - "Save complete" (OK) (When manually saving the game.)
 - Translation support?
 - Is there a limit on how many entries can be in a page?
   - The Advanced Video menu has a scrollbar - Can we have unlimited options, and the scrollbar automatically appear when needed?

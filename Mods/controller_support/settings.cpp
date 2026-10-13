@@ -1,5 +1,6 @@
 // nfsmw_controller_support.ini, the log, and the settings every part reads.
 #include "button_icons.h"
+#include "default_layout.h"
 #include "menu_buttons.h"
 #include "pad.h"
 #include "rumble.h"
@@ -58,6 +59,7 @@ void load_settings() {
              l.return_speed, l.min_pitch, l.max_pitch);
     button_icons::load_settings();
     menu_buttons::load_settings();
+    default_layout::load_settings();
     rumble::load_settings();
     log_line("settings: enabled=%d analog_mapping=%d split_triggers=%d merge_controllers=%d stick_deadzone=%.2f right_stick_deadzone=%.2f",
              g_cfg.enabled, g_cfg.analog_mapping, g_cfg.split_triggers, g_cfg.merge_controllers, g_cfg.left_deadzone,

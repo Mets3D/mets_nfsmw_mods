@@ -14,6 +14,7 @@ void add_rows(const nfsmw::custom_menus::ControlsRow *rows, int count);
 void add_text(unsigned hash, const char *text);
 void set_binding_label(nfsmw::custom_menus::BindingLabelFn fn);
 void add_refresh(void (*fn)());
+void add_controller_defaults(void (*fn)());
 
 // Once every provider has registered: patches the screen's code and hooks the helpers, if there are rows.
 void apply(nfsmw::Logger &log, const char *ini);

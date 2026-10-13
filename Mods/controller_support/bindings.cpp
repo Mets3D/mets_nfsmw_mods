@@ -4,6 +4,7 @@
 
 #include "bindings.h"
 #include "controls_menu.h"
+#include "default_layout.h"
 #include "extra_device.h"
 #include "pad_sets.h"
 #include "hooks.h"
@@ -89,6 +90,16 @@ void save_look_bindings() {
     }
 }
 
+// The game's controller defaults clear the controller slots of entries it does not know: the look entries get theirs back.
+void restore_look_defaults() {
+    if (!g_look_entries_ok) return;
+    for (int l = 0; l < L_COUNT; ++l) {
+        Slot slots[4];
+        look_default_slots(l, slots);
+        set_look_slots(kBindingTable, l, slots, 2, 2);
+    }
+}
+
 // What nfsmw_custom_menus puts on the Controls screen for us (the first time the Options menu opens): the four look rows at
 // the end of both lists, and the language string of each row's title (keyed by the entry's name).
 void provide_controls_rows(const nfsmw::custom_menus::Host *host) {
@@ -100,6 +111,7 @@ void provide_controls_rows(const nfsmw::custom_menus::Host *host) {
     }
     host->register_controls_rows(rows, L_COUNT);
     host->set_binding_label(&controls_menu::binding_label);
+    host->add_controller_defaults(&restore_look_defaults);
 }
 
 
@@ -143,6 +155,7 @@ MethodFn g_orig_poll;
 void FASTCALL hook_poll(void *self, void *edx) {
     g_orig_poll(self, edx);
     menu_buttons::apply_live();
+    default_layout::apply_live();
     static bool first = true;
     if (first) {
         first = false;

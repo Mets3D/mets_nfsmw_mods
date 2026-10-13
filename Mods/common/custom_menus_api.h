@@ -80,6 +80,10 @@ struct Host {
     // Called each time the Controls screen refreshes its rows (it opens, and after every rebinding): where a mod notices that the
     // bindings of its entries changed. Any number of mods may add one.
     void (*add_controls_refresh)(void (*fn)());
+    // Called right after the game reset the controller bindings to its defaults (the Controls screen's Defaults button, and loading
+    // a profile saved with another kind of controller), which also clears the controller slots (2 and 3) of entries the game
+    // does not know: put the default bindings of your entries back. Any number of mods may add one.
+    void (*add_controller_defaults)(void (*fn)());
 };
 
 using ProvideFn = void (*)(const Host *);

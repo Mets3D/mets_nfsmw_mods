@@ -1,25 +1,12 @@
-// The Controls menu (UIOptionsPCController): direction names for XInput bindings, and the controller defaults of our entries.
+// The Controls menu (UIOptionsPCController): direction names for XInput bindings.
 // The rows themselves (the look rows) are added by nfsmw_custom_menus; see bindings.cpp for what we register.
 #include "bindings.h"
 #include "controls_menu.h"
-#include "hooks.h"
 #include "input.h"
 
 namespace pad::controls_menu {
 
 using namespace pad::bindings;
-
-// Controller defaults (0x63CD80, per controller model): also at start-up. Our entries get theirs back.
-MethodFn g_orig_controller_defaults;
-void FASTCALL hook_controller_defaults(void *device, void *edx) {
-    g_orig_controller_defaults(device, edx);
-    if (!g_look_entries_ok) return;
-    for (int l = 0; l < L_COUNT; ++l) {
-        Slot slots[4];
-        look_default_slots(l, slots);
-        set_look_slots(kBindingTable, l, slots, 2, 2);
-    }
-}
 
 // Controls menu label of a controller binding, for an XInput controller.
 bool controller_label(const Slot &b, char *out, size_t n) {
@@ -66,14 +53,6 @@ void binding_label(char *out, int column, int entry, bool primary) {
         strncpy(out, text, 0x103);
         out[0x103] = 0;
     }
-}
-
-void install_hooks() {
-    const nfsmw::Hook hooks[] = {
-        {"defaults", "controller defaults", 0x63CD80, {0xA1, 0x50, 0xF1, 0x91, 0x00, 0x81, 0xEC}, false,
-         nfsmw::detour(&hook_controller_defaults), nfsmw::orig(&g_orig_controller_defaults)},
-    };
-    nfsmw::install_hooks(hooks, 1, g_log, nullptr, "controls menu");
 }
 
 }  // namespace pad::controls_menu

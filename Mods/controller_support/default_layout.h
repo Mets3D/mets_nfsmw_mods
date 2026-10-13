@@ -1,0 +1,16 @@
+// Our opinionated default bindings for the controller (an XInput pad): RT accelerates, LT brakes, ... See default_layout.cpp. They replace
+// the game's own in the default table, in the live table at start-up, and whenever the game resets the controller bindings (the
+// Controls screen's Defaults, a profile saved with another kind of controller). An existing profile keeps its saved bindings.
+#pragma once
+
+#include "custom_menus_api.h"
+#include "pad.h"
+
+namespace pad::default_layout {
+
+void load_settings();         // [buttons] driving_layout
+void patch_default_table();   // at start-up
+void apply_live();            // the live table, once, on the first input poll (after the game's own start-up defaults)
+void provide(const nfsmw::custom_menus::Host *host);  // the callback for the game's defaults being reset
+
+}  // namespace pad::default_layout

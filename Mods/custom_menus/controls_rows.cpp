@@ -48,7 +48,7 @@ nfsmw::Logger *g_log = nullptr;
 std::vector<opt::ControlsRow> g_rows;
 std::vector<nfsmw::LangEntry> g_texts;
 opt::BindingLabelFn g_label_fn = nullptr;
-std::vector<void (*)()> g_refresh_fns;
+std::vector<void (*)()> g_refresh_fns, g_defaults_fns;
 
 bool g_active = false;      // the code is patched and the helpers translate
 std::vector<int> g_layout[2];  // [0] keyboard list, [1] controller list: row -> binding entry
@@ -159,6 +159,14 @@ void FASTCALL hook_start_remap(void *device, void *edx, int column, int row, int
     g_orig_start_remap(device, edx, column, entry_for_row(column, row), primary);
 }
 
+// The game's controller defaults (0x63CD80, per controller model): the Controls screen's Defaults, and a profile loaded
+// with another kind of controller than the one connected. (It also runs once at start-up, before any mod has registered.)
+MethodFn g_orig_defaults;
+void FASTCALL hook_defaults(void *device, void *edx) {
+    g_orig_defaults(device, edx);
+    for (void (*fn)() : g_defaults_fns) fn();
+}
+
 // The Controls menu's label for one binding: (out, column: 1 keyboard / 3 controller, row, primary). Only called by the
 // Controls menu, with rows.
 using BindingLabelHookFn = void (*)(char *, int, int, bool);
@@ -181,8 +189,17 @@ void set_binding_label(opt::BindingLabelFn fn) { g_label_fn = fn; }
 
 void add_refresh(void (*fn)()) { g_refresh_fns.push_back(fn); }
 
+void add_controller_defaults(void (*fn)()) { g_defaults_fns.push_back(fn); }
+
 void apply(nfsmw::Logger &log, const char *ini) {
     g_log = &log;
+    if (!g_defaults_fns.empty()) {
+        const nfsmw::Hook defaults[] = {
+            {"controller_defaults", "controller defaults", 0x63CD80, {0xA1, 0x50, 0xF1, 0x91, 0x00, 0x81, 0xEC}, false,
+             nfsmw::detour(&hook_defaults), nfsmw::orig(&g_orig_defaults)},
+        };
+        nfsmw::install_hooks(defaults, 1, log, ini, "controller defaults");
+    }
     if (g_rows.empty() && !g_label_fn && g_refresh_fns.empty()) return;
     // The helpers: a half-translated menu would edit the wrong bindings, so all of them or none (without the rows
     // they pass everything on unchanged).
