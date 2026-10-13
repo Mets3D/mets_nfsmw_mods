@@ -11,9 +11,10 @@ own source file and its own switch in `nfsmw_dev_tools.ini`.
 | [Multiple instances](#multiple-instances) | lets the game start more than once on one PC | `[multiple_instances] enabled` |
 | [Network](#network) | a log of the game's network calls | `[network] log` |
 | [Diagnostics](#diagnostics) | where the game ends itself and where it has an access violation | `[diagnostics] enabled` |
+| [Quick start](#quick-start) | skips the boot flow (EA logo, intro movies) straight to the main menu | `[quick_start] enabled` |
 
-All switches are 1 (on) by default. Ideas for more tools (not written): spawning cars, teleporting to locations, testing
-the AI in preset scenarios.
+All switches are 1 (on) by default. Ideas for more tools (not written): auto-loading a save and landing in the world,
+spawning cars, teleporting to locations, testing the AI in preset scenarios.
 
 ## Compatibility
 
@@ -58,6 +59,13 @@ from the game (both tried) did not make the host appear in the list.
 the first three access violations with their registers. (That is how the Direct3D failure of a second full screen copy was
 found.)
 
+## Quick start
+
+Sets the same flag `NFSMWExtraOptions`'s "Skip Movies" and the widescreen fix's "Skip Intro" use: a byte the game checks
+before opening any FEng movie (the EA logo, the PSA, the attract movie at startup, and any later in-game one), posting
+that movie's "finished" message right away instead of playing it. Cuts the time to reach the main menu to about as long
+as the bootup and splash screens take by themselves - those two aren't movies, so they still show briefly.
+
 ## Files
 
 In the folder `scripts/mets_mods/`: `nfsmw_dev_tools.log` (and `.2.log`... for later copies) and an optional
@@ -69,3 +77,4 @@ In the folder `scripts/mets_mods/`: `nfsmw_dev_tools.log` (and `.2.log`... for l
 | `multiple_instances.cpp` | the check for another copy |
 | `network.cpp` | the Winsock hooks |
 | `diagnostics.cpp` | the exit and access violation logs |
+| `quick_start.cpp` | the movie-skip flag |

@@ -39,6 +39,17 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
   `FRONTEND/FrontB.lzc` (not loaded in game). `GLOBALTEXTURES(PC)` in `GLOBAL/GlobalB.lzc` are always loaded (PC key glyphs, `MILESTONE_SPEEDTRAP` 0x66C9A7B6). Debug names are cut at 23
   characters, so the bHash of the visible name can differ from the real hash (`INGAME_ICON_PERFORMANCE` = 0x483238FD).
 
+## Boot flow (dev_tools quick start)
+- **Startup screen sequence** [read]: `BootFlowManager` (`mInstance` 0x91CF48) steps through a fixed list of FEng packages: `MC_Bootup_GC.fng`, `LS_EAlogo.fng`, `LS_PSA.fng`,
+  `MW_LS_AttractFMV.fng`, `MW_LS_Splash.fng`, `MC_Main_GC.fng`, `MainMenu.fng` (decomp `FEBootFlowManager.cpp`). `ChangeToNextBootFlowScreen(mask)` 0x57DBB0 advances `CurrentScreen` to
+  whatever follows it; `JumpToScreen(name)` 0x57DAF0 jumps straight to a named one instead. Either reaching the list's tail (`MainMenu.fng`) calls `Destroy` 0x56AD30.
+- **Skipping a movie** [read]: the EA logo, the PSA and the attract movie (`LS_EAlogo`/`LS_PSA`/`MW_LS_AttractFMV`, decomp `FEMovieScreen.cpp`) are each an FEng movie-starter widget
+  (FEObject type 7). `FEngMovieStarter::Callback` 0x559680 checks the byte at 0x926144 before opening the movie and, if set, posts `0xc3960eb9` ("movie finished") immediately instead -
+  the same message a movie that actually played posts when it ends, read by `MovieScreen::NotificationMessage` 0x57DDA0 to call `ChangeToNextBootFlowScreen(0xff)`. Setting that byte once
+  at startup skips all three (and any later FEng movie the same way); `NFSMWExtraOptions`'s `SkipMovies` and the widescreen fix's `SkipIntro` set the same byte. Constructing the
+  `MovieScreen` itself (ctor 0x58ECA0) does not start the movie - only `Callback` does, later - so skipping from the constructor is too early: it tears down a movie that has already
+  started opening rather than one that is finished, which crashes.
+
 ## Camera presets (camera_settings)
 - `CameraAnchor::GetPov` 0x4713C0 (thiscall, 1 arg = preset 0..6, returns POV*) runs every unpaused frame (~110/s) from `CubicCameraMover::Update` and rebuilds the POV (at anchor+0xC8 on PC) from the car's
   `camerainfo`; hooking it and overwriting the result is the override point. POV layout: type@0 s16, angle@2 u16, lag@4, height@8, lat@0xC, fov@0x10 u16, stiffness@0x14, tilting@0x18.
