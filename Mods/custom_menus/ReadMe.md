@@ -6,7 +6,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
 
 ## What the framework does for a page
 
-- Adds an entry with the page's icon to the Options menu (pause menu only), after the game's own entries.
+- Adds an entry with the page's icon to the Options menu, after the game's own entries (in the pause menu; with `kNewEntryEverywhere`, also in the main menu, before EA Trax and Credits).
 - Builds the screen from the game's own Options layout, so fonts, sounds, animations, mouse hover and the controller
   all work as they do in the vanilla game's screens.
 - Left / right on a row tells the mod that owns the page (through its `change` callback) to raise or lower that value.
@@ -45,7 +45,7 @@ skip_dialogs=0
 - [Controller Support](../controller_support/ReadMe.md): Adds the Rumble page (opened from the Controls screen), and the Look and Previous Camera View rows on the Controls screen.
 
 ## TODO
-- Added menus (ie. camera settings) don't appear in the main menu, only in the pause menu.
+- The whole "Career Main Menu" is completely redundant with the "Alias Manager" menu. The main menu's "Career" entry should be replaced with "Resume Career".
 - Rumble menu is a bit broken in main menu - X for help doesn't appear, Y to reset to defaults freezes the UI.
 - Translation support?
 - Ability to add not just sub-menus under "Options", but also in the pause menu.
@@ -104,7 +104,7 @@ Rules for the callbacks (all called on the game's thread):
 
 | Callback | Called | Notes |
 |---|---|---|
-| `available` | each time the pause menu's Options opens | `nullptr` = always. Return false to hide the entry (no race loaded, no controller, ...). |
+| `available` | each time the Options menu opens (the main menu's too, for `kNewEntryEverywhere`) | `nullptr` = always. Return false to hide the entry (no race loaded, no controller, ...). |
 | `opened` | the page opens | Remember what is current: it is what Back restores. |
 | `value(row, out, size)` | whenever a row is drawn | Write text to `out` (63 characters at most; `\x01` is the degree sign) and return 0, or return a **language hash** of the game and leave `out` alone. **Required.** |
 | `change(row, direction, fine)` | left (-1) or right (+1) on a row | Take effect immediately. Hold Shift or LB = `fine`. **Required.** |
@@ -126,8 +126,8 @@ The `Page` and `Row` structures and the arrays they point to must stay valid for
 
 ## Limitations
 
-- **Pause menu only.** Pages are added to Options when the game is paused in a race. The frontend (main menu) Options
-  screen is not touched.
+- **Pause menu by default.** Pages are added to Options when the game is paused in a race. The main menu's Options gets only
+  pages with `placement = kNewEntryEverywhere` (their `available` is asked there too, with no race loaded); they go before EA Trax and Credits.
 - **Fixed rows.** The row list is read once when the page registers: no rows added or removed while the screen is open.
 - **Page and row counts.** At most 8 pages and 40 rows per page (constants in `custom_menus/main.cpp`). The Options layout has 10 row slots. A page with more rows is built on the screen of Options > Video instead (15 slots, with the game's own scroll bar and clickable chevrons); beyond 15 rows it shows a scrolling window of them (up and down slide it, and wrap around from the last row to the first and back). Pages with a Camera selector row get no window. Rows added to the Player options (`kPlayerOptions`) are limited to the slots the game's own rows leave free; the rest are left out and the log says so. The Options menu's
   icon strip has a fixed number of slots in the layout; two extra entries were tested; more may not fit, and the game
@@ -155,7 +155,7 @@ help_hint=0          ; no "2 Help" hint (the 2 key / X button still work)
 hide_dialog_icon=0   ; keep the exclamation mark in the Help message box
 texture_pack=0       ; do not load the pages' icon packs
 [hooks]
-notify=0             ; skip one hook (names: optmain initialpos setupplayer notify restoredefaults didnotchange
+notify=0             ; skip one hook (names: optmain initialpos addoption setupplayer notify restoredefaults didnotchange
                      ; restoreoriginals dialogbuild controlsicon), for troubleshooting
 ```
 

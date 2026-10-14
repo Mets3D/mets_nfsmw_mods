@@ -9,7 +9,9 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) lets you tune camera views i
 [YouTube link.](https://www.youtube.com/watch?v=G5I_quac7Gc)
 ![The Options > Camera page in the pause menu](docs/camera-options-menu.png)
 
-**Pause > Options > Camera** edits the settings of the currently active camera view, which can also be changed as the first option.
+**Pause > Options > Camera** (and the main menu's Options > Camera) edits the settings of the currently active camera view, which can also be changed as the first option.
+
+In the main menu there is no car, so the values you see are the BMW M3 GTR's. The changes are stored as offsets like always, so they apply to whichever car you drive.
 
 ## How it works
 

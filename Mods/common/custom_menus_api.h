@@ -32,6 +32,8 @@ enum Placement {
                      // Help button has no text for them, and the callbacks work as for a page, for those rows
     kHidden,         // no entry in the Options menu: the page is opened by the mod, with Host::open_page (the Page's `available` is
                      // not asked); otherwise as kNewEntry
+    kNewEntryEverywhere,  // as kNewEntry, and also an entry in the main menu's Options (before EA Trax and Credits). `available`
+                          // is asked there too, so the page must work with no race loaded
 };
 
 struct Page {
@@ -44,7 +46,7 @@ struct Page {
     const char *texture_pack;  // full path of a .tpk that holds `icon`, or null (loaded when the menu first opens)
     int row_count;
     const Row *rows;  // static
-    // Each time the pause menu's Options opens: does the page apply (a race is running, a controller is present...)?
+    // Each time the Options menu opens (the pause menu's; the main menu's too, for kNewEntryEverywhere): does the page apply (a race is running, a controller is present...)?
     bool (*available)();
     // The page was opened: remember the current values (what was last accepted).
     void (*opened)();

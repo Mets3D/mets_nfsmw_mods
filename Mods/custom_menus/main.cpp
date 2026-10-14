@@ -1103,6 +1103,21 @@ void FASTCALL hook_initialpos(void *row, void *edx, int index) {
     g_orig_initialpos(row, edx, index);
 }
 
+// The main menu's Options also has EA Trax and Credits, which our entries go before. The game adds them with AddOption; the
+// first of them (EA Trax) is where ours are inserted. Pause menu (and online) lists have neither, and take them at the end.
+using AddOptionFn = void(FASTCALL *)(void *, void *, void *);
+AddOptionFn g_orig_addoption;
+void FASTCALL hook_addoption(void *menu, void *edx, void *option) {
+    constexpr unsigned kEaTraxIcon = 0xC52CCBF6, kCreditsIcon = 0x51009E20;
+    const unsigned icon = field<unsigned>(option, 0xC);
+    if (g_pending_optmain && menu == g_pending_optmain && (icon == kEaTraxIcon || icon == kCreditsIcon)) {
+        g_pending_optmain = nullptr;
+        for (int i = 0; i < g_page_count; ++i)
+            if (g_pages[i].available) add_options_entry(menu, &g_pages[i]);
+    }
+    g_orig_addoption(menu, edx, option);
+}
+
 // A mod's icons live in its own texture pack (a .tpk in the data folder), loaded once, the first time a page needs it.
 void load_texture_pack(const char *path) {
     static std::vector<std::string> tried;
@@ -1150,19 +1165,21 @@ void FASTCALL hook_optmain_setup(void *self, void *edx) {
     g_hint.n = 0;
     discover_pages();
     ensure_language_entries();
-    if (game::IsPaused(reinterpret_cast<void *>(game::kGameFlowManager))) {
-        bool any = false;
-        for (int i = 0; i < g_page_count; ++i) {
-            PageInfo &p = g_pages[i];
-            if (p.page->placement != opt::kNewEntry) continue;  // rows of the Player options, not an entry
-            p.available = !p.page->available || p.page->available();
-            if (!p.available) continue;
-            any = true;
-            load_texture_pack(p.page->texture_pack);
-            p.icon = p.page->icon && game::GetTextureInfo(p.page->icon, 0, 0) ? p.page->icon : p.page->fallback_icon;
-        }
-        if (any) g_pending_optmain = self;
+    const bool paused = game::IsPaused(reinterpret_cast<void *>(game::kGameFlowManager));
+    bool any = false;
+    for (int i = 0; i < g_page_count; ++i) {
+        PageInfo &p = g_pages[i];
+        // Rows of the Player options and hidden pages are not entries; the main menu gets only the pages that ask for it.
+        const bool entry = p.page->placement == opt::kNewEntryEverywhere || (paused && p.page->placement == opt::kNewEntry);
+        p.available = false;
+        if (!entry) continue;
+        p.available = !p.page->available || p.page->available();
+        if (!p.available) continue;
+        any = true;
+        load_texture_pack(p.page->texture_pack);
+        p.icon = p.page->icon && game::GetTextureInfo(p.page->icon, 0, 0) ? p.page->icon : p.page->fallback_icon;
     }
+    if (any) g_pending_optmain = self;
     g_orig_optmain_setup(self, edx);
     g_pending_optmain = nullptr;
 }
@@ -1180,6 +1197,8 @@ void install_hooks() {
          nfsmw::detour(&hook_optmain_setup), nfsmw::orig(&g_orig_optmain_setup)},
         {"initialpos", "IconScroller::SetInitialPos", 0x592C90, {0x51, 0x53, 0x55, 0x56, 0x8B, 0xF1, 0x8B}, true,
          nfsmw::detour(&hook_initialpos), nfsmw::orig(&g_orig_initialpos)},
+        {"addoption", "IconScrollerMenu::AddOption", 0x573960, {0x8B, 0x41, 0x2C, 0x56, 0x8B, 0x74, 0x24}, false,
+         nfsmw::detour(&hook_addoption), nfsmw::orig(&g_orig_addoption)},
         {"setupplayer", "UIOptionsScreen::SetupPlayer", 0x529F10, {0x6A, 0xFF, 0x68, 0x80, 0xEE, 0x86, 0x00}, true,
          nfsmw::detour(&hook_setupplayer), nfsmw::orig(&g_orig_setupplayer)},
         {"setupvideo", "UIOptionsScreen::SetupVideo", 0x5295F0, {0x6A, 0xFF, 0x64, 0xA1, 0x00, 0x00, 0x00}, false,

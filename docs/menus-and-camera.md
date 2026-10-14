@@ -12,6 +12,9 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
   only without its page.
 - Apply semantics: the game's options screens edit live and keep `Original*Settings`; Back asks "discard?" via `OptionsDidNotChange`, a confirmed discard calls `RestoreOriginals`, Accept just
   leaves; both end in `FEHASH_EXITCOMPLETE` 0xE1FDE1D1. Pages mirror that: edits in memory, a snapshot from opening, the ini written on EXITCOMPLETE only if something differs.
+- Main menu: the same `UIOptionsMain` (`mCalledFromPauseMenu` +0x16C = 0); `Setup` adds Audio, Video, Gameplay, Player, Controller, then (not online) EA Trax and Credits, each through
+  `IconScrollerMenu::AddOption` 0x573960 (a real call; `ecx` = menu, one stack argument; the option's icon hash is at +0xC: EA Trax 0xC52CCBF6, Credits 0x51009E20). Pages with `kNewEntryEverywhere`
+  are inserted at the first of those two calls, else at `SetInitialPos` [read; not run in the game].
 - Pause menu: `PauseMenu::SetupOptions` 0x52B4D0 builds the row with `IconScrollerMenu::AddOption` 0x573960 (`new pm_X(texture hash, name hash, description hash)`, `IconOption` ctor 0x586FA0).
   The tuning screen is `CustomTuningScreen` (7 `TuningSlider` rows; min -1, max 1, step 0.2).
 
@@ -102,5 +105,9 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
   nfsmw_custom_menus, which also replaces that row's text (the language string keyed bStringHash("CAM_ACTION_CHANGE")) with "Next Camera View". The action: `InputPlayer::FetchInput` 0x6A8870 is hooked; the entry's value
   is read from the player's device (`IOModule` 0x920DE0: +4 count, +8 devices, indexed by the player's controller port; a GameDevice has vtable 0x8A7B9C and its values at +0x20) and a rising edge calls
   `PlayerSettings::ScrollDriveCam(settings, -1)`. FetchInput only runs for a human player in a race, so a press in a menu does nothing.
+- **A camera with no race** [read; not run in the game]: the `CameraAnchor` constructor 0x4716A0 (thiscall, 1 arg = car type name hash, `ret 4`; the decomp calls it `__ct__12CameraAnchori`) builds the anchor from zeroed memory (0x200 bytes
+  is enough: the `camerainfo` Instance at +0x100 is the last member), `SetModel` 0x471370 finds the `CarTypeInfo` by that hash (`GetCarTypeInfoFromHash` 0x739940; array `*0x9B09D8`, 84 x 0xD0 bytes, name +0, hash +0x50) and picks the
+  `ecar` collection (class 0xA5B543B7) by the lower-cased name; `GetPov` then works on that anchor with mZoom 1.0 and speed 0. Nothing in the ctor registers the anchor anywhere. The Camera page uses it in the main menu, for the car "bmwm3gtr" (the hero car; "bmwm3gtre46" is another).
+  Of a preset's `camerainfo` pairs `GetPov` takes the one picked by `eGetCurrentViewMode() == 3`.
 - `GLOBAL/attributes.bin` (VPAK) holds at least 81 `camerainfo` collections (class definition at 0x2b1a0: FOV 0x263E9452, HEIGHT 0x762B7718, STIFFNESS 0x7F8EEA1A, LAG 0xDE0857E3; collections from
   0x2b230, 6 float pairs each); they differ per car and view, and the blend between a pair is not worked out. So the page stores **offsets** from the driven car's value, added in the GetPov hook.

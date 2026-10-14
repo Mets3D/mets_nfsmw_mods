@@ -57,6 +57,12 @@ const auto GetPOVTypeFromPlayerCamera = reinterpret_cast<int (*)(int)>(0x56EBC0)
 const auto FEngSetLanguageHash = reinterpret_cast<void (*)(void *string, unsigned hash)>(0x515C00);
 constexpr uintptr_t kFEDatabase = 0x91CF90;    // FEDatabase*; +0x10 = options settings
 constexpr uintptr_t kPlayerToEdit = 0x91CA24;  // UIOptionsScreen::PlayerToEdit
+const auto IsPaused = reinterpret_cast<bool(THISCALL *)(void *)>(0x64B680);  // GameFlowManager::IsPaused
+constexpr uintptr_t kGameFlowManager = 0x925E70;
+const auto CameraAnchorCtor = reinterpret_cast<void *(THISCALL *)(void *self, unsigned car_type_hash)>(0x4716A0);
+constexpr uintptr_t kCarTypeInfoArray = 0x9B09D8;  // CarTypeInfo*: 84 entries of 0xD0 bytes, the name at +0, its hash at +0x50
+constexpr int kCarTypeCount = 84;
+constexpr unsigned kCarTypeSize = 0xD0, kCarTypeNameHash = 0x50;
 }  // namespace game
 
 constexpr unsigned kRowData = 0x30;    // PODriveCam: FEString* of the value
@@ -358,13 +364,34 @@ void store_value(int type, int param, float v) {
 
 opt::Row g_rows[1 + NPARAM];
 
-bool page_available() { return g_anchor != nullptr; }  // a race is loaded (the options menu is only added when paused)
+// The main menu has no car, so its Camera page edits against the hero car's camera: the game's own CameraAnchor, built by its
+// constructor for the BMW M3 GTR and used only to read the car's values (never updated or destroyed).
+void *hero_anchor() {
+    static void *anchor = nullptr;
+    if (anchor) return anchor;
+    const unsigned char *types = *reinterpret_cast<unsigned char **>(game::kCarTypeInfoArray);
+    for (int i = 0; types && i < game::kCarTypeCount; ++i) {
+        const unsigned char *type = types + i * game::kCarTypeSize;
+        if (_stricmp(reinterpret_cast<const char *>(type), "bmwm3gtr") != 0) continue;
+        anchor = game::CameraAnchorCtor(calloc(1, 0x200), field<unsigned>(const_cast<unsigned char *>(type), game::kCarTypeNameHash));
+        log_line("main menu: the BMW M3 GTR's camera (anchor %p) stands in for a car", anchor);
+        break;
+    }
+    return anchor;
+}
+
+// Where the page reads the game's own values: the car being driven (the options menu is paused over a race), else the hero car.
+void *value_source() {
+    return game::IsPaused(reinterpret_cast<void *>(game::kGameFlowManager)) ? g_anchor : hero_anchor();
+}
+
+bool page_available() { return value_source() != nullptr; }
 
 void page_opened() {
     memcpy(g_ovr_open, g_ovr, sizeof(g_ovr));
     // Read every preset's own values from the game so each can be edited without having been the active view.
     for (int t = 0; t < kNumPresets; ++t) {
-        if (Pov *p = g_orig_getpov(g_anchor, nullptr, t)) {
+        if (Pov *p = g_orig_getpov(value_source(), nullptr, t)) {
             for (int i = 0; i < NPARAM; ++i) g_base[t][i] = get_field(*p, i);
             g_have_base[t] = true;
             log_line("game values %-9s fov=%.4f height=%.4f lag=%.4f pitch=%.4f lat=%.4f stiff=%.4f tilt=%d",
@@ -426,7 +453,7 @@ extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const opt::Host
     nfsmw::data_file("nfsmw_camera_settings.tpk", g_pack_path, sizeof(g_pack_path));
     g_page = {"camera", "Camera", "CAMERA", "CAMERA INFO", g_icon, kSpeedtrapTexture, g_pack_path,
               1 + NPARAM, g_rows, page_available, page_opened, page_value, page_change, camera_changed, page_accept,
-              page_discard, page_defaults};
+              page_discard, page_defaults, opt::kNewEntryEverywhere};
     host->register_page(&g_page);
     camera_settings::previous_camera::provide(host);
 }
