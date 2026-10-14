@@ -15,6 +15,11 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
 - Main menu: the same `UIOptionsMain` (`mCalledFromPauseMenu` +0x16C = 0); `Setup` adds Audio, Video, Gameplay, Player, Controller, then (not online) EA Trax and Credits, each through
   `IconScrollerMenu::AddOption` 0x573960 (a real call; `ecx` = menu, one stack argument; the option's icon hash is at +0xC: EA Trax 0xC52CCBF6, Credits 0x51009E20). Pages with `kNewEntryEverywhere`
   are inserted at the first of those two calls, else at `SetInitialPos` [read; not run in the game].
+- **Icon strip slots** [tested]: `UIOptionsMain`'s icons are the layout's images `OPTION_1`..`OPTION_n` (12 in both layouts; the first two and last two entries are the scroller's end markers); `IconScroller::AddOption` 0x573960's callee
+  deletes an entry that finds no image. More slots are made by cloning the last image through its vtable slot 1 (`Clone(reference = 0)`), `copy_object_state`, a new name hash (`FEHashUpper("OPTION_i")`) and GUID, and adding it to the original's parent.
+  The layout's response to Accept names the original slot's object, so a press on a clone reaches `UIOptionsMain::NotificationMessage` 0x545310 for that object (not the current entry's): it is replaced by the current entry's object there.
+  Rows and pages have no limit either (a page with more than 15 rows scrolls its 15 slots; the scroll bar is set from the page's row count after every tick, since the game re-sets it from its widgets).
+- Icons: `IconOption`'s constructor gives textures 0x66C9A7B6 (speed trap) and 0xAAAB31E9 (drag) a tutorial movie (flag +0x46, name +0x48), which shows a "View Tutorial" button; clear both for other uses. The Options icon (two cogs) is 0x520DE4E3 (pause) / 0x3058FE37 (main menu).
 - Pause menu: `PauseMenu::SetupOptions` 0x52B4D0 builds the row with `IconScrollerMenu::AddOption` 0x573960 (`new pm_X(texture hash, name hash, description hash)`, `IconOption` ctor 0x586FA0).
   The tuning screen is `CustomTuningScreen` (7 `TuningSlider` rows; min -1, max 1, step 0.2).
 

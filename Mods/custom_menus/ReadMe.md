@@ -47,8 +47,6 @@ resume_career=0
   - "DRIFT" and "Pursuit" camera modes added by [`NFSMWExtraOptions`](https://github.com/ExOptsTeam/NFSMWExOpts).
 
 ## TODO
-- Test how many entries can be in a list with a scrollbar before it shits itself?
-- Test how many options menus can be added before it shits itself?
 - Support sliders like the ones in the performance tuning or the video options? Could be useful for the rumble menu, because it'd be more visual than the percentage numbers.
 - Translation support?
 - Ability to add not just sub-menus under "Options", but also in the pause menu.
@@ -92,7 +90,7 @@ static opt::Page g_page;
 
 extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const opt::Host *host) {
     g_page = {"mymod", "My Mod", "MY MOD", "MY MOD INFO",
-              /* icon hash */ 0, /* fallback icon hash */ 0x66C9A7B6, /* .tpk with the icon, or null */ nullptr,
+              /* icon hash */ 0, /* fallback icon hash, 0 = the Options icon */ 0, /* .tpk with the icon, or null */ nullptr,
               1, kRows,
               /* available */ nullptr, opened, value, change, changed, accept, discard, defaults};
     host->register_page(&g_page);
@@ -120,7 +118,7 @@ Row labels: either text (`label`, title case; the framework gives it a language 
 own strings (`label_hash`), for example `0xDDDC5E1B` for "Vibration". `help` is plain text. Icons: `icon` is the hash of
 a texture (a texture's hash is the game's `h = h * 33 + c` from `0xFFFFFFFF` over the upper-case name; `texture_hash()`
 in [`common/nfsmw_util.h`](../common/nfsmw_util.h)); if the game has no such texture, `fallback_icon` (any texture the game
-always has, for example `0x66C9A7B6`, MILESTONE_SPEEDTRAP) is used. To ship your own icon, build a `.tpk` with
+always has) is used, or with 0 the game's Options icon (two cogs). To ship your own icon, build a `.tpk` with
 [`Tools/tpk_build.py`](../../Tools/tpk_build.py) from a 256x256 PNG named like the texture (`OPTIONS_MYMOD.png`), put it in
 `scripts/mets_mods/` (`nfsmw::data_file()` in `common/nfsmw_util.h` gives the path), and pass its full path as `texture_pack`; the framework loads it through the game's resource loader when
 the menu first opens.
@@ -130,7 +128,6 @@ The `Page` and `Row` structures and the arrays they point to must stay valid for
 ## Limitations
 
 - Rows can't be added or removed while a page is open.
-- The Options icon strip has limited slots; two extra entries were tested.
 
 ## Files and settings
 

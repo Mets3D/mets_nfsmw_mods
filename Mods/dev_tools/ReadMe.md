@@ -38,6 +38,12 @@ that name exists, the splash screen ("click to continue") moves on by itself onc
 loaded straight away, even when there are several (no list to pick from); you land on its "Load complete" message.
 Empty, or a name with no save: the game starts as usual.
 
+## Ideas / TODOs
+- A replay system, so we can spectate each other?
+- A ghost system, so we can race against our best times?
+- An options menu to tweak the current race's settings, like difficulty level, rubber banding (Catch Up), number of opponents, number of laps, traffic, police presence, and maybe even hidden values like opponent car value, however that is determined? The race would have to be restarted for the changes to take effect.
+- Would be interesting to display the perspective of a CPU player in the corner of the screen - Or, maybe it would be much easier, to allow a CPU to take control of one of the split screen players - But how do CPU players work, do they give their cars inputs like a human player, or is it something else?
+
 ## Files
 
 In the folder `scripts/mets_mods/`: `nfsmw_dev_tools.log` and an optional

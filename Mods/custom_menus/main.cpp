@@ -165,6 +165,8 @@ const auto ShowOneButton = at<unsigned (*)(const char *pkg, const char *dialog_p
 const auto FEngFindGroup = at<void *(*)(const char *pkg, unsigned object)>(0x524880);
 const auto FEngGetCenter = at<void (*)(void *object, float *x, float *y)>(0x524EE0);
 const auto FindPackage = at<void *(THISCALL *)(void *feng, const char *pkg)>(0x516AF0);  // cFEng::FindPackage
+const auto FindImage = at<void *(*)(const char *pkg, unsigned name_hash)>(0x5251A0);  // FEngFindImage
+const auto FEHashUpper = at<unsigned (*)(const char *)>(0x5AF1C0);
 const auto GroupClone = at<void *(THISCALL *)(void *group, int reference)>(0x5C49C0);
 const auto GroupAddObject = at<void(THISCALL *)(void *group, void *object)>(0x5B5420);
 const auto PackageAddObject = at<void(THISCALL *)(void *pkg, void *object)>(0x50DB90);
@@ -228,6 +230,9 @@ constexpr unsigned kRowIndex = 0x5C;    // ours: the row's index in its page, af
 constexpr unsigned kRowPage = kRowIndex + 4;  // ours: the page (PageInfo) the row belongs to
 constexpr unsigned kRowSize = kRowPage + 4;
 constexpr unsigned kScreenFromPause = 0x124;  // UIOptionsScreen::mCalledFromPauseMenu (byte)
+constexpr int kGameIconSlots = 4 + 8;  // the scroller's four end markers, and the most entries the game adds itself (7, 8 online)
+constexpr unsigned kIconScrollerCurrent = 0x38;  // IconScrollerMenu: the current entry (IconOption*)
+constexpr unsigned kOptionObject = 0x10;        // IconOption: its FEng image
 constexpr unsigned kEntryPage = 0x5C;   // ours: the page of an Options menu entry (IconOption, 0x5C bytes)
 
 // Hashes: FEng objects, messages, scripts, textures, language strings.
@@ -268,20 +273,18 @@ constexpr unsigned kCircleTexture = 0x54A68051;  // drawn as the 1 key on PC
 // Pages: what the mods register. Everything we show is a language string of the game (the game's labels, titles and
 // dialogs all take a hash), so each page's texts get hashes from their names and are merged into the language table.
 // ------------------------------------------------------------------------------------------------
-constexpr int kMaxPages = 8, kMaxRows = 40;
-
 struct PageInfo {
     const opt::Page *page;
     unsigned entry_hash, title_hash, help_title_hash;
-    unsigned row_label_hash[kMaxRows];  // 0 for rows that use the game's own label
-    unsigned row_help_hash[kMaxRows];
+    std::vector<unsigned> row_label_hash;  // 0 for rows that use the game's own label
+    std::vector<unsigned> row_help_hash;
     unsigned icon;      // the texture shown: page->icon when the game has it, else the fallback
     bool available;     // as of the last time the Options menu opened
     int category;       // the Options category whose screen the page is built on
 };
 bool g_video_hook = false;  // SetupVideo is hooked: pages with many rows can use the Video screen
 
-PageInfo g_pages[kMaxPages];
+std::deque<PageInfo> g_pages;  // stable addresses: the entries and screens point at them
 int g_page_count = 0;
 std::deque<std::string> g_texts;  // the strings behind the language entries (stable addresses)
 std::vector<LangEntry> g_entries;
@@ -300,19 +303,28 @@ unsigned add_text(const char *id, const char *what, int row, const char *text) {
     return hash;
 }
 
+// The texture an entry shows: the page's own icon, else its fallback, else the Options icon (two cogs) of whichever menu is up.
+unsigned shown_icon(const opt::Page &page) {
+    constexpr unsigned kPauseOptionsIcon = 0x520DE4E3, kMainOptionsIcon = 0x3058FE37;
+    for (unsigned icon : {page.icon, page.fallback_icon, kPauseOptionsIcon, kMainOptionsIcon})
+        if (icon && game::GetTextureInfo(icon, 0, 0)) return icon;
+    return page.fallback_icon;
+}
+
 void register_page(const opt::Page *page) {
-    if (!page || !page->id || !page->rows || page->row_count > kMaxRows ||
-        g_page_count >= kMaxPages) {
-        log_line("register_page: page \"%s\" rejected (no id or rows, or too many rows or pages)", page && page->id ? page->id : "?");
+    if (!page || !page->id || !page->rows || page->row_count <= 0) {
+        log_line("register_page: page \"%s\" rejected (no id or rows)", page && page->id ? page->id : "?");
         return;
     }
-    PageInfo &p = g_pages[g_page_count++];
-    p = {};
+    PageInfo &p = g_pages.emplace_back();
+    g_page_count = static_cast<int>(g_pages.size());
     p.page = page;
     p.category = page->row_count > kPlayerSlots && g_video_hook ? kCategoryVideo : kCategoryPlayer;
     p.entry_hash = add_text(page->id, "entry", -1, page->entry_text);
     p.title_hash = add_text(page->id, "title", -1, page->title);
     p.help_title_hash = add_text(page->id, "help_title", -1, page->help_title);
+    p.row_label_hash.resize(page->row_count);
+    p.row_help_hash.resize(page->row_count);
     for (int r = 0; r < page->row_count; ++r) {
         const opt::Row &row = page->rows[r];
         if (row.kind == opt::kValueRow && !row.label_hash) p.row_label_hash[r] = add_text(page->id, "label", r, row.label);
@@ -534,11 +546,12 @@ void build_page_screen(void *screen) {
 
 // Rows that mods add to the game's own Player options (Placement kPlayerOptions): after the game's rows, in the pages
 // that were available when the screen was built. Back, Defaults and Accept ask these pages as well as the game.
-PageInfo *g_player_pages[kMaxPages];
+std::vector<PageInfo *> g_player_pages;
 int g_player_page_count = 0;
 bool g_player_rows_open = false;  // the open Player screen has such rows
 
 void add_player_rows(void *screen) {
+    g_player_pages.clear();
     g_player_page_count = 0;
     g_player_rows_open = false;
     for (int i = 0; i < g_page_count; ++i) {
@@ -558,7 +571,8 @@ void add_player_rows(void *screen) {
             field<PageInfo *>(w, kRowPage) = &info;
             game::AddToggleOption(screen, w, 1);
         }
-        g_player_pages[g_player_page_count++] = &info;
+        g_player_pages.push_back(&info);
+        g_player_page_count = static_cast<int>(g_player_pages.size());
         log_line("Options > Player: %d row(s) from \"%s\"", page.row_count, page.id);
     }
     g_player_rows_open = g_player_page_count > 0;
@@ -705,6 +719,18 @@ bool is_key_glyph(unsigned tex) {
     return tex == kPcKey1Texture || tex == kPcKey4Texture || tex == kCircleTexture || tex == kPcKey2Texture || tex == kPcKey3Texture;
 }
 
+// What a clone needs from its original (see below).
+void copy_object_state(void *orig, void *copy) {
+    field<void *>(copy, fe::kCached) = nullptr;
+    void *od = field<void *>(orig, fe::kData);
+    void *cd = field<void *>(copy, fe::kData);
+    const unsigned osz = field<unsigned>(orig, fe::kDataSize), csz = field<unsigned>(copy, fe::kDataSize);
+    const unsigned n = osz < csz ? osz : csz;
+    if (od && cd && od != cd && n >= 0x44 && n <= 0x400) memcpy(cd, od, n);
+    else log_line("  cloned object %p: data not copied (orig %p/%u, copy %p/%u)", copy, od, osz, cd, csz);
+    field<unsigned>(copy, fe::kFlags) |= fe::kDirtyColor | fe::kDirtyTransform | fe::kDirty;
+}
+
 // FEObject's copy constructor leaves a clone broken in two ways: the cached render object holds garbage (the renderer
 // then skips it, and unloading the package crashes in FERenderObject::Clear), and the object data (colour, position,
 // size, UVs) is blank (position 0,0,0 is never drawn). Each cloned object also gets its own name hash and GUID: the
@@ -718,14 +744,7 @@ void prepare_clone(void *orig, void *copy, int depth, bool mirrored) {
         field<unsigned>(copy, fe::kNameHash) = i == 0 ? kHintName : kHintName + 0x100 + i;
         field<unsigned>(copy, fe::kGuid) = kHintGuidBase + i;
     }
-    field<void *>(copy, fe::kCached) = nullptr;
-    void *od = field<void *>(orig, fe::kData);
-    void *cd = field<void *>(copy, fe::kData);
-    const unsigned osz = field<unsigned>(orig, fe::kDataSize), csz = field<unsigned>(copy, fe::kDataSize);
-    const unsigned n = osz < csz ? osz : csz;
-    if (od && cd && od != cd && n >= 0x44 && n <= 0x400) memcpy(cd, od, n);
-    else log_line("  hint object %p: data not copied (orig %p/%u, copy %p/%u)", copy, od, osz, cd, csz);
-    field<unsigned>(copy, fe::kFlags) |= fe::kDirtyColor | fe::kDirtyTransform | fe::kDirty;
+    copy_object_state(orig, copy);
 
     const int type = field<int>(copy, fe::kType);
     if (type == fe::kString) {  // the label
@@ -1073,7 +1092,7 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
     g_orig_notify(self, edx, msg, obj, p1, p2);
     g_redirect_switch = false;
     // The game's own scrolling tells the scroll bar about its widgets only (hiding it, there being no more than fit).
-    if (g_page && g_windowed && self == g_options_screen && (msg == kPadUp || msg == kPadDown)) update_scroll_bar(self);
+    if (g_page && g_windowed && self == g_options_screen && (msg == kPadUp || msg == kPadDown || msg == kScreenTick)) update_scroll_bar(self);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1096,6 +1115,9 @@ void add_options_entry(void *menu, PageInfo *page) {
     field<void **>(opt_object, 0) = g_entry_vtbl;
     field<PageInfo *>(opt_object, kEntryPage) = page;
     field<unsigned char>(opt_object, 0x45) = 1;  // react immediately, like the game's own entries
+    // The constructor gives the speed trap and drag icons their tutorial movie (a "View Tutorial" button); ours never have one.
+    field<unsigned char>(opt_object, 0x46) = 0;
+    field<unsigned>(opt_object, 0x48) = 0;
     void *row = static_cast<unsigned char *>(menu) + 0x2C;
     void **vtbl = field<void **>(row, 0);
     // Same as IconScrollerMenu::AddOption, keeping the result: the row binds options to UI objects
@@ -1135,6 +1157,23 @@ void FASTCALL hook_addoption(void *menu, void *edx, void *option) {
     g_orig_addoption(menu, edx, option);
 }
 
+// A press on the icon strip is reported for the object the layout's response names. On a cloned slot that is the original's
+// object (the response's target is not the GUID, so it cannot be retargeted), which the strip does not accept for the clone's
+// entry, so the press is reported for the entry that is current: a press is always for that one.
+NotifyFn g_orig_optmain_notify = nullptr;
+constexpr unsigned kSlotGuidBase = 0xCA3E3000;  // GUIDs of the cloned slots
+void FASTCALL hook_optmain_notify(void *self, void *edx, unsigned msg, void *obj, unsigned p1, unsigned p2) {
+    if (msg == kButtonPressed) {
+        void *current = field<void *>(self, kIconScrollerCurrent);
+        void *current_obj = current ? field<void *>(current, kOptionObject) : nullptr;
+        if (current_obj && obj != current_obj) {
+            const unsigned guid = field<unsigned>(current_obj, fe::kGuid);
+            if (guid >= kSlotGuidBase && guid < kSlotGuidBase + 0x100) obj = current_obj;
+        }
+    }
+    g_orig_optmain_notify(self, edx, msg, obj, p1, p2);
+}
+
 // A mod's icons live in its own texture pack (a .tpk in the data folder), loaded once, the first time a page needs it.
 void load_texture_pack(const char *path) {
     static std::vector<std::string> tried;
@@ -1157,7 +1196,7 @@ void open_page(const char *id, bool in_game, void (*on_exit)()) {
         return;
     }
     load_texture_pack(page->page->texture_pack);
-    page->icon = page->page->icon && game::GetTextureInfo(page->page->icon, 0, 0) ? page->page->icon : page->page->fallback_icon;
+    page->icon = shown_icon(*page->page);
     options_category() = page->category;
     g_page_next = page;
     g_exit_callback = on_exit;
@@ -1169,6 +1208,42 @@ void open_page(const char *id, bool in_game, void (*on_exit)()) {
     const char *pkg = page->category == kCategoryVideo ? (pause_layout ? "Pause_PCDisplayOptions.fng" : "OptionsPCDisplay.fng")
                                                        : (pause_layout ? "Pause_Options.fng" : "Options.fng");
     reinterpret_cast<QueueSwitchFn>(0x525940)(*reinterpret_cast<void **>(game::kFEng), pkg, pause_layout ? 1 : 0, 0, false);
+}
+
+// The Options menu's icon strip is the layout's images OPTION_1.. OPTION_n (four of them are the scroller's end markers), and the game
+// drops every entry past the last. More are cloned from the last one (unused ones are hidden in the layout, and so are the clones).
+void ensure_icon_slots(const char *pkg_name, int needed) {
+    char name[24];
+    int count = 0;
+    void *last = nullptr;
+    for (;;) {
+        snprintf(name, sizeof(name), "OPTION_%d", count + 1);
+        void *img = game::FindImage(pkg_name, game::FEHashUpper(name));
+        if (!img) break;
+        last = img;
+        ++count;
+    }
+    void *pkg = game::FindPackage(*reinterpret_cast<void **>(game::kFEng), pkg_name);
+    if (!last || !pkg || count >= needed) return;
+    bool parent_is_pkg = false;
+    void *parent = find_parent(pkg, true, last, &parent_is_pkg);
+    if (!parent) {
+        log_line("Options menu: could not find the parent of the icon slots");
+        return;
+    }
+    void *(THISCALL *clone_fn)(void *, int) = reinterpret_cast<void *(THISCALL *)(void *, int)>(field<void **>(last, 0)[1]);
+    for (int i = count + 1; i <= needed; ++i) {
+        void *copy = clone_fn(last, 0);
+        if (!copy) break;
+        snprintf(name, sizeof(name), "OPTION_%d", i);
+        copy_object_state(last, copy);
+        field<unsigned>(copy, fe::kNameHash) = game::FEHashUpper(name);
+        field<unsigned>(copy, fe::kGuid) = kSlotGuidBase + i;
+        // Into the same parent as the original (the layout may keep its icons in a group).
+        if (parent_is_pkg) game::PackageAddObject(parent, copy);
+        else game::GroupAddObject(parent, copy);
+    }
+    log_line("Options menu: the layout has %d icon slots, %d added for the entries", count, needed - count);
 }
 
 MethodFn g_orig_optmain_setup;
@@ -1194,9 +1269,14 @@ void FASTCALL hook_optmain_setup(void *self, void *edx) {
         if (!p.available) continue;
         any = true;
         load_texture_pack(p.page->texture_pack);
-        p.icon = p.page->icon && game::GetTextureInfo(p.page->icon, 0, 0) ? p.page->icon : p.page->fallback_icon;
+        p.icon = shown_icon(*p.page);
     }
     if (any) g_pending_optmain = self;
+    if (any) {
+        int ours = 0;
+        for (int i = 0; i < g_page_count; ++i) ours += g_pages[i].available;
+        ensure_icon_slots(field<const char *>(self, kScreenPackage), ours + kGameIconSlots);
+    }
     g_orig_optmain_setup(self, edx);
     g_pending_optmain = nullptr;
 }
@@ -1216,6 +1296,8 @@ void install_hooks() {
          nfsmw::detour(&hook_initialpos), nfsmw::orig(&g_orig_initialpos)},
         {"addoption", "IconScrollerMenu::AddOption", 0x573960, {0x8B, 0x41, 0x2C, 0x56, 0x8B, 0x74, 0x24}, false,
          nfsmw::detour(&hook_addoption), nfsmw::orig(&g_orig_addoption)},
+        {"optmain_notify", "UIOptionsMain::NotificationMessage", 0x545310, {0x64, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x6A}, false,
+         nfsmw::detour(&hook_optmain_notify), nfsmw::orig(&g_orig_optmain_notify)},
         {"setupplayer", "UIOptionsScreen::SetupPlayer", 0x529F10, {0x6A, 0xFF, 0x68, 0x80, 0xEE, 0x86, 0x00}, true,
          nfsmw::detour(&hook_setupplayer), nfsmw::orig(&g_orig_setupplayer)},
         {"setupvideo", "UIOptionsScreen::SetupVideo", 0x5295F0, {0x6A, 0xFF, 0x64, 0xA1, 0x00, 0x00, 0x00}, false,

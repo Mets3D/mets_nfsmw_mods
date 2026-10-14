@@ -42,7 +42,7 @@ struct Page {
     const char *title;         // the screen title, upper case
     const char *help_title;    // the Help message box title, upper case
     unsigned icon;             // texture hash of the entry's and the screen's icon, if the game has it loaded...
-    unsigned fallback_icon;    // ...else this one (a texture the game always has)
+    unsigned fallback_icon;    // ...else this one (a texture the game always has), or 0 for the Options icon (two cogs)
     const char *texture_pack;  // full path of a .tpk that holds `icon`, or null (loaded when the menu first opens)
     int row_count;
     const Row *rows;  // static

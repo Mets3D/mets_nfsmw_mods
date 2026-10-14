@@ -68,7 +68,6 @@ constexpr unsigned kCarTypeSize = 0xD0, kCarTypeNameHash = 0x50;
 constexpr unsigned kRowData = 0x30;    // PODriveCam: FEString* of the value
 constexpr unsigned kLabelHash = 0x60;  // FEString: language hash of its text
 constexpr unsigned kCustomIconTexture = 0x12F6B313;  // OPTIONS_CAMERA, in our nfsmw_camera_settings.tpk
-constexpr unsigned kSpeedtrapTexture = 0x66C9A7B6;   // MILESTONE_SPEEDTRAP (always loaded): the fallback icon
 constexpr unsigned kDriftUpper = 0xA1211428;         // "DRIFT", NFSMWExtraOptions' name for the Drift camera
 constexpr unsigned kDrift = 0x6AEB7EE6;              // "Drift", the game's own string
 
@@ -451,7 +450,7 @@ extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const opt::Host
     g_rows[0] = {opt::kCameraSelectorRow, "", 0, kHelp[NPARAM]};
     for (int p = 0; p < NPARAM; ++p) g_rows[1 + p] = {opt::kValueRow, kLabel[p], 0, kHelp[p]};
     nfsmw::data_file("nfsmw_camera_settings.tpk", g_pack_path, sizeof(g_pack_path));
-    g_page = {"camera", "Camera", "CAMERA", "CAMERA INFO", g_icon, kSpeedtrapTexture, g_pack_path,
+    g_page = {"camera", "Camera", "CAMERA", "CAMERA INFO", g_icon, 0, g_pack_path,
               1 + NPARAM, g_rows, page_available, page_opened, page_value, page_change, camera_changed, page_accept,
               page_discard, page_defaults, opt::kNewEntryEverywhere};
     host->register_page(&g_page);
