@@ -7,7 +7,7 @@ namespace opt = nfsmw::custom_menus;
 // ------------------------------------------------------------------------------------------------
 // Rumble: a page of nfsmw_custom_menus (which builds the screen and asks for the page when the Options menu first opens),
 // reached from the Controls screen's Rumble hint (controls_rumble.cpp) for the selected controller. Row 0 is the game's own
-// Vibration setting, then one row per effect with its level, 0-100. Changing
+// Vibration setting, then one slider per effect with its level, 0-100. Changing
 // a level plays a sample of the effect at the new level, through the same path the game uses.
 // ------------------------------------------------------------------------------------------------
 namespace {
@@ -61,6 +61,8 @@ void page_change(int row, int direction, bool fine) {
     if (vibration_option() && percent > 0) rumble::play_preview(effect);
 }
 
+float page_fill(int row) { return row > 0 ? percent_of(row - 1) / 100.0f : 0.0f; }
+
 bool page_changed() {
     for (int e = 0; e < rumble::E_COUNT; ++e)
         if (percent_of(e) != g_opened_levels[e]) return true;
@@ -96,12 +98,12 @@ void pad::rumble_page::provide(const nfsmw::custom_menus::Host *host) {
                  "Vibration setting, kept in your profile."};
     for (int e = 0; e < rumble::E_COUNT; ++e) {
         snprintf(g_help[e], sizeof(g_help[e]), "%s Hold Shift for finer steps.", rumble::kEffects[e].help);
-        g_rows[1 + e] = {opt::kValueRow, rumble::kEffects[e].label, 0, g_help[e]};
+        g_rows[1 + e] = {opt::kSliderRow, rumble::kEffects[e].label, 0, g_help[e]};
     }
     nfsmw::data_file("nfsmw_controller_support.tpk", g_pack_path, sizeof(g_pack_path));
     g_page = {"rumble", "Rumble", "RUMBLE", "RUMBLE INFO", nfsmw::texture_hash("OPTIONS_RUMBLE"),
               kControlsIconTexture,  // the Controller icon until there is an OPTIONS_RUMBLE
               g_pack_path, 1 + rumble::E_COUNT, g_rows, page_available, page_opened, page_value,
-              page_change, page_changed, page_accept, page_discard, page_defaults, opt::kHidden};
+              page_change, page_changed, page_accept, page_discard, page_defaults, opt::kHidden, page_fill};
     host->register_page(&g_page);
 }

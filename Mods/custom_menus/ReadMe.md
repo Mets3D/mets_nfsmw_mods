@@ -13,7 +13,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
 - For each row, the mod must provide:
   - A label (its own text, or one of the game's strings)
   - A help text (shown when player presses Help button).
-  - Its kind: a value row, or the game's own Camera selector.
+  - Its kind: a value row, a slider bar row (like Audio's volumes), or the game's own Camera selector. Kinds can be mixed in one page.
 - For the page, the mod decides what happens when:
   - A value is shown (any text: degrees, percent, On/Off...)
   - Left / Right is pressed (the mod picks the step; Shift or LB asks for a smaller one)
@@ -47,9 +47,8 @@ resume_career=0
   - "DRIFT" and "Pursuit" camera modes added by [`NFSMWExtraOptions`](https://github.com/ExOptsTeam/NFSMWExOpts).
 
 ## TODO
-- Support sliders like the ones in the performance tuning or the video options? Could be useful for the rumble menu, because it'd be more visual than the percentage numbers.
 - Translation support?
-- Ability to add not just sub-menus under "Options", but also in the pause menu.
+- Ability to add not just sub-menus under "Options", but also in the pause menu, eg. to customize the current race, or other dev tools.
 - We now have the ability to add entries in the Player Options, but what about to the other menus? Should probably support all of them.
 
 <details>
@@ -68,6 +67,7 @@ static int g_strength = 50, g_opened_strength;  // your own state
 
 static const opt::Row kRows[] = {
     // kind, label, label_hash (0 = use the label), help text
+    // opt::kSliderRow instead draws the game's slider bar, filled to `fill(row)` (0..1); `value` is then only the fallback
     {opt::kValueRow, "Strength", 0, "How strong the effect is. Hold Shift or LB for finer steps."},
 };
 
@@ -108,6 +108,7 @@ Rules for the callbacks (all called on the game's thread):
 | `available` | each time the Options menu opens (the main menu's too, for `kNewEntryEverywhere`) | `nullptr` = always. Return false to hide the entry (no race loaded, no controller, ...). |
 | `opened` | the page opens | Remember what is current: it is what Back restores. |
 | `value(row, out, size)` | whenever a row is drawn | Write text to `out` (63 characters at most; `\x01` is the degree sign) and return 0, or return a **language hash** of the game and leave `out` alone. **Required.** |
+| `fill(row)` | whenever a `kSliderRow` is drawn | Optional (`Page::fill`, after `placement`): the bar's fill, 0 to 1. Without it the row shows `value` as text. |
 | `change(row, direction, fine)` | left (-1) or right (+1) on a row | Take effect immediately. Hold Shift or LB = `fine`. **Required.** |
 | `changed` | Back is pressed, and when the screen is left | Do the values differ from when the page opened? |
 | `accept` | the screen is left and `changed()` is true | Keep and save the values. After Back and confirm, `discard` ran first, so `changed()` is false and `accept` is not called. |

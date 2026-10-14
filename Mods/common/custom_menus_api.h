@@ -13,6 +13,8 @@ namespace nfsmw::custom_menus {
 
 enum RowKind {
     kValueRow,           // "label    < value >": left / right call Page::change
+    kSliderRow,          // as kValueRow, but drawn as the game's slider bar (Audio's volumes) filled to Page::fill; `value` is shown
+                         // instead when `fill` is null or the page is too long to show all its rows at once
     kCameraSelectorRow,  // the game's own Camera selector (it changes the player's camera view); the other rows
                          // are redrawn when it changes, so they can show the selected view's values
 };
@@ -59,6 +61,7 @@ struct Page {
     void (*discard)();   // Back was confirmed: put the values from when the page opened back
     void (*defaults)();  // Defaults was confirmed: reset the page (the selected view, for the camera)
     Placement placement;  // where the rows go; leave it out for kNewEntry
+    float (*fill)(int row);  // kSliderRow: how full the bar is, 0..1 (left / right still call `change`); leave it out for no sliders
 };
 
 // Rows added to Options > Controls (Pause > Options > Controls, and the main menu's). Each row edits one entry of the game's binding

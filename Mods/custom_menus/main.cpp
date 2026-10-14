@@ -177,6 +177,11 @@ const auto SetScript = at<void(THISCALL *)(void *object, unsigned id, int force)
 const auto ClearWidgets = at<void(THISCALL *)(void *screen)>(0x588C90);
 const auto RefreshWidgets = at<void(THISCALL *)(void *screen)>(0x588D20);  // Draw() on every row
 const auto AddToggleOption = at<unsigned(THISCALL *)(void *screen, void *widget, int enabled)>(0x588570);
+const auto AddSliderOption = at<unsigned(THISCALL *)(void *screen, void *widget, int enabled)>(0x588860);
+const auto SliderCtor = at<void *(THISCALL *)(void *widget, int enabled)>(0x589540);  // FESliderWidget
+const auto SetSliderValues = at<void(THISCALL *)(void *widget, float min, float max, float inc, float cur)>(0x50E660);
+const auto SetSliderValue = at<void(THISCALL *)(void *widget, float value)>(0x50E6A0);
+const auto DrawSlider = at<void(THISCALL *)(void *widget)>(0x50E6B0);
 const auto ToggleWidgetCtor = at<void *(THISCALL *)(void *widget, int enabled)>(0x589300);  // FEToggleWidget, 0x5C bytes
 const auto DriveCamCtor = at<void *(THISCALL *)(void *widget, int enabled)>(0x51AA90);  // PODriveCam, 0x5C bytes
 const auto DriveCamAct = at<void(THISCALL *)(void *widget, const char *pkg, unsigned data)>(0x51C870);
@@ -184,6 +189,7 @@ const auto IconOptionCtor = at<void(THISCALL *)(void *option, unsigned tex, unsi
 constexpr uintptr_t kToggleDelDtor = 0x589370;      // FEToggleWidget scalar deleting destructor
 constexpr uintptr_t kIconOptionDelDtor = 0x51A500;  // IconOption scalar deleting destructor
 constexpr uintptr_t kDriveCamVtable = 0x89C048;     // 15 slots: [0] dtor [1] Act [3] Draw [14] BlinkArrows
+constexpr uintptr_t kSliderVtable = 0x8A1490;       // FESliderWidget: those, and [15] SetInitialValues (called when it is added)
 
 // Data
 constexpr uintptr_t kFEDatabase = 0x91CF90;  // FEDatabase*; +0x10 = options settings
@@ -226,7 +232,7 @@ constexpr unsigned kScreenCurrentRow = 0x34;
 constexpr unsigned kRowChanged = 0x2A;  // set by the game's rows when their value changes
 constexpr unsigned kRowTitle = 0x2C;    // FEString* label
 constexpr unsigned kRowData = 0x30;     // FEString* value
-constexpr unsigned kRowIndex = 0x5C;    // ours: the row's index in its page, after the 0x5C-byte widget
+constexpr unsigned kRowIndex = 0xA0;    // ours: the row's index in its page, after the widget (FESliderWidget is the largest, 0x9D bytes)
 constexpr unsigned kRowPage = kRowIndex + 4;  // ours: the page (PageInfo) the row belongs to
 constexpr unsigned kRowSize = kRowPage + 4;
 constexpr unsigned kScreenFromPause = 0x124;  // UIOptionsScreen::mCalledFromPauseMenu (byte)
@@ -327,7 +333,7 @@ void register_page(const opt::Page *page) {
     p.row_help_hash.resize(page->row_count);
     for (int r = 0; r < page->row_count; ++r) {
         const opt::Row &row = page->rows[r];
-        if (row.kind == opt::kValueRow && !row.label_hash) p.row_label_hash[r] = add_text(page->id, "label", r, row.label);
+        if (row.kind != opt::kCameraSelectorRow && !row.label_hash) p.row_label_hash[r] = add_text(page->id, "label", r, row.label);
         else p.row_label_hash[r] = row.label_hash;
         p.row_help_hash[r] = add_text(page->id, "help", r, row.help);
     }
@@ -398,6 +404,7 @@ void *g_pending_optmain = nullptr;      // the Options menu being set up, which 
 void *g_hint_pending_screen = nullptr;  // the Help hint is added on this screen's first tick
 
 void *g_row_vtbl[15];       // our value rows (FEToggleWidget behaviour with our Act/Draw)
+void *g_slider_vtbl[16];    // our slider rows (FESliderWidget behaviour with our Act/Draw/SetInitialValues)
 void *g_selector_vtbl[15];  // PODriveCam with Act wrapped so the other rows refresh when the view changes
 void *g_entry_vtbl[2];      // Options menu entries
 
@@ -465,6 +472,22 @@ void THISCALL value_row_draw(void *self) {
     else set_wide_text(field<void *>(self, kRowData), text);
 }
 
+// A slider row: the bar is the layout's BASE_SLIDER_n / FILLBAR_SLIDER_n for the row's slot, which the game's widget finds by itself.
+void THISCALL slider_row_draw(void *self) {
+    const int row = row_of(self);
+    const PageInfo *page = field<PageInfo *>(self, kRowPage);
+    if (!page || row < 0 || row >= page->page->row_count) return;
+    game::FEngSetLanguageHash(field<void *>(self, kRowTitle), page->row_label_hash[row]);
+    game::SetSliderValue(self, page->page->fill(row));
+    game::DrawSlider(self);
+}
+
+void THISCALL slider_row_initial_values(void *self) {
+    const int row = row_of(self);
+    const PageInfo *page = field<PageInfo *>(self, kRowPage);
+    game::SetSliderValues(self, 0.0f, 1.0f, 0.1f, page && row >= 0 && row < page->page->row_count ? page->page->fill(row) : 0.0f);
+}
+
 void THISCALL selector_row_act(void *self, const char *pkg, unsigned data) {
     game::DriveCamAct(self, pkg, data);
     if (g_options_screen) game::RefreshWidgets(g_options_screen);  // the other rows follow the new view
@@ -477,6 +500,11 @@ void init_option_vtables() {
     g_row_vtbl[1] = reinterpret_cast<void *>(&value_row_act);
     g_row_vtbl[3] = reinterpret_cast<void *>(&value_row_draw);
     g_selector_vtbl[1] = reinterpret_cast<void *>(&selector_row_act);
+    void **slider = reinterpret_cast<void **>(game::kSliderVtable);
+    for (int i = 0; i < 16; ++i) g_slider_vtbl[i] = slider[i];
+    g_slider_vtbl[1] = reinterpret_cast<void *>(&value_row_act);
+    g_slider_vtbl[3] = reinterpret_cast<void *>(&slider_row_draw);
+    g_slider_vtbl[15] = reinterpret_cast<void *>(&slider_row_initial_values);
 }
 
 // The layout's row slots: its OPTION_NAME_1 .. OPTION_NAME_n strings, which the widgets take as their title objects in order. A widget past the
@@ -496,6 +524,34 @@ int layout_slots(const char *pkg) {
 int free_row_slots(void *screen) {
     const int slots = layout_slots(field<const char *>(screen, kScreenPackage)), used = field<int>(screen, 0x104) - 1;
     return slots > used ? slots - used : 0;
+}
+
+// The layout's slider bars: BASE_SLIDER_n and FILLBAR_SLIDER_n for the row slot n (the Player and Video layouts, in both menus, have them).
+bool layout_has_sliders(const char *pkg) {
+    const auto FindObject = reinterpret_cast<void *(*)(const char *, unsigned)>(0x524850);  // FEngFindObject
+    return FindObject(pkg, nfsmw::bstring_hash("BASE_SLIDER_1")) && FindObject(pkg, nfsmw::bstring_hash("FILLBAR_SLIDER_1"));
+}
+
+// Adds the page's row `r` as the screen's next row. A slider row is a value row when it can't be a bar (no `fill`, no bars in the layout,
+// a windowed page, whose widgets change which row they show).
+void add_page_row(void *screen, PageInfo *info, int r, bool bars) {
+    const opt::Row &row = info->page->rows[r];
+    void *w = game::Alloc(kRowSize);
+    if (!w) return;
+    const bool slider = bars && row.kind == opt::kSliderRow && info->page->fill;
+    if (row.kind == opt::kCameraSelectorRow) {  // the game's own Camera selector
+        game::DriveCamCtor(w, 1);
+        field<void **>(w, 0) = g_selector_vtbl;
+    } else if (slider) {
+        game::SliderCtor(w, 1);
+        field<void **>(w, 0) = g_slider_vtbl;
+    } else {
+        game::ToggleWidgetCtor(w, 1);
+        field<void **>(w, 0) = g_row_vtbl;
+    }
+    field<int>(w, kRowIndex) = r;
+    field<PageInfo *>(w, kRowPage) = info;
+    (slider ? game::AddSliderOption : game::AddToggleOption)(screen, w, 1);
 }
 
 void build_page_screen(void *screen) {
@@ -518,20 +574,8 @@ void build_page_screen(void *screen) {
     else if (page.row_count > room)
         log_line("page \"%s\" has %d rows but the screen has room for %d: the rest are left out", page.id, page.row_count, room);
     const int widgets = g_windowed ? room : (page.row_count < room ? page.row_count : room);
-    for (int r = 0; r < widgets; ++r) {
-        void *w = game::Alloc(kRowSize);
-        if (!w) continue;
-        if (page.rows[r].kind == opt::kCameraSelectorRow) {  // the game's own Camera selector
-            game::DriveCamCtor(w, 1);
-            field<void **>(w, 0) = g_selector_vtbl;
-        } else {
-            game::ToggleWidgetCtor(w, 1);
-            field<void **>(w, 0) = g_row_vtbl;
-        }
-        field<int>(w, kRowIndex) = r;
-        field<PageInfo *>(w, kRowPage) = g_page;
-        game::AddToggleOption(screen, w, 1);
-    }
+    const bool bars = !g_windowed && layout_has_sliders(field<const char *>(screen, kScreenPackage));
+    for (int r = 0; r < widgets; ++r) add_page_row(screen, g_page, r, bars);
     // The title object is a group of strings (text and shadow). Set the hash the way the game's own screens do, then
     // also print into the group so it does not depend on the table lookup.
     const char *pkg = field<const char *>(screen, kScreenPackage);
@@ -562,15 +606,8 @@ void add_player_rows(void *screen) {
         const int room = free_row_slots(screen);
         if (page.row_count > room)
             log_line("Options > Player: \"%s\" has %d rows but the screen has room for %d: the rest are left out", page.id, page.row_count, room);
-        for (int r = 0; r < page.row_count && r < room; ++r) {
-            void *w = game::Alloc(kRowSize);
-            if (!w) continue;
-            game::ToggleWidgetCtor(w, 1);
-            field<void **>(w, 0) = g_row_vtbl;
-            field<int>(w, kRowIndex) = r;
-            field<PageInfo *>(w, kRowPage) = &info;
-            game::AddToggleOption(screen, w, 1);
-        }
+        const bool bars = layout_has_sliders(field<const char *>(screen, kScreenPackage));
+        for (int r = 0; r < page.row_count && r < room; ++r) add_page_row(screen, &info, r, bars);
         g_player_pages.push_back(&info);
         g_player_page_count = static_cast<int>(g_player_pages.size());
         log_line("Options > Player: %d row(s) from \"%s\"", page.row_count, page.id);
@@ -948,7 +985,7 @@ void show_help_for_current_row(void *screen) {
     void *row = field<void *>(screen, kScreenCurrentRow);
     if (!row) return;
     void **vtbl = field<void **>(row, 0);
-    if (vtbl != g_row_vtbl && vtbl != g_selector_vtbl) return;
+    if (vtbl != g_row_vtbl && vtbl != g_selector_vtbl && vtbl != g_slider_vtbl) return;
     const int index = row_of(row);
     if (field<PageInfo *>(row, kRowPage) != g_page || index < 0 || index >= g_page->page->row_count) return;
     g_help_dialog_open = true;
