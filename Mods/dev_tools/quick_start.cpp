@@ -3,9 +3,8 @@
  * "movie finished" message (0xc3960eb9) the real movie posts when it ends, instead of opening it - so whatever movie
  * it was (the EA logo, the PSA, the attract movie, or any later in-game one) is torn down the normal way, never shown.
  * NFSMWExtraOptions's SkipMovies and the widescreen fix's SkipIntro set the same byte for the same reason. This is a
- * race against the game reaching each movie's check: our plugin loads from a worker thread the ASI loader starts
- * sometime after it finds every .asi (about 2 seconds in, normally), and whichever movie that
- * happens to land before stays unskippable, independent of this tool. (Hooking MovieScreen's constructor instead let
+ * race against the game reaching each movie's check, so it is done from the plugin's early entry (DllMain, see
+ * common/entry.c), not from the main one, which runs about 2 seconds in. (Hooking MovieScreen's constructor instead let
  * the real movie start, since the constructor runs before Callback does, and the later skip crashed.)
  *
  * With the movies skipped, a movie screen gets "movie finished" more than once: the switch to the next screen is only
@@ -135,12 +134,15 @@ void install_auto_load() {
 
 }  // namespace
 
-void install() {
+void install_early() {
     const bool guarded = install_movie_guard();
     if (ini_flag("quick_start", "skip_intros")) {
         if (guarded) skip_intros();
         else g_log.line("skip intros: movies are not skipped (their guard could not be installed)");
     }
+}
+
+void install() {
     install_auto_load();
 }
 

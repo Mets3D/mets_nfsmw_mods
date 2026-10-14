@@ -82,7 +82,7 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
 - **Skipping a movie** [read]: the EA logo, the PSA and the attract movie (`LS_EAlogo`/`LS_PSA`/`MW_LS_AttractFMV`, decomp `FEMovieScreen.cpp`) are each an FEng movie-starter widget
   (FEObject type 7). `FEngMovieStarter::Callback` 0x559680 checks the byte at 0x926144 before opening the movie and, if set, posts `0xc3960eb9` ("movie finished") immediately instead -
   the same message a movie that actually played posts when it ends, read by `MovieScreen::NotificationMessage` 0x57DDA0 to call `ChangeToNextBootFlowScreen(0xff)`. Setting that byte once
-  at startup skips all three (and any later FEng movie the same way); `NFSMWExtraOptions`'s `SkipMovies` and the widescreen fix's `SkipIntro` set the same byte. Constructing the
+  at startup skips all three (and any later FEng movie the same way) - but only if it is set before the first check, about a second in, so `dev_tools` does it from the plugin's early entry (`NFSMW_PLUGIN_EARLY`, `Mods/common/entry.c`: run in `DllMain`; `NFSMW_PLUGIN_MAIN` runs from a thread after 2 s and lost this race at random). The widescreen fix is early too: it patches the check itself in `DllMain`; `NFSMWExtraOptions`'s `SkipMovies` and the widescreen fix's `SkipIntro` set the same byte. Constructing the
   `MovieScreen` itself (ctor 0x58ECA0) does not start the movie - only `Callback` does, later - so skipping from the constructor is too early: it tears down a movie that has already
   started opening rather than one that is finished, which crashes.
 - **Late "movie finished"** [tested]: with the byte set, a movie screen gets `0xc3960eb9` more than once - the switch to the next screen is only queued, the old screen lives on a frame or two, and each late

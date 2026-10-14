@@ -10,6 +10,7 @@
 
 #include "diagnostics.h"
 #include "quick_start.h"
+#include "early_entry.h"
 
 NFSMW_PLUGIN_DECLARE("NFSMW Dev Tools", "1.0.0", "Demeter Dzadik")
 
@@ -27,13 +28,29 @@ unsigned long since_start_ms() {
     return static_cast<unsigned long>((b - a) / 10000);
 }
 
-}  // namespace dev_tools
-
-NFSMW_PLUGIN_MAIN() {
-    using namespace dev_tools;
+// The first of the two entries (early, then main) to run opens the log and finds the ini.
+void init() {
+    static bool done = false;
+    if (done) return;
+    done = true;
     g_log.open_in_data_folder("nfsmw_dev_tools.log");
     g_log.line("nfsmw_dev_tools 1.0.0 starting (process %lu, %lu ms after it started)", GetCurrentProcessId(), since_start_ms());
     nfsmw::data_file("nfsmw_dev_tools.ini", g_ini, sizeof(g_ini));
+}
+
+}  // namespace dev_tools
+
+// Skipping the movies must be in place before the first one is decided, which is about a second after the game starts.
+NFSMW_PLUGIN_EARLY() {
+    using namespace dev_tools;
+    init();
+    if (ini_flag("quick_start", "enabled")) quick_start::install_early();
+    return NFSMW_OK;
+}
+
+NFSMW_PLUGIN_MAIN() {
+    using namespace dev_tools;
+    init();
     if (ini_flag("diagnostics", "enabled")) diagnostics::install();
     if (ini_flag("quick_start", "enabled")) quick_start::install();
     return NFSMW_OK;

@@ -17,4 +17,7 @@ inline bool ini_flag(const char *section, const char *key, bool def = true) {
 // Milliseconds since this process was created.
 unsigned long since_start_ms();
 
+// Opens the log and finds the ini, once.
+void init();
+
 }  // namespace dev_tools
