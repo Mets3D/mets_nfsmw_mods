@@ -15,6 +15,18 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
 - Pause menu: `PauseMenu::SetupOptions` 0x52B4D0 builds the row with `IconScrollerMenu::AddOption` 0x573960 (`new pm_X(texture hash, name hash, description hash)`, `IconOption` ctor 0x586FA0).
   The tuning screen is `CustomTuningScreen` (7 `TuningSlider` rows; min -1, max 1, step 0.2).
 
+## Dialogs (custom_menus `skip_dialogs.cpp`)
+- Message boxes: every `DialogInterface::Show*` ends in `ShowDialog(feDialogConfig*)` 0x5983C0 (cdecl) [read]. Config (PC = decomp layout): formatted blurb +0 (512 chars), then
+  {text hash, message} per button at +0x204 / +0x20C / +0x214, parent package +0x224, dialog package +0x228, button count +0x22C. A pressed button's message reaches the parent from
+  `~feDialogScreen`: `cFEng::QueueGameMessage(msg, parent, port)` 0x516C50. Yes/No labels 0x70E01038 / 0x417B25E4; Yes 0xD05FC3A3, No 0x34DC1BCF [read].
+  Callers (blurb hash): `CustomizeShoppingCart` 0x71D9E710 (career: 0x8EBAA44B, backroom 0x04810898, both "purchase and apply"), `CustomizeSub` 0x892CB612 (Yes 0x6820E23E),
+  `CResumeFreeRoam::React` 0xEB694C0C, `UISafehouseRaceSheet` / `UIQRChallengeSeries` 0x77CF03C5 [read].
+- The save system (RealCore memcard) has its own texts, `MEMCARD/LOCALE_<language>.loc` (UTF-16; ids from 1: 3 Yes, 4 No, 7 overwrite?, 8 Save complete., 10 Load complete.),
+  `MemoryCard::GetLocaleString(id)` 0x518380. It asks through `MemcardCallbacks::ShowMessage(text, count, buttons)` 0x560980 (thiscall; sets `MemoryCard`(*0x91CB20)+0x14);
+  the answer is `MemoryCard::MessageDone(button from 1)` 0x518410, which posts it to the save system's queue (handled on its next `Update`) [read].
+- The save screen (`UIMemcardBase`) has its own prompts: `ShowYesNo(text, prompt id)` 0x543CC0 keeps the id in the flags at 0x91CBAC (mask 0x0F000000); `HandleButtonPressed` 0x563380
+  moves it to 0x91CBCC and continues `DoSaveFlow(step)` 0x544370. "Save the alias named %s?" is prompt 4 from `SetupPromptSaveConfirm` 0x543EB0; Yes = `DoSaveFlow(12)` [read].
+
 ## FEng and layouts
 - Language strings: a sorted `{hash, char*}` table at `*0x91CF80` (count `*0x91CF78`); merging our entries there makes every text path work. Strings are resolved through
   `(*0x91DD08)->vtbl[0]`. Titles are upper case in `LANGUAGES/English.bin`.

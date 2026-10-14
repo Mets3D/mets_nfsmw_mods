@@ -34,23 +34,19 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
 - **Controls screen title icon.** Pause > Options > Controls showed the audio icon as its title icon (a base game bug:
   its layout defaults to it and the screen never sets its own). It now shows the Controls icon. Works without any page
   or other mod (`title_icon.cpp`).
+- **Fewer pop-ups.** Certain action confirmation dialogue boxes are removed. To bring them back, add to the .ini:
+```
+[features]
+skip_dialogs=0
+```
 
 ## Example Mods
 - [Camera Settings](../camera_settings/ReadMe.md): Adds the Options > Camera page.
 - [Controller Support](../controller_support/ReadMe.md): Adds the Rumble page (opened from the Controls screen), and the Look and Previous Camera View rows on the Controls screen.
 
 ## TODO
-- Added menus don't appear in the main menu, only in the pause menu.
-- Reduce amount of unnecessary pop-ups in the main menu:
-  - "Do you wish to apply these items to your vehicle?" (always Yes)
-  - "Do you wish to add all maximum unlocked performance packages to your shopping cars?" (always Yes)
-  - "Save Complete" (OK) (when exiting car customization)
-  - "Load complete" (OK) (when loading a save file)
-  - "Are you sure you want to leave the Safe House to resume free roam?" (always Yes)
-  - "Are you sure you want to launch this event?" (always Yes)
-  - "Are you sure you want to save the alias named <name>"? (always Yes)
-  - "Do you want to overwrite previously saved game?" (always Yes)
-  - "Save complete" (OK) (When manually saving the game.)
+- Added menus (ie. camera settings) don't appear in the main menu, only in the pause menu.
+- Rumble menu is a bit broken in main menu - X for help doesn't appear, Y to reset to defaults freezes the UI.
 - Translation support?
 - Ability to add not just sub-menus under "Options", but also in the pause menu.
 - We now have the ability to add entries in the Player Options, but what about to the other menus? Should probably support all of them.
