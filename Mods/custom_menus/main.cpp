@@ -1,8 +1,9 @@
 /*
  * nfsmw_custom_menus: the Options menu framework for speed.exe 1.3 (SHA-256 0C5675A0...2067E342).
  *
- * Other mods add pages to Pause > Options through this one (see common/custom_menus_api.h): a page is a title, an icon and
- * a list of rows, and this mod builds the screen from the game's own Options layout (Pause_Options.fng, via the
+ * Other mods add pages to the Options menu (pause menu; the main menu too if the page asks) through this one (see
+ * common/custom_menus_api.h): a page is a title, an icon and a list of rows, and this mod builds the screen from the
+ * game's own Options layout (Pause_Options.fng / Options.fng, via the
  * Player category's screen with its rows replaced), so it looks and feels native:
  *  - an entry per page in the Options menu, with its icon (from a texture pack of the mod, or a fallback);
  *  - rows that change with left / right (Shift: finer steps), the game's Camera selector as a row kind;
@@ -15,7 +16,7 @@
  * Files in <game>/scripts/mets_mods/: nfsmw_custom_menus.ini (settings), nfsmw_custom_menus.log, nfsmw_custom_menus_crash.log (access
  * violations anywhere in the game, with the modules involved; handy for any of our mods).
  * ini settings, all optional:
- *   [features] help_hint=0, hide_dialog_icon=0, texture_pack=0, skip_dialogs=0  turn those parts off
+ *   [features] help_hint=0, hide_dialog_icon=0, texture_pack=0, skip_dialogs=0, resume_career=0  turn those parts off
  *   [hooks]    <name>=0  skips one hook (names in install_hooks)
  *
  * Offsets come from the PC disassembly; the decomp's struct offsets are from the console builds and differ.
@@ -35,6 +36,7 @@
 #include "nfsmw_util.h"
 #include "custom_menus_api.h"
 #include "controls_rows.h"
+#include "resume_career.h"
 #include "skip_dialogs.h"
 #include "texture_pack.h"
 #include "title_icon.h"
@@ -225,6 +227,7 @@ constexpr unsigned kRowData = 0x30;     // FEString* value
 constexpr unsigned kRowIndex = 0x5C;    // ours: the row's index in its page, after the 0x5C-byte widget
 constexpr unsigned kRowPage = kRowIndex + 4;  // ours: the page (PageInfo) the row belongs to
 constexpr unsigned kRowSize = kRowPage + 4;
+constexpr unsigned kScreenFromPause = 0x124;  // UIOptionsScreen::mCalledFromPauseMenu (byte)
 constexpr unsigned kEntryPage = 0x5C;   // ours: the page of an Options menu entry (IconOption, 0x5C bytes)
 
 // Hashes: FEng objects, messages, scripts, textures, language strings.
@@ -234,6 +237,9 @@ constexpr unsigned kDialogIcon1 = 0x0D4F4069, kDialogIcon2 = 0xFAC88427;  // the
 // groups of {label string, clickable hit-box group, key image}.
 constexpr unsigned kPcDefaultsHint = 0x3FC72F9D;  // "1 Defaults"
 constexpr unsigned kPcAcceptHint = 0x9502D148;    // "Enter Accept"
+// The main menu's layouts (Options.fng, OptionsPCDisplay.fng) have one set of hints, named differently; the same kinds of objects
+// (label, backing image, hit-box image, key glyph) in a group each.
+constexpr unsigned kMainDefaultsHint = 0xD6463100, kMainAcceptHint = 0x73DCB662;
 constexpr unsigned kHintName = 0xCA3E00A0;        // our clone's name; its objects get kHintName + 0x100 + i
 constexpr unsigned kHintGuidBase = 0xCA3E2000;
 constexpr unsigned kHelpClickMsg = 0xCA3E0B01;    // what a click on our hint posts to the screen
@@ -245,7 +251,7 @@ constexpr unsigned kPadUp = 0x72619778, kPadDown = 0x911C0A4B;
 constexpr unsigned kVideoBasicMsg = 0x9CDD83CA;  // the Video screen: advanced <-> basic options (its "Basic" hint, the X key)
 constexpr unsigned kScreenTick = 0xC98356BA;    // FEMSG_SCREEN_TICK: every frame
 constexpr unsigned kExitComplete = 0xE1FDE1D1;  // FEHASH_EXITCOMPLETE: the screen finished leaving
-constexpr unsigned kDialogMessageNo = 0x34DC1BCF;
+constexpr unsigned kDialogMessageNo = 0x34DC1BCF, kDialogMessageYes = 0xD05FC3A3;
 constexpr unsigned kDialogOkText = 0x417B2601;
 constexpr int kDialogInfo = 2;                    // eDialogTitle dialog_info
 constexpr unsigned kEventSetButton = 0x1B3909AA;  // script event that moves the menu cursor
@@ -255,7 +261,7 @@ constexpr int kCategoryVideo = 1, kCategoryPlayer = 4;  // OptionsSettings::Curr
 // one) has 15, and a scroll bar with chevrons, so pages with more rows than the first holds are built on the second.
 constexpr int kPlayerSlots = 10;
 
-constexpr unsigned kPcKey1Texture = 0x68A29A8A, kPcKey2Texture = 0x68A29A8B, kPcKey4Texture = 0x68A29A8D;
+constexpr unsigned kPcKey1Texture = 0x68A29A8A, kPcKey2Texture = 0x68A29A8B, kPcKey3Texture = 0x68A29A8C, kPcKey4Texture = 0x68A29A8D;
 constexpr unsigned kCircleTexture = 0x54A68051;  // drawn as the 1 key on PC
 
 // ------------------------------------------------------------------------------------------------
@@ -696,7 +702,7 @@ void *find_parent(void *container, bool is_pkg, void *target, bool *parent_is_pk
 }
 
 bool is_key_glyph(unsigned tex) {
-    return tex == kPcKey1Texture || tex == kPcKey4Texture || tex == kCircleTexture || tex == kPcKey2Texture;
+    return tex == kPcKey1Texture || tex == kPcKey4Texture || tex == kCircleTexture || tex == kPcKey2Texture || tex == kPcKey3Texture;
 }
 
 // FEObject's copy constructor leaves a clone broken in two ways: the cached render object holds garbage (the renderer
@@ -823,6 +829,10 @@ void add_help_hint_unguarded(void *screen) {
     void *defaults = game::FEngFindGroup(pkg_name, kPcDefaultsHint);
     void *accept = game::FEngFindGroup(pkg_name, kPcAcceptHint);
     if (!defaults) {
+        defaults = game::FEngFindGroup(pkg_name, kMainDefaultsHint);
+        accept = game::FEngFindGroup(pkg_name, kMainAcceptHint);
+    }
+    if (!defaults) {
         log_line("Help hint: the PC Defaults hint group was not found in %s", pkg_name);
         return;
     }
@@ -924,7 +934,9 @@ void show_help_for_current_row(void *screen) {
     if (field<PageInfo *>(row, kRowPage) != g_page || index < 0 || index >= g_page->page->row_count) return;
     g_help_dialog_open = true;
     g_help_dialog_pending = true;
-    game::ShowOneButton(field<const char *>(screen, kScreenPackage), reinterpret_cast<const char *>(game::kInGameDialogName),
+    // The pause menu's message box layout, or the front end's (what the screen itself asks for: UIOptionsScreen::mCalledFromPauseMenu).
+    const char *dialog = field<unsigned char>(screen, kScreenFromPause) ? reinterpret_cast<const char *>(game::kInGameDialogName) : "Dialog.fng";
+    game::ShowOneButton(field<const char *>(screen, kScreenPackage), dialog,
                         kDialogInfo, kDialogOkText, kDialogMessageNo, kDialogMessageNo, g_page->row_help_hash[index]);
 }
 
@@ -990,6 +1002,8 @@ bool g_redirect_switch = false;  // the screen switch the page's exit makes goes
 using QueueSwitchHookFn = void(FASTCALL *)(void *, void *, const char *, int, unsigned, bool);
 QueueSwitchHookFn g_orig_queue_switch = nullptr;
 void FASTCALL hook_queue_switch(void *feng, void *edx, const char *pkg, int arg, unsigned msg, bool flag) {
+    if (custom_menus::resume_career::swallow_switch(pkg)) return;
+    pkg = custom_menus::resume_career::redirect_switch(pkg);
     if (g_redirect_switch && g_exit_callback) {
         void (*go)() = g_exit_callback;
         g_redirect_switch = false;
@@ -1007,6 +1021,8 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
         if (handle_window_scroll(self, msg)) return;
     }
     if (g_page) {
+        if (self == g_options_screen && (msg == kButton5Msg || msg == kDialogMessageYes))
+            log_line("%s: %s", g_page->page->id, msg == kButton5Msg ? "Defaults pressed" : "Defaults confirmed");
         if (msg == kHelpClickMsg || (msg == kButton5Msg && obj && in_hint_clone(obj))) {
             if (!g_help_dialog_open) show_help_for_current_row(self);
             return;
@@ -1110,6 +1126,7 @@ AddOptionFn g_orig_addoption;
 void FASTCALL hook_addoption(void *menu, void *edx, void *option) {
     constexpr unsigned kEaTraxIcon = 0xC52CCBF6, kCreditsIcon = 0x51009E20;
     const unsigned icon = field<unsigned>(option, 0xC);
+    custom_menus::resume_career::option_added(menu, option);
     if (g_pending_optmain && menu == g_pending_optmain && (icon == kEaTraxIcon || icon == kCreditsIcon)) {
         g_pending_optmain = nullptr;
         for (int i = 0; i < g_page_count; ++i)
@@ -1220,6 +1237,7 @@ void install_hooks() {
     g_video_hook = g_orig_setupvideo != nullptr;
     custom_menus::title_icon::install_hooks(g_log, g_ini);
     custom_menus::skip_dialogs::install_hooks(g_log, g_ini);
+    custom_menus::resume_career::install_hooks(g_log, g_ini);
 }
 
 }  // namespace

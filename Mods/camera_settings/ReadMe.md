@@ -34,7 +34,7 @@ It was my goal to integrate this mod into the original game's design as if it wa
 
 After launching the game with the mod installed, it will store camera settings in `installdir/scripts/mets_mods/nfsmw_camera_settings.ini`. This file is also what gets modified when using the in-game Camera menu. `nfsmw_camera_settings.log` writes debug data here.
 
-## Compatibility
+## Mod Compatibility
 
 - Required: Game version 1.3
 - Required: [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)

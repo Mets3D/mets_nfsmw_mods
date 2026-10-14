@@ -1,4 +1,4 @@
-// The Options menu framework's interface (nfsmw_custom_menus.asi). A mod that wants a page in Pause > Options exports
+// The Options menu framework's interface (nfsmw_custom_menus.asi). A mod that wants a page in the Options menu exports
 //
 //     extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const nfsmw::custom_menus::Host *host);
 //

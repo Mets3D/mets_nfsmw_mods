@@ -2,51 +2,54 @@
 
 *Disclaimer: The code was written by Claude (Sonnet & Opus). The custom menu icon, testing, design, and this page, were made by me, a human.*
 
-This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an ability to add their own menus in the game's pause menu easily, without conflicts, and in a way that feels like a native part of the game.
-
-## What the framework does for a page
-
-- Adds an entry with the page's icon to the Options menu, after the game's own entries (in the pause menu; with `kNewEntryEverywhere`, also in the main menu, before EA Trax and Credits).
-- Builds the screen from the game's own Options layout, so fonts, sounds, animations, mouse hover and the controller
-  all work as they do in the vanilla game's screens.
-- Left / right on a row tells the mod that owns the page (through its `change` callback) to raise or lower that value.
-  The mod decides what the stepping value of that row is. Holding **Shift** or the controller's **LB** (L1 on PlayStation pads) tells it to take a smaller step.
-- **Accept / Back** work like the game's own: Leaving the menu with "Accept" keeps changes; "Back" asks "discard changes?" if something changed
-- **Defaults**: Asks for confirmation, then resets the page.
-- **Help**: a "2 Help" hint next to the game's "1 Defaults" hint (a copy of it, so it matches). The **2** key, a click on
-  the hint, or the **X** button on an XInput controller opens a message box with the highlighted row's help text.
-- Game strings: all texts a page gives are added to the game's language table, so the game's own label, title and
-  dialog code shows them.
-- **Rows in the game's own Player options**: a page can also put its rows at the end of Options > Player (`placement = kPlayerOptions`).
-- Row kinds: a normal value row, and the game's own **Camera selector** (it switches the player's camera view; the other
-  rows are redrawn, so a camera page can show the selected view's values).
-
-- **Pages opened by a mod**: a page with `placement = kHidden` has no entry in the Options menu; the mod opens it with `open_page` from another screen (for example a button of its own on the Controls screen), and gets called when the page is left, to switch back to where it came from. The game's own question about unsaved changes and its saving of the profile still happen.
-- **Rows on the Controls screen**: a mod that owns binding entries of the game's binding table can have rows for them added to Options > Controls
-  (in both the keyboard and the controller list, anywhere between the game's own rows), through `register_controls_rows` in
-  [`common/custom_menus_api.h`](../common/custom_menus_api.h). The framework makes room in the screen, translates the rows to the
-  entries (editing, clearing and rebinding work like the game's own rows), and can rewrite the binding labels; the mod keeps
-  the entries' names, default and saved bindings, and what they do (`controls_rows.cpp`). `register_text` adds a language string,
-  or replaces the game's own text (for example to rename one of the game's rows). `add_controller_defaults` runs a callback right after the game resets the controller bindings to its defaults (the Defaults button, a profile saved with another controller), which also clears the controller slots of entries the game does not know. Registered in the same `provide` export as pages.
-
-## Other fixes
-
-- **Controls screen title icon.** Pause > Options > Controls showed the audio icon as its title icon (a base game bug:
-  its layout defaults to it and the screen never sets its own). It now shows the Controls icon. Works without any page
-  or other mod (`title_icon.cpp`).
-- **Fewer pop-ups.** Certain action confirmation dialogue boxes are removed. To bring them back, add to the .ini:
-```
-[features]
-skip_dialogs=0
-```
+This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an ability to add their own menus in the game's main menu and pause menu easily, without conflicts, and in a way that feels like a native part of the game.
 
 ## Example Mods
 - [Camera Settings](../camera_settings/ReadMe.md): Adds the Options > Camera page.
 - [Controller Support](../controller_support/ReadMe.md): Adds the Rumble page (opened from the Controls screen), and the Look and Previous Camera View rows on the Controls screen.
 
+## Features
+- Mods can add their own Options pages: an entry with the page's icon after "Controls" in the pause menu's Options (and, if the page asks for it, the main menu's Options, before EA Trax and Credits).
+- For each row, the mod must provide:
+  - A label (its own text, or one of the game's strings)
+  - A help text (shown when player presses Help button).
+  - Its kind: a value row, or the game's own Camera selector.
+- For the page, the mod decides what happens when:
+  - A value is shown (any text: degrees, percent, On/Off...)
+  - Left / Right is pressed (the mod picks the step; Shift or LB asks for a smaller one)
+  - The page is accepted, discarded or reset to defaults
+- **Accept / Back** work like the game's own: Leaving the menu with "Accept" keeps changes; "Back" asks "discard changes?" if something changed. **Defaults** asks for confirmation first.
+- **Rows in the game's own Player options**: a page can also put its rows at the end of Options > Player (`placement = kPlayerOptions`).
+- **Pages opened by a mod**: a page with `placement = kHidden` has no entry in the Options menu; the mod opens it with `open_page` from another screen (for example the Rumble Options button in the Controller Support mod).
+- **Rows on the Controls screen**: a mod can add rows for its own key and button bindings to Options > Controls, and rename the game's texts.
+
+## Other fixes
+
+- **Controls screen title icon.** Pause > Options > Controls showed the audio icon as its title icon (a base game bug). It now shows the Controls icon.
+- **Fewer pop-ups.** Certain action confirmation dialogue boxes are removed. To bring them back, add to the .ini:
+```
+[features]
+skip_dialogs=0
+```
+- **Skip Redundant Career Menu.** You can go straight from the main menu into your career, without having an in-between menu which has the same functionality as the "Alias Manager". To disable this, add to the .ini:
+```
+[features]
+resume_career=0
+```
+
+## Mod Compatibility
+
+- Required: Game version 1.3
+- Required: [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
+- Incompatible:
+  - NFS-XtendedInput due to touching `UIOptionsMain::Setup`.
+- Confirmed compatible:
+  - "DRIFT" and "Pursuit" camera modes added by [`NFSMWExtraOptions`](https://github.com/ExOptsTeam/NFSMWExOpts).
+
 ## TODO
-- The whole "Career Main Menu" is completely redundant with the "Alias Manager" menu. The main menu's "Career" entry should be replaced with "Resume Career".
-- Rumble menu is a bit broken in main menu - X for help doesn't appear, Y to reset to defaults freezes the UI.
+- Test how many entries can be in a list with a scrollbar before it shits itself?
+- Test how many options menus can be added before it shits itself?
+- Support sliders like the ones in the performance tuning or the video options? Could be useful for the rumble menu, because it'd be more visual than the percentage numbers.
 - Translation support?
 - Ability to add not just sub-menus under "Options", but also in the pause menu.
 - We now have the ability to add entries in the Player Options, but what about to the other menus? Should probably support all of them.
@@ -126,23 +129,8 @@ The `Page` and `Row` structures and the arrays they point to must stay valid for
 
 ## Limitations
 
-- **Pause menu by default.** Pages are added to Options when the game is paused in a race. The main menu's Options gets only
-  pages with `placement = kNewEntryEverywhere` (their `available` is asked there too, with no race loaded); they go before EA Trax and Credits.
-- **Fixed rows.** The row list is read once when the page registers: no rows added or removed while the screen is open.
-- **Page and row counts.** At most 8 pages and 40 rows per page (constants in `custom_menus/main.cpp`). The Options layout has 10 row slots. A page with more rows is built on the screen of Options > Video instead (15 slots, with the game's own scroll bar and clickable chevrons); beyond 15 rows it shows a scrolling window of them (up and down slide it, and wrap around from the last row to the first and back). Pages with a Camera selector row get no window. Rows added to the Player options (`kPlayerOptions`) are limited to the slots the game's own rows leave free; the rest are left out and the log says so. The Options menu's
-  icon strip has a fixed number of slots in the layout; two extra entries were tested; more may not fit, and the game
-  drops entries it has no slot for (the log says so).
-- **Defaults is replaced while a page is open.** The game's own Player-category defaults are not applied then. (A page
-  is built on the Player category's screen: that is why Accept / Back / Defaults come for free.)
-
-Ideas for later: sliders, toggles and sub-pages as row kinds; the frontend Options menu; translations; rows that
-change at run time; icons in the game's own style as a template.
-
-## Compatibility
-
-Needs only the ASI loader and `speed.exe` 1.3 (SHA-256 `0C5675A0...2067E342`; all addresses and offsets are for it). It conflicts with any mod that hooks the same Options screen functions or
-changes the same code (NFS-XtendedInput does: it jumps over code inside `UIOptionsMain::Setup`); the hooks are skipped
-when another mod changed their first bytes, and then there are no pages. See the [overview](../ReadMe.md#compatibility).
+- Rows can't be added or removed while a page is open.
+- The Options icon strip has limited slots; two extra entries were tested.
 
 ## Files and settings
 
@@ -154,16 +142,19 @@ game process, with the modules involved: useful for every mod, not only this one
 help_hint=0          ; no "2 Help" hint (the 2 key / X button still work)
 hide_dialog_icon=0   ; keep the exclamation mark in the Help message box
 texture_pack=0       ; do not load the pages' icon packs
+skip_dialogs=0       ; ask the confirmations again
+resume_career=0      ; the main menu's Career entry opens the Career main menu again
 [hooks]
-notify=0             ; skip one hook (names: optmain initialpos addoption setupplayer notify restoredefaults didnotchange
-                     ; restoreoriginals dialogbuild controlsicon), for troubleshooting
+notify=0             ; skip one hook, for troubleshooting (names: optmain initialpos addoption setupplayer setupvideo queue_switch
+                     ; notify restoredefaults didnotchange restoreoriginals dialogbuild controlsicon showdialog memcardmessage
+                     ; saveconfirm updateprofile careercrib maincareer; the Controls rows have their own, see the log)
 ```
 
 ## How it works (short)
 
 A page's screen is the game's `UIOptionsScreen` in its **Player** category, with the Player rows replaced by the page's
 (`SetupPlayer` is hooked to do that). The entry in the Options menu is an `IconOption` added right before
-`IconScroller::SetInitialPos` lays the icons out. The Help hint is a clone of the layout's Defaults hint
+`IconScroller::SetInitialPos` lays the icons out (in the main menu, right before the game adds EA Trax). The Help hint is a clone of the layout's Defaults hint
 (`FEGroup::Clone` plus fixes for what the game leaves broken in a clone), and the Help key is polled on the screen's
 per-frame tick, because the layout does not forward that key as a message. Offsets come from the PC disassembly (the decomp's
 are from console builds); findings and addresses are in [`docs/menus-and-camera.md`](../../docs/menus-and-camera.md).

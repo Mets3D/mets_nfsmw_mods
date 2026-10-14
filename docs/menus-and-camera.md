@@ -30,6 +30,18 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
 - The save screen (`UIMemcardBase`) has its own prompts: `ShowYesNo(text, prompt id)` 0x543CC0 keeps the id in the flags at 0x91CBAC (mask 0x0F000000); `HandleButtonPressed` 0x563380
   moves it to 0x91CBCC and continues `DoSaveFlow(step)` 0x544370. "Save the alias named %s?" is prompt 4 from `SetupPromptSaveConfirm` 0x543EB0; Yes = `DoSaveFlow(12)` [read].
 
+## Main menu (custom_menus `resume_career.cpp`)
+- `UIMain` (`MainMenu.fng`): `Setup` adds MainCareer (icon 0x03704F3D, name 0x5815A2B5 "Career"), Challenge, Quick Race, Customize, Alias Manager, Options with `AddOption`. `MainCareer::React` 0x51AC80 only sets a game mode
+  bit in `FEDatabase+0x12C` (0x100 career manager, 1 career if no memory card); the exit then switches to `MainMenu_Sub.fng` (`uiCareerManager`: Resume / Start New / Load Career) [read].
+- `CResumeCareer::React` 0x532650 (5 stack args, does not use `this`): joyport from param 1, `CareerSettings::ResumeCareer` 0x57F570 (sets mode career, clears career manager), then queues `IG_SafehouseMain.fng` [read].
+  CareerSettings = `*(FEDatabase+0x10) + 0xA8`; flags at +4: bit 0 `HasCareerStarted`, bit 11 `IsGameOver`. `bProfileLoaded` = FEDatabase+3. The last profile is loaded after the menu appears (`MemcardEnter` 0xF1 on INITCOMPLETE),
+  so the label is updated in `UIMain::UpdateProfileData` 0x528BC0 (also run on message 0x7E998E5E when a profile loads). `IconOption`: icon +0xC, name hash +0x2C, description +0x30.
+- Our version: `MainCareer::React` calls `CResumeCareer::React` when a career can be resumed, and the `MainMenu_Sub.fng` switch the screen's exit then makes is dropped [read; not run in the game].
+- The safe house is `uiCareerCrib` (`MainMenu_Sub.fng` in career mode; `NotificationMessage` 0x531EA0). Its Back exit (EXITCOMPLETE with the previous button BACK) sets career manager mode and switches to `MainMenu_Sub.fng` again, which builds
+  `uiCareerManager`; ours redirects that one switch to `MainMenu.fng` [read; not run in the game].
+- The main menu's Options layouts (`Options.fng`, `OptionsPCDisplay.fng`, from `FrontB.lzc`: a JDLZ stream of chunks, each 0x30210 chunk a JDLZ-compressed FNG) have one set of hints, each a group of {label string, backing image, hit-box image, key glyph}:
+  Defaults 0xD6463100, Accept 0x73DCB662, Back 0xC0A32823 (the pause layouts: 0x3FC72F9D, 0x9502D148, 0x523250E9); the Defaults glyph is `PC_KEY_3` 0x68A29A8C. `OptionsPCDisplay.fng`'s "Basic" hint is the group 0x56E65DA8 [read].
+
 ## FEng and layouts
 - Language strings: a sorted `{hash, char*}` table at `*0x91CF80` (count `*0x91CF78`); merging our entries there makes every text path work. Strings are resolved through
   `(*0x91DD08)->vtbl[0]`. Titles are upper case in `LANGUAGES/English.bin`.
@@ -43,7 +55,7 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
   Back 0x523250E9. The Defaults hint uses texture `CIRCLE` (0x54A68051), drawn as the "1" key; `PC_KEY_1..4/ENTER/ESC/M/Q/T` live in `GLOBAL/GLOBALB.BUN`. Hover is script-driven: the hit-box's
   mouse-over script restarts every frame from the 0xB30D0683 response and posts 0x696851AD (HIGHLIGHT), exit runs script 0xCCFA posting 0x1C8E4190 (UNHIGHLIGHT); both target 0xFFFFFFFC (the whole
   package, routed by the `Mt` chunks), so a cloned hint must point those events at its own label by GUID (FEScript events: count +0x24, array +0x28 of {EventID, Target, tTime}; scripts list +0x44).
-- The Help key opens `ShowOneButton` 0x5989B0.
+- The Help key opens `ShowOneButton` 0x5989B0. Its dialog layout is `InGameDialog.fng` in the pause menu and `Dialog.fng` in the main menu (`UIOptionsScreen::mCalledFromPauseMenu` is the byte at +0x124); the pause one is not loaded in the main menu, and asking for it froze the UI [tested].
 
 ## Textures and packs
 - A standalone `.tpk` loads through `LoadResourceFile(name, type, flags, callback, param, offset, size)` 0x661760 (cdecl; `LoadingFinishedFlag` at +0x30), advanced by `ServiceResourceLoading`
