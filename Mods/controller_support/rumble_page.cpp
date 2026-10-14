@@ -5,8 +5,9 @@
 namespace pad {
 namespace opt = nfsmw::custom_menus;
 // ------------------------------------------------------------------------------------------------
-// Pause > Options > Rumble: a page of nfsmw_custom_menus (which builds the screen and asks for the page when the Options
-// menu first opens). Row 0 is the game's own Vibration setting, then one row per effect with its level, 0-100. Changing
+// Rumble: a page of nfsmw_custom_menus (which builds the screen and asks for the page when the Options menu first opens),
+// reached from the Controls screen's Rumble hint (controls_rumble.cpp) for the selected controller. Row 0 is the game's own
+// Vibration setting, then one row per effect with its level, 0-100. Changing
 // a level plays a sample of the effect at the new level, through the same path the game uses.
 // ------------------------------------------------------------------------------------------------
 namespace {
@@ -26,15 +27,18 @@ bool vibration_option() { return edited_player_settings()[0x4] != 0; }
 
 int g_opened_levels[rumble::E_COUNT];  // the levels when the page opened: what was last accepted (and is in the ini)
 
+// The levels are the edited controller's (rumble::edit_slot); each XInput controller has its own.
+int percent_of(int effect) { return static_cast<int>(lroundf(rumble::level(rumble::edit_slot(), effect) * 100.0f)); }
+
 bool page_available() { return rumble::enabled(); }
 
 void page_opened() {
-    for (int e = 0; e < rumble::E_COUNT; ++e) g_opened_levels[e] = static_cast<int>(lroundf(rumble::g_level[e] * 100.0f));
+    for (int e = 0; e < rumble::E_COUNT; ++e) g_opened_levels[e] = percent_of(e);
 }
 
 unsigned page_value(int row, char *out, unsigned out_size) {
     if (row == 0) return vibration_option() ? kOnText : kOffText;
-    const int percent = static_cast<int>(lroundf(rumble::g_level[row - 1] * 100.0f));
+    const int percent = percent_of(row - 1);
     if (percent > 0) snprintf(out, out_size, "%d%%", percent);
     else snprintf(out, out_size, "Off");
     return 0;
@@ -50,30 +54,30 @@ void page_change(int row, int direction, bool fine) {
         return;
     }
     const int effect = row - 1;
-    int percent = static_cast<int>(lroundf(rumble::g_level[effect] * 100.0f)) + direction * (fine ? 1 : 5);
+    int percent = percent_of(effect) + direction * (fine ? 1 : 5);
     percent = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
-    rumble::g_level[effect] = percent / 100.0f;
+    rumble::set_level(rumble::edit_slot(), effect, percent / 100.0f);
     log_line("rumble: %s set to %d", rumble::kEffects[effect].key, percent);
     if (vibration_option() && percent > 0) rumble::play_preview(effect);
 }
 
 bool page_changed() {
     for (int e = 0; e < rumble::E_COUNT; ++e)
-        if (static_cast<int>(lroundf(rumble::g_level[e] * 100.0f)) != g_opened_levels[e]) return true;
+        if (percent_of(e) != g_opened_levels[e]) return true;
     return false;
 }
 
 void page_accept() {
-    rumble::save_levels();
+    rumble::save_levels(rumble::edit_slot());
     page_opened();
 }
 
 void page_discard() {
-    for (int e = 0; e < rumble::E_COUNT; ++e) rumble::g_level[e] = g_opened_levels[e] / 100.0f;
+    for (int e = 0; e < rumble::E_COUNT; ++e) rumble::set_level(rumble::edit_slot(), e, g_opened_levels[e] / 100.0f);
 }
 
 void page_defaults() {
-    for (int e = 0; e < rumble::E_COUNT; ++e) rumble::g_level[e] = rumble::kEffects[e].def / 100.0f;
+    for (int e = 0; e < rumble::E_COUNT; ++e) rumble::set_level(rumble::edit_slot(), e, rumble::kEffects[e].def / 100.0f);
     edited_player_settings()[0x4] = 1;
 }
 
@@ -98,6 +102,6 @@ void pad::rumble_page::provide(const nfsmw::custom_menus::Host *host) {
     g_page = {"rumble", "Rumble", "RUMBLE", "RUMBLE INFO", nfsmw::texture_hash("OPTIONS_RUMBLE"),
               kControlsIconTexture,  // the Controller icon until there is an OPTIONS_RUMBLE
               g_pack_path, 1 + rumble::E_COUNT, g_rows, page_available, page_opened, page_value,
-              page_change, page_changed, page_accept, page_discard, page_defaults};
+              page_change, page_changed, page_accept, page_discard, page_defaults, opt::kHidden};
     host->register_page(&g_page);
 }

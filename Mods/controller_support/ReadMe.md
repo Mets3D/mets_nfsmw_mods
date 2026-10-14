@@ -13,9 +13,9 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 - **Independent Triggers**: In the vanilla game, both triggers share one axis, so gas and brake on the triggers cancel each other. With this mod, you can hold gas and brake at the same time, just like you can on keyboard, causing a burnout.
 - **Dead zones**: Currently the mod comes with hard-coded deadzones to address stick drift, customization for this is a TODO.
 
-### Rumble (Options > Rumble)
+### Rumble (Options > Controls > a controller > Rumble Options)
 - Hook up various events to controller rumble, such as gear shifts, collisions, driving on grass, and more.
-- The rumble strength of each type of event can be cutomized in a new "Rumble" menu, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
+- The rumble strength of each type of event can be cutomized per controller in a "Rumble Options" menu, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
 - Supports multiple controllers when used with my [Split Screen Support](,,/split_screen_support/ReadMe.md) mod.
 
 ### Camera look
@@ -51,10 +51,9 @@ All 3rd-person car cameras can be controlled with either the mouse, or the right
 
 
 ## TODOs
-- Make a custom icon for the rumble menu - but maybe it becomes a "Controller" menu instead, since we want to add more options than just Rumble:
-  - Or maybe we should replace the Rumble toggle button in the controls screen with a button that takes us to the rumble customization menu??
-  - The "Controller Prompts" menu entry would be better if it was customizable per input device, so that when we switch from one controller to another, it might switch symbols.
-  - Add options to tweak deadzones of triggers and sticks from the menu
+- The "Controller Prompts" menu entry would be better if it was customizable per input device, so that when we switch from one controller to another, it might switch symbols.
+- Add options to tweak deadzones of triggers and sticks from the menu
+- Test per-controller rumble customization with >1 controller.
 - The widescreen fix's `ImproveGamepadSupport` also changes the title screen's "Press START" text; we did not take that over.
 - Clean up the nonsensical .ini file, remove logging code and options.
 - Add pictures and videos showcasing the mod to this ReadMe.
@@ -65,7 +64,7 @@ All 3rd-person car cameras can be controlled with either the mouse, or the right
 
 ## Settings, files
 
-In the folder `scripts/mets_mods/` (next to the `.asi` files): `nfsmw_controller_support.ini` and `nfsmw_controller_support.log`. All optional; the Options > Rumble page and the Controls menu
+In the folder `scripts/mets_mods/` (next to the `.asi` files): `nfsmw_controller_support.ini` and `nfsmw_controller_support.log`. All optional; the Rumble page and the Controls menu
 write the rumble levels and the look bindings for you.
 
 ```ini
@@ -107,6 +106,7 @@ road=40
 engine=0
 tire_blowout=80
 engine_blown=80
+[rumble_1]                ; one section per XInput controller (rumble_1 .. rumble_4), written by the Rumble Options page: the same keys as [rumble]; a missing key takes [rumble]'s
 [look_bindings]           ; written by the Controls menu: the four look rows' bindings
 ```
 
@@ -125,7 +125,8 @@ engine_blown=80
 | `button_icons.cpp` | the controller pictures in the menus' button prompts (which prompt shows which picture: `buttons/prompts.ini`, the pictures: `buttons/xbox/`, `buttons/playstation/`) |
 | `menu_buttons.cpp` | A accepts, B goes back in the menus; X, View and Menu press the hotkeys 2, 3, 4; B quits from the main menu |
 | `rumble.cpp` | rumble: the force feedback object the game talks to, the effects, the motors thread |
-| `rumble_page.cpp` | Options > Rumble, a page of nfsmw_custom_menus |
+| `rumble_page.cpp` | the Rumble page of nfsmw_custom_menus (no entry in the Options menu) |
+| `controls_rumble.cpp` | the Controls screen's Rumble hint opens that page for the selected controller, and comes back |
 
 Each part has a header and its own namespace (`pad::input`, `pad::rumble`, ...); shared helpers are in
 [`common/`](../common).

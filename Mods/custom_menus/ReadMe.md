@@ -21,6 +21,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
 - Row kinds: a normal value row, and the game's own **Camera selector** (it switches the player's camera view; the other
   rows are redrawn, so a camera page can show the selected view's values).
 
+- **Pages opened by a mod**: a page with `placement = kHidden` has no entry in the Options menu; the mod opens it with `open_page` from another screen (for example a button of its own on the Controls screen), and gets called when the page is left, to switch back to where it came from. The game's own question about unsaved changes and its saving of the profile still happen.
 - **Rows on the Controls screen**: a mod that owns binding entries of the game's binding table can have rows for them added to Options > Controls
   (in both the keyboard and the controller list, anywhere between the game's own rows), through `register_controls_rows` in
   [`common/custom_menus_api.h`](../common/custom_menus_api.h). The framework makes room in the screen, translates the rows to the
@@ -36,7 +37,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
 
 ## Example Mods
 - [Camera Settings](../camera_settings/ReadMe.md): Adds the Options > Camera page.
-- [Controller Support](../controller_support/ReadMe.md): Adds the Options > Rumble page, and the Look and Previous Camera View rows on the Controls screen.
+- [Controller Support](../controller_support/ReadMe.md): Adds the Rumble page (opened from the Controls screen), and the Look and Previous Camera View rows on the Controls screen.
 
 ## TODO
 - Added menus don't appear in the main menu, only in the pause menu.
@@ -51,12 +52,8 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
   - "Do you want to overwrite previously saved game?" (always Yes)
   - "Save complete" (OK) (When manually saving the game.)
 - Translation support?
-- Is there a limit on how many entries can be in a page?
-  - The Advanced Video menu has a scrollbar - Can we have unlimited options, and the scrollbar automatically appear when needed?
 - Ability to add not just sub-menus under "Options", but also in the pause menu.
 - We now have the ability to add entries in the Player Options, but what about to the other menus? Should probably support all of them.
-- Adding entries to the controls? Can this be an unlimited amount, since the controls UI supports a scrollbar?
-  - This code is currently in Controller Support mod. I wonder if it could be shared code? It's nice that this functionality isn't dependent on installing Custom Menus. But I suppose it's not that important.
 
 <details>
 
@@ -136,7 +133,7 @@ The `Page` and `Row` structures and the arrays they point to must stay valid for
 - **Pause menu only.** Pages are added to Options when the game is paused in a race. The frontend (main menu) Options
   screen is not touched.
 - **Fixed rows.** The row list is read once when the page registers: no rows added or removed while the screen is open.
-- **Page and row counts.** At most 8 pages and 40 rows per page (constants in `custom_menus/main.cpp`). The Options menu's
+- **Page and row counts.** At most 8 pages and 40 rows per page (constants in `custom_menus/main.cpp`). The Options layout has 10 row slots. A page with more rows is built on the screen of Options > Video instead (15 slots, with the game's own scroll bar and clickable chevrons); beyond 15 rows it shows a scrolling window of them (up and down slide it, and wrap around from the last row to the first and back). Pages with a Camera selector row get no window. Rows added to the Player options (`kPlayerOptions`) are limited to the slots the game's own rows leave free; the rest are left out and the log says so. The Options menu's
   icon strip has a fixed number of slots in the layout; two extra entries were tested; more may not fit, and the game
   drops entries it has no slot for (the log says so).
 - **Defaults is replaced while a page is open.** The game's own Player-category defaults are not applied then. (A page

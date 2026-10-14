@@ -198,6 +198,16 @@ int xinput_slot_of_joystick(int index) {
     return device ? own_slot_unlogged(device) : -1;
 }
 
+// The XInput controller (0-3) a game controller rumbles through: its own slot, or with a single XInput controller (whose slot the
+// game cannot tell) the one in use; -1 for a controller that is not XInput.
+int rumble_slot_of_joystick(int index) {
+    void *device = pad_sets::joystick_di_device(index);
+    if (!device || !is_xinput_device(device)) return -1;
+    const int slot = own_slot_unlogged(device);
+    if (slot >= 0) return slot;
+    return xinput::port >= 0 ? xinput::port : 0;
+}
+
 // All connected XInput controllers as one: any button, each stick axis and trigger from the pad pushing it furthest.
 // An empty slot is asked about again every 2 seconds at most (that is slow).
 bool read_merged(xinput::Gamepad *out) {

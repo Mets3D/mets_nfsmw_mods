@@ -17,11 +17,15 @@ struct EffectInfo {
     int def;  // 0-100
 };
 extern const EffectInfo kEffects[E_COUNT];
-extern float g_level[E_COUNT];  // 0..1
+// Each XInput controller (slot 0-3) has its own levels, 0..1.
+float level(int slot, int effect);
+void set_level(int slot, int effect, float value);
+int edit_slot();                // the controller Options > Rumble edits (and plays its previews on)
+void set_edit_slot(int slot);
 
 bool enabled();         // [rumble] enabled, and XInput can vibrate
 void load_settings();   // [rumble] from the ini
-void save_levels();     // to the ini
+void save_levels(int slot);  // one controller's, to the ini
 void play_preview(int effect);  // a sample of the effect at its level (the menu uses it)
 void pulse(int slot);  // a short rumble on one XInput controller (the Controls menu shows which one is selected)
 void start();           // the thread that talks to the controller

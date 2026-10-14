@@ -7,7 +7,7 @@
 
 namespace pad::rumble {
 
-// [rumble]: one level per effect, 0-100: how hard the motors run in an ordinary instance of the effect (a solid hit, a
+// [rumble]: one level per effect, 0-100 (per controller: see below): how hard the motors run in an ordinary instance of the effect (a solid hit, a
 // normal drift, the moment NOS kicks in; bigger ones stay at that level). The same number means the same strength for
 // every effect, and Options > Rumble plays exactly that when a level changes; 0 is off.
 // enabled is read at start-up. The levels are also edited in Options > Rumble (rumble_page.cpp), and reloaded whenever
@@ -30,9 +30,15 @@ const EffectInfo kEffects[E_COUNT] = {
     {"engine_blown", "Blown Engine",
      "Drag races: the engine blowing from overheating. Also the sabotaged car in the opening race.", 80},
 };
+// Each XInput controller (0-3) has its own levels, kept in [rumble_1] .. [rumble_4]; an effect a controller has no key for
+// takes the level of [rumble], so an ini from before this existed keeps working for all of them.
+constexpr int kSlots = 4;
 bool g_rumble_enabled = true;
-float g_level[E_COUNT];  // 0..1
+float g_levels[kSlots][E_COUNT];  // 0..1
+int g_edit_slot = 0;              // the controller Options > Rumble edits
 FILETIME g_ini_time{};
+
+void section_of(int slot, char *out, size_t n) { snprintf(out, n, "rumble_%d", slot + 1); }
 
 FILETIME ini_write_time() {
     WIN32_FILE_ATTRIBUTE_DATA a{};
@@ -42,20 +48,27 @@ FILETIME ini_write_time() {
 
 void load_rumble_levels() {
     char text[512];
-    int n = snprintf(text, sizeof(text), "rumble: enabled=%d", g_rumble_enabled);
-    for (int e = 0; e < E_COUNT; ++e) {
-        g_level[e] = clamp01(ini_float(kEffects[e].key, static_cast<float>(kEffects[e].def), "rumble") / 100.0f);
-        n += snprintf(text + n, sizeof(text) - n, " %s=%.0f", kEffects[e].key, g_level[e] * 100.0f);
+    int n = snprintf(text, sizeof(text), "rumble: enabled=%d, controller 1:", g_rumble_enabled);
+    for (int slot = 0; slot < kSlots; ++slot) {
+        char section[16];
+        section_of(slot, section, sizeof(section));
+        for (int e = 0; e < E_COUNT; ++e) {
+            const float base = ini_float(kEffects[e].key, static_cast<float>(kEffects[e].def), "rumble");
+            g_levels[slot][e] = clamp01(ini_float(kEffects[e].key, base, section) / 100.0f);
+            if (slot == 0) n += snprintf(text + n, sizeof(text) - n, " %s=%.0f", kEffects[e].key, g_levels[slot][e] * 100.0f);
+        }
     }
     g_ini_time = ini_write_time();
     log_line("%s", text);
 }
 
-void save_rumble_levels() {
+void save_rumble_levels(int slot) {
+    char section[16];
+    section_of(slot, section, sizeof(section));
     for (int e = 0; e < E_COUNT; ++e) {
         char value[16];
-        snprintf(value, sizeof(value), "%d", static_cast<int>(lroundf(g_level[e] * 100.0f)));
-        WritePrivateProfileStringA("rumble", kEffects[e].key, value, g_ini);
+        snprintf(value, sizeof(value), "%d", static_cast<int>(lroundf(g_levels[slot][e] * 100.0f)));
+        WritePrivateProfileStringA(section, kEffects[e].key, value, g_ini);
     }
     g_ini_time = ini_write_time();
     log_line("rumble: levels saved");
@@ -77,7 +90,12 @@ void load_settings() {
     load_rumble_levels();
 }
 
-void save_levels() { save_rumble_levels(); }
+int clamp_slot(int slot) { return slot >= 0 && slot < kSlots ? slot : 0; }
+float level(int slot, int effect) { return g_levels[clamp_slot(slot)][effect]; }
+void set_level(int slot, int effect, float value) { g_levels[clamp_slot(slot)][effect] = clamp01(value); }
+int edit_slot() { return g_edit_slot; }
+void set_edit_slot(int slot) { g_edit_slot = clamp_slot(slot); }
+void save_levels(int slot) { save_rumble_levels(clamp_slot(slot)); }
 
 // ------------------------------------------------------------------------------------------------
 // Rumble. The game drives force feedback through an IFeedback object that LocalPlayer::SetControllerPort takes from
@@ -228,6 +246,9 @@ int player_slot(int player) {
     return input::player_one_rumble_slot();
 }
 
+// The levels of the controller a player rumbles on (the first controller's, when none does).
+const float *levels_of(int player) { return g_levels[clamp_slot(player_slot(player))]; }
+
 DWORD WINAPI rumble_thread(void *) {
     for (;;) {
         // The times come from the other thread: read them before GetTickCount(), and compare signed, so a time set a
@@ -241,13 +262,14 @@ DWORD WINAPI rumble_thread(void *) {
             const LONG update_age = static_cast<LONG>(GetTickCount() - last_update);
             if (effect >= 0 && effect < E_COUNT) {
                 float s = 0.0f;
-                if (preview_shape(effect, (preview_age > 0 ? preview_age : 0) / 1000.0f, &s)) level = s * g_level[effect];
+                if (preview_shape(effect, (preview_age > 0 ? preview_age : 0) / 1000.0f, &s))
+                    level = s * g_levels[g_edit_slot][effect];
                 else InterlockedCompareExchange(&g_preview_effect, -1, effect);
             } else if (update_age <= 250) {
                 level = g_game_level[player];
             }
             if (InterlockedExchange(&g_stop_now[player], 0) || (effect < 0 && update_age > 250)) level = 0.0f;
-            send_level(player, level, player_slot(player));
+            send_level(player, level, effect >= 0 ? g_edit_slot : player_slot(player));  // previews play on the edited controller
         }
         Sleep(10);
     }
@@ -310,7 +332,7 @@ void clear_rumble_effects() {
 
 // A jolt (crash, landing, blowout) of an effect; severity 0..1 is how hard the hit was.
 void start_jolt(int effect, float severity) {
-    const float v = g_level[effect] * severity;
+    const float v = levels_of(g_cur)[effect] * severity;
     if (v <= rs().jolt) return;
     rs().jolt = v;
     rs().jolt_effect = effect;
@@ -326,7 +348,7 @@ void start_jolt(int effect, float severity) {
 
 // Scraping along something (strength 0..1): a grinding rumble at half the effect's level, while it lasts.
 void start_scrape(int effect, float strength) {
-    const float v = g_level[effect] * 0.5f * strength;
+    const float v = levels_of(g_cur)[effect] * 0.5f * strength;
     rs().scrape_hold = 0.08f;
     if (v <= rs().scrape) return;
     rs().scrape = v;
@@ -370,7 +392,7 @@ void update_rumble() {
         rate_start = GetTickCount();
         rate_count = 0;
     }
-    const float *level = g_level;
+    const float *level = levels_of(g_cur);
 
     // Each effect gives its level times how strong it is right now (0..1, reaching 1 in an ordinary instance of the
     // event: a normal drift, a solid hit). Effects at the same time combine like independent shakes, 1 - (1 - a)(1 - b),
@@ -724,7 +746,7 @@ void play_preview(int effect) {
     if (traced < 4 && (!g_trace_start || GetTickCount() - g_trace_start > 3000)) {
         ++traced;
         g_trace_start = GetTickCount();
-        log_debug("rumble: preview of %s at %.0f%%, tracing what is sent:", kEffects[effect].key, g_level[effect] * 100.0f);
+        log_debug("rumble: preview of %s at %.0f%%, tracing what is sent:", kEffects[effect].key, g_levels[g_edit_slot][effect] * 100.0f);
     }
     g_preview_start = GetTickCount();
     g_preview_effect = effect;

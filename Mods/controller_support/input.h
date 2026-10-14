@@ -13,6 +13,7 @@ bool only_xinput_controllers();  // every DirectInput joystick seen is an XInput
 int vehicle_source();            // the device that drives player 1's vehicle: an XInput slot, kSourceKeyboard or kDefault (all)
 int player_one_rumble_slot();    // the XInput controller player 1 rumbles on, or -1
 int xinput_slot_of_joystick(int index);  // the XInput controller a game controller reports, or -1
+int rumble_slot_of_joystick(int index);  // the XInput controller it rumbles through (the one in use when it is the only one), or -1
 bool key_down(int dik);  // a key of the real keyboard (whether or not it reaches the game)
 float binding_value(int type, int object, const xinput::Gamepad &pad);  // a controller binding, read from a controller
 // The last thing the player touched was a controller (not the keyboard or the mouse).

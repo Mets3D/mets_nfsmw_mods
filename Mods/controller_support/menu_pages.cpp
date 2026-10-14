@@ -1,6 +1,7 @@
 // What this mod adds to the Options menu, through nfsmw_custom_menus (see custom_menus_api.h): the pages and rows are
 // asked for once, the first time the Options menu opens.
 #include "bindings.h"
+#include "controls_rumble.h"
 #include "default_layout.h"
 #include "custom_menus_api.h"
 #include "prompts_option.h"
@@ -10,5 +11,6 @@ extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const nfsmw::cu
     pad::rumble_page::provide(host);      // Options > Rumble
     pad::prompts_option::provide(host);   // Options > Player > Controller Prompts
     pad::bindings::provide_controls_rows(host);  // Options > Controls: the look rows
+    pad::controls_rumble::provide(host);         // Options > Controls: the Rumble hint opens the Rumble page
     pad::default_layout::provide(host);          // the default bindings after the game resets them
 }

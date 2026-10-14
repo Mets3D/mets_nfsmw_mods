@@ -4,6 +4,7 @@
 #include "controller_api.h"
 #include "hooks.h"
 #include "input.h"
+#include "controls_rumble.h"
 #include "rumble.h"
 
 namespace pad::pad_sets {
@@ -236,9 +237,27 @@ int g_direction = 1;  // 1 next, -1 previous
 using MessageFn = void(FASTCALL *)(void *, void *, unsigned, void *, unsigned, unsigned);
 MessageFn g_orig_message;
 void FASTCALL hook_message(void *screen, void *edx, unsigned message, void *object, unsigned a, unsigned b) {
+    message = controls_rumble::filter_message(screen, message);
     if (message == 0x5073EF13) g_direction = -1;      // PAD_LTRIGGER
     else if (message == 0xD9FEEC59) g_direction = 1;  // PAD_RTRIGGER
     g_orig_message(screen, edx, message, object, a, b);
+}
+
+int menu_pad() { return g_menu_pad; }
+
+void show_device(void *screen, int new_column, int pad) {
+    select(new_column == 3 ? pad : 0);
+    g_menu_pad = new_column == 3 ? pad : 0;
+    field<int>(screen, 0xE4) = new_column;
+    reinterpret_cast<RefreshFn>(0x52AC70)(screen, nullptr);  // the rows, and the header
+    void **table = *reinterpret_cast<void ***>(static_cast<char *>(screen) + 0x2C);
+    reinterpret_cast<RefreshFn>(table[2])(static_cast<char *>(screen) + 0x2C, nullptr);
+    if (new_column == 3) {
+        const int slot = input::xinput_slot_of_joystick(pad);
+        log_line("Controls menu: controller %d of %d (XInput controller %d)", pad + 1, joystick_count(), slot + 1);
+    } else {
+        log_line("Controls menu: keyboard");
+    }
 }
 
 // The device switch: keyboard, controller 1, controller 2 ... in a circle, in the direction of the button.
@@ -247,23 +266,13 @@ void FASTCALL hook_switch_device(void *screen, void *edx) {
     int &column = field<int>(screen, 0xE4);  // 1 keyboard, 3 controller
     const int n = joystick_count();
     if (n == 0) return;
+    if (controls_rumble::on_device_switch(screen)) return;  // the Rumble hint: the page opens instead
     const int item = column == 3 ? g_menu_pad + 1 : 0;  // 0 the keyboard, 1.. the controllers
     const int next = ((item + g_direction) % (n + 1) + n + 1) % (n + 1);
     const int new_column = next == 0 ? 1 : 3, pad = next == 0 ? 0 : next - 1;
     if (new_column == column && pad == g_menu_pad) return;
-    select(new_column == 3 ? pad : 0);
-    g_menu_pad = new_column == 3 ? pad : 0;
-    column = new_column;
-    reinterpret_cast<RefreshFn>(0x52AC70)(screen, nullptr);  // the rows, and the header
-    void **table = *reinterpret_cast<void ***>(static_cast<char *>(screen) + 0x2C);
-    reinterpret_cast<RefreshFn>(table[2])(static_cast<char *>(screen) + 0x2C, nullptr);
-    if (new_column == 3) {
-        const int slot = input::xinput_slot_of_joystick(pad);
-        log_line("Controls menu: controller %d of %d (XInput controller %d)", pad + 1, n, slot + 1);
-        if (n > 1) rumble::pulse(slot);
-    } else {
-        log_line("Controls menu: keyboard");
-    }
+    show_device(screen, new_column, pad);
+    if (new_column == 3 && n > 1) rumble::pulse(input::xinput_slot_of_joystick(pad));
 }
 
 // The screen closes: controller 0's set goes back in the live table (the profile saves that one).

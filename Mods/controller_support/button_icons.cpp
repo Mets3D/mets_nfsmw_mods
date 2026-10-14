@@ -57,18 +57,25 @@ constexpr unsigned kNameHash = 0x10, kStringLabel = 0x60;
 constexpr int kString = 2;
 
 void log_new_object(void *object) {
-    static unsigned seen[2048][3];
+    // Called for every object of every package on every frame, so the lookup is a hash table (open addressing, never more than half full).
+    constexpr unsigned kSize = 8192;
+    static unsigned seen[kSize][3];
+    static bool used[kSize];
     static int seen_count = 0;
     const int type = field<int>(object, kType);
     if (type != kImage && type != kString) return;
     const unsigned name = field<unsigned>(object, kNameHash);
     const unsigned what = type == kImage ? field<unsigned>(object, kTexture) : field<unsigned>(object, kStringLabel);
-    for (int i = 0; i < seen_count; ++i)
-        if (seen[i][0] == name && seen[i][1] == static_cast<unsigned>(type) && seen[i][2] == what) return;
-    if (seen_count >= 2048) return;
-    seen[seen_count][0] = name;
-    seen[seen_count][1] = static_cast<unsigned>(type);
-    seen[seen_count][2] = what;
+    unsigned slot = (name * 2654435761u ^ what * 40503u ^ static_cast<unsigned>(type)) % kSize;
+    while (used[slot]) {
+        if (seen[slot][0] == name && seen[slot][1] == static_cast<unsigned>(type) && seen[slot][2] == what) return;
+        slot = (slot + 1) % kSize;
+    }
+    if (seen_count >= static_cast<int>(kSize / 2)) return;
+    used[slot] = true;
+    seen[slot][0] = name;
+    seen[slot][1] = static_cast<unsigned>(type);
+    seen[slot][2] = what;
     ++seen_count;
     log_line("fe %s object %08x %s %08x", type == kImage ? "image" : "string", name,
              type == kImage ? "texture" : "text", what);

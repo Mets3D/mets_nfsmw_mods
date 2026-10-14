@@ -240,6 +240,8 @@ constexpr unsigned kHelpClickMsg = 0xCA3E0B01;    // what a click on our hint po
 constexpr unsigned kButton5Msg = 0xC519BFC4;  // __PAD_BUTTON5__: the 1 key (Defaults)
 constexpr unsigned kButtonPressed = 0x0C407210;
 constexpr unsigned kPadLeft = 0x9120409E, kPadRight = 0xB5971BF1;
+constexpr unsigned kPadUp = 0x72619778, kPadDown = 0x911C0A4B;
+constexpr unsigned kVideoBasicMsg = 0x9CDD83CA;  // the Video screen: advanced <-> basic options (its "Basic" hint, the X key)
 constexpr unsigned kScreenTick = 0xC98356BA;    // FEMSG_SCREEN_TICK: every frame
 constexpr unsigned kExitComplete = 0xE1FDE1D1;  // FEHASH_EXITCOMPLETE: the screen finished leaving
 constexpr unsigned kDialogMessageNo = 0x34DC1BCF;
@@ -247,7 +249,10 @@ constexpr unsigned kDialogOkText = 0x417B2601;
 constexpr int kDialogInfo = 2;                    // eDialogTitle dialog_info
 constexpr unsigned kEventSetButton = 0x1B3909AA;  // script event that moves the menu cursor
 constexpr unsigned kScriptHighlight = 0x249DB7B7, kScriptUnhighlight = 0x7AB5521A;
-constexpr int kCategoryPlayer = 4;  // OptionsSettings::CurrentCategory
+constexpr int kCategoryVideo = 1, kCategoryPlayer = 4;  // OptionsSettings::CurrentCategory
+// The Player screen's layout (Pause_Options.fng) has 10 row slots. The Video screen's (Pause_PCDisplayOptions.fng, the PC "Advanced Video"
+// one) has 15, and a scroll bar with chevrons, so pages with more rows than the first holds are built on the second.
+constexpr int kPlayerSlots = 10;
 
 constexpr unsigned kPcKey1Texture = 0x68A29A8A, kPcKey2Texture = 0x68A29A8B, kPcKey4Texture = 0x68A29A8D;
 constexpr unsigned kCircleTexture = 0x54A68051;  // drawn as the 1 key on PC
@@ -265,13 +270,18 @@ struct PageInfo {
     unsigned row_help_hash[kMaxRows];
     unsigned icon;      // the texture shown: page->icon when the game has it, else the fallback
     bool available;     // as of the last time the Options menu opened
+    int category;       // the Options category whose screen the page is built on
 };
+bool g_video_hook = false;  // SetupVideo is hooked: pages with many rows can use the Video screen
 
 PageInfo g_pages[kMaxPages];
 int g_page_count = 0;
 std::deque<std::string> g_texts;  // the strings behind the language entries (stable addresses)
 std::vector<LangEntry> g_entries;
 bool g_discovered = false;
+opt::Host g_host;  // what the mods are given (and keep: open_page is used later)
+void open_page(const char *id, bool in_game, void (*on_exit)());
+void (*g_exit_callback)() = nullptr;  // the open page was opened by open_page: where it goes when left
 
 unsigned add_text(const char *id, const char *what, int row, const char *text) {
     char name[96];
@@ -292,6 +302,7 @@ void register_page(const opt::Page *page) {
     PageInfo &p = g_pages[g_page_count++];
     p = {};
     p.page = page;
+    p.category = page->row_count > kPlayerSlots && g_video_hook ? kCategoryVideo : kCategoryPlayer;
     p.entry_hash = add_text(page->id, "entry", -1, page->entry_text);
     p.title_hash = add_text(page->id, "title", -1, page->title);
     p.help_title_hash = add_text(page->id, "help_title", -1, page->help_title);
@@ -308,9 +319,9 @@ void register_page(const opt::Page *page) {
 void discover_pages() {
     if (g_discovered) return;
     g_discovered = true;
-    const opt::Host host = {&register_page, &custom_menus::controls_rows::add_rows, &custom_menus::controls_rows::add_text,
-                            &custom_menus::controls_rows::set_binding_label, &custom_menus::controls_rows::add_refresh,
-                            &custom_menus::controls_rows::add_controller_defaults};
+    g_host = {&register_page, &custom_menus::controls_rows::add_rows, &custom_menus::controls_rows::add_text,
+              &custom_menus::controls_rows::set_binding_label, &custom_menus::controls_rows::add_refresh,
+              &custom_menus::controls_rows::add_controller_defaults, &open_page};
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId());
     if (snapshot == INVALID_HANDLE_VALUE) {
         log_line("could not list the loaded modules");
@@ -323,7 +334,7 @@ void discover_pages() {
             reinterpret_cast<opt::ProvideFn>(reinterpret_cast<void *>(GetProcAddress(m.hModule, opt::kProvideExport)));
         if (provide) {
             log_line("pages from %s", m.szModule);
-            provide(&host);
+            provide(&g_host);
         }
     }
     CloseHandle(snapshot);
@@ -379,10 +390,39 @@ bool pad_button_down(WORD button) {
     return nfsmw::xinput::read(&pad) && (pad.buttons & button) != 0;
 }
 
+// A page with more rows than the layout has slots shows a window of them: the widgets are the slots, and slot k shows the page's row
+// g_row_offset + k (see handle_window_scroll). kRowIndex of a widget is its slot then, otherwise its row.
+bool g_windowed = false;
+int g_page_category = kCategoryPlayer;  // the category of the open page's screen
+int g_row_offset = 0;
+int g_window_rows = 0;   // the page's rows, when windowed
+int g_window_slots = 0;  // the widgets (slots) it shows them in
+
+// The screen's own scroll bar (UIWidgetMenu's FEScrollBar member at +0x54; the Video layout has the objects, at +0x40 / +0x44 of it the track and
+// the handle). The game updates it itself when it scrolls, for the widgets there are; a windowed page has more rows than widgets, so we tell it the
+// rows after each up / down: Update(rows in view, rows, first row in view, selected row), 1-based.
+const auto ScrollBarUpdate = reinterpret_cast<void(THISCALL *)(void *bar, int view, int list, int head, int selected)>(0x589870);
+const auto GetWidgetIndex = reinterpret_cast<unsigned(THISCALL *)(void *screen, void *widget)>(0x588D60);
+
+void update_scroll_bar(void *screen) {
+    if (!g_windowed) return;
+    unsigned char *bar = static_cast<unsigned char *>(screen) + 0x54;
+    if (!field<void *>(bar, 0x40) || !field<void *>(bar, 0x44)) return;  // the layout has none
+    void *top = field<void *>(screen, 0x38), *current = field<void *>(screen, 0x34);
+    const int top_index = top ? static_cast<int>(GetWidgetIndex(screen, top)) : 1;
+    const int current_index = current ? static_cast<int>(GetWidgetIndex(screen, current)) : top_index;
+    ScrollBarUpdate(bar, field<int>(screen, 0x10C), g_window_rows, g_row_offset + top_index, g_row_offset + current_index);
+}
+
+int row_of(void *widget) {
+    const int index = field<int>(widget, kRowIndex);
+    return g_windowed && field<PageInfo *>(widget, kRowPage) == g_page ? index + g_row_offset : index;
+}
+
 void THISCALL value_row_act(void *self, const char *pkg, unsigned data) {
     (void)pkg;
     if (data != kPadLeft && data != kPadRight) return;
-    const int row = field<int>(self, kRowIndex);
+    const int row = row_of(self);
     const PageInfo *page = field<PageInfo *>(self, kRowPage);
     if (!page || row < 0 || row >= page->page->row_count) return;
     if (page->page->change) page->page->change(row, data == kPadRight ? 1 : -1, (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0 || pad_button_down(nfsmw::xinput::kLeftShoulder));
@@ -393,7 +433,7 @@ void THISCALL value_row_act(void *self, const char *pkg, unsigned data) {
 }
 
 void THISCALL value_row_draw(void *self) {
-    const int row = field<int>(self, kRowIndex);
+    const int row = row_of(self);
     const PageInfo *page = field<PageInfo *>(self, kRowPage);
     if (!page || row < 0 || row >= page->page->row_count) return;
     // The label goes in as a language hash, like PODriveCam::Draw does for "Camera". FEStatWidget::Position
@@ -420,12 +460,46 @@ void init_option_vtables() {
     g_selector_vtbl[1] = reinterpret_cast<void *>(&selector_row_act);
 }
 
+// The layout's row slots: its OPTION_NAME_1 .. OPTION_NAME_n strings, which the widgets take as their title objects in order. A widget past the
+// last has none, and focusing it crashes the game. How many more rows the screen can take: the slots, less the widgets it has (UIWidgetMenu: the
+// next index to add is at +0x104).
+int layout_slots(const char *pkg) {
+    const auto FindObject = reinterpret_cast<void *(*)(const char *, unsigned)>(0x524850);  // FEngFindObject
+    int n = 0;
+    char name[32];
+    for (; n < 64; ++n) {
+        snprintf(name, sizeof(name), "OPTION_NAME_%d", n + 1);
+        if (!FindObject(pkg, nfsmw::bstring_hash(name))) break;
+    }
+    return n;
+}
+
+int free_row_slots(void *screen) {
+    const int slots = layout_slots(field<const char *>(screen, kScreenPackage)), used = field<int>(screen, 0x104) - 1;
+    return slots > used ? slots - used : 0;
+}
+
 void build_page_screen(void *screen) {
     const opt::Page &page = *g_page->page;
     g_options_screen = screen;
+    g_page_category = options_category();
     if (page.opened) page.opened();
-    game::ClearWidgets(screen);  // drop the Player rows SetupPlayer just added
-    for (int r = 0; r < page.row_count; ++r) {
+    game::ClearWidgets(screen);  // drop the rows SetupPlayer / SetupVideo just added
+    const int room = free_row_slots(screen);
+    bool has_selector = false;
+    for (int r = 0; r < page.row_count; ++r) has_selector |= page.rows[r].kind == opt::kCameraSelectorRow;
+    // More rows than slots: the slots show a window of them. Not with a Camera selector row (the game's own widget, which
+    // shows one fixed row) or the layout's Done button (the game then leaves the list at its ends).
+    g_windowed = page.row_count > room && room >= 2 && !has_selector && !field<void *>(screen, 0x4C);
+    g_row_offset = 0;
+    g_window_rows = page.row_count;
+    g_window_slots = room;
+    if (g_windowed)
+        log_line("page \"%s\": %d rows in a window of %d", page.id, page.row_count, room);
+    else if (page.row_count > room)
+        log_line("page \"%s\" has %d rows but the screen has room for %d: the rest are left out", page.id, page.row_count, room);
+    const int widgets = g_windowed ? room : (page.row_count < room ? page.row_count : room);
+    for (int r = 0; r < widgets; ++r) {
         void *w = game::Alloc(kRowSize);
         if (!w) continue;
         if (page.rows[r].kind == opt::kCameraSelectorRow) {  // the game's own Camera selector
@@ -448,6 +522,7 @@ void build_page_screen(void *screen) {
     game::RefreshWidgets(screen);
     g_hint_pending_screen = screen;  // the Help hint is cloned on the first tick, once the layout is live
     log_line("Options > %s built", page.entry_text);
+    update_scroll_bar(screen);
 }
 
 // Rows that mods add to the game's own Player options (Placement kPlayerOptions): after the game's rows, in the pages
@@ -464,7 +539,10 @@ void add_player_rows(void *screen) {
         const opt::Page &page = *info.page;
         if (page.placement != opt::kPlayerOptions || (page.available && !page.available())) continue;
         if (page.opened) page.opened();
-        for (int r = 0; r < page.row_count; ++r) {
+        const int room = free_row_slots(screen);
+        if (page.row_count > room)
+            log_line("Options > Player: \"%s\" has %d rows but the screen has room for %d: the rest are left out", page.id, page.row_count, room);
+        for (int r = 0; r < page.row_count && r < room; ++r) {
             void *w = game::Alloc(kRowSize);
             if (!w) continue;
             game::ToggleWidgetCtor(w, 1);
@@ -490,6 +568,7 @@ bool player_rows_changed() {
 MethodFn g_orig_setupplayer;
 void FASTCALL hook_setupplayer(void *self, void *edx) {
     g_orig_setupplayer(self, edx);
+    g_windowed = false;
     g_page = g_page_next;
     g_page_next = nullptr;
     ensure_language_entries();
@@ -501,12 +580,42 @@ void FASTCALL hook_setupplayer(void *self, void *edx) {
     build_page_screen(self);
 }
 
+// The Video screen with a page's rows instead of the game's (SetupVideo is what adds the video options; the screen is the one Options > Video
+// opens, so only the pages that were opened for it take it over).
+MethodFn g_orig_setupvideo;
+void FASTCALL hook_setupvideo(void *self, void *edx) {
+    g_orig_setupvideo(self, edx);
+    if (!g_page_next || options_category() != kCategoryVideo) return;
+    g_windowed = false;
+    g_page = g_page_next;
+    g_page_next = nullptr;
+    ensure_language_entries();
+    g_player_rows_open = false;
+    build_page_screen(self);
+    // The Video layout's brightness text ("Adjust your display brightness control until you can clearly see two logos...", language string
+    // 0xAFA456AC): the string 0x545570C6 in the group 0xAD6B204F, whose appear script SetupVideo plays. Hidden, and emptied in case a script shows it.
+    const char *pkg = field<const char *>(self, kScreenPackage);
+    game::FEngSetInvisiblePkg(pkg, 0xAD6B204F);
+    game::FEngSetInvisiblePkg(pkg, 0x545570C6);
+    game::FEPrintfPkg(pkg, static_cast<int>(0x545570C6), "%s", "");
+    // Its "Basic" hint (X), which switches between the advanced and the basic video options (message kVideoBasicMsg, also refused in hook_notify):
+    // the hint group 0x72958E0E and its hit-box 0x56E65DA8. Our Help hint takes its place.
+    game::FEngSetInvisiblePkg(pkg, 0x72958E0E);
+    game::FEngSetInvisiblePkg(pkg, 0x56E65DA8);
+}
+
 bool page_changed() { return g_page && g_page->page->changed && g_page->page->changed(); }
 
 // Back asks "discard changes?" only when this says something changed; the page's values count as well.
 BoolMethodFn g_orig_didnotchange;
 bool FASTCALL hook_didnotchange(void *self, void *edx) {
     const bool unchanged = g_orig_didnotchange(self, edx);
+    // On the Video screen the game applies the display settings (and asks "keep them?") when this says they changed: from Accept (0x545831) and from
+    // leaving (0x545B47). A page has none, so there it is always "unchanged"; the page's changes are accepted on leaving.
+    if (g_page && self == g_options_screen && g_page_category == kCategoryVideo) {
+        const uintptr_t caller = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
+        if (caller == 0x545831 || caller == 0x545B47) return true;
+    }
     if (g_page && self == g_options_screen && page_changed()) return false;
     if (!g_page && player_rows_changed()) return false;
     return unchanged;
@@ -516,7 +625,8 @@ bool FASTCALL hook_didnotchange(void *self, void *edx) {
 MethodFn g_orig_restoreoriginals;
 void FASTCALL hook_restoreoriginals(void *self, void *edx) {
     const bool player_rows = !g_page && player_rows_changed();
-    g_orig_restoreoriginals(self, edx);
+    // The Video screen would put its display settings back (and reset the renderer); a page has none.
+    if (!(g_page && self == g_options_screen && g_page_category == kCategoryVideo)) g_orig_restoreoriginals(self, edx);
     if (g_page && self == g_options_screen && page_changed() && g_page->page->discard) {
         g_page->page->discard();
         log_line("%s: changes discarded", g_page->page->id);
@@ -530,7 +640,7 @@ void FASTCALL hook_restoreoriginals(void *self, void *edx) {
 // Defaults was confirmed: reset the page instead of the Player settings.
 MethodFn g_orig_restoredefaults;
 void FASTCALL hook_restoredefaults(void *self, void *edx) {
-    if (g_page && options_category() == kCategoryPlayer) {
+    if (g_page && options_category() == g_page_category) {
         if (g_page->page->defaults) g_page->page->defaults();
         log_line("%s: defaults", g_page->page->id);
         game::RefreshWidgets(self);
@@ -809,7 +919,7 @@ void show_help_for_current_row(void *screen) {
     if (!row) return;
     void **vtbl = field<void **>(row, 0);
     if (vtbl != g_row_vtbl && vtbl != g_selector_vtbl) return;
-    const int index = field<int>(row, kRowIndex);
+    const int index = row_of(row);
     if (field<PageInfo *>(row, kRowPage) != g_page || index < 0 || index >= g_page->page->row_count) return;
     g_help_dialog_open = true;
     g_help_dialog_pending = true;
@@ -840,7 +950,61 @@ bool pad_x_down() { return pad_button_down(nfsmw::xinput::kButtonX); }
 // the Help key (and the controller's X button) is read on those ticks.
 using NotifyFn = void(FASTCALL *)(void *, void *, unsigned, void *, unsigned, unsigned);
 NotifyFn g_orig_notify = nullptr;
+
+// Up / down in a windowed page. In the middle of the window the game moves the focus. At its ends it would leave the list or wrap
+// around inside the few widgets there are, so the window slides instead (the focus stays on the slot, which shows the next row),
+// and only at the ends of the page does the game's own wrap-around run: after the window was put at the other end.
+// Returns true when the message was handled here.
+bool handle_window_scroll(void *screen, unsigned msg) {
+    void *current = field<void *>(screen, 0x34);  // UIWidgetMenu::pCurrentOption
+    if (!current || (field<void **>(current, 0) != g_row_vtbl)) return false;
+    const int slots = g_window_slots;
+    const int slot = field<int>(current, kRowIndex);
+    const int max_offset = g_window_rows - slots;
+    if (msg == kPadDown && slot == slots - 1) {
+        if (g_row_offset < max_offset) {
+            ++g_row_offset;
+            game::RefreshWidgets(screen);
+            update_scroll_bar(screen);
+            return true;
+        }
+        g_row_offset = 0;  // the game wraps to the first widget
+        game::RefreshWidgets(screen);
+    } else if (msg == kPadUp && slot == 0) {
+        if (g_row_offset > 0) {
+            --g_row_offset;
+            game::RefreshWidgets(screen);
+            update_scroll_bar(screen);
+            return true;
+        }
+        g_row_offset = max_offset;  // the game wraps to the last widget
+        game::RefreshWidgets(screen);
+    }
+    return false;
+}
+
+bool g_redirect_switch = false;  // the screen switch the page's exit makes goes to g_exit_callback instead
+
+// cFEng::QueuePackageSwitch: the page that was opened by a mod (open_page) leaves through the mod's callback.
+using QueueSwitchHookFn = void(FASTCALL *)(void *, void *, const char *, int, unsigned, bool);
+QueueSwitchHookFn g_orig_queue_switch = nullptr;
+void FASTCALL hook_queue_switch(void *feng, void *edx, const char *pkg, int arg, unsigned msg, bool flag) {
+    if (g_redirect_switch && g_exit_callback) {
+        void (*go)() = g_exit_callback;
+        g_redirect_switch = false;
+        g_exit_callback = nullptr;
+        log_line("page left: back to the screen that opened it instead of \"%s\"", pkg ? pkg : "?");
+        go();
+        return;
+    }
+    g_orig_queue_switch(feng, edx, pkg, arg, msg, flag);
+}
 void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsigned p1, unsigned p2) {
+    // The Video screen's switch to its basic options (its hidden "Basic" hint, the X key) does nothing on a page.
+    if (g_page && self == g_options_screen && g_page_category == kCategoryVideo && msg == kVideoBasicMsg) return;
+    if (g_page && g_windowed && self == g_options_screen && (msg == kPadUp || msg == kPadDown)) {
+        if (handle_window_scroll(self, msg)) return;
+    }
     if (g_page) {
         if (msg == kHelpClickMsg || (msg == kButton5Msg && obj && in_hint_clone(obj))) {
             if (!g_help_dialog_open) show_help_for_current_row(self);
@@ -850,6 +1014,7 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
             if (g_hint_pending_screen == self) {
                 g_hint_pending_screen = nullptr;
                 add_help_hint(self);
+                update_scroll_bar(self);
             }
             sync_hint(self);
             static bool was_down = false;
@@ -869,7 +1034,12 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
             if (page_changed() && g_page->page->accept) {
                 g_page->page->accept();
                 log_line("%s: changes applied", g_page->page->id);
+                // The game marks the profile's options as changed when it leaves (so that it is saved); on the Video screen it does not.
+                if (g_page_category == kCategoryVideo) field<unsigned char>(*reinterpret_cast<void **>(game::kFEDatabase), 4) = 1;
             }
+            // Opened by a mod: the game's own exit still runs (it marks the profile's options as changed), but the screen switch
+            // it ends in is the mod's to make (hook_queue_switch).
+            g_redirect_switch = g_exit_callback != nullptr;
         }
     }
     if (!g_page && msg == kExitComplete && g_player_rows_open && options_category() == kCategoryPlayer) {
@@ -884,6 +1054,9 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
         g_player_rows_open = false;
     }
     g_orig_notify(self, edx, msg, obj, p1, p2);
+    g_redirect_switch = false;
+    // The game's own scrolling tells the scroll bar about its widgets only (hiding it, there being no more than fit).
+    if (g_page && g_windowed && self == g_options_screen && (msg == kPadUp || msg == kPadDown)) update_scroll_bar(self);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -892,9 +1065,11 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
 void THISCALL entry_react(void *self, const char *pkg, unsigned data, void *obj, unsigned p1, unsigned p2) {
     (void)pkg; (void)obj; (void)p1; (void)p2;
     if (data != kButtonPressed) return;
-    // Exactly what OMPlayer::React does: select the Player category. UIOptionsMain then opens the Options layout.
-    options_category() = kCategoryPlayer;
-    g_page_next = field<PageInfo *>(self, kEntryPage);
+    // What OMPlayer::React does: select the category (the page's: Player, or Video for a long page). UIOptionsMain then opens its screen.
+    PageInfo *page = field<PageInfo *>(self, kEntryPage);
+    options_category() = page->category;
+    g_page_next = page;
+    g_exit_callback = nullptr;
 }
 
 void add_options_entry(void *menu, PageInfo *page) {
@@ -935,6 +1110,32 @@ void load_texture_pack(const char *path) {
         if (t == path) return;
     tried.push_back(path);
     nfsmw::load_texture_pack(path, g_log);  // optional: a mod ships one only with icons
+}
+
+// Opens a page from another screen the way UIOptionsMain does when one of its entries is pressed (its NotificationMessage's switch on
+// the category): select the category, then switch to that category's layout.
+using QueueSwitchFn = void(THISCALL *)(void *feng, const char *pkg, int arg, unsigned msg, bool flag);
+void open_page(const char *id, bool in_game, void (*on_exit)()) {
+    PageInfo *page = nullptr;
+    for (int i = 0; i < g_page_count; ++i)
+        if (strcmp(g_pages[i].page->id, id) == 0) page = &g_pages[i];
+    if (!page) {
+        log_line("open_page: no page \"%s\"", id);
+        return;
+    }
+    load_texture_pack(page->page->texture_pack);
+    page->icon = page->page->icon && game::GetTextureInfo(page->page->icon, 0, 0) ? page->page->icon : page->page->fallback_icon;
+    options_category() = page->category;
+    g_page_next = page;
+    g_exit_callback = on_exit;
+    // The pause menu's layout, unless the database says (bits 3 and 6 of its +0x12C) the screens come from the frontend.
+    const unsigned flags = field<unsigned>(*reinterpret_cast<void **>(game::kFEDatabase), 0x12C);
+    const bool pause_layout = in_game && !(flags & (1u << 3)) && !(flags & (1u << 6));
+    log_line("open_page: \"%s\" (%s layout, %s screen)", id, pause_layout ? "pause menu" : "main menu",
+             page->category == kCategoryVideo ? "Video" : "Player");
+    const char *pkg = page->category == kCategoryVideo ? (pause_layout ? "Pause_PCDisplayOptions.fng" : "OptionsPCDisplay.fng")
+                                                       : (pause_layout ? "Pause_Options.fng" : "Options.fng");
+    reinterpret_cast<QueueSwitchFn>(0x525940)(*reinterpret_cast<void **>(game::kFEng), pkg, pause_layout ? 1 : 0, 0, false);
 }
 
 MethodFn g_orig_optmain_setup;
@@ -980,6 +1181,10 @@ void install_hooks() {
          nfsmw::detour(&hook_initialpos), nfsmw::orig(&g_orig_initialpos)},
         {"setupplayer", "UIOptionsScreen::SetupPlayer", 0x529F10, {0x6A, 0xFF, 0x68, 0x80, 0xEE, 0x86, 0x00}, true,
          nfsmw::detour(&hook_setupplayer), nfsmw::orig(&g_orig_setupplayer)},
+        {"setupvideo", "UIOptionsScreen::SetupVideo", 0x5295F0, {0x6A, 0xFF, 0x64, 0xA1, 0x00, 0x00, 0x00}, false,
+         nfsmw::detour(&hook_setupvideo), nfsmw::orig(&g_orig_setupvideo)},
+        {"queue_switch", "cFEng::QueuePackageSwitch", 0x525940, {0x83, 0x3D, 0x90, 0x5E, 0x92, 0x00, 0x06}, false,
+         nfsmw::detour(&hook_queue_switch), nfsmw::orig(&g_orig_queue_switch)},
         {"notify", "UIOptionsScreen::NotificationMessage", 0x545750, {0x64, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x8B}, true,
          nfsmw::detour(&hook_notify), nfsmw::orig(&g_orig_notify)},
         {"restoredefaults", "UIOptionsScreen::RestoreDefaults", 0x51D170, {0x53, 0x55, 0x8B, 0xE9, 0x8B, 0x0D, 0x90}, true,
@@ -992,6 +1197,7 @@ void install_hooks() {
          nfsmw::detour(&hook_dialog_build), nfsmw::orig(&g_orig_dialog_build)},
     };
     nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), g_log, g_ini);
+    g_video_hook = g_orig_setupvideo != nullptr;
     custom_menus::title_icon::install_hooks(g_log, g_ini);
 }
 

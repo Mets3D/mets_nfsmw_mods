@@ -30,6 +30,8 @@ enum Placement {
     kPlayerOptions,  // the rows are added to the end of the game's own Player options (Options > Player, in the pause menu and
                      // the main menu); entry_text, title, help_title, icon, fallback_icon and texture_pack are not used, the
                      // Help button has no text for them, and the callbacks work as for a page, for those rows
+    kHidden,         // no entry in the Options menu: the page is opened by the mod, with Host::open_page (the Page's `available` is
+                     // not asked); otherwise as kNewEntry
 };
 
 struct Page {
@@ -84,6 +86,11 @@ struct Host {
     // a profile saved with another kind of controller), which also clears the controller slots (2 and 3) of entries the game
     // does not know: put the default bindings of your entries back. Any number of mods may add one.
     void (*add_controller_defaults)(void (*fn)());
+    // Opens the page `id` (any page with a screen of its own) from another screen, which the caller is leaving: it switches to the
+    // page's screen. `in_game` says which set of the game's layouts to use: true for the pause menu's, false for the main menu's.
+    // When the page is left (Back, with the game's own question about unsaved changes, or Accept), `on_exit` is called instead of the
+    // game's own way out, and has to switch to the next screen itself. Valid after the provide export returned.
+    void (*open_page)(const char *id, bool in_game, void (*on_exit)());
 };
 
 using ProvideFn = void (*)(const Host *);
