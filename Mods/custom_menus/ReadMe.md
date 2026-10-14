@@ -31,6 +31,11 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with an 
 [features]
 skip_dialogs=0
 ```
+- **Skippable movies.** Story movies and tutorials (including the ones that can't normally be skipped, like the first-time tutorials) can be skipped with Enter / A (Start). To disable this, add to the .ini:
+```
+[features]
+skip_movies=0
+```
 - **Skip Redundant Career Menu.** You can go straight from the main menu into your career, without having an in-between menu which has the same functionality as the "Alias Manager". To disable this, add to the .ini:
 ```
 [features]
@@ -141,11 +146,12 @@ help_hint=0          ; no "2 Help" hint (the 2 key / X button still work)
 hide_dialog_icon=0   ; keep the exclamation mark in the Help message box
 texture_pack=0       ; do not load the pages' icon packs
 skip_dialogs=0       ; ask the confirmations again
+skip_movies=0         ; the story movies and tutorials need their own conditions again
 resume_career=0      ; the main menu's Career entry opens the Career main menu again
 [hooks]
 notify=0             ; skip one hook, for troubleshooting (names: optmain initialpos addoption setupplayer setupvideo queue_switch
                      ; notify restoredefaults didnotchange restoreoriginals dialogbuild controlsicon showdialog memcardmessage
-                     ; saveconfirm updateprofile careercrib maincareer; the Controls rows have their own, see the log)
+                     ; saveconfirm updateprofile careercrib maincareer storymovie ingamemovie tutorial ingametutorial; the Controls rows have their own, see the log)
 ```
 
 ## How it works (short)

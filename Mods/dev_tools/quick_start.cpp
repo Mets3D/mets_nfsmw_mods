@@ -35,6 +35,7 @@ namespace {
 
 constexpr uintptr_t kBootFlowManager = 0x91CF48, kMemoryCard = 0x91CB20, kMemcardSetup = 0x91CBAC;
 constexpr unsigned kInitComplete = 0x35F8620B, kMovieFinished = 0xC3960EB9;
+constexpr uintptr_t kSkipMovies = 0x926144;
 
 using ChangeScreenFn = void(__fastcall *)(void *, void *, int);
 using NotificationFn = void(__fastcall *)(void *, void *, unsigned, void *, unsigned, unsigned);
@@ -44,6 +45,8 @@ using SetMessageFn = void(__fastcall *)(void *, void *, int, unsigned);
 using LoadFn = void(__fastcall *)(void *, void *, const char *);
 
 NotificationFn g_orig_movie_notification, g_orig_splash_notification;
+bool(__fastcall *g_orig_movie_stop)(void *, void *, void *);  // FEngMovieStopper::Callback
+bool g_boot_movies_over = false;
 MethodFn g_orig_list_done;
 bool g_splash_advanced = false;
 char g_alias[64];
@@ -68,6 +71,24 @@ void __fastcall hook_movie_notification(void *self, void *edx, unsigned msg, voi
         if (!package || !current || _stricmp(package, current) != 0) return;  // no current screen: the boot flow is over
     }
     g_orig_movie_notification(self, edx, msg, obj, param1, param2);
+    // The attract movie is the last one of the boot flow.
+    if (msg == kMovieFinished && *reinterpret_cast<unsigned char *>(kSkipMovies)) {
+        const char *package = *reinterpret_cast<const char **>(static_cast<char *>(self) + 0x10);
+        if (package && strstr(package, "AttractFMV")) g_boot_movies_over = true;
+    }
+}
+
+// The movie player a skipped movie made is destroyed when its package unloads, and the byte tells that destruction not to
+// release the real playback: so the byte stays set until then. After it, the later movies (the event types' "View Tutorial")
+// play.
+bool __fastcall hook_movie_stop(void *self, void *edx, void *object) {
+    const bool result = g_orig_movie_stop(self, edx, object);
+    unsigned char &skip = *reinterpret_cast<unsigned char *>(kSkipMovies);
+    if (g_boot_movies_over && skip) {
+        skip = 0;
+        g_log.line("skip intros: the boot movies are over, movies play again");
+    }
+    return result;
 }
 
 void __fastcall hook_splash_notification(void *self, void *edx, unsigned msg, void *obj, unsigned param1, unsigned param2) {
@@ -106,14 +127,15 @@ bool install_movie_guard() {
     const nfsmw::Hook guard[] = {
         {"moviefinished", "MovieScreen::NotificationMessage", 0x57DDA0, {0x64, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x6A}, true,
          nfsmw::detour(&hook_movie_notification), nfsmw::orig(&g_orig_movie_notification)},
+        {"moviestop", "FEngMovieStopper::Callback", 0x559820, {0x8B, 0x44, 0x24, 0x04, 0x83, 0x78, 0x18}, true,
+         nfsmw::detour(&hook_movie_stop), nfsmw::orig(&g_orig_movie_stop)},
     };
-    return nfsmw::install_hooks(guard, 1, g_log, g_ini, "skip intros").ok;
+    return nfsmw::install_hooks(guard, 2, g_log, g_ini, "skip intros").ok;
 }
 
 void skip_intros() {
-    constexpr uintptr_t kSkipMovies = 0x926144;
     *reinterpret_cast<unsigned char *>(kSkipMovies) = 1;
-    g_log.line("skip intros: movies will be skipped (byte at %#x set)", kSkipMovies);
+    g_log.line("skip intros: boot movies will be skipped (byte at %#x set)", kSkipMovies);
 }
 
 void install_auto_load() {

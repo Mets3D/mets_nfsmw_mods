@@ -28,8 +28,9 @@ found.)
 ## Quick start
 
 Sets the same flag `NFSMWExtraOptions`'s "Skip Movies" and the widescreen fix's "Skip Intro" use: a byte the game checks
-before opening any FEng movie (the EA logo, the PSA, the attract movie at startup, and any later in-game one), posting
-that movie's "finished" message right away instead of playing it. Our plugin sets it a couple of seconds after the
+before opening any FEng movie (the EA logo, the PSA, the attract movie at startup), posting
+that movie's "finished" message right away instead of playing it. It is cleared again after the attract movie, so the in-game
+movies (the event types' "View Tutorial") play. Our plugin sets it a couple of seconds after the
 game starts, so the first movie sometimes plays anyway; renaming a movie's file (the game then skips it) has no such
 race.
 

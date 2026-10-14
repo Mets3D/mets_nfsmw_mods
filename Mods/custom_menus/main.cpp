@@ -16,7 +16,7 @@
  * Files in <game>/scripts/mets_mods/: nfsmw_custom_menus.ini (settings), nfsmw_custom_menus.log, nfsmw_custom_menus_crash.log (access
  * violations anywhere in the game, with the modules involved; handy for any of our mods).
  * ini settings, all optional:
- *   [features] help_hint=0, hide_dialog_icon=0, texture_pack=0, skip_dialogs=0, resume_career=0  turn those parts off
+ *   [features] help_hint=0, hide_dialog_icon=0, texture_pack=0, skip_dialogs=0, resume_career=0, skip_movies=0  turn those parts off
  *   [hooks]    <name>=0  skips one hook (names in install_hooks)
  *
  * Offsets come from the PC disassembly; the decomp's struct offsets are from the console builds and differ.
@@ -38,6 +38,7 @@
 #include "controls_rows.h"
 #include "resume_career.h"
 #include "skip_dialogs.h"
+#include "skip_movies.h"
 #include "texture_pack.h"
 #include "title_icon.h"
 #include "xinput.h"
@@ -1357,6 +1358,7 @@ void install_hooks() {
     custom_menus::title_icon::install_hooks(g_log, g_ini);
     custom_menus::skip_dialogs::install_hooks(g_log, g_ini);
     custom_menus::resume_career::install_hooks(g_log, g_ini);
+    custom_menus::skip_movies::install_hooks(g_log, g_ini);
 }
 
 }  // namespace
