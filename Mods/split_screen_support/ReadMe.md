@@ -22,7 +22,10 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - Required: Game version 1.3
 - Required: [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
 - Required for player 2's input: [Controller Support](../controller_support/ReadMe.md).
-- Conditionally compatible: NFSMWExtraOptionsSettings: Set `ExperimentalSplitScreenFix = 0` in `.ini`. If it is on, this mod will do nothing.
+- Confirmed compatible: 
+    - WideScreenFix.
+    - My other mods.
+- Conditionally compatible: NFSMWExtraOptionsSettings: Set `ExperimentalSplitScreenFix = 0` in its `.ini`.
 
 ## Device Compatibility
 
@@ -31,6 +34,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 
 ## TODO
 - Bug: Mouse look doesn't work still.
+- Bug?: I think the camera values are based on player1's car, resulting in player2's hood view clipping into the car (player 1 with the Corvette, player 2 with the BMW)
 - Bug?: In at least a sprint (didn't test other race modes), if either player reverses from the starting line, the race will be restarted. Seems unnecessary if this is intended, since the race can be restarted from the pause menu anyways.
 - Make install instructions more detailed; Where should users copy the files? Maybe add some CI/CD.
 

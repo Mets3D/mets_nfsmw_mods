@@ -1,6 +1,7 @@
 // Installing a table of MinHook hooks, the way every mod here does it: each hook names the game function it detours,
-// with the first 7 bytes the function is expected to start with. If another mod already changed those bytes, the hook is
-// not installed (hooking over someone else's hook is how games crash). Header only.
+// with the first 7 bytes the function is expected to start with. A function that starts with a jump (E9: another mod's hook)
+// is hooked on top of it, MinHook follows the jump; any other difference means this is not the exe the offsets are for
+// (or a patch that cannot be hooked around), and the hook is not installed. Header only.
 #pragma once
 
 #include <MinHook.h>
@@ -35,7 +36,8 @@ inline HookResult install_hooks(const Hook *hooks, size_t count, Logger &log, co
                                 const char *label = "") {
     HookResult result;
     const auto intact = [](const Hook &h) {
-        return memcmp(reinterpret_cast<const void *>(h.addr), h.prologue, sizeof(h.prologue)) == 0;
+        const unsigned char *code = reinterpret_cast<const unsigned char *>(h.addr);
+        return code[0] == 0xE9 || memcmp(code, h.prologue, sizeof(h.prologue)) == 0;
     };
     for (size_t i = 0; i < count; ++i) {
         if (hooks[i].required && !intact(hooks[i])) {

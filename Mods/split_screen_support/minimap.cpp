@@ -50,6 +50,7 @@ void *first_child(void *group) { return field<void *>(group, 0x64); }
 bool is_group(void *o) { return field<int>(o, 0x18) == 5; }
 
 float &position_y(void *o) { return field<float>(field<void *>(o, 0x2C), 0x20); }
+float &position_x(void *o) { return field<float>(field<void *>(o, 0x2C), 0x1C); }
 
 void shift(void *o, float dy) {
     position_y(o) += dy;
@@ -86,8 +87,16 @@ void *g_hud1, *g_hud2;        // the FEngHud of each player
 void *g_player1, *g_player2;  // their IPlayer
 void *g_a, *g_b;              // player 1's Minimap (HUD_Player1.fng), player 2's
 void *g_clones[16];           // the objects added to it
+void *g_originals[16];        // what they are copies of
+void *g_right_split = nullptr, *g_right_main = nullptr;  // player 1's two right-hand groups (see follow_right_group)
+float g_right_split_native = 0;
 int g_clone_count = 0;
 float g_pinned_y[16];         // where each shifted clone has to stay (0 = not pinned)
+struct PinnedX {              // a clone (or a child of one) and the object it copies: it stays where that one is sideways
+    void *clone;
+    void *original;
+} g_pinned_x[64];
+int g_pinned_x_count = 0;
 unsigned long long g_features = ~0ull;
 float g_offset = 120.0f;
 
@@ -181,6 +190,8 @@ void place_marker(void *minimap) {
     field<unsigned>(marker, 0x1C) |= kDirty;
 }
 
+void follow_x(void *original, void *clone, int depth = 0);
+void find_right_groups();
 void build_second_minimap() {
     if (!g_a || !g_hud2) return;
     void *package_a = find_package("HUD_Player1.fng");
@@ -215,6 +226,7 @@ void build_second_minimap() {
             g_pinned_y[g_clone_count] = position_y(copy);
         }
         reinterpret_cast<AddObjectFn>(0x50DB90)(package_b, nullptr, copy);  // FEPackage::AddObject
+        g_originals[g_clone_count] = parts[i];
         g_clones[g_clone_count++] = copy;
     }
     // the first minimap has already read the position it had
@@ -227,16 +239,67 @@ void build_second_minimap() {
     g_features = ~0ull;
     place_marker(g_b);
     place_marker(g_a);
+    find_right_groups();
+    g_pinned_x_count = 0;
+    for (int i = 0; i < g_clone_count; ++i)
+        if (g_pinned_y[i] != 0 && g_clones[i] != field<void *>(g_b, 0x38)) follow_x(g_originals[i], g_clones[i]);
     g_log.line("minimap: player 2's minimap built from %d cloned objects", g_clone_count);
 }
 
 // A clone plays its scripts from the start, and the first thing they do is set the position they were made with: the shift is
 // lost. The map picture is not affected (the minimap sets its position every frame); the rest is put back each frame.
+void pin_x();
 void pin_clones() {
     void *layout = field<void *>(g_b, 0x38);
     for (int i = 0; i < g_clone_count; ++i) {
         void *clone = g_clones[i];
         if (g_pinned_y[i] != 0 && clone != layout && position_y(clone) != g_pinned_y[i]) shift(clone, g_pinned_y[i] - position_y(clone));
+    }
+    pin_x();
+}
+
+// The widescreen layout moves the original's objects sideways (the game's WIDESCREENMODE message, in HUD_Player1.fng, which
+// the clones do not get), and a clone's scripts put it back where it was made: the black circle of the backdrop stayed where a 4:3
+// screen has the minimap. So the shifted clones and their children follow the originals' x.
+void follow_x(void *original, void *clone, int depth) {
+    if (g_pinned_x_count >= 64) return;
+    g_pinned_x[g_pinned_x_count++] = {clone, original};
+    if (!is_group(original) || depth > 8) return;
+    void *o = first_child(original), *c = first_child(clone);
+    for (; o && c; o = next_of(o), c = next_of(c)) follow_x(o, c, depth + 1);
+}
+
+// HUD_Player1.fng has two groups for the right-hand HUD (speedometer, completion, position), 2fe4ff9c and 5d0101f1, both at x 209;
+// HUD_Player2.fng only the second. The widescreen fix moves 5d0101f1 by the widescreen offset (to 273 at 16:10), while the
+// layout's own widescreen message moves 2fe4ff9c by 120 (to 329: clipped by the screen's edge at 16:10, where the offset is 64).
+// When 5d0101f1 has been moved, 2fe4ff9c is put where it is.
+void find_right_groups() {
+    g_right_split = g_right_main = nullptr;
+    void *package = find_package("HUD_Player1.fng");
+    for (void *o = package ? field<void *>(package, 0x4C) : nullptr; o; o = next_of(o)) {
+        if (field<unsigned>(o, 0x10) == 0x2FE4FF9C) g_right_split = o;
+        if (field<unsigned>(o, 0x10) == 0x5D0101F1) g_right_main = o;
+    }
+    if (g_right_split) g_right_split_native = position_x(g_right_split);
+}
+
+void follow_right_group() {
+    if (!g_right_split || !g_right_main) return;
+    const float x = position_x(g_right_main);
+    if (x == g_right_split_native || position_x(g_right_split) == x) return;
+    position_x(g_right_split) = x;
+    field<unsigned>(g_right_split, 0x1C) |= kDirty;
+}
+
+void pin_x() {
+    follow_right_group();
+    for (int i = 0; i < g_pinned_x_count; ++i) {
+        void *clone = g_pinned_x[i].clone;
+        const float x = position_x(g_pinned_x[i].original);
+        if (position_x(clone) != x) {
+            position_x(clone) = x;
+            field<unsigned>(clone, 0x1C) |= kDirty;
+        }
     }
 }
 
@@ -245,6 +308,8 @@ void drop_second_minimap() {
     g_b = nullptr;
     remove_clones();
     g_tile_count[0] = g_tile_count[1] = 0;
+    g_pinned_x_count = 0;
+    g_right_split = g_right_main = nullptr;
 }
 
 // ---- hooks

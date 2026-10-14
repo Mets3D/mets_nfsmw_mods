@@ -16,7 +16,7 @@ per controller, camera look, rumble, button icons; namespaces are `pad::`), `spl
 (header-only: log file, `hooks.h`, language table merge, XInput, the APIs between mods). Each mod has a ReadMe for players; how to work on them is in `.claude/skills/nfsmw-modding`, what we know about the game in `docs/`.
 - Everything our mods write or ship lives in `<game>/scripts/mets_mods/` (`nfsmw::data_file()`): `.ini`, `.log`, `nfsmw_custom_menus_crash.log`, texture packs.
   Uninstall = delete the `.asi` files and that folder.
-- `common/hooks.h` `install_hooks`: checks the first 7 bytes, skips a changed function, optional `[hooks]` skip list in the mod's ini, required hooks
+- `common/hooks.h` `install_hooks`: checks the first 7 bytes (a function that starts with a jump, i.e. another mod's hook, is hooked on top of it; any other difference skips the hook), optional `[hooks]` skip list in the mod's ini, required hooks
   are all-or-nothing; log lines read "hooks installed - <group>: n of m". **Two plugins cannot hook the same function**, so code that builds a screen sits
   next to the hooks that build it (that is why the Options menu is its own mod).
 - Icons: `<mod>/OPTIONS_*.png` become `<mod>.tpk` (`Tools/tpk_build.py`).

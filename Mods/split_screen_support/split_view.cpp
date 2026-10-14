@@ -54,11 +54,28 @@ constexpr uintptr_t kView1 = 0x919650, kView2 = 0x9196C0;
 constexpr int kViewPlatInfo = 0x00, kViewActive = 0x08, kViewCamera = 0x40, kViewRenderTarget = 0x60;
 constexpr int kViewLighting = 0x5C;  // set by SetupWorldLightContext
 // What makes a view what it is for ___eDisplayFrame, as far as it is known: the matrices, the camera, the lighting.
+constexpr uintptr_t kFramePool = 0x915F84;  // eFrameMalloc: { current, end }
 constexpr int kTraded[] = {kViewPlatInfo, kViewCamera, kViewLighting};
 
 constexpr float kBandCenter = 0.55f;  // where the band is centred, as a fraction of the picture's height
 
 void (*g_orig_display_frame)();
+
+// eView::SetupPerView (0x6CF400): the widescreen fix corrects the projection's aspect for the views with id 1 and 4 only
+// (at 0x6CF4EA, which it patches), while the game treats ids 1, 2, 4 and 5 alike there. View 2 is drawn like view 1 here, so
+// it gets the id 4, which the fix and the game treat as a main view too, for the call: otherwise player 2's picture is stretched.
+// Only when somebody patched that place.
+using SetupPerViewFn = void(__fastcall *)(void *, void *, void *, unsigned, unsigned, unsigned, unsigned);
+SetupPerViewFn g_orig_setup_per_view;
+constexpr uintptr_t kAspectCompare = 0x6CF4EA;  // cmp ecx, 1 (the view's id)
+constexpr int kViewId = 0x04;
+void __fastcall hook_setup_per_view(void *self, void *edx, void *view, unsigned a, unsigned b, unsigned c, unsigned d) {
+    int &id = *reinterpret_cast<int *>(static_cast<char *>(view) + kViewId);
+    if (id != 2 || *reinterpret_cast<unsigned char *>(kAspectCompare) == 0x83) return g_orig_setup_per_view(self, edx, view, a, b, c, d);
+    id = 4;
+    g_orig_setup_per_view(self, edx, view, a, b, c, d);
+    id = 2;
+}
 IDirect3DSurface9 *g_canvas = nullptr;
 D3DSURFACE_DESC g_canvas_desc = {};
 bool g_failed = false;     // a copy failed: no more splitting this session
@@ -276,7 +293,12 @@ void split_frame(IDirect3DDevice9 *device) {
     const RECT top = {0, 0, w, half}, bottom = {0, half, w, 2 * half};
 
     make_shadow_copies();
+    // The game's per-frame memory (matrices of the flares and headlights, ...): the frame is drawn twice, and the pool is
+    // sized for one drawing: the second pass reuses what the first one took, which is dead once its picture is drawn.
+    unsigned *pool = reinterpret_cast<unsigned *>(kFramePool);
+    const unsigned pool_start = pool[0];
     g_orig_display_frame();  // player 1
+    pool[0] = pool_start;
     bool ok = copy(device, back_buffer, source, g_canvas, top, "player 1");
     clear_screen(device, back_buffer);
     trade_views();
@@ -314,8 +336,10 @@ void install() {
     const nfsmw::Hook hooks[] = {
         {"displayframe", "___eDisplayFrame", 0x6DE300, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x81}, false,
          nfsmw::detour(&hook_display_frame), nfsmw::orig(&g_orig_display_frame)},
+        {"setupperview", "eView::SetupPerView", 0x6CF400, {0x83, 0xEC, 0x0C, 0x53, 0x55, 0x56, 0x57}, false,
+         nfsmw::detour(&hook_setup_per_view), nfsmw::orig(&g_orig_setup_per_view)},
     };
-    nfsmw::install_hooks(hooks, 1, g_log, g_ini, "split view");
+    nfsmw::install_hooks(hooks, 2, g_log, g_ini, "split view");
 }
 
 }  // namespace split_screen_support::split_view
