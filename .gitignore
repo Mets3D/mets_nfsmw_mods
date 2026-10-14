@@ -9,9 +9,7 @@
 # Reference clones, not needed to build (URLs are in docs/project.md)
 /Tools/nfsmw-2005-re/
 /Tools/nfsmw-decomp/
-/Tools/nfs-xtendedinput/
-/Tools/widescreenfixespack/
-/Tools/nfsmw-extra-options/
+/Tools/OtherMods/
 
 __pycache__/
 /Tools/re/pylib/

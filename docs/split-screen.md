@@ -9,7 +9,7 @@ Input for player 2: see [input-system.md](input-system.md) (extra device). Marks
   ctor 0x586FA0 (texture, name, description)) whose vtable is Custom Race's (0x8B7590: deleting dtor, React) with React replaced (message 0x0C407210 pressed: QRMode = 2) [tested].
 - **FEDatabase** (pointer 0x91CF90): byte 0 player count, `+0x0C/+0x0D` joystick port of players 1/2, `+0x12C` bit 2 = Quick Race. `IsSplitScreenMode` 0x469120 = bit 2 and count 2.
   `Sim::Init` 0x6FC3A0 (from `BeginWorldLoad` 0x662950) gets user mode 1 for split screen (`Game_IsSplitScreen` 0x605630 reads `[0x988E04]`).
-- The three fixes (the same ones NFSMWExtraOptions' `ExperimentalSplitScreenFix` makes; GPL source in `Tools/nfsmw-extra-options`, nothing copied): `0x7A3F68` 0x0C to 0x0D (the Press Start
+- The three fixes (the same ones NFSMWExtraOptions' `ExperimentalSplitScreenFix` makes; GPL source in `Tools/OtherMods/nfsmw-extra-options`, nothing copied): `0x7A3F68` 0x0C to 0x0D (the Press Start
   screen compares the pressed port with `[db+0x0C]`; player 2 may press Start with player 1's device), `0x666EB3` 75 to EB (`TrackLoader::LoadHandler` takes the normal loading screen: the split
   one crashes), `0x6CFC03` NOP (`MaybeChangeViewMode` 0x6CFAD0 only knows modes 0-2; mode 0 switches every view off: the black screen). Ours: byte patches plus a stub for the view mode
   (`common/patch.h`), each with an ini switch, backing off when ExtraOptions' fix is on.

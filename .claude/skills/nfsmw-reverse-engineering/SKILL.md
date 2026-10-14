@@ -7,7 +7,7 @@ description: How to read and document the code of speed.exe 1.3 (NFS Most Wanted
 
 ## Start from what exists
 - `docs/` pages (by subject) and `Tools/re/names.json` (our function names) before disassembling. The decomp (`Tools/nfsmw-decomp`, `symbols.json`) gives ~46k names and addresses but no readable bodies for most functions.
-- The 2005 SDK (`Tools/nfsmw-2005-sdk`) has headers; NFSMWExtraOptions and the widescreen fix sources (`Tools/nfsmw-extra-options`, `Tools/widescreenfixespack`) show how others hooked the game (reference, GPL: do not copy).
+- The 2005 SDK (`Tools/nfsmw-2005-sdk`) has headers; NFSMWExtraOptions and the widescreen fix sources (`Tools/OtherMods/nfsmw-extra-options`, `Tools/OtherMods/widescreenfixespack`) show how others hooked the game (reference, GPL: do not copy).
 
 ## Tools (`Tools/re/re.py`, run with `python -I`; capstone in `Tools/re/pylib`)
 - `re.py dis <exe> <addr> <bytes>` listing with names on calls / jumps; `re.py xref <exe> <addr>` who calls an address; `re.py name <addr>` function containing an address; `re.py unnamed` unnamed functions mentioned in docs.

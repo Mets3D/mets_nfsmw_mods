@@ -51,7 +51,13 @@ loader fails with "Error 126" (missing `libgcc_s_dw2-1.dll`).
 
 ## Reference clones (`Tools/`, ignored except the SDK submodule)
 `nfsmw-2005-sdk` (submodule: headers the mods build against), `nfsmw-2005-re` (article repo with `tools/nfsmw-tool`), `nfsmw-decomp`
-(https://github.com/dbalatoni13/nfsmw: `config/SPEED_EXE_1_3/symbols.json` = ~46k PC function names and addresses), `nfsmw-extra-options` (source of
-NFSMWExtraOptions, GPL-3.0; reference only), `widescreenfixespack` (source of the widescreen fix, e.g. `Controller.ixx`), `nfs-xtendedinput` (not used).
+(https://github.com/dbalatoni13/nfsmw: `config/SPEED_EXE_1_3/symbols.json` = ~46k PC function names and addresses).
+`Tools/OtherMods/` (ignored) holds the sources of other people's mods: `nfsmw-extra-options` (NFSMWExtraOptions, GPL-3.0; reference only),
+`widescreenfixespack` (the widescreen fix, MIT, e.g. `Controller.ixx`), `nfs-xtendedinput` (not used), `nfsmw-xenon-effects-xan1242` (https://github.com/xan1242/NFSMW_XenonEffects,
+the original XenonEffects, MIT; ~20 functions of MSVC inline assembly; its `includes/injector` and `includes/mINI` submodule are used for the fork) and `nfsmw-xenon-effects-torufox`
+(https://github.com/TorutheRedFox/NFSMW_XenonEffects, a C++ rewrite using EASTL, newer and with more options; the one we build). `eastl` (pinned to 3.18.00), `eabase`, `eaassert` are its dependencies.
+`Tools/build_xenon_effects.sh` builds the fork on Linux (its project file expects NuGet packages that are not in the repo): three functions are MSVC inline assembly, which GCC cannot compile,
+so clang (target i686 MinGW, `-fms-extensions -fasm-blocks`) compiles copies of the sources without the BOM, non-ASCII comment characters and `ds:` prefixes, and MinGW's g++ links it.
+Output `Tools/OtherMods/build/NFSMW_XenonEffects.asi` (needs the RELOADED 1.3 exe, MD5 c0516b48...; SomeMods has it) [built, untested in game].
 Scripts: `re/re.py` (listing with names, cross references, `names.json` overlay), `tpk_list.py` / `tpk_export.py` / `tpk_build.py` (texture packs;
 `Exports/fe_textures/` is a gallery from the export), `attrib_hash.py`, `button_pack.py`, older `xref.py` / `xcalls.py` / `compare_names.py` / `check_addrs.py`.
