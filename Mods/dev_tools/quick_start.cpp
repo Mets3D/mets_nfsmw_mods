@@ -66,7 +66,7 @@ void __fastcall hook_movie_notification(void *self, void *edx, unsigned msg, voi
     if (msg == kMovieFinished) {
         const char *package = *reinterpret_cast<const char **>(static_cast<char *>(self) + 0x10);
         const char *current = current_screen();
-        if (package && current && _stricmp(package, current) != 0) return;
+        if (!package || !current || _stricmp(package, current) != 0) return;  // no current screen: the boot flow is over
     }
     g_orig_movie_notification(self, edx, msg, obj, param1, param2);
 }
@@ -101,15 +101,17 @@ void __fastcall hook_list_done(void *self, void *edx) {
     g_orig_list_done(self, edx);
 }
 
-void install_skip_intros() {
+// Also when another mod skips the movies (the widescreen fix's SkipIntro): its late messages reach a boot flow that is over
+// (*0x91CF48 null) and crash ChangeToNextBootFlowScreen, more so once the auto load has moved on quickly.
+bool install_movie_guard() {
     const nfsmw::Hook guard[] = {
         {"moviefinished", "MovieScreen::NotificationMessage", 0x57DDA0, {0x64, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x6A}, true,
          nfsmw::detour(&hook_movie_notification), nfsmw::orig(&g_orig_movie_notification)},
     };
-    if (!nfsmw::install_hooks(guard, 1, g_log, g_ini, "skip intros").ok) {
-        g_log.line("skip intros: movies are not skipped (their guard could not be installed)");
-        return;
-    }
+    return nfsmw::install_hooks(guard, 1, g_log, g_ini, "skip intros").ok;
+}
+
+void skip_intros() {
     constexpr uintptr_t kSkipMovies = 0x926144;
     *reinterpret_cast<unsigned char *>(kSkipMovies) = 1;
     g_log.line("skip intros: movies will be skipped (byte at %#x set)", kSkipMovies);
@@ -134,7 +136,11 @@ void install_auto_load() {
 }  // namespace
 
 void install() {
-    if (ini_flag("quick_start", "skip_intros")) install_skip_intros();
+    const bool guarded = install_movie_guard();
+    if (ini_flag("quick_start", "skip_intros")) {
+        if (guarded) skip_intros();
+        else g_log.line("skip intros: movies are not skipped (their guard could not be installed)");
+    }
     install_auto_load();
 }
 
