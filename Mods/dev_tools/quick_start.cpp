@@ -26,6 +26,8 @@
  */
 #include "quick_start.h"
 
+#include <shlobj.h>
+
 #include "dev_tools.h"
 #include "hooks.h"
 
@@ -52,9 +54,10 @@ bool g_splash_advanced = false;
 char g_alias[64];
 
 bool save_exists(const char *alias) {
-    char home[MAX_PATH], path[MAX_PATH];
-    if (!GetEnvironmentVariableA("USERPROFILE", home, sizeof(home))) return false;
-    snprintf(path, sizeof(path), "%s\\Documents\\NFS Most Wanted\\%s\\%s", home, alias, alias);
+    // Where the game looks: its "My Documents", which the widescreen fix can move into the game folder (SHGetFolderPathA hook)
+    char documents[MAX_PATH], path[MAX_PATH];
+    if (FAILED(SHGetFolderPathA(nullptr, CSIDL_PERSONAL, nullptr, SHGFP_TYPE_CURRENT, documents))) return false;
+    snprintf(path, sizeof(path), "%s\\NFS Most Wanted\\%s\\%s", documents, alias, alias);
     return GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES;
 }
 

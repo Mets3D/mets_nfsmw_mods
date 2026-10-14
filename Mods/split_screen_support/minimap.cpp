@@ -16,6 +16,8 @@
 
 #include <cstring>
 
+#include <d3d9.h>
+
 #include "events.h"
 #include "hooks.h"
 #include "split_screen_support.h"
@@ -89,6 +91,7 @@ void *g_a, *g_b;              // player 1's Minimap (HUD_Player1.fng), player 2'
 void *g_clones[16];           // the objects added to it
 void *g_originals[16];        // what they are copies of
 void *g_right_split = nullptr, *g_right_main = nullptr;  // player 1's two right-hand groups (see follow_right_group)
+void *g_left = nullptr;                                  // player 1's left-hand group of the layout (1603009e)
 float g_right_split_native = 0;
 int g_clone_count = 0;
 float g_pinned_y[16];         // where each shifted clone has to stay (0 = not pinned)
@@ -97,8 +100,12 @@ struct PinnedX {              // a clone (or a child of one) and the object it c
     void *original;
 } g_pinned_x[64];
 int g_pinned_x_count = 0;
+int g_hud_frames = 0;       // updates of the second HUD so far (restore_layout records the layout after kSettleFrames)
+constexpr int kSettleFrames = 120;
 unsigned long long g_features = ~0ull;
 float g_offset = 120.0f;
+
+constexpr unsigned kMapChildren[5] = {60, 64, 68, 72, 144};  // the Minimap's objects the widescreen fix moves, besides its own x (+184)
 
 // The tiles each minimap wants (the streamer keeps what the last call asked for).
 void *g_setup_for;
@@ -114,6 +121,10 @@ void (__fastcall *g_orig_setup)(void *, void *, void *);
 void (__fastcall *g_orig_tiles)(void *, void *, short *, int);
 void (__fastcall *g_orig_widescreen)(void *, void *, bool);
 void (__fastcall *g_orig_other_marker)(void *, void *);
+
+void settle_layout();
+void restore_layout();
+void forget_layout();
 
 // ---- cloning
 bool in_set(void *object, void *set_head) {
@@ -274,11 +285,12 @@ void follow_x(void *original, void *clone, int depth) {
 // layout's own widescreen message moves 2fe4ff9c by 120 (to 329: clipped by the screen's edge at 16:10, where the offset is 64).
 // When 5d0101f1 has been moved, 2fe4ff9c is put where it is.
 void find_right_groups() {
-    g_right_split = g_right_main = nullptr;
+    g_right_split = g_right_main = g_left = nullptr;
     void *package = find_package("HUD_Player1.fng");
     for (void *o = package ? field<void *>(package, 0x4C) : nullptr; o; o = next_of(o)) {
         if (field<unsigned>(o, 0x10) == 0x2FE4FF9C) g_right_split = o;
         if (field<unsigned>(o, 0x10) == 0x5D0101F1) g_right_main = o;
+        if (field<unsigned>(o, 0x10) == 0x1603009E) g_left = o;
     }
     if (g_right_split) g_right_split_native = position_x(g_right_split);
 }
@@ -309,7 +321,9 @@ void drop_second_minimap() {
     remove_clones();
     g_tile_count[0] = g_tile_count[1] = 0;
     g_pinned_x_count = 0;
-    g_right_split = g_right_main = nullptr;
+    g_right_split = g_right_main = g_left = nullptr;
+    forget_layout();
+    g_hud_frames = 0;
 }
 
 // ---- hooks
@@ -340,7 +354,9 @@ void __fastcall hook_hud_dtor(void *self, void *edx) {
 
 void *__fastcall hook_minimap(void *self, void *edx, const char *package, int number) {
     void *result = g_orig_minimap(self, edx, package, number);
-    if (package && strcmp(package, "HUD_Player1.fng") == 0) g_a = result;
+    if (package && strcmp(package, "HUD_Player1.fng") == 0) {
+        g_a = result;
+    }
     return result;
 }
 
@@ -359,7 +375,9 @@ void update_visibility() {
 void __fastcall hook_hud_update(void *self, void *edx, void *player, float dt) {
     g_orig_hud_update(self, edx, player, dt);
     if (self != g_hud2 || !g_b) return;
+    if (g_hud_frames >= kSettleFrames) restore_layout();
     pin_clones();
+    if (++g_hud_frames == kSettleFrames) settle_layout();
     const bool visible = reinterpret_cast<VisibleFn>(0x564A00)(g_b, nullptr);
     if (g_features != 0 && visible) reinterpret_cast<UpdateFn>(0x59DB50)(g_b, nullptr, player);
 }
@@ -414,9 +432,89 @@ void __fastcall hook_tiles(void *self, void *edx, short *tiles, int count) {
     g_orig_tiles(self, edx, both, n);
 }
 
+float *child_x(void *map, int i) {
+    void *child = field<void *>(map, kMapChildren[i]);
+    void *data = child ? field<void *>(child, 44) : nullptr;
+    return data ? &field<float>(data, 28) : nullptr;
+}
+
+// The widescreen layout is applied to the first minimap (the game's own call, and the widescreen fix's); the second one gets the same.
 void __fastcall hook_widescreen(void *self, void *edx, bool outwards) {
     g_orig_widescreen(self, edx, outwards);
     if (self == g_a && g_b) g_orig_widescreen(g_b, edx, outwards);
+}
+
+// The widescreen fix moves the HUD's left and right sides by an offset, and when the video settings are applied it works the offset
+// out again, from a size the game is not drawing at (the window's, not the game's: 16:9 for a 16:10 picture), and moves what it
+// knows (player 1's groups, its minimap) a second time. So once the layout has settled, the x of what it moves is recorded, and
+// whenever it changes it is put back, unless the size the game really draws at has changed: then the layout settles again.
+struct Tracked {
+    float *value;
+    void *object;  // to mark dirty; null for a member of the Minimap
+    float settled;
+};
+Tracked g_tracked[64];
+int g_tracked_count = 0;
+unsigned g_settled_width = 0, g_settled_height = 0;
+bool g_put_back_last = false;
+
+void track(float *value, void *object) {
+    if (value && g_tracked_count < 64) g_tracked[g_tracked_count++] = {value, object, *value};
+}
+
+void forget_layout() { g_tracked_count = 0; }
+
+bool screen_size(unsigned &width, unsigned &height) {
+    auto *device = *reinterpret_cast<IDirect3DDevice9 **>(0x982BDC);
+    IDirect3DSurface9 *back = nullptr;
+    if (!device || FAILED(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &back)) || !back) return false;
+    D3DSURFACE_DESC desc;
+    back->GetDesc(&desc);
+    back->Release();
+    width = desc.Width;
+    height = desc.Height;
+    return true;
+}
+
+void settle_layout() {
+    if (!g_right_main || !g_a || !g_b) return;
+    g_tracked_count = 0;
+    screen_size(g_settled_width, g_settled_height);
+    for (void *map : {g_a, g_b}) {
+        track(&field<float>(map, 184), nullptr);
+        for (int i = 0; i < 5; ++i) {
+            void *child = field<void *>(map, kMapChildren[i]);
+            track(child ? child_x(map, i) : nullptr, child);
+        }
+    }
+    track(&position_x(g_right_main), g_right_main);
+    if (g_left) track(&position_x(g_left), g_left);
+    // the objects the second minimap copies (backdrop, ring, map picture): the layout's scripts move them too
+    for (int i = 0; i < g_pinned_x_count; ++i) track(&position_x(g_pinned_x[i].original), g_pinned_x[i].original);
+}
+
+bool screen_changed() {
+    unsigned width = 0, height = 0;
+    return screen_size(width, height) && (width != g_settled_width || height != g_settled_height);
+}
+
+void restore_layout() {
+    int put_back = 0;
+    for (int i = 0; i < g_tracked_count; ++i) {
+        Tracked &t = g_tracked[i];
+        if (*t.value == t.settled) continue;
+        if (!put_back && screen_changed()) {  // a real change of the picture: this is the new layout
+            g_log.line("hud: the screen size changed, the layout settles again");
+            g_hud_frames = 0;
+            forget_layout();
+            return;
+        }
+        *t.value = t.settled;
+        if (t.object) field<unsigned>(t.object, 0x1C) |= kDirty;
+        ++put_back;
+    }
+    if (put_back && !g_put_back_last) g_log.line("hud: %d positions had been moved by another mod's layout; put back", put_back);
+    g_put_back_last = put_back != 0;
 }
 
 }  // namespace

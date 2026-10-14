@@ -3,6 +3,7 @@
 #include "binding_table.h"
 #include "controller_api.h"
 #include "hooks.h"
+#include "patch.h"
 
 namespace camera_settings::previous_camera {
 
@@ -90,30 +91,54 @@ R vcall(void *obj, unsigned offset) {
     return reinterpret_cast<R(FASTCALL *)(void *, void *)>((*reinterpret_cast<void ***>(obj))[offset / 4])(obj, nullptr);
 }
 
-// What the device at `port` says for our entry now (0..1); 0 for anything that is not a GameDevice.
-float device_value(int port) {
+bool g_was_down[kMaxPorts], g_was_next[kMaxPorts];
+
+// What the device at `port` says for an entry now (0..1); 0 for anything that is not a GameDevice.
+float entry_value(int port, int entry) {
     const int count = field<int>(reinterpret_cast<void *>(kIOModule), 4);
     if (port < 0 || port >= count || port >= kMaxPorts) return 0.0f;
     void *device = field<void *>(reinterpret_cast<void *>(kIOModule), 8 + port * 4);
     if (!device || field<uintptr_t>(device, 0) != kGameDeviceVtable) return 0.0f;
     const float *current = field<float *>(device, 0x20);
-    return current ? current[kEntry] : 0.0f;
+    return current ? current[entry] : 0.0f;
 }
 
-bool g_was_down[kMaxPorts];
+// The game's scroll asks IsPlayerCameraSelectable (0x599A50) in both directions and goes on to the next camera when it says no,
+// so only the four console cameras can be reached. NFSMWExtraOptions' EnableHiddenCameraModes removes the check going forward
+// (0x5A38AA, je -> nop) but not backward (0x5A390D), where Previous Camera View would still skip the others. When the forward
+// check is gone the backward one goes too (looked at on the first press: the other mod may load later than we do).
+void match_forward_scroll() {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    const unsigned char forward[2] = {0x90, 0x90}, backward_check[2] = {0x74, 0xB1}, nop[2] = {0x90, 0x90};
+    if (memcmp(reinterpret_cast<void *>(0x5A38AA), forward, 2) != 0) return;
+    g_log->line("previous camera: %s", nfsmw::patch_bytes(0x5A390D, backward_check, nop, 2)
+                                           ? "another mod lets Next reach every camera view, so Previous does too"
+                                           : "another mod lets Next reach every camera view, but the check going backward was changed: left alone");
+}
 
 void FASTCALL hook_fetch(void *self, void *edx) {
-    g_orig_fetch(self, edx);
-    ensure_live();
-    if (!g_live_ready) return;
     void *owner = *reinterpret_cast<void **>(static_cast<char *>(self) - 0x40);
     void *player = owner ? vcall<void *>(owner, 0x20) : nullptr;
     void *settings = player ? vcall<void *>(player, 0x14) : nullptr;
-    if (!settings) return;
+    const int before = settings ? field<int>(settings, 0xC) : -1;
+    g_orig_fetch(self, edx);
+    ensure_live();
+    if (!settings || !g_live_ready) return;
     const int port = vcall<int>(player, 0x34);
     if (port < 0 || port >= kMaxPorts) return;
-    const bool down = device_value(port) > 0.5f;
-    if (down && !g_was_down[port]) ScrollDriveCam(settings, nullptr, -1);
+    match_forward_scroll();
+    // The game's own scroll (Next Camera View) ran inside the call above: log what a press of it did.
+    const bool next = entry_value(port, kChangeCameraRow) > 0.5f;
+    const int after = field<int>(settings, 0xC);
+    if (next && !g_was_next[port]) g_log->line("camera view: Next Camera View pressed, view %d -> %d", before, after);
+    g_was_next[port] = next;
+    const bool down = entry_value(port, kEntry) > 0.5f;
+    if (down && !g_was_down[port]) {
+        ScrollDriveCam(settings, nullptr, -1);
+        g_log->line("camera view: Previous Camera View pressed, view %d -> %d", after, field<int>(settings, 0xC));
+    }
     g_was_down[port] = down;
 }
 

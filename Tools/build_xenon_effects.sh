@@ -46,6 +46,9 @@ objects=()
 for f in "$src"/XenonEffects/src/dllmain.cpp "$src"/XenonEffects/src/xSpark.cpp "$src"/XenonEffects/src/*/*.cpp; do
     copy="$work/$(basename "$f")"
     LC_ALL=C sed -E '1s/^\xEF\xBB\xBF//; s/[\x80-\xff]/_/g; s/(^|[ \t,\[])ds ?: ?/\1/g' "$f" > "$copy"
+    # NGParticle has a 16-byte aligned member, so clang copies it with movaps; the array comes from calloc (8-byte aligned here):
+    # an unaligned movaps is a general protection fault (reported as an access violation at 0xffffffff).
+    sed -i 's/(NGParticle\*)calloc(MAX_NGPARTICLES, sizeof(NGParticle))/(NGParticle*)memset(_aligned_malloc(MAX_NGPARTICLES * sizeof(NGParticle), 16), 0, MAX_NGPARTICLES * sizeof(NGParticle))/' "$copy"
     clang++ "${flags[@]}" -I"$(dirname "$f")" -c "$copy" -o "$work/o/$(basename "$f" .cpp).o"
     objects+=("$work/o/$(basename "$f" .cpp).o")
 done
@@ -56,5 +59,6 @@ done
 
 i686-w64-mingw32-g++ -shared -static -static-libgcc -static-libstdc++ -Wl,--kill-at -o "$out/NFSMW_XenonEffects.asi" "${objects[@]}" \
     -ld3d9 -ld3dx9_43 2>&1 | grep -v "drectve" || true
+cp "$out/NFSMW_XenonEffects.asi" "$out/NFSMW_XenonEffects.asi.debug"   # with symbols, to name a crash address (objdump -d / nm)
 i686-w64-mingw32-strip -s "$out/NFSMW_XenonEffects.asi"
 echo "built $out/NFSMW_XenonEffects.asi"

@@ -38,6 +38,7 @@ race.
 that name exists, the splash screen ("click to continue") moves on by itself once it has loaded, and that save is
 loaded straight away, even when there are several (no list to pick from); you land on its "Load complete" message.
 Empty, or a name with no save: the game starts as usual.
+The save is looked for where the game looks, so a widescreen fix that keeps user files in the game folder (`CustomUserFilesDirectoryInGameDir`) is followed.
 
 ## Ideas / TODOs
 - A replay system, so we can spectate each other?
