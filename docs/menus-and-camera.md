@@ -26,7 +26,7 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
 - **Slider rows** [tested]: Audio's volumes are `FESliderWidget`s (ctor 0x589540, vtable 0x8A1490 = the toggle's 15 slots + [15] `SetInitialValues`; a `cSlider` at +0x5C, `fVertOffset` +0x98), added with `UIWidgetMenu::AddSliderOption` 0x588860,
   which looks the bar up in the layout as `BASE_SLIDER_n` / `FILLBAR_SLIDER_n` (n = the row's index; also `HANDLE_`, `LEFT_CAP_`, `RIGHT_CAP_`, `VALUE_`, which the Player / Video layouts lack, and the game copes) and calls `SetInitialValues`.
   All four Options layouts (`Options.fng`, `OptionsPCDisplay.fng`, `Pause_Options.fng`, `Pause_PCDisplayOptions.fng`) have the bars for every slot, so a page can mix toggle and slider rows. `SetSliderValues` 0x50E660 (min, max, inc, cur; bar range 160 px), `SetValue` 0x50E6A0, `DrawSlider` 0x50E6B0.
-  Our slider rows replace Act (the shared `value_row_act`), Draw and `SetInitialValues`; a windowed page keeps value rows, since its widgets change which row they show.
+  Our slider rows replace Act (the shared `value_row_act`), Draw and `SetInitialValues`; a windowed page (more rows than slots) with both slider and value rows makes its widgets again for the rows in view each time the window slides (`rebuild_window`: `ClearWidgets`, add the rows, `UIWidgetMenu::SetInitialOption` 0x5A5EA0 puts the cursor back on its slot) [not run yet]; with one kind only, the widgets stay and are redrawn.
 
 ## Dialogs (custom_menus `skip_dialogs.cpp`)
 - Message boxes: every `DialogInterface::Show*` ends in `ShowDialog(feDialogConfig*)` 0x5983C0 (cdecl) [read]. Config (PC = decomp layout): formatted blurb +0 (512 chars), then

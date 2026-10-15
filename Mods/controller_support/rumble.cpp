@@ -1,5 +1,6 @@
 #include <MinHook.h>
 
+#include "device_settings.h"
 #include "hooks.h"
 #include "input.h"
 #include "extra_device.h"
@@ -38,7 +39,7 @@ float g_levels[kSlots][E_COUNT];  // 0..1
 int g_edit_slot = 0;              // the controller the Controller Options page edits
 FILETIME g_ini_time{};
 
-void section_of(int slot, char *out, size_t n) { snprintf(out, n, "rumble_%d", slot + 1); }
+void section_of(int slot, char *out, size_t n) { snprintf(out, n, "rumble_%s", device_settings::key_of(slot)); }
 
 FILETIME ini_write_time() {
     WIN32_FILE_ATTRIBUTE_DATA a{};
@@ -46,23 +47,24 @@ FILETIME ini_write_time() {
     return a.ftLastWriteTime;
 }
 
+void load_slot_levels(int slot) {
+    char section[64];
+    section_of(slot, section, sizeof(section));
+    for (int e = 0; e < E_COUNT; ++e)
+        g_levels[slot][e] = clamp01(ini_float(kEffects[e].key, static_cast<float>(kEffects[e].def), section) / 100.0f);
+}
+
 void load_rumble_levels() {
     char text[512];
     int n = snprintf(text, sizeof(text), "rumble: enabled=%d, controller 1:", g_rumble_enabled);
-    for (int slot = 0; slot < kSlots; ++slot) {
-        char section[16];
-        section_of(slot, section, sizeof(section));
-        for (int e = 0; e < E_COUNT; ++e) {
-            g_levels[slot][e] = clamp01(ini_float(kEffects[e].key, static_cast<float>(kEffects[e].def), section) / 100.0f);
-            if (slot == 0) n += snprintf(text + n, sizeof(text) - n, " %s=%.0f", kEffects[e].key, g_levels[slot][e] * 100.0f);
-        }
-    }
+    for (int slot = 0; slot < kSlots; ++slot) load_slot_levels(slot);
+    for (int e = 0; e < E_COUNT; ++e) n += snprintf(text + n, sizeof(text) - n, " %s=%.0f", kEffects[e].key, g_levels[0][e] * 100.0f);
     g_ini_time = ini_write_time();
     log_line("%s", text);
 }
 
 void save_rumble_levels(int slot) {
-    char section[16];
+    char section[64];
     section_of(slot, section, sizeof(section));
     for (int e = 0; e < E_COUNT; ++e) {
         char value[16];
@@ -95,6 +97,7 @@ void set_level(int slot, int effect, float value) { g_levels[clamp_slot(slot)][e
 int edit_slot() { return g_edit_slot; }
 void set_edit_slot(int slot) { g_edit_slot = clamp_slot(slot); }
 void save_levels(int slot) { save_rumble_levels(clamp_slot(slot)); }
+void reload_slot(int slot) { load_slot_levels(clamp_slot(slot)); }
 
 // ------------------------------------------------------------------------------------------------
 // Rumble. The game drives force feedback through an IFeedback object that LocalPlayer::SetControllerPort takes from

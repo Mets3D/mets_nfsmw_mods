@@ -9,7 +9,6 @@
  *   default_layout.cpp our default controller bindings (RT accelerates, ...)
  *   look.cpp           camera look
  *   button_icons.cpp   controller pictures in the button prompts of the menus, instead of keyboard keys
- *   prompts_option.cpp Options > Player > Controller Prompts: which controller's buttons the prompts show
  *   menu_buttons.cpp   A accepts, B goes back in the menus; X, View and Menu press the hotkeys 2, 3, 4; B quits from the main menu
  *   world_map.cpp      the world map: the right stick moves its cursor, LT and RT zoom
  *   extra_device.cpp   a second game input device, so that a second local player has an input path of the game's own

@@ -9,8 +9,8 @@ namespace pad {
 namespace opt = nfsmw::custom_menus;
 // ------------------------------------------------------------------------------------------------
 // Controller Options: a page of nfsmw_custom_menus (which builds the screen and asks for the page when the Options menu first opens),
-// reached from the Controls screen's hint (controls_options.cpp) for the selected controller. Three sliders for the dead zones of
-// its sticks and triggers (device_settings.h), then, with rumble, the game's own Vibration setting and one slider per effect with
+// reached from the Controls screen's hint (controls_options.cpp) for the selected controller. The style of the button prompts it
+// gets, three sliders for the dead zones of its sticks and triggers (device_settings.h), then, with rumble, the game's own Vibration setting and one slider per effect with
 // its level, 0-100. Changing a level plays a sample of the effect at the new level, through the same path the game uses.
 // ------------------------------------------------------------------------------------------------
 namespace {
@@ -29,10 +29,11 @@ unsigned char *edited_player_settings() {
 bool vibration_option() { return edited_player_settings()[0x4] != 0; }
 
 // The rows: the three dead zones, then (when rumble works) Vibration and the effects.
-enum DeadzoneRow { kLeftStick, kRightStick, kTrigger, kDeadzoneRows };
+enum FixedRow { kPrompts, kLeftStick, kRightStick, kTrigger, kFixedRows };
 bool g_rumble_rows = false;  // decided when the page is registered
-int vibration_row() { return kDeadzoneRows; }
-int effect_of_row(int row) { return row - kDeadzoneRows - 1; }  // negative: not an effect
+bool is_deadzone(int row) { return row >= kLeftStick && row <= kTrigger; }
+int vibration_row() { return kFixedRows; }
+int effect_of_row(int row) { return row - kFixedRows - 1; }  // negative: not an effect
 
 // Everything is the edited controller's (rumble::edit_slot); each XInput controller has its own.
 int percent_of(int effect) { return static_cast<int>(lroundf(rumble::level(rumble::edit_slot(), effect) * 100.0f)); }
@@ -42,26 +43,41 @@ float &deadzone_of(int row) {
 }
 int deadzone_percent(int row) { return static_cast<int>(lroundf(deadzone_of(row) * 100.0f)); }
 
+button_icons::Style &prompts_style() { return device_settings::prompts(rumble::edit_slot()); }
+
 int g_opened_levels[rumble::E_COUNT];  // the values when the page opened: what was last accepted (and is in the ini)
 device_settings::Deadzones g_opened_deadzones;
+button_icons::Style g_opened_prompts;
 
 bool page_available() { return true; }
 
 void page_opened() {
     for (int e = 0; e < rumble::E_COUNT; ++e) g_opened_levels[e] = percent_of(e);
     g_opened_deadzones = device_settings::deadzones(rumble::edit_slot());
+    g_opened_prompts = prompts_style();
 }
 
 unsigned page_value(int row, char *out, unsigned out_size) {
+    if (row == kPrompts) {
+        const button_icons::Style style = prompts_style();
+        snprintf(out, out_size, "%s", style == button_icons::Style::kXbox ? "Xbox" : style == button_icons::Style::kPlayStation ? "PlayStation" : "Off");
+        return 0;
+    }
     if (g_rumble_rows && row == vibration_row()) return vibration_option() ? kOnText : kOffText;
-    const int percent = row < kDeadzoneRows ? deadzone_percent(row) : percent_of(effect_of_row(row));
+    const int percent = is_deadzone(row) ? deadzone_percent(row) : percent_of(effect_of_row(row));
     if (percent > 0) snprintf(out, out_size, "%d%%", percent);
     else snprintf(out, out_size, "Off");
     return 0;
 }
 
 void page_change(int row, int direction, bool fine) {
-    if (row < kDeadzoneRows) {
+    if (row == kPrompts) {  // two choices: either arrow takes the other one (from Off, to Xbox)
+        using button_icons::Style;
+        prompts_style() = prompts_style() == Style::kXbox ? Style::kPlayStation : Style::kXbox;
+        log_line("controller %d: button prompts set to %s", rumble::edit_slot() + 1, button_icons::style_text(prompts_style()));
+        return;
+    }
+    if (is_deadzone(row)) {
         const int percent = std::clamp(deadzone_percent(row) + direction * (fine ? 1 : 5), 0,
                                        static_cast<int>(device_settings::kMaxDeadzone * 100));
         deadzone_of(row) = percent / 100.0f;
@@ -86,14 +102,15 @@ void page_change(int row, int direction, bool fine) {
 }
 
 float page_fill(int row) {
-    if (row < kDeadzoneRows) return deadzone_of(row) / device_settings::kMaxDeadzone;
+    if (row == kPrompts) return 0.0f;
+    if (is_deadzone(row)) return deadzone_of(row) / device_settings::kMaxDeadzone;
     return row == vibration_row() ? 0.0f : percent_of(effect_of_row(row)) / 100.0f;
 }
 
 bool page_changed() {
     const device_settings::Deadzones &now = device_settings::deadzones(rumble::edit_slot());
     if (now.left_stick != g_opened_deadzones.left_stick || now.right_stick != g_opened_deadzones.right_stick ||
-        now.trigger != g_opened_deadzones.trigger)
+        now.trigger != g_opened_deadzones.trigger || prompts_style() != g_opened_prompts)
         return true;
     for (int e = 0; e < rumble::E_COUNT; ++e)
         if (percent_of(e) != g_opened_levels[e]) return true;
@@ -108,16 +125,18 @@ void page_accept() {
 
 void page_discard() {
     device_settings::deadzones(rumble::edit_slot()) = g_opened_deadzones;
+    prompts_style() = g_opened_prompts;
     for (int e = 0; e < rumble::E_COUNT; ++e) rumble::set_level(rumble::edit_slot(), e, g_opened_levels[e] / 100.0f);
 }
 
 void page_defaults() {
     device_settings::deadzones(rumble::edit_slot()) = device_settings::Deadzones{};
+    prompts_style() = button_icons::Style::kXbox;
     for (int e = 0; e < rumble::E_COUNT; ++e) rumble::set_level(rumble::edit_slot(), e, rumble::kEffects[e].def / 100.0f);
     if (g_rumble_rows) edited_player_settings()[0x4] = 1;
 }
 
-opt::Row g_rows[kDeadzoneRows + 1 + rumble::E_COUNT];
+opt::Row g_rows[kFixedRows + 1 + rumble::E_COUNT];
 char g_help[rumble::E_COUNT][400];
 char g_pack_path[MAX_PATH];
 opt::Page g_page;
@@ -129,13 +148,14 @@ opt::Page g_page;
 void pad::controller_page::provide(const nfsmw::custom_menus::Host *host) {
     using namespace pad;
     g_rumble_rows = rumble::enabled();
+    g_rows[kPrompts] = {opt::kValueRow, "Controller Prompts", 0, "Which buttons the menus show while this controller is in use: Xbox or PlayStation."};
     g_rows[kLeftStick] = {opt::kSliderRow, "Left Stick Dead Zone", 0, "The left stick ignores movements smaller than this. "
                           "Raise it if the car or the menu cursor drifts with the stick at rest. Hold Shift or LB for finer steps."};
     g_rows[kRightStick] = {opt::kSliderRow, "Right Stick Dead Zone", 0, "The right stick ignores movements smaller than this. "
                            "Raise it if the camera drifts with the stick at rest. Hold Shift or LB for finer steps."};
     g_rows[kTrigger] = {opt::kSliderRow, "Trigger Dead Zone", 0, "The triggers ignore pulls lighter than this. "
                         "Hold Shift or LB for finer steps."};
-    int rows = kDeadzoneRows;
+    int rows = kFixedRows;
     if (g_rumble_rows) {
         g_rows[rows++] = {opt::kValueRow, "Vibration", kVibrationText, "Turns rumble on or off. This is the game's own "
                           "Vibration setting, kept in your profile."};

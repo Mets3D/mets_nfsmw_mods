@@ -41,9 +41,32 @@ GetDeviceStateFn g_orig_get_device_state = nullptr;
 struct DeviceKind {
     void *device;
     bool xinput;
+    char id[40];  // what tells this controller from another of the same kind (see identity_of_path), or empty
 };
 DeviceKind g_devices[16];
 int g_device_count = 0;
+
+// A device path is \\?\HID#VID_045E&PID_02DD&IG_00#<instance>#{guid}; Wine's instance is <version>&<serial>&<input>&..., and the serial
+// is the controller's own (a Bluetooth controller's address) when it has one, else zeros or a counter. A controller that can be told
+// apart gives "045E_02DD_<serial>": the serial must be 8 or more letters and digits, not all zeros. The path is upper case.
+bool identity_of_path(const WCHAR *path, char *out, size_t size) {
+    const WCHAR *vid = wcsstr(path, L"VID_"), *pid = wcsstr(path, L"PID_"), *hash = wcschr(path + (vid ? vid - path : 0), L'#');
+    if (!vid || !pid || !hash) return false;
+    const WCHAR *instance = hash + 1;
+    const WCHAR *serial = wcschr(instance, L'&');
+    if (!serial) return false;
+    ++serial;
+    size_t length = 0;
+    bool nonzero = false;
+    while (serial[length] && serial[length] != L'&' && serial[length] != L'#') {
+        if (!iswalnum(serial[length])) return false;
+        if (serial[length] != L'0') nonzero = true;
+        ++length;
+    }
+    if (length < 8 || !nonzero || length > 24) return false;
+    snprintf(out, size, "%.4ls_%.4ls_%.*ls", vid + 4, pid + 4, static_cast<int>(length), serial);
+    return true;
+}
 
 bool is_xinput_device(void *device) {
     for (int i = 0; i < g_device_count; ++i)
@@ -76,7 +99,10 @@ bool is_xinput_device(void *device) {
     log_line("DirectInput controller %p: %s (vendor %04lx product %04lx, path %ls)", device,
              xinput ? (steam_virtual ? "XInput controller (Steam's virtual controller)" : "XInput controller") : "other controller",
              have_ids ? vid_pid.data & 0xFFFF : 0, have_ids ? vid_pid.data >> 16 : 0, hr >= 0 ? prop.path : L"?");
-    if (g_device_count < 16) g_devices[g_device_count++] = {device, xinput};
+    DeviceKind kind = {device, xinput, ""};
+    if (xinput && !steam_virtual && hr >= 0 && identity_of_path(prop.path, kind.id, sizeof(kind.id)))
+        log_line("DirectInput controller %p can be told apart: %s", device, kind.id);
+    if (g_device_count < 16) g_devices[g_device_count++] = kind;
     return xinput;
 }
 
@@ -117,6 +143,7 @@ bool g_joystick_hooked_in_game = false;
 
 // What the player touched last: a controller, or the keyboard or mouse (the button icons follow it).
 volatile bool g_last_input_pad = false;
+volatile int g_last_pad_slot = -1;
 
 bool any_pressed(const BYTE *states, int count) {
     for (int i = 0; i < count; ++i)
@@ -140,6 +167,7 @@ bool pad_active(const JoyState &s, bool xinput) {
 }
 
 bool last_input_was_pad() { return g_last_input_pad; }
+int last_pad_slot() { return g_last_pad_slot; }
 
 // ------------------------------------------------------------------------------------------------
 // Which controllers reach the game: by default all XInput controllers merged, or another mod asks for one (or none)
@@ -221,6 +249,30 @@ int rumble_slot_of_joystick(int index) {
     return xinput::port >= 0 ? xinput::port : 0;
 }
 
+// What tells the controller in an XInput slot from another of the same kind ("045E_02DD_<serial>"), or false when nothing does (the slot
+// is all there is: a controller that has no serial of its own, Steam's virtual controller, a slot with nothing in it).
+bool identity_of_slot(int slot, char *out, size_t size) {
+    const DeviceKind *only = nullptr;
+    int xinput_devices = 0;
+    for (int k = 0, n = pad_sets::joystick_count(); k < n; ++k) {
+        void *device = pad_sets::joystick_di_device(k);
+        if (!device || !is_xinput_device(device)) continue;
+        ++xinput_devices;
+        for (int i = 0; i < g_device_count; ++i)
+            if (g_devices[i].device == device) only = &g_devices[i];
+        if (own_slot_unlogged(device) == slot && only && only->id[0]) {
+            snprintf(out, size, "%s", only->id);
+            return true;
+        }
+    }
+    // A single XInput controller: the game cannot tell which slot it is, it is the one in use.
+    if (xinput_devices == 1 && only && only->id[0] && slot == settings_slot(-1)) {
+        snprintf(out, size, "%s", only->id);
+        return true;
+    }
+    return false;
+}
+
 // All connected XInput controllers as one: any button, each stick axis and trigger from the pad pushing it furthest.
 // An empty slot is asked about again every 2 seconds at most (that is slow).
 bool read_merged(xinput::Gamepad *out) {
@@ -288,7 +340,10 @@ void report_xinput(JoyState &s, const xinput::Gamepad &p) {
 void process_pad_state(void *device, JoyState *state) {
     JoyState &s = *state;
     if (!is_xinput_device(device)) {
-        if (pad_active(s, false)) g_last_input_pad = true;
+        if (pad_active(s, false)) {
+            g_last_input_pad = true;
+            g_last_pad_slot = -1;
+        }
         return;
     }
     // Each XInput controller reports its own state (every controller has bindings of its own); a single one, or none that
@@ -321,7 +376,11 @@ void process_pad_state(void *device, JoyState *state) {
             s.slider[1] = kAxisCentre - pad.right_trigger * kAxisCentre / 255;
         }
     }
-    if (pad_active(s, true)) g_last_input_pad = true;
+    device_settings::refresh();
+    if (pad_active(s, true)) {
+        g_last_input_pad = true;
+        g_last_pad_slot = dead_slot;
+    }
     menu_buttons::pad_buttons(pad_sets::joystick_of_device(device), s.buttons);
 }
 

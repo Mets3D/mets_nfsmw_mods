@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "device_settings.h"
 #include "hooks.h"
 #include "input.h"
 #include "texture_pack.h"
@@ -20,7 +21,11 @@ namespace pad::button_icons {
 
 namespace {
 
-Style g_style = Style::kXbox;
+Style g_default_style = Style::kXbox;
+
+// What this frame shows: the last input was a controller, and the style of that controller.
+bool g_frame_pad = false;
+Style g_frame_style = Style::kXbox;
 
 // A prompt picture of the game and its two controller versions (the texture hashes).
 struct Hashes {
@@ -53,7 +58,6 @@ struct CallbackVtable {
 char __stdcall visit_object(void *object) {
     if (field<int>(object, kType) != kImage) return 1;
     unsigned &texture = field<unsigned>(object, kTexture);
-    const bool pad = input::last_input_was_pad();
     const bool visible = (field<unsigned>(object, kFlags) & kInvisible) == 0;
     for (const Hashes &h : g_hashes) {
         if (texture != h.pc && texture != h.xbox && texture != h.playstation) continue;
@@ -61,8 +65,8 @@ char __stdcall visit_object(void *object) {
             if (h.pc == g_quit_key) g_quit_prompt_seen = true;
             if (h.pc == g_back_key || h.pc == g_back_key_french) g_back_prompt_seen = true;
         }
-        if (!g_pack_loaded || g_style == Style::kOff) break;
-        const unsigned wanted = !pad ? h.pc : g_style == Style::kPlayStation ? h.playstation : h.xbox;
+        if (!g_pack_loaded) break;
+        const unsigned wanted = !g_frame_pad || g_frame_style == Style::kOff ? h.pc : g_frame_style == Style::kPlayStation ? h.playstation : h.xbox;
         if (texture != wanted) {
             texture = wanted;
             field<unsigned>(object, kFlags) |= kTextureChanged;
@@ -81,7 +85,12 @@ using UpdateFn = void(FASTCALL *)(void *, void *, int, unsigned);
 UpdateFn g_orig_update;
 
 void FASTCALL hook_update(void *engine, void *edx, int ticks, unsigned lock) {
-    if (!g_pack_tried && g_style != Style::kOff) {  // the first time the pictures are wanted
+    g_frame_pad = input::last_input_was_pad();
+    if (g_frame_pad) {
+        const int slot = input::last_pad_slot();  // -1: a controller that is not XInput
+        g_frame_style = slot >= 0 ? device_settings::prompts(slot) : g_default_style;
+    }
+    if (!g_pack_tried && g_frame_pad && g_frame_style != Style::kOff) {  // the first time the pictures are wanted
         g_pack_tried = true;
         char path[MAX_PATH];
         nfsmw::data_file("nfsmw_controller_buttons.tpk", path, sizeof(path));
@@ -146,19 +155,22 @@ void load_prompts() {
 
 bool quit_prompt_shown() { return g_quit_available; }
 
-Style style() { return g_style; }
-void set_style(Style new_style) { g_style = new_style; }
-void save_style() {
-    WritePrivateProfileStringA("buttons", "button_prompts", g_style == Style::kOff ? "off" : g_style == Style::kXbox ? "xbox" : "playstation", g_ini);
+const char *style_text(Style style) { return style == Style::kOff ? "off" : style == Style::kXbox ? "xbox" : "playstation"; }
+
+Style parse_style(const char *text, Style fallback) {
+    if (!_stricmp(text, "off") || !_stricmp(text, "0") || !_stricmp(text, "none")) return Style::kOff;
+    if (!_stricmp(text, "playstation") || !_stricmp(text, "ps")) return Style::kPlayStation;
+    if (!_stricmp(text, "xbox")) return Style::kXbox;
+    return fallback;
 }
+
+Style default_style() { return g_default_style; }
 
 void load_settings() {
     char text[32] = {};
     GetPrivateProfileStringA("buttons", "button_prompts", "xbox", text, sizeof(text), g_ini);
-    if (!_stricmp(text, "off") || !_stricmp(text, "0") || !_stricmp(text, "none")) g_style = Style::kOff;
-    else if (!_stricmp(text, "playstation") || !_stricmp(text, "ps")) g_style = Style::kPlayStation;
-    else g_style = Style::kXbox;
-    log_line("button icons: %s", g_style == Style::kOff ? "off" : g_style == Style::kXbox ? "xbox" : "playstation");
+    g_default_style = parse_style(text, Style::kXbox);
+    log_line("button icons: %s unless a controller has its own style", style_text(g_default_style));
 }
 
 void install_hooks() {

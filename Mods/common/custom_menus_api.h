@@ -14,7 +14,7 @@ namespace nfsmw::custom_menus {
 enum RowKind {
     kValueRow,           // "label    < value >": left / right call Page::change
     kSliderRow,          // as kValueRow, but drawn as the game's slider bar (Audio's volumes) filled to Page::fill; `value` is shown
-                         // instead when `fill` is null or the page is too long to show all its rows at once
+                         // instead when `fill` is null or the layout has no slider bars
     kCameraSelectorRow,  // the game's own Camera selector (it changes the player's camera view); the other rows
                          // are redrawn when it changes, so they can show the selected view's values
 };

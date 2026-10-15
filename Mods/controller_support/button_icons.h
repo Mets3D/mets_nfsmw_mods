@@ -1,17 +1,18 @@
-// The button pictures in the game's menus and HUD ("Enter", "Esc", "Q", ...): they show the controller's buttons while
-// the controller was the last thing used, and the keyboard keys otherwise.
+// The button pictures in the game's menus and HUD ("Enter", "Esc", "Q", ...): they show the buttons of the controller that was the
+// last thing used (in the style set for that controller, device_settings.h), and the keyboard keys otherwise.
 #pragma once
 
 #include "pad.h"
 
 namespace pad::button_icons {
 
-// Which controller's buttons the prompts show (the setting is `button_prompts=` in the ini, and Options > Player > Controller Prompts).
+// Which controller's buttons the prompts show: kOff keeps the keyboard keys.
 enum class Style { kOff, kXbox, kPlayStation };
-Style style();
-void set_style(Style style);  // takes effect at once
-void save_style();            // to the ini
+const char *style_text(Style style);  // "off", "xbox", "playstation": the ini's words
+Style parse_style(const char *text, Style fallback);
 
+// The style of a controller that has none of its own (the ini's [buttons] button_prompts), and of a controller that is not XInput.
+Style default_style();
 void load_settings();  // [buttons] button_prompts
 void install_hooks();  // also watches the prompts on screen (for quit_prompt_shown), whatever the icons setting
 // A "Quit" prompt (the key Q) is on screen and no "Back" prompt: the main menu, where B has nothing to go back to.

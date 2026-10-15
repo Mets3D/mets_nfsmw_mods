@@ -19,11 +19,6 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 - After letting go of the "Look" inputs for a few seconds, the camera returns to its default position.
 - This also works in the Look Behind view.
 
-### Several controllers
-- With more than one controller connected, each controller's keys can be remapped in the Controls menu.
-- In single-player, all input devices (keyboard and all controllers) will be accepted.
-- This fully integrates with my [Split Screen Support](../split_screen_support/ReadMe.md) mod, so everything will work like you would expect from a video game that has split screen: Both players can pause the game, control the menus, control their own cameras, have their own input mapping, have their own rumble, etc.
-
 ### Customizable Rumble
 - Various events in-game will create controller rumble, such as gear shifts, collisions, driving on grass, nitrous, and more.
 - The rumble strength of each type of event can be cutomized per controller in **Options > Controls > a controller > Settings**, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
@@ -31,10 +26,16 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 ### Customizable Dead-zones
 - You can change the deadzone of each stick, and the triggers, in the same menu as the Rumble settings mentioned above.
 
+### Several controllers
+- With more than one controller connected, each controller can be customized separately. Each has their own dead zone, rumble, and button mapping stored separately.
+- In single-player, all input devices (keyboard and all controllers) can control the game at the same time.
+- Controller settings are stored per hardware serial number, as long as the device has one. Steam Input's virtual controller does not - instead, its data is stored per controller slot, 1 to 4.
+- This mod fully integrates with my [Split Screen Support](../split_screen_support/ReadMe.md) mod, so everything will work like you would expect from a video game that has split screen: Both players can pause the game, control the menus, control their own cameras, have their own controller customization as described above.
+
 ### Menu Navigation
 - Menu navigation tested in all menus I could think of, including obscure menus like Showroom, Blacklist bio screen, Advanced Video Settings.
 - Automatically switch to controller button prompts as soon as controller input is detected, and vice versa.
-- Button prompts show Xbox buttons by default. If [Custom Menus](../custom_menus/ReadMe.md) is installed, you can switch to Playstation button prompts via **Options > Player > Controller Prompts**. Otherwise, you can set `button_prompts=playstation` in the ini.
+- Button prompts show Xbox buttons by default. Each controller has its own prompt style: if [Custom Menus](../custom_menus/ReadMe.md) is installed, you can switch a controller to Playstation button prompts via **Options > Controls > the controller > Settings > Controller Prompts**, and the prompts follow whichever controller you touched last. Otherwise, you can set `button_prompts=playstation` in the ini (in `[buttons]` for all controllers, or in `[controller_1]` .. `[controller_4]` for one).
 - The world map can be panned with the right stick, and zoomed with the shoulder buttons/triggers.
 
 ### Translations
@@ -64,6 +65,10 @@ Enable = 0
 - Incompatible: NFS-XtendedInput, potentially other similar mods that mess with controller functions.
 
 ## TODOs
-- The "Player->Controller Prompts" menu entry would be better if it was customizable per input device, so that when we switch from one controller to another, it might switch symbols.
-- Test per-controller rumble customization with >1 controller.
+- Do controller settings only get saved to disk (to .ini) when the career is saved? I don't agree with that, and I think that seems to be the case.
+- The help text of the Rumble toggle is probably not accurate anymore?
+- When a new device is connected after the game is already launched, it does not get initialized - Game must be restarted. Would be nicer if this wasn't the case.
+- Map navigation isn't quite right: Cursor is not always snapping to events, and if it does, when moved away, it snaps back when letting go of the stick. Also, LB/RB don't zoom nicely like LT/RT does.
+- Maybe we should associate device settings with a device ID of some sort, otherwise the settings of one device could end up being applied to a different device, eg. depending on the order they are connected to the computer, or even completely arbitrarily, I think?
+- Test per-controller settings and rumble customization with >1 controller.
 - Add pictures and videos showcasing the mod to this ReadMe.

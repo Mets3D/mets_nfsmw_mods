@@ -121,6 +121,7 @@ const auto SetScript = at<void(THISCALL *)(void *object, unsigned id, int force)
 // Option screens and their rows
 const auto ClearWidgets = at<void(THISCALL *)(void *screen)>(0x588C90);
 const auto RefreshWidgets = at<void(THISCALL *)(void *screen)>(0x588D20);  // Draw() on every row
+const auto SetInitialOption = at<void(THISCALL *)(void *screen, int number)>(0x5A5EA0);  // UIWidgetMenu::SetInitialOption: the cursor on widget `number` (1-based)
 const auto AddToggleOption = at<unsigned(THISCALL *)(void *screen, void *widget, int enabled)>(0x588570);
 const auto AddSliderOption = at<unsigned(THISCALL *)(void *screen, void *widget, int enabled)>(0x588860);
 const auto SliderCtor = at<void *(THISCALL *)(void *widget, int enabled)>(0x589540);  // FESliderWidget
@@ -369,6 +370,7 @@ int g_page_category = kCategoryPlayer;  // the category of the open page's scree
 int g_row_offset = 0;
 int g_window_rows = 0;   // the page's rows, when windowed
 int g_window_slots = 0;  // the widgets (slots) it shows them in
+bool g_window_mixed = false;  // the rows are of both kinds (slider bars and values), so the slots' widgets must change with the window
 
 // The screen's own scroll bar (UIWidgetMenu's FEScrollBar member at +0x54; the Video layout has the objects, at +0x40 / +0x44 of it the track and
 // the handle). The game updates it itself when it scrolls, for the widgets there are; a windowed page has more rows than widgets, so we tell it the
@@ -496,9 +498,9 @@ bool layout_has_sliders(const char *pkg) {
     return FindObject(pkg, nfsmw::bstring_hash("BASE_SLIDER_1")) && FindObject(pkg, nfsmw::bstring_hash("FILLBAR_SLIDER_1"));
 }
 
-// Adds the page's row `r` as the screen's next row. A slider row is a value row when it can't be a bar (no `fill`, no bars in the layout,
-// a windowed page, whose widgets change which row they show).
-void add_page_row(void *screen, PageInfo *info, int r, bool bars) {
+// Adds the page's row `r` as the screen's next row; `index` is what kRowIndex gets: the row, or the slot in a windowed page. A slider row is
+// a value row when it can't be a bar (no `fill`, no bars in the layout).
+void add_page_row(void *screen, PageInfo *info, int index, int r, bool bars) {
     const opt::Row &row = info->page->rows[r];
     void *w = game::Alloc(kRowSize);
     if (!w) return;
@@ -513,7 +515,7 @@ void add_page_row(void *screen, PageInfo *info, int r, bool bars) {
         game::ToggleWidgetCtor(w, 1);
         field<void **>(w, 0) = g_row_vtbl;
     }
-    field<int>(w, kRowIndex) = r;
+    field<int>(w, kRowIndex) = index;
     field<PageInfo *>(w, kRowPage) = info;
     (slider ? game::AddSliderOption : game::AddToggleOption)(screen, w, 1);
 }
@@ -538,8 +540,12 @@ void build_page_screen(void *screen) {
     else if (page.row_count > room)
         log_line("page \"%s\" has %d rows but the screen has room for %d: the rest are left out", page.id, page.row_count, room);
     const int widgets = g_windowed ? room : (page.row_count < room ? page.row_count : room);
-    const bool bars = !g_windowed && layout_has_sliders(field<const char *>(screen, kScreenPackage));
-    for (int r = 0; r < widgets; ++r) add_page_row(screen, g_page, r, bars);
+    const bool bars = layout_has_sliders(field<const char *>(screen, kScreenPackage));
+    // A window whose rows are of both kinds needs different widgets as it slides: see rebuild_window.
+    bool any_slider = false, any_other = false;
+    for (int r = 0; r < page.row_count; ++r) (page.rows[r].kind == opt::kSliderRow && page.fill ? any_slider : any_other) = true;
+    g_window_mixed = g_windowed && bars && any_slider && any_other;
+    for (int r = 0; r < widgets; ++r) add_page_row(screen, g_page, r, r, bars);
     // The title object is a group of strings (text and shadow). Set the hash the way the game's own screens do, then
     // also print into the group so it does not depend on the table lookup.
     const char *pkg = field<const char *>(screen, kScreenPackage);
@@ -571,7 +577,7 @@ void add_player_rows(void *screen) {
         if (page.row_count > room)
             log_line("Options > Player: \"%s\" has %d rows but the screen has room for %d: the rest are left out", page.id, page.row_count, room);
         const bool bars = layout_has_sliders(field<const char *>(screen, kScreenPackage));
-        for (int r = 0; r < page.row_count && r < room; ++r) add_page_row(screen, &info, r, bars);
+        for (int r = 0; r < page.row_count && r < room; ++r) add_page_row(screen, &info, r, r, bars);
         g_player_pages.push_back(&info);
         g_player_page_count = static_cast<int>(g_player_pages.size());
         log_line("Options > Player: %d row(s) from \"%s\"", page.row_count, page.id);
@@ -984,34 +990,49 @@ bool pad_x_down() { return pad_button_down(nfsmw::xinput::kButtonX); }
 using NotifyFn = void(FASTCALL *)(void *, void *, unsigned, void *, unsigned, unsigned);
 NotifyFn g_orig_notify = nullptr;
 
+// A window of rows of both kinds, after it slid: a slider bar and a value are different widgets, so the slots' widgets are made again for the rows
+// now in view, and the cursor goes back to its slot. (A window of one kind only keeps its widgets and redraws them.)
+void rebuild_window(void *screen, int cursor_slot) {
+    game::ClearWidgets(screen);
+    const bool bars = layout_has_sliders(field<const char *>(screen, kScreenPackage));
+    for (int k = 0; k < g_window_slots; ++k) add_page_row(screen, g_page, k, g_row_offset + k, bars);
+    game::SetInitialOption(screen, cursor_slot + 1);
+    game::RefreshWidgets(screen);
+}
+
+void redraw_window(void *screen, int cursor_slot) {
+    if (g_window_mixed) rebuild_window(screen, cursor_slot);
+    else game::RefreshWidgets(screen);
+}
+
 // Up / down in a windowed page. In the middle of the window the game moves the focus. At its ends it would leave the list or wrap
 // around inside the few widgets there are, so the window slides instead (the focus stays on the slot, which shows the next row),
 // and only at the ends of the page does the game's own wrap-around run: after the window was put at the other end.
 // Returns true when the message was handled here.
 bool handle_window_scroll(void *screen, unsigned msg) {
     void *current = field<void *>(screen, 0x34);  // UIWidgetMenu::pCurrentOption
-    if (!current || (field<void **>(current, 0) != g_row_vtbl)) return false;
+    if (!current || (field<void **>(current, 0) != g_row_vtbl && field<void **>(current, 0) != g_slider_vtbl)) return false;
     const int slots = g_window_slots;
     const int slot = field<int>(current, kRowIndex);
     const int max_offset = g_window_rows - slots;
     if (msg == kPadDown && slot == slots - 1) {
         if (g_row_offset < max_offset) {
             ++g_row_offset;
-            game::RefreshWidgets(screen);
+            redraw_window(screen, slot);
             update_scroll_bar(screen);
             return true;
         }
         g_row_offset = 0;  // the game wraps to the first widget
-        game::RefreshWidgets(screen);
+        redraw_window(screen, slot);
     } else if (msg == kPadUp && slot == 0) {
         if (g_row_offset > 0) {
             --g_row_offset;
-            game::RefreshWidgets(screen);
+            redraw_window(screen, slot);
             update_scroll_bar(screen);
             return true;
         }
         g_row_offset = max_offset;  // the game wraps to the last widget
-        game::RefreshWidgets(screen);
+        redraw_window(screen, slot);
     }
     return false;
 }
