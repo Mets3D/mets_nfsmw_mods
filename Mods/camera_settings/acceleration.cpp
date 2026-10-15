@@ -16,20 +16,12 @@ using nfsmw::field;
 // "tilting"). Scaling the offset scales all of that; 1 is the game's own.
 constexpr unsigned kType = 0x9C;
 
-nfsmw::Logger *g_log = nullptr;
-
 using CurveFn = void(FASTCALL *)(void *, void *, float *);
 CurveFn g_orig_curve;
 
 void FASTCALL hook_curve(void *mover, void *edx, float *vec) {
     g_orig_curve(mover, edx, vec);
     const int type = field<int>(mover, kType);
-    // The first offset that is not nothing, per view: what the game gives (to see the size of it).
-    static bool seen[7];
-    if (type >= 0 && type <= 6 && !seen[type] && (vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2]) > 1e-4f) {
-        seen[type] = true;
-        g_log->line("acceleration: view %d first offset %.3f %.3f %.3f", type, vec[0], vec[1], vec[2]);
-    }
     const float factor = acceleration_factor(type);
     if (factor == 1.0f) return;
     for (int i = 0; i < 3; ++i) vec[i] *= factor;
@@ -38,7 +30,6 @@ void FASTCALL hook_curve(void *mover, void *edx, float *vec) {
 }  // namespace
 
 void install_hooks(nfsmw::Logger &log, const char *ini) {
-    g_log = &log;
     const nfsmw::Hook hooks[] = {
         {"acceleration", "CubicCameraMover::CameraAccelCurve", 0x47CDD0, {0x83, 0xEC, 0x14, 0x53, 0x55, 0x56, 0x8B}, false,
          nfsmw::detour(&hook_curve), nfsmw::orig(&g_orig_curve)},

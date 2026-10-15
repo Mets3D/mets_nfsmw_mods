@@ -62,6 +62,9 @@ struct Page {
     void (*defaults)();  // Defaults was confirmed: reset the page (the selected view, for the camera)
     Placement placement;  // where the rows go; leave it out for kNewEntry
     float (*fill)(int row);  // kSliderRow: how full the bar is, 0..1 (left / right still call `change`); leave it out for no sliders
+    // Greyed out rows: false for a row that has no effect now (it is drawn grey, the cursor skips it and left / right do nothing). Asked
+    // whenever the rows are drawn, which includes when the Camera selector changes. Leave it out for rows that are always usable.
+    bool (*row_enabled)(int row);
 };
 
 // Rows added to Options > Controls (Pause > Options > Controls, and the main menu's). Each row edits one entry of the game's binding

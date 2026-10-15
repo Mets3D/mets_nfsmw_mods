@@ -63,9 +63,6 @@ bool hook_visible(int view) {
     if (shown == 0) return false;
     if (shown == 1 && outside_view(*cam)) {
         // Everything else the game checks stays: ask it as for the bumper view.
-        static bool logged = false;
-        if (!logged) g_log->line("mirror: shown in a view the game has none in (camera %d)", *cam);
-        logged = true;
         const int real = *cam;
         *cam = 0;
         const bool visible = g_orig_visible(view);

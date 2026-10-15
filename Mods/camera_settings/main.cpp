@@ -209,6 +209,13 @@ float resolved(const Override &o, int i, float base) {
     return v < lo ? lo : (v > hi ? hi : v);
 }
 
+// Whether a setting has an effect in a view. The bumper and hood views (0, 1) sit on the car: they use its own tilt and are not
+// smoothed or moved by its acceleration.
+bool applies(int type, int param) {
+    if (type < 0 || type >= kNumPresets) return false;
+    return !(type < 2 && (param == P_TILT || param == P_SMOOTH || param == P_ACCEL));
+}
+
 float effective(int type, int i) {
     return g_have_base[type] ? resolved(g_ovr[type], i, g_base[type][i]) : 0.0f;
 }
@@ -458,6 +465,11 @@ void page_accept() {
 
 void page_discard() { memcpy(g_ovr, g_ovr_open, sizeof(g_ovr)); }
 
+// Rows of settings that do nothing in the selected view are greyed out; row 0 is the Camera selector.
+bool page_row_enabled(int row) {
+    return row < 1 || row > NPARAM || applies(camera_type_being_edited(), row - 1);
+}
+
 // Defaults clears the selected view's changes.
 void page_defaults() {
     const int type = camera_type_being_edited();
@@ -479,17 +491,17 @@ int preset_of(int cam) {
 namespace camera_settings {
 
 float smoothing_factor(int type) {
-    if (type < 0 || type >= kNumPresets || !g_ovr[type].set[P_SMOOTH]) return 1.0f;
+    if (!applies(type, P_SMOOTH) || !g_ovr[type].set[P_SMOOTH]) return 1.0f;
     return resolved(g_ovr[type], P_SMOOTH, 100.0f) / 100.0f;
 }
 
 float acceleration_factor(int type) {
-    if (type < 0 || type >= kNumPresets || !g_ovr[type].set[P_ACCEL]) return 1.0f;
+    if (!applies(type, P_ACCEL) || !g_ovr[type].set[P_ACCEL]) return 1.0f;
     return resolved(g_ovr[type], P_ACCEL, 100.0f) / 100.0f;
 }
 
 float tilt_factor(int type) {
-    if (type < 0 || type >= kNumPresets || !g_ovr[type].set[P_TILT]) return 0.0f;
+    if (!applies(type, P_TILT) || !g_ovr[type].set[P_TILT]) return 0.0f;
     return resolved(g_ovr[type], P_TILT, 0.0f) / 100.0f;
 }
 
@@ -513,7 +525,7 @@ extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const opt::Host
     nfsmw::data_file("nfsmw_camera_settings.tpk", g_pack_path, sizeof(g_pack_path));
     g_page = {"camera", "Camera", "CAMERA", "CAMERA INFO", g_icon, 0, g_pack_path,
               1 + NPARAM, g_rows, page_available, page_opened, page_value, page_change, camera_changed, page_accept,
-              page_discard, page_defaults, opt::kNewEntryEverywhere};
+              page_discard, page_defaults, opt::kNewEntryEverywhere, nullptr, page_row_enabled};
     host->register_page(&g_page);
     camera_settings::previous_camera::provide(host);
 }

@@ -1,7 +1,6 @@
 #include "tilt.h"
 
 #include <algorithm>
-#include <cmath>
 
 #include "hooks.h"
 #include "patch.h"
@@ -21,8 +20,6 @@ using nfsmw::field;
 constexpr unsigned kType = 0x9C, kAnchor = 0x80, kCarUp = 0x70;
 constexpr uintptr_t kPlacement = 0x47CF00, kTargetCall = 0x47D270, kSetTarget = 0x651790;
 constexpr float kMinUpZ = 0.3f;  // upside down or on its side the lean would run away: about 73 degrees at most
-
-nfsmw::Logger *g_log = nullptr;
 
 void *g_mover = nullptr;  // the mover whose placement is running
 
@@ -49,11 +46,6 @@ void FASTCALL set_up_target(void *spring, void *edx, float *up) {
             lean[0] = share * x / z_safe;
             lean[1] = share * y / z_safe;
             lean[2] = 1.0f;
-            static bool logged = false;
-            if (!logged && share > 0.0f && (std::fabs(x) > 0.05f || std::fabs(y) > 0.05f)) {
-                logged = true;
-                g_log->line("tilt: the car's up is %.3f %.3f %.3f, the camera leans %.3f %.3f", x, y, z, lean[0], lean[1]);
-            }
         }
     }
     reinterpret_cast<SetTargetFn>(kSetTarget)(spring, edx, lean);
@@ -62,7 +54,6 @@ void FASTCALL set_up_target(void *spring, void *edx, float *up) {
 }  // namespace
 
 void install_hooks(nfsmw::Logger &log, const char *ini) {
-    g_log = &log;
     const nfsmw::Hook hooks[] = {
         {"tilt", "CubicCameraMover placement (sub_47CF00)", kPlacement, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x81}, false,
          nfsmw::detour(&hook_place), nfsmw::orig(&g_orig_place_raw)},

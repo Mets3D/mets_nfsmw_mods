@@ -166,6 +166,7 @@ const auto ShowOneButton = at<unsigned (*)(const char *pkg, const char *dialog_p
 const auto FEngFindGroup = at<void *(*)(const char *pkg, unsigned object)>(0x524880);
 const auto FEngGetCenter = at<void (*)(void *object, float *x, float *y)>(0x524EE0);
 const auto FindPackage = at<void *(THISCALL *)(void *feng, const char *pkg)>(0x516AF0);  // cFEng::FindPackage
+const auto FEngSetScriptOn = at<void (*)(void *object, unsigned script_hash, bool restart)>(0x514D10);  // FEngSetScript(FEObject *, hash, bool)
 const auto FindImage = at<void *(*)(const char *pkg, unsigned name_hash)>(0x5251A0);  // FEngFindImage
 const auto FEHashUpper = at<unsigned (*)(const char *)>(0x5AF1C0);
 const auto GroupClone = at<void *(THISCALL *)(void *group, int reference)>(0x5C49C0);
@@ -446,12 +447,28 @@ int row_of(void *widget) {
     return g_windowed && field<PageInfo *>(widget, kRowPage) == g_page ? index + g_row_offset : index;
 }
 
+// Keeps the row's widget enabled or disabled as the page says (FEWidget::bEnabled at +0x28; the game's Enable / Disable are vtable slots
+// 7 / 8: a disabled row plays the GREY script and UIWidgetMenu::Scroll goes past it).
+constexpr unsigned kRowEnabled = 0x28;
+bool row_is_enabled(const PageInfo *page, int row) { return !page->page->row_enabled || page->page->row_enabled(row); }
+
+// Called after the row's texts were set. Enabling plays UNHIGHLIGHT on the row's objects, which restores the label but not the value:
+// the layouts give the value only the scripts INIT (its normal look) and GREY, so INIT is played on it again (the arrows have INIT
+// and HIDE and cannot go grey).
+void apply_row_enabled(void *self, const PageInfo *page, int row) {
+    if (!page->page->row_enabled) return;
+    const bool want = page->page->row_enabled(row);
+    if (want == (field<unsigned char>(self, kRowEnabled) != 0)) return;
+    reinterpret_cast<DrawFn>(field<void **>(self, 0)[want ? 7 : 8])(self);
+    if (want) game::FEngSetScriptOn(field<void *>(self, kRowData), nfsmw::bstring_hash("INIT"), true);
+}
+
 void THISCALL value_row_act(void *self, const char *pkg, unsigned data) {
     (void)pkg;
     if (data != kPadLeft && data != kPadRight) return;
     const int row = row_of(self);
     const PageInfo *page = field<PageInfo *>(self, kRowPage);
-    if (!page || row < 0 || row >= page->page->row_count) return;
+    if (!page || row < 0 || row >= page->page->row_count || !row_is_enabled(page, row)) return;
     if (page->page->change) page->page->change(row, data == kPadRight ? 1 : -1, (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0 || pad_button_down(nfsmw::xinput::kLeftShoulder));
     field<unsigned char>(self, kRowChanged) = 1;  // as PODriveCam::Act does
     void **vtbl = field<void **>(self, 0);
@@ -471,6 +488,7 @@ void THISCALL value_row_draw(void *self) {
     const unsigned hash = page->page->value ? page->page->value(row, text, sizeof(text)) : 0;
     if (hash) game::FEngSetLanguageHash(field<void *>(self, kRowData), hash);
     else set_wide_text(field<void *>(self, kRowData), text);
+    apply_row_enabled(self, page, row);
 }
 
 // A slider row: the bar is the layout's BASE_SLIDER_n / FILLBAR_SLIDER_n for the row's slot, which the game's widget finds by itself.
@@ -481,6 +499,7 @@ void THISCALL slider_row_draw(void *self) {
     game::FEngSetLanguageHash(field<void *>(self, kRowTitle), page->row_label_hash[row]);
     game::SetSliderValue(self, page->page->fill(row));
     game::DrawSlider(self);
+    apply_row_enabled(self, page, row);
 }
 
 void THISCALL slider_row_initial_values(void *self) {
