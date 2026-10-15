@@ -20,6 +20,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
 - **Rows in the game's own Player options**: a page can also put its rows at the end of Options > Player (`placement = kPlayerOptions`).
 - **Pages opened by a mod**: a page with `placement = kHidden` has no entry in the Options menu; the mod opens it with `open_page` from another screen (for example the Rumble Options button in the Controller Support mod).
 - **Rows on the Controls screen**: a mod can add rows for its own key and button bindings to Options > Controls, and rename the game's texts.
+- **Localization**: Mods can provide translations for the game's 10 supported additional languages for the UI elements that they're adding.
 
 ## Other fixes
 
@@ -36,15 +37,15 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
   - NFS MW Redux v3 mod pack.
 
 ## TODO
-- Test translation support?
+- Ability to switch language in-game?
 - Ability to add not just sub-menus under "Options", but also in the pause menu, eg. to customize the current race, or other dev tools.
 - We now have the ability to add entries in the Player Options, but what about to the other menus? Should probably support all of them.
 
-## Using it from your own plugin
+## Using it from your own mod
 
-Copy [`common/custom_menus_api.h`](../common/custom_menus_api.h) (it has no dependencies) and export `nfsmw_custom_menus_provide`. The framework calls it in every loaded plugin the first time the Options menu opens, and a plugin works without its page when the framework is missing.
+Copy [`common/custom_menus_api.h`](../common/custom_menus_api.h) (it has no dependencies) and export `nfsmw_custom_menus_provide`. The framework calls it in every loaded mod the first time the Options menu opens, and a mod works without its page when the framework is missing.
 
-[`example_options_page/main.cpp`](../example_options_page/main.cpp) is a complete example plugin with a page of dummy settings (a slider, a choice and an On/Off row that uses the game's own strings), and its header comment explains every callback, the rows, the icons and the other places rows can go. Copy from there.
+[`example_options_page/main.cpp`](../example_options_page/main.cpp) is a complete example mod with a page of dummy settings (a slider, a choice and an On/Off row that uses the game's own strings), and its header comment explains every callback, the rows, the icons and the other places rows can go. Copy from there; it also shows how a mod ships translations of its texts.
 
 ## Files and settings
 

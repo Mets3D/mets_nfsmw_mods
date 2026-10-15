@@ -36,6 +36,13 @@
  * like the texture (OPTIONS_MYMOD.png), put it in scripts/mets_mods/ (nfsmw::data_file() gives the path) and pass its full path
  * as `texture_pack`: the framework loads it through the game's resource loader when the menu first opens.
  *
+ * Translations: `host->register_translations(folder)`, called first thing in the provide export, with a folder of your own (anywhere:
+ * a subfolder of your mod's data folder, say) that holds one UTF-8 file per language, named like the game's language (`Language=` in
+ * its Settings.ini): German.txt, French.txt, Spanish.txt, Italian.txt, Dutch.txt, Swedish.txt, Danish.txt, Polish.txt, Finnish.txt.
+ * A line is `English text = Translation`, # starts a comment. Everything the mod gives the framework (page and row texts, help,
+ * register_text) is looked up there by its English text, and so are the texts value() writes; a text without a translation stays
+ * English. See translations/German.txt next to this file (here installed to scripts/mets_mods/translations/example_options_page/).
+ *
  * Other places for rows (Page::placement): Options > Player (kPlayerOptions), a page that only the mod opens (kHidden), an entry in
  * the main menu's Options as well (kNewEntryEverywhere). The Controls screen takes binding rows (Host::register_controls_rows).
  */
@@ -138,6 +145,9 @@ opt::Page g_page;
 
 extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const opt::Host *host) {
     load();
+    char translations[MAX_PATH];
+    nfsmw::data_file("translations\\example_options_page", translations, sizeof(translations));
+    host->register_translations(translations);
     g_page = {"example", "Example Page", "EXAMPLE PAGE", "EXAMPLE PAGE INFO",
               /* icon hash */ 0, /* fallback icon hash, 0 = the Options icon */ 0, /* .tpk with the icon, or null */ nullptr,
               static_cast<int>(sizeof(kRows) / sizeof(kRows[0])), kRows,

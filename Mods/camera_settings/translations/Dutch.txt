@@ -1,0 +1,32 @@
+# Dutch texts of nfsmw_camera_settings. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Copy this folder to <game>/scripts/mets_mods/translations/camera_settings/.
+
+Camera = Camera
+CAMERA = CAMERA
+CAMERA INFO = CAMERA-INFO
+Enabled = Actief
+Mirror = Spiegel
+FOV = Gezichtsveld
+Speed FoV = Gezichtsveld (snelheid)
+Smoothing = Vloeiendheid
+Acceleration = Acceleratie
+Height = Hoogte
+Distance = Afstand
+Pitch = Helling
+Lateral Offset = Zijwaartse verschuiving
+Tilt = Kanteling
+Previous Camera View = Vorige camera
+Next Camera View = Volgende camera
+
+Whether Next and Previous Camera View stop at this view. = Bepaalt of "Volgende camera" en "Vorige camera" bij dit beeld stoppen.
+Enable rear view mirror in this view. = Schakelt de achteruitkijkspiegel in dit beeld in.
+Field of view in degrees. Higher values show more of the scene and exaggerate the feeling of speed. Lower values zoom in. Hold Shift or LB for finer steps. = Gezichtsveld in graden. Hogere waarden tonen meer van het tafereel en versterken het snelheidsgevoel. Lagere waarden zoomen in. Houd Shift of LB ingedrukt voor kleinere stappen.
+Extra field of view in degrees, added on top of the base FoV as you speed up, to exaggerate the feeling of speed. It reaches this value at 300 km/h. 0 turns it off. Hold Shift or LB for finer steps. = Extra gezichtsveld in graden, opgeteld bij het basisgezichtsveld naarmate je sneller rijdt, om het snelheidsgevoel te versterken. Bij 300 km/u is de volledige waarde bereikt. 0 schakelt het uit. Houd Shift of LB ingedrukt voor kleinere stappen.
+How much the camera's movement is smoothed. Hold Shift or LB for finer steps. = Hoe vloeiend de camerabeweging wordt gemaakt. Houd Shift of LB ingedrukt voor kleinere stappen.
+How much the camera pulls back and pushes forward during acceleration and braking. Hold Shift or LB for finer steps. = Hoeveel de camera naar achteren en naar voren beweegt tijdens accelereren en remmen. Houd Shift of LB ingedrukt voor kleinere stappen.
+The camera's height above the car. Hold Shift or LB for finer steps. = De hoogte van de camera boven de auto. Houd Shift of LB ingedrukt voor kleinere stappen.
+The camera's backwards/forwards offset from the car. Hold Shift or LB for finer steps. = De verschuiving van de camera naar achteren of voren ten opzichte van de auto. Houd Shift of LB ingedrukt voor kleinere stappen.
+Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps. = Kantelt de camera omhoog of omlaag, in graden. Houd Shift of LB ingedrukt voor kleinere stappen.
+Moves the camera sideways, away from the center line of the car. Hold Shift or LB for finer steps. = Verplaatst de camera zijwaarts, weg van de middenlijn van de auto. Houd Shift of LB ingedrukt voor kleinere stappen.
+How much the camera tilts with the car. Hold Shift or LB for finer steps. = Hoeveel de camera met de auto meekantelt. Houd Shift of LB ingedrukt voor kleinere stappen.
+Selects the camera view whose settings you are editing. This is the same setting as the Camera option under Player. = Kiest het camerabeeld waarvan je de instellingen bewerkt. Dit is dezelfde instelling als de optie Camera onder Speler.

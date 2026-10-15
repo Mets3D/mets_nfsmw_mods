@@ -1,0 +1,32 @@
+# Italian texts of nfsmw_camera_settings. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Copy this folder to <game>/scripts/mets_mods/translations/camera_settings/.
+
+Camera = Visuale
+CAMERA = VISUALE
+CAMERA INFO = INFO VISUALE
+Enabled = Attiva
+Mirror = Specchietto
+FOV = Campo visivo
+Speed FoV = Campo visivo (velocità)
+Smoothing = Ammorbidimento
+Acceleration = Accelerazione
+Height = Altezza
+Distance = Distanza
+Pitch = Beccheggio
+Lateral Offset = Spostamento laterale
+Tilt = Inclinazione
+Previous Camera View = Visuale precedente
+Next Camera View = Visuale successiva
+
+Whether Next and Previous Camera View stop at this view. = Indica se "Visuale successiva" e "Visuale precedente" si fermano su questa visuale.
+Enable rear view mirror in this view. = Attiva lo specchietto retrovisore in questa visuale.
+Field of view in degrees. Higher values show more of the scene and exaggerate the feeling of speed. Lower values zoom in. Hold Shift or LB for finer steps. = Campo visivo in gradi. Valori più alti mostrano più scena e accentuano la sensazione di velocità. Valori più bassi ingrandiscono. Tieni premuto Maiusc o LB per passi più fini.
+Extra field of view in degrees, added on top of the base FoV as you speed up, to exaggerate the feeling of speed. It reaches this value at 300 km/h. 0 turns it off. Hold Shift or LB for finer steps. = Campo visivo aggiuntivo in gradi, sommato a quello di base quando acceleri, per accentuare la sensazione di velocità. Il valore pieno viene raggiunto a 300 km/h. 0 lo disattiva. Tieni premuto Maiusc o LB per passi più fini.
+How much the camera's movement is smoothed. Hold Shift or LB for finer steps. = Quanto viene ammorbidito il movimento della telecamera. Tieni premuto Maiusc o LB per passi più fini.
+How much the camera pulls back and pushes forward during acceleration and braking. Hold Shift or LB for finer steps. = Quanto la telecamera si allontana e si avvicina durante accelerazione e frenata. Tieni premuto Maiusc o LB per passi più fini.
+The camera's height above the car. Hold Shift or LB for finer steps. = L'altezza della telecamera sopra l'auto. Tieni premuto Maiusc o LB per passi più fini.
+The camera's backwards/forwards offset from the car. Hold Shift or LB for finer steps. = Lo spostamento della telecamera avanti o indietro rispetto all'auto. Tieni premuto Maiusc o LB per passi più fini.
+Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps. = Inclina la telecamera verso l'alto o verso il basso, in gradi. Tieni premuto Maiusc o LB per passi più fini.
+Moves the camera sideways, away from the center line of the car. Hold Shift or LB for finer steps. = Sposta la telecamera lateralmente, lontano dalla linea centrale dell'auto. Tieni premuto Maiusc o LB per passi più fini.
+How much the camera tilts with the car. Hold Shift or LB for finer steps. = Quanto la telecamera si inclina insieme all'auto. Tieni premuto Maiusc o LB per passi più fini.
+Selects the camera view whose settings you are editing. This is the same setting as the Camera option under Player. = Seleziona la visuale di cui stai modificando le impostazioni. È la stessa impostazione dell'opzione Visuale in Giocatore.

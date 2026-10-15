@@ -522,6 +522,9 @@ int mirror_override(int cam) {
 extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const opt::Host *host) {
     g_rows[0] = {opt::kCameraSelectorRow, "", 0, kHelp[NPARAM]};
     for (int p = 0; p < NPARAM; ++p) g_rows[1 + p] = {opt::kValueRow, kLabel[p], 0, kHelp[p]};
+    char translations[MAX_PATH];
+    nfsmw::data_file("translations\\camera_settings", translations, sizeof(translations));
+    host->register_translations(translations);  // before any text is registered
     nfsmw::data_file("nfsmw_camera_settings.tpk", g_pack_path, sizeof(g_pack_path));
     g_page = {"camera", "Camera", "CAMERA", "CAMERA INFO", g_icon, 0, g_pack_path,
               1 + NPARAM, g_rows, page_available, page_opened, page_value, page_change, camera_changed, page_accept,

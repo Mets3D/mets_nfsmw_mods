@@ -38,6 +38,7 @@
 #include "resume_career.h"
 #include "skip_dialogs.h"
 #include "skip_movies.h"
+#include "translations.h"
 #include "texture_pack.h"
 #include "title_icon.h"
 #include "xinput.h"
@@ -248,7 +249,7 @@ unsigned add_text(const char *id, const char *what, int row, const char *text) {
     if (row >= 0) snprintf(name, sizeof(name), "NFSMW_CUSTOM_MENUS.%s.%d.%s", id, row, what);
     else snprintf(name, sizeof(name), "NFSMW_CUSTOM_MENUS.%s.%s", id, what);
     const unsigned hash = nfsmw::bstring_hash(name);
-    g_texts.emplace_back(text);
+    g_texts.emplace_back(custom_menus::translations::translate(text));
     g_entries.push_back({hash, g_texts.back().c_str()});
     return hash;
 }
@@ -289,8 +290,8 @@ void discover_pages() {
     if (g_discovered) return;
     g_discovered = true;
     g_host = {&register_page, &custom_menus::controls_rows::add_rows, &custom_menus::controls_rows::add_text,
-              &custom_menus::controls_rows::set_binding_label, &custom_menus::controls_rows::add_refresh,
-              &custom_menus::controls_rows::add_controller_defaults, &open_page};
+              &custom_menus::translations::add_folder, &custom_menus::controls_rows::set_binding_label,
+              &custom_menus::controls_rows::add_refresh, &custom_menus::controls_rows::add_controller_defaults, &open_page};
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId());
     if (snapshot == INVALID_HANDLE_VALUE) {
         log_line("could not list the loaded modules");
@@ -308,6 +309,7 @@ void discover_pages() {
     }
     CloseHandle(snapshot);
     log_line("%d page(s) registered", g_page_count);
+    log_line("translations: %d texts for the game's language", custom_menus::translations::count());
     custom_menus::controls_rows::apply(g_log, g_ini);
 }
 
@@ -429,7 +431,7 @@ void THISCALL value_row_draw(void *self) {
     char text[64] = {};
     const unsigned hash = page->page->value ? page->page->value(row, text, sizeof(text)) : 0;
     if (hash) game::FEngSetLanguageHash(field<void *>(self, kRowData), hash);
-    else set_wide_text(field<void *>(self, kRowData), text);
+    else set_wide_text(field<void *>(self, kRowData), custom_menus::translations::translate(text));
     apply_row_enabled(self, page, row);
 }
 
@@ -542,7 +544,7 @@ void build_page_screen(void *screen) {
     // also print into the group so it does not depend on the table lookup.
     const char *pkg = field<const char *>(screen, kScreenPackage);
     game::FEngSetLanguageHashPkg(pkg, kHeaderText, g_page->title_hash);
-    game::FEPrintfPkg(pkg, static_cast<int>(kHeaderText), "%s", page.title);
+    game::FEPrintfPkg(pkg, static_cast<int>(kHeaderText), "%s", custom_menus::translations::translate(page.title));
     custom_menus::title_icon::set(pkg, g_page->icon);
     game::RefreshWidgets(screen);
     g_hint_pending_screen = screen;  // the Help hint is cloned on the first tick, once the layout is live
@@ -747,7 +749,9 @@ void prepare_clone(void *orig, void *copy, int depth, bool mirrored) {
 
     const int type = field<int>(copy, fe::kType);
     if (type == fe::kString) {  // the label
-        game::FEPrintf(copy, "%s", "Help");
+        constexpr unsigned kHelpText = 0x61D8F34F;  // the game's own "Help"
+        const char *help = nfsmw::language_text(kHelpText);
+        game::FEPrintf(copy, "%s", help ? help : "Help");
     } else if (type == fe::kImage) {  // the key glyph (the hit-box's backing image keeps its texture)
         if (is_key_glyph(field<unsigned>(copy, fe::kHandle))) game::FEngSetTextureHash(copy, kPcKey2Texture);
     } else if (type == fe::kGroup && depth < 4) {
@@ -965,7 +969,7 @@ void FASTCALL hook_dialog_build(void *self, void *edx) {
     g_help_dialog_pending = false;
     const char *pkg = field<const char *>(self, kScreenPackage);
     game::FEngSetLanguageHashPkg(pkg, kHeaderText, g_page->help_title_hash);
-    game::FEPrintfPkg(pkg, static_cast<int>(kHeaderText), "%s", g_page->page->help_title);
+    game::FEPrintfPkg(pkg, static_cast<int>(kHeaderText), "%s", custom_menus::translations::translate(g_page->page->help_title));
     game::FEngSetInvisiblePkg(pkg, kDialogIcon1);
     game::FEngSetInvisiblePkg(pkg, kDialogIcon2);
 }

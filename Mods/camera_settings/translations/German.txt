@@ -1,0 +1,32 @@
+# German texts of nfsmw_camera_settings. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Copy this folder to <game>/scripts/mets_mods/translations/camera_settings/.
+
+Camera = Kamera
+CAMERA = KAMERA
+CAMERA INFO = KAMERA-INFO
+Enabled = Aktiv
+Mirror = Spiegel
+FOV = Sichtfeld
+Speed FoV = Geschwindigkeits-Sichtfeld
+Smoothing = Glättung
+Acceleration = Beschleunigung
+Height = Höhe
+Distance = Abstand
+Pitch = Neigung
+Lateral Offset = Seitenversatz
+Tilt = Kippen
+Previous Camera View = Vorherige Kameraansicht
+Next Camera View = Nächste Kameraansicht
+
+Whether Next and Previous Camera View stop at this view. = Ob "Nächste" und "Vorherige Kameraansicht" bei dieser Ansicht anhalten.
+Enable rear view mirror in this view. = Rückspiegel in dieser Ansicht aktivieren.
+Field of view in degrees. Higher values show more of the scene and exaggerate the feeling of speed. Lower values zoom in. Hold Shift or LB for finer steps. = Sichtfeld in Grad. Höhere Werte zeigen mehr von der Szene und verstärken das Geschwindigkeitsgefühl. Niedrigere Werte zoomen heran. Mit Umschalt oder LB in feineren Schritten ändern.
+Extra field of view in degrees, added on top of the base FoV as you speed up, to exaggerate the feeling of speed. It reaches this value at 300 km/h. 0 turns it off. Hold Shift or LB for finer steps. = Zusätzliches Sichtfeld in Grad, das beim Beschleunigen zum normalen Sichtfeld addiert wird, um das Geschwindigkeitsgefühl zu verstärken. Bei 300 km/h ist der volle Wert erreicht. 0 schaltet es aus. Mit Umschalt oder LB in feineren Schritten ändern.
+How much the camera's movement is smoothed. Hold Shift or LB for finer steps. = Wie stark die Kamerabewegung geglättet wird. Mit Umschalt oder LB in feineren Schritten ändern.
+How much the camera pulls back and pushes forward during acceleration and braking. Hold Shift or LB for finer steps. = Wie stark die Kamera beim Beschleunigen und Bremsen zurück- und nach vorn wandert. Mit Umschalt oder LB in feineren Schritten ändern.
+The camera's height above the car. Hold Shift or LB for finer steps. = Die Höhe der Kamera über dem Auto. Mit Umschalt oder LB in feineren Schritten ändern.
+The camera's backwards/forwards offset from the car. Hold Shift or LB for finer steps. = Der Versatz der Kamera nach hinten/vorn vom Auto. Mit Umschalt oder LB in feineren Schritten ändern.
+Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps. = Neigt die Kamera nach oben oder unten, in Grad. Mit Umschalt oder LB in feineren Schritten ändern.
+Moves the camera sideways, away from the center line of the car. Hold Shift or LB for finer steps. = Verschiebt die Kamera seitlich von der Mittellinie des Autos weg. Mit Umschalt oder LB in feineren Schritten ändern.
+How much the camera tilts with the car. Hold Shift or LB for finer steps. = Wie stark die Kamera mit dem Auto kippt. Mit Umschalt oder LB in feineren Schritten ändern.
+Selects the camera view whose settings you are editing. This is the same setting as the Camera option under Player. = Wählt die Kameraansicht, deren Einstellungen du bearbeitest. Das ist dieselbe Einstellung wie die Kameraoption unter Spieler.

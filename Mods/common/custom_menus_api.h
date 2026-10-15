@@ -86,6 +86,10 @@ struct Host {
     void (*register_controls_rows)(const ControlsRow *rows, int count);
     // A language string: added to the game's table, or replacing the game's own text for that hash. `text` must stay valid.
     void (*register_text)(unsigned hash, const char *text);
+    // Translations of the texts the mod gives the framework (pages, rows, help, register_text): `folder` (the mod's own; the string is copied)
+    // holds one UTF-8 file per language, named like the game's language (German.txt, French.txt, ...), with a line `English text =
+    // Translation` per text. Call it before registering pages and texts. Texts without a translation stay English.
+    void (*register_translations)(const char *folder);
     void (*set_binding_label)(BindingLabelFn fn);  // one mod may do this
     // Called each time the Controls screen refreshes its rows (it opens, and after every rebinding): where a mod notices that the
     // bindings of its entries changed. Any number of mods may add one.

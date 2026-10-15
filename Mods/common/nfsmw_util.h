@@ -84,6 +84,19 @@ constexpr uintptr_t kTable = 0x91CF80;  // LangEntry*: the loaded language
 constexpr uintptr_t kCount = 0x91CF78;  // its number of entries
 }  // namespace lang
 
+// The text the game's language table has for `hash` (in the language that is loaded), or null.
+inline const char *language_text(unsigned hash) {
+    const LangEntry *cur = *reinterpret_cast<LangEntry **>(lang::kTable);
+    const unsigned n = *reinterpret_cast<unsigned *>(lang::kCount);
+    unsigned lo = 0, hi = n;
+    while (cur && lo < hi) {
+        const unsigned mid = (lo + hi) / 2;
+        if (cur[mid].hash < hash) lo = mid + 1;
+        else hi = mid;
+    }
+    return cur && lo < n && cur[lo].hash == hash ? cur[lo].text : nullptr;
+}
+
 // Merges `entries` (any order; the texts must outlive the game) into the table. Does nothing when the table already
 // holds the first entry's hash (this language is already merged, by us or an earlier call) or is not loaded yet.
 // Returns true when it merged.

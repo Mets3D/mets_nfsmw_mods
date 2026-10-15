@@ -1,0 +1,32 @@
+# Danish texts of nfsmw_camera_settings. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Copy this folder to <game>/scripts/mets_mods/translations/camera_settings/.
+
+Camera = Kameravinkel
+CAMERA = KAMERAVINKEL
+CAMERA INFO = KAMERAINFO
+Enabled = Aktiv
+Mirror = Bakspejl
+FOV = Synsfelt
+Speed FoV = Synsfelt (fart)
+Smoothing = Udjævning
+Acceleration = Acceleration
+Height = Højde
+Distance = Afstand
+Pitch = Hældning
+Lateral Offset = Sidelæns forskydning
+Tilt = Krængning
+Previous Camera View = Forrige kameravinkel
+Next Camera View = Næste kameravinkel
+
+Whether Next and Previous Camera View stop at this view. = Om "Næste kameravinkel" og "Forrige kameravinkel" stopper ved denne visning.
+Enable rear view mirror in this view. = Aktivér bakspejlet i denne visning.
+Field of view in degrees. Higher values show more of the scene and exaggerate the feeling of speed. Lower values zoom in. Hold Shift or LB for finer steps. = Synsfelt i grader. Højere værdier viser mere af omgivelserne og forstærker fornemmelsen af fart. Lavere værdier zoomer ind. Hold Skift eller LB nede for finere trin.
+Extra field of view in degrees, added on top of the base FoV as you speed up, to exaggerate the feeling of speed. It reaches this value at 300 km/h. 0 turns it off. Hold Shift or LB for finer steps. = Ekstra synsfelt i grader, der lægges oven i det almindelige synsfelt, når du øger farten, for at forstærke fornemmelsen af fart. Den fulde værdi nås ved 300 km/t. 0 slår det fra. Hold Skift eller LB nede for finere trin.
+How much the camera's movement is smoothed. Hold Shift or LB for finer steps. = Hvor meget kameraets bevægelse udjævnes. Hold Skift eller LB nede for finere trin.
+How much the camera pulls back and pushes forward during acceleration and braking. Hold Shift or LB for finer steps. = Hvor meget kameraet trækkes tilbage og skubbes frem under acceleration og opbremsning. Hold Skift eller LB nede for finere trin.
+The camera's height above the car. Hold Shift or LB for finer steps. = Kameraets højde over bilen. Hold Skift eller LB nede for finere trin.
+The camera's backwards/forwards offset from the car. Hold Shift or LB for finer steps. = Kameraets forskydning bagud eller fremad i forhold til bilen. Hold Skift eller LB nede for finere trin.
+Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps. = Hælder kameraet opad eller nedad, i grader. Hold Skift eller LB nede for finere trin.
+Moves the camera sideways, away from the center line of the car. Hold Shift or LB for finer steps. = Flytter kameraet sidelæns, væk fra bilens midterlinje. Hold Skift eller LB nede for finere trin.
+How much the camera tilts with the car. Hold Shift or LB for finer steps. = Hvor meget kameraet krænger med bilen. Hold Skift eller LB nede for finere trin.
+Selects the camera view whose settings you are editing. This is the same setting as the Camera option under Player. = Vælger den kameravinkel, hvis indstillinger du redigerer. Det er den samme indstilling som valgmuligheden Kameravinkel under Spiller.

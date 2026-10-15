@@ -1,0 +1,14 @@
+# German texts of nfsmw_example_options_page: one line per text, `English text = translation` (UTF-8).
+# This folder is registered with Host::register_translations; see the comment at the top of ../main.cpp.
+
+Example Page = Beispielseite
+EXAMPLE PAGE = BEISPIELSEITE
+EXAMPLE PAGE INFO = INFO ZUR BEISPIELSEITE
+Strength = Stärke
+Mode = Modus
+Low = Niedrig
+Medium = Mittel
+High = Hoch
+How strong the effect is. Hold Shift or LB for finer steps. = Wie stark der Effekt ist. Mit Umschalt oder LB in feineren Schritten ändern.
+Picks one of three modes. = Wählt einen von drei Modi.
+Turns the example on or off. = Schaltet das Beispiel ein oder aus.

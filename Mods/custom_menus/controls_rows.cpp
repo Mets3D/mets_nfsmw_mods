@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "hooks.h"
+#include "translations.h"
 
 namespace custom_menus::controls_rows {
 
@@ -183,7 +184,7 @@ void add_rows(const opt::ControlsRow *rows, int count) {
     for (int i = 0; i < count; ++i) g_rows.push_back(rows[i]);
 }
 
-void add_text(unsigned hash, const char *text) { g_texts.push_back({hash, text}); }
+void add_text(unsigned hash, const char *text) { g_texts.push_back({hash, translations::translate(text)}); }
 
 void set_binding_label(opt::BindingLabelFn fn) { g_label_fn = fn; }
 
