@@ -13,8 +13,8 @@ namespace {
 using nfsmw::field;
 
 // In the outside views the camera's up direction is (x, y, 1) with x and y taken from a spring (the mover's +0x94) that moves toward
-// a target set at 0x47D270 inside the placement code sub_47CF00: world up (0, 0, 1), plus a lean taken from the acceleration when
-// the POV allows tilting. We replace that target with the lean that makes the camera's up the car's up: the third row of the
+// a target set at 0x47D270 inside the placement code sub_47CF00 (called from the mover's update): world up (0, 0, 1), plus a lean
+// taken from the acceleration when the POV allows tilting. We replace that target with the lean that makes the camera's up the car's up: the third row of the
 // car's matrix, which the camera anchor (the mover's +0x80) keeps at +0x50 (row 2 = +0x70), as (x / z, y / z), by a share.
 // The bumper and hood views use the car's up directly and are not affected.
 constexpr unsigned kType = 0x9C, kAnchor = 0x80, kCarUp = 0x70;
@@ -24,12 +24,12 @@ constexpr float kMinUpZ = 0.3f;  // upside down or on its side the lean would ru
 void *g_mover = nullptr;  // the mover whose placement is running
 
 // sub_47CF00(mover, four stack arguments): only the mover is remembered.
-using PlaceRaw = void(FASTCALL *)(void *, void *, void *, void *, void *, void *);
-PlaceRaw g_orig_place_raw;
+using PlaceFn = void(FASTCALL *)(void *, void *, void *, void *, void *, void *);
+PlaceFn g_orig_place;
 
 void FASTCALL hook_place(void *mover, void *edx, void *a, void *b, void *c, void *d) {
     g_mover = mover;
-    g_orig_place_raw(mover, edx, a, b, c, d);
+    g_orig_place(mover, edx, a, b, c, d);
     g_mover = nullptr;
 }
 
@@ -56,10 +56,9 @@ void FASTCALL set_up_target(void *spring, void *edx, float *up) {
 void install_hooks(nfsmw::Logger &log, const char *ini) {
     const nfsmw::Hook hooks[] = {
         {"tilt", "CubicCameraMover placement (sub_47CF00)", kPlacement, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x81}, false,
-         nfsmw::detour(&hook_place), nfsmw::orig(&g_orig_place_raw)},
+         nfsmw::detour(&hook_place), nfsmw::orig(&g_orig_place)},
     };
-    const nfsmw::HookResult placed = nfsmw::install_hooks(hooks, 1, log, ini, "tilt");
-    if (placed.created != 1) return;
+    if (nfsmw::install_hooks(hooks, 1, log, ini, "tilt").created != 1) return;
     // The call to the spring's target setter: E8 rel32 to 0x651790 becomes a call to ours.
     unsigned char expected[5] = {0xE8}, patch[5] = {0xE8};
     const int32_t was = static_cast<int32_t>(kSetTarget - (kTargetCall + 5));

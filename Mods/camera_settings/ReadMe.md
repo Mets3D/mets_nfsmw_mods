@@ -13,9 +13,6 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) lets you tune camera views i
 
 In the main menu there is no car, so the values you see are the BMW M3 GTR's. The changes are stored as offsets like always, so they apply to whichever car you drive.
 
-## How it works
-
-In the base game, every car has its own camera values. This mod preserves that by storing only offsets from those base values. While editing the values in the Camera menu however, you're seeing the final calculated value. This means your camera values may change when switching cars. This is normal, and this allows preserving the game's original designed base values, while only applying an offset to those as a way of customization. This is important for eg. hood heights, which differ significantly per car.
 
 ## Features
 
@@ -30,16 +27,16 @@ It was my goal to integrate this mod into the original game's design as if it wa
   - Enabled: Whether this camera view is used by the Next/Previous Camera View hotkeys.
 - You can hold Shift or LB to change values with smaller increments.
 - Cycling cameras: Renames the vanilla game's "Change Camera View" keybind to **"Next Camera View"** and adds a **Previous Camera View** counterpart. This requires the [Custom Menus](../custom_menus/ReadMe.md) mod.
+- Values are applied as offsets, but displayed as absolute:
+  - In the game, every car has base camera positions for each camera view. This is preserved by applying your customizations as an offset.
+  - This does mean that the displayed camera values can change when you change cars. This is working as intended. The same offsets were applied to a different base, and the final value is displayed.
+  - This also means we must pick a base car to use when displaying the camera settings in the main menu. For this, we arbitrarily picked the BMW M3 GTR.
 - Native UX:
   - A custom hand-made icon for the menu.
   - Hit **Apply** to save. Otherwise, hitting **Back** will ask if you want to discard your changes.
   - A button to reset to defaults.
   - A help button that explains what each setting does.
   - Controller input tested and fully supported.
-
-## Settings, files
-
-After launching the game with the mod installed, it will store camera settings in `installdir/scripts/mets_mods/nfsmw_camera_settings.ini`. This file is also what gets modified when using the in-game Camera menu. `nfsmw_camera_settings.log` writes debug data here.
 
 ## Mod Compatibility
 
@@ -51,9 +48,7 @@ After launching the game with the mod installed, it will store camera settings i
   - "DRIFT" and "Pursuit" camera modes added by [`NFSMWExtraOptions`](https://github.com/ExOptsTeam/NFSMWExOpts).
 
 ## Ideas / TODO
-- Instead of showing the values with the current car's offsets applied, we could show them with just one hard-coded car's offsets applied. The end result should be the same, except this way the numbers don't change when switching to a different car.
 - Custom Menus mod should probably be a requirement, and maybe we should raise an error if it's not installed.
 - Ship the mod with a preset .ini with my recommended defaults.
-- I'd be curious about an option (name pending) which makes the camera swivel left and right based on your turning. So if you're turning to the right, it would turn the camera to the right, by a customizable amount. And it would listen to the analog steering also.
 - A way to try values while driving without pausing.
 - Update the YT link above, possibly make it an embed.
