@@ -4,7 +4,7 @@
 #include "controller_api.h"
 #include "hooks.h"
 #include "input.h"
-#include "controls_rumble.h"
+#include "controls_options.h"
 #include "rumble.h"
 
 namespace pad::pad_sets {
@@ -159,7 +159,7 @@ bool actions_of_slot(int xinput_slot, float *values) {
             else if (g_live == 0) slot = slots_of(kBindingTable, e)[kControllerSlot + s];
             else slot = g_sets[0].slots[e][s];
             if (slot.type < kButton) continue;
-            const float v = input::binding_value(slot.type, slot.object, state);
+            const float v = input::binding_value(slot.type, slot.object, state, xinput_slot);
             if (v > values[e]) values[e] = v;
         }
     }
@@ -210,7 +210,7 @@ int g_direction = 1;  // 1 next, -1 previous
 using MessageFn = void(FASTCALL *)(void *, void *, unsigned, void *, unsigned, unsigned);
 MessageFn g_orig_message;
 void FASTCALL hook_message(void *screen, void *edx, unsigned message, void *object, unsigned a, unsigned b) {
-    message = controls_rumble::filter_message(screen, message);
+    message = controls_options::filter_message(screen, message);
     if (message == 0x5073EF13) g_direction = -1;      // PAD_LTRIGGER
     else if (message == 0xD9FEEC59) g_direction = 1;  // PAD_RTRIGGER
     g_orig_message(screen, edx, message, object, a, b);
@@ -239,7 +239,7 @@ void FASTCALL hook_switch_device(void *screen, void *edx) {
     int &column = field<int>(screen, 0xE4);  // 1 keyboard, 3 controller
     const int n = joystick_count();
     if (n == 0) return;
-    if (controls_rumble::on_device_switch(screen)) return;  // the Rumble hint: the page opens instead
+    if (controls_options::on_device_switch(screen)) return;  // the Rumble hint: the page opens instead
     const int item = column == 3 ? g_menu_pad + 1 : 0;  // 0 the keyboard, 1.. the controllers
     const int next = ((item + g_direction) % (n + 1) + n + 1) % (n + 1);
     const int new_column = next == 0 ? 1 : 3, pad = next == 0 ? 0 : next - 1;

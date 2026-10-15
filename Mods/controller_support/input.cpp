@@ -8,6 +8,7 @@
 
 #include "controller_api.h"
 #include "hooks.h"
+#include "device_settings.h"
 #include "input.h"
 #include "menu_buttons.h"
 #include "pad_sets.h"
@@ -91,6 +92,18 @@ void apply_deadzone(LONG *ax, LONG *ay, float deadzone) {
     if (r * scale > 1.0f) scale = 1.0f / r;
     *ax = static_cast<LONG>(lroundf(32767.5f + x * scale * 32767.5f));
     *ay = static_cast<LONG>(lroundf(32767.5f + y * scale * 32767.5f));
+}
+
+// Whose dead zones a controller gets: its own slot's, or with a single XInput controller (whose slot the game cannot tell) the one in use.
+int settings_slot(int own) { return own >= 0 ? own : (xinput::port >= 0 ? xinput::port : 0); }
+
+// A trigger's dead zone: the same, on 0..255.
+void apply_trigger_deadzone(xinput::Gamepad *pad, float deadzone) {
+    const auto one = [deadzone](BYTE v) {
+        return static_cast<BYTE>(lroundf(255.0f * ramp(v / 255.0f, deadzone, 1.0f)));
+    };
+    pad->left_trigger = one(pad->left_trigger);
+    pad->right_trigger = one(pad->right_trigger);
 }
 
 // Mouse movement since the camera look last read it (DIMOUSESTATE / DIMOUSESTATE2: lX, lY, lZ, then the buttons).
@@ -282,20 +295,27 @@ void process_pad_state(void *device, JoyState *state) {
     // can be told apart, gets the merged state.
     xinput::Gamepad chosen = {};
     const bool replaced = g_cfg.use_all_xinput_controllers;
+    const int own = own_slot(device);
+    int dead_slot = own;  // whose dead zones: the controller's own, or with a single one (whose slot the game cannot tell) the one in use
     if (replaced) {
-        const int slot = own_slot(device);
+        const int slot = own;
         if (!(slot >= 0 ? xinput::read_slot(slot, &chosen) : read_merged(&chosen))) return report_at_rest(s);
         if (slot >= 0 && in_use(chosen)) xinput::port = slot;  // the controller in use is the one that rumbles
+        dead_slot = settings_slot(slot);
+        apply_trigger_deadzone(&chosen, device_settings::deadzones(dead_slot).trigger);
         report_xinput(s, chosen);
+    } else {
+        dead_slot = settings_slot(own);
     }
 
-    apply_deadzone(&s.x, &s.y, g_cfg.left_deadzone);
-    apply_deadzone(&s.rx, &s.ry, g_cfg.right_deadzone);
+    const device_settings::Deadzones &dead = device_settings::deadzones(dead_slot);
+    apply_deadzone(&s.x, &s.y, dead.left_stick);
+    apply_deadzone(&s.rx, &s.ry, dead.right_stick);
     if (g_cfg.split_triggers) {
         // The triggers are the device's own controller's (not the one in use: with several, each reports its own).
         xinput::Gamepad pad = chosen;
-        const int own = replaced ? -1 : own_slot(device);
         if (replaced || (own >= 0 ? xinput::read_slot(own, &pad) : xinput::read(&pad))) {
+            if (!replaced) apply_trigger_deadzone(&pad, dead.trigger);
             s.z = kAxisCentre;
             s.slider[0] = kAxisCentre - pad.left_trigger * kAxisCentre / 255;
             s.slider[1] = kAxisCentre - pad.right_trigger * kAxisCentre / 255;
@@ -307,11 +327,13 @@ void process_pad_state(void *device, JoyState *state) {
 
 // A controller's state as the game gets it from this controller (dead zones, triggers as two axes), for bindings read
 // without the game's polling (a second player's).
-JoyState state_of_pad(const xinput::Gamepad &p) {
+JoyState state_of_pad(xinput::Gamepad p, int slot) {
+    const device_settings::Deadzones &dead = device_settings::deadzones(slot);
+    apply_trigger_deadzone(&p, dead.trigger);
     JoyState s = {};
     report_xinput(s, p);
-    apply_deadzone(&s.x, &s.y, g_cfg.left_deadzone);
-    apply_deadzone(&s.rx, &s.ry, g_cfg.right_deadzone);
+    apply_deadzone(&s.x, &s.y, dead.left_stick);
+    apply_deadzone(&s.rx, &s.ry, dead.right_stick);
     if (g_cfg.split_triggers) {
         s.z = kAxisCentre;
         s.slider[0] = kAxisCentre - p.left_trigger * kAxisCentre / 255;
@@ -321,8 +343,8 @@ JoyState state_of_pad(const xinput::Gamepad &p) {
 }
 
 // What a controller binding {type, object} (see bindings.h) reads from a controller: 0..1.
-float binding_value(int type, int object, const xinput::Gamepad &p) {
-    const JoyState s = state_of_pad(p);
+float binding_value(int type, int object, const xinput::Gamepad &p, int slot) {
+    const JoyState s = state_of_pad(p, slot);
     const LONG axes[] = {s.x, s.y, s.z, s.rx, s.ry, s.rz};
     const auto low = [](LONG a) { return clamp01((kAxisCentre - a) / 32767.0f); };
     const auto high = [](LONG a) { return clamp01((a - kAxisCentre) / 32767.0f); };

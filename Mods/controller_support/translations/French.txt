@@ -1,11 +1,11 @@
 # French texts of nfsmw_controller_support. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
 # Copy this folder to <game>/scripts/mets_mods/translations/controller_support/. (The game's French has no accents on capitals, so the titles have none.)
-# "Rumble Options" is the hint of the Controls screen: at most 14 characters fit.
+# "Settings" is the hint of the Controls screen: at most 14 characters fit.
 
-Rumble = Vibration
-RUMBLE = VIBRATION
-RUMBLE INFO = INFOS VIBRATION
-Rumble Options = Vibrations
+Controller = Manette
+CONTROLLER = MANETTE
+CONTROLLER INFO = INFOS MANETTE
+Settings = Réglages
 Controller Prompts = Symboles manette
 Which buttons the menus show for a controller: Xbox or PlayStation. = Les boutons que les menus affichent pour une manette : Xbox ou PlayStation.
 Off = Sans
@@ -14,6 +14,13 @@ Look Right = Voir à droite
 Look Up = Voir en haut
 Look Down = Voir en bas
 Turns rumble on or off. This is the game's own Vibration setting, kept in your profile. = Active ou désactive la vibration. C'est le réglage Vibration du jeu, conservé dans votre profil.
+
+Left Stick Dead Zone = Zone morte stick gauche
+Right Stick Dead Zone = Zone morte stick droit
+Trigger Dead Zone = Zone morte gâchettes
+The left stick ignores movements smaller than this. Raise it if the car or the menu cursor drifts with the stick at rest. Hold Shift or LB for finer steps. = Le stick gauche ignore les mouvements plus petits que cette valeur. Augmentez-la si la voiture ou le curseur du menu dérive quand le stick est au repos. Maintenez Maj ou LB pour des pas plus fins.
+The right stick ignores movements smaller than this. Raise it if the camera drifts with the stick at rest. Hold Shift or LB for finer steps. = Le stick droit ignore les mouvements plus petits que cette valeur. Augmentez-la si la caméra dérive quand le stick est au repos. Maintenez Maj ou LB pour des pas plus fins.
+The triggers ignore pulls lighter than this. Hold Shift or LB for finer steps. = Les gâchettes ignorent les pressions plus légères que cette valeur. Maintenez Maj ou LB pour des pas plus fins.
 
 Collisions = Collisions
 Landings = Réceptions
@@ -27,17 +34,17 @@ Engine = Moteur
 Tire Blowouts = Éclatements de pneus
 Blown Engine = Moteur cassé
 
-Hitting walls, cars and objects: a jolt, harder the more the hit slows your car down (small props barely register), and a grinding rumble at half strength while sliding along a wall or car. Hold Shift for finer steps. = Chocs contre des murs, des voitures et des objets : une secousse, plus forte quand le choc ralentit davantage votre voiture (les petits objets comptent à peine), et un grondement à demi-force quand vous frottez contre un mur ou une voiture. Maintenez Maj pour des pas plus fins.
-The car's body hitting the ground: landing a jump, or bottoming out. Hold Shift for finer steps. = La caisse de la voiture qui touche le sol : réception après un saut, ou fond de caisse. Maintenez Maj pour des pas plus fins.
-A short kick on every upshift. Hold Shift for finer steps. = Un coup bref à chaque rapport supérieur passé. Maintenez Maj pour des pas plus fins.
-A surge when the nitrous kicks in, settling into a steady push while it lasts. Hold Shift for finer steps. = Une poussée quand la nitro se déclenche, qui se stabilise en une poussée constante tant qu'elle dure. Maintenez Maj pour des pas plus fins.
-The tires sliding sideways. Stronger the faster they slide. Hold Shift for finer steps. = Les pneus qui glissent latéralement. Plus fort quand ils glissent plus vite. Maintenez Maj pour des pas plus fins.
-Spinning wheels (burnouts, hard launches) and locked brakes. Hold Shift for finer steps. = Roues qui patinent (burnouts, départs violents) et freins bloqués. Maintenez Maj pour des pas plus fins.
-Full throttle at maximum revs: at top speed in top gear, or a manual gear change left too late. Hold Shift for finer steps. = Plein gaz au régime maximal : à vitesse maximale dans le dernier rapport, ou un changement de rapport manuel fait trop tard. Maintenez Maj pour des pas plus fins.
-Grass, gravel, dirt and wooden bridges, stronger with speed. Asphalt and concrete are smooth. Hold Shift for finer steps. = Herbe, gravier, terre et ponts en bois, plus fort avec la vitesse. L'asphalte et le béton sont lisses. Maintenez Maj pour des pas plus fins.
-A hum that rises with revs and throttle, all the time while driving. Hold Shift for finer steps. = Un ronronnement qui monte avec le régime et l'accélérateur, tout le temps pendant la conduite. Maintenez Maj pour des pas plus fins.
-Police spike strips: a bang, then the flat tire thumping as it turns. Hold Shift for finer steps. = Herses de police : un choc sec, puis le pneu à plat qui cogne en tournant. Maintenez Maj pour des pas plus fins.
-Drag races: the engine blowing from overheating. Also the sabotaged car in the opening race. Hold Shift for finer steps. = Courses de dragsters : le moteur qui casse par surchauffe. Aussi la voiture sabotée de la course d'ouverture. Maintenez Maj pour des pas plus fins.
+Hitting walls, cars and objects: a jolt, harder the more the hit slows your car down (small props barely register), and a grinding rumble at half strength while sliding along a wall or car. Hold Shift or LB for finer steps. = Chocs contre des murs, des voitures et des objets : une secousse, plus forte quand le choc ralentit davantage votre voiture (les petits objets comptent à peine), et un grondement à demi-force quand vous frottez contre un mur ou une voiture. Maintenez Maj ou LB pour des pas plus fins.
+The car's body hitting the ground: landing a jump, or bottoming out. Hold Shift or LB for finer steps. = La caisse de la voiture qui touche le sol : réception après un saut, ou fond de caisse. Maintenez Maj ou LB pour des pas plus fins.
+A short kick on every upshift. Hold Shift or LB for finer steps. = Un coup bref à chaque rapport supérieur passé. Maintenez Maj ou LB pour des pas plus fins.
+A surge when the nitrous kicks in, settling into a steady push while it lasts. Hold Shift or LB for finer steps. = Une poussée quand la nitro se déclenche, qui se stabilise en une poussée constante tant qu'elle dure. Maintenez Maj ou LB pour des pas plus fins.
+The tires sliding sideways. Stronger the faster they slide. Hold Shift or LB for finer steps. = Les pneus qui glissent latéralement. Plus fort quand ils glissent plus vite. Maintenez Maj ou LB pour des pas plus fins.
+Spinning wheels (burnouts, hard launches) and locked brakes. Hold Shift or LB for finer steps. = Roues qui patinent (burnouts, départs violents) et freins bloqués. Maintenez Maj ou LB pour des pas plus fins.
+Full throttle at maximum revs: at top speed in top gear, or a manual gear change left too late. Hold Shift or LB for finer steps. = Plein gaz au régime maximal : à vitesse maximale dans le dernier rapport, ou un changement de rapport manuel fait trop tard. Maintenez Maj ou LB pour des pas plus fins.
+Grass, gravel, dirt and wooden bridges, stronger with speed. Asphalt and concrete are smooth. Hold Shift or LB for finer steps. = Herbe, gravier, terre et ponts en bois, plus fort avec la vitesse. L'asphalte et le béton sont lisses. Maintenez Maj ou LB pour des pas plus fins.
+A hum that rises with revs and throttle, all the time while driving. Hold Shift or LB for finer steps. = Un ronronnement qui monte avec le régime et l'accélérateur, tout le temps pendant la conduite. Maintenez Maj ou LB pour des pas plus fins.
+Police spike strips: a bang, then the flat tire thumping as it turns. Hold Shift or LB for finer steps. = Herses de police : un choc sec, puis le pneu à plat qui cogne en tournant. Maintenez Maj ou LB pour des pas plus fins.
+Drag races: the engine blowing from overheating. Also the sabotaged car in the opening race. Hold Shift or LB for finer steps. = Courses de dragsters : le moteur qui casse par surchauffe. Aussi la voiture sabotée de la course d'ouverture. Maintenez Maj ou LB pour des pas plus fins.
 
 Left stick Left = Stick gauche : gauche
 Left stick Right = Stick gauche : droite

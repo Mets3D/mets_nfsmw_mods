@@ -1,11 +1,11 @@
 # Danish texts of nfsmw_controller_support. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
 # Copy this folder to <game>/scripts/mets_mods/translations/controller_support/.
-# "Rumble Options" is the hint of the Controls screen: at most 14 characters fit.
+# "Settings" is the hint of the Controls screen: at most 14 characters fit.
 
-Rumble = Rumble
-RUMBLE = RUMBLE
-RUMBLE INFO = RUMBLE-INFO
-Rumble Options = Rumble-valg
+Controller = Controller
+CONTROLLER = CONTROLLER
+CONTROLLER INFO = CONTROLLER-INFO
+Settings = Indstillinger
 Controller Prompts = Controller-symboler
 Which buttons the menus show for a controller: Xbox or PlayStation. = Hvilke knapper menuerne viser til en controller: Xbox eller PlayStation.
 Off = Fra
@@ -14,6 +14,13 @@ Look Right = Kig til højre
 Look Up = Kig op
 Look Down = Kig ned
 Turns rumble on or off. This is the game's own Vibration setting, kept in your profile. = Slår rumble til eller fra. Det er spillets egen vibrationsfunktion, som gemmes i din profil.
+
+Left Stick Dead Zone = Dødzone venstre stick
+Right Stick Dead Zone = Dødzone højre stick
+Trigger Dead Zone = Dødzone triggere
+The left stick ignores movements smaller than this. Raise it if the car or the menu cursor drifts with the stick at rest. Hold Shift or LB for finer steps. = Det venstre stick ignorerer bevægelser, der er mindre end denne værdi. Hæv værdien, hvis bilen eller menumarkøren driver, når sticket er i hvile. Hold Skift eller LB nede for finere trin.
+The right stick ignores movements smaller than this. Raise it if the camera drifts with the stick at rest. Hold Shift or LB for finer steps. = Det højre stick ignorerer bevægelser, der er mindre end denne værdi. Hæv værdien, hvis kameraet driver, når sticket er i hvile. Hold Skift eller LB nede for finere trin.
+The triggers ignore pulls lighter than this. Hold Shift or LB for finer steps. = Triggerne ignorerer træk, der er lettere end denne værdi. Hold Skift eller LB nede for finere trin.
 
 Collisions = Kollisioner
 Landings = Landinger
@@ -27,17 +34,17 @@ Engine = Motor
 Tire Blowouts = Punkterede dæk
 Blown Engine = Motorsammenbrud
 
-Hitting walls, cars and objects: a jolt, harder the more the hit slows your car down (small props barely register), and a grinding rumble at half strength while sliding along a wall or car. Hold Shift for finer steps. = Sammenstød med vægge, biler og genstande: et ryk, hårdere jo mere sammenstødet bremser din bil (små genstande knapt), og en skurende buldren ved halv styrke, når du skraber langs en væg eller bil. Hold Skift nede for finere trin.
-The car's body hitting the ground: landing a jump, or bottoming out. Hold Shift for finer steps. = Bilens karosseri, der rammer jorden: landing efter et hop eller at støde bunden. Hold Skift nede for finere trin.
-A short kick on every upshift. Hold Shift for finer steps. = Et kort spark ved hvert opgear. Hold Skift nede for finere trin.
-A surge when the nitrous kicks in, settling into a steady push while it lasts. Hold Shift for finer steps. = Et stød, når nitroen kobler ind, som går over i et jævnt tryk, så længe den varer. Hold Skift nede for finere trin.
-The tires sliding sideways. Stronger the faster they slide. Hold Shift for finer steps. = Dækkene, der glider sidelæns. Stærkere, jo hurtigere de glider. Hold Skift nede for finere trin.
-Spinning wheels (burnouts, hard launches) and locked brakes. Hold Shift for finer steps. = Hjul, der spinner (burnouts, hårde starter) og låste bremser. Hold Skift nede for finere trin.
-Full throttle at maximum revs: at top speed in top gear, or a manual gear change left too late. Hold Shift for finer steps. = Fuld gas ved maksimale omdrejninger: ved tophastighed i højeste gear eller et manuelt gearskift, der kommer for sent. Hold Skift nede for finere trin.
-Grass, gravel, dirt and wooden bridges, stronger with speed. Asphalt and concrete are smooth. Hold Shift for finer steps. = Græs, grus, jord og træbroer, stærkere med hastigheden. Asfalt og beton er glat. Hold Skift nede for finere trin.
-A hum that rises with revs and throttle, all the time while driving. Hold Shift for finer steps. = En brummen, der stiger med omdrejninger og gas, hele tiden under kørslen. Hold Skift nede for finere trin.
-Police spike strips: a bang, then the flat tire thumping as it turns. Hold Shift for finer steps. = Politiets sømbånd: et brag, så det flade dæk, der dunker, mens det drejer. Hold Skift nede for finere trin.
-Drag races: the engine blowing from overheating. Also the sabotaged car in the opening race. Hold Shift for finer steps. = Dragløb: motoren, der går i stykker af overophedning. Også den saboterede bil i åbningsløbet. Hold Skift nede for finere trin.
+Hitting walls, cars and objects: a jolt, harder the more the hit slows your car down (small props barely register), and a grinding rumble at half strength while sliding along a wall or car. Hold Shift or LB for finer steps. = Sammenstød med vægge, biler og genstande: et ryk, hårdere jo mere sammenstødet bremser din bil (små genstande knapt), og en skurende buldren ved halv styrke, når du skraber langs en væg eller bil. Hold Skift eller LB nede for finere trin.
+The car's body hitting the ground: landing a jump, or bottoming out. Hold Shift or LB for finer steps. = Bilens karosseri, der rammer jorden: landing efter et hop eller at støde bunden. Hold Skift eller LB nede for finere trin.
+A short kick on every upshift. Hold Shift or LB for finer steps. = Et kort spark ved hvert opgear. Hold Skift eller LB nede for finere trin.
+A surge when the nitrous kicks in, settling into a steady push while it lasts. Hold Shift or LB for finer steps. = Et stød, når nitroen kobler ind, som går over i et jævnt tryk, så længe den varer. Hold Skift eller LB nede for finere trin.
+The tires sliding sideways. Stronger the faster they slide. Hold Shift or LB for finer steps. = Dækkene, der glider sidelæns. Stærkere, jo hurtigere de glider. Hold Skift eller LB nede for finere trin.
+Spinning wheels (burnouts, hard launches) and locked brakes. Hold Shift or LB for finer steps. = Hjul, der spinner (burnouts, hårde starter) og låste bremser. Hold Skift eller LB nede for finere trin.
+Full throttle at maximum revs: at top speed in top gear, or a manual gear change left too late. Hold Shift or LB for finer steps. = Fuld gas ved maksimale omdrejninger: ved tophastighed i højeste gear eller et manuelt gearskift, der kommer for sent. Hold Skift eller LB nede for finere trin.
+Grass, gravel, dirt and wooden bridges, stronger with speed. Asphalt and concrete are smooth. Hold Shift or LB for finer steps. = Græs, grus, jord og træbroer, stærkere med hastigheden. Asfalt og beton er glat. Hold Skift eller LB nede for finere trin.
+A hum that rises with revs and throttle, all the time while driving. Hold Shift or LB for finer steps. = En brummen, der stiger med omdrejninger og gas, hele tiden under kørslen. Hold Skift eller LB nede for finere trin.
+Police spike strips: a bang, then the flat tire thumping as it turns. Hold Shift or LB for finer steps. = Politiets sømbånd: et brag, så det flade dæk, der dunker, mens det drejer. Hold Skift eller LB nede for finere trin.
+Drag races: the engine blowing from overheating. Also the sabotaged car in the opening race. Hold Shift or LB for finer steps. = Dragløb: motoren, der går i stykker af overophedning. Også den saboterede bil i åbningsløbet. Hold Skift eller LB nede for finere trin.
 
 Left stick Left = Venstre stick venstre
 Left stick Right = Venstre stick højre

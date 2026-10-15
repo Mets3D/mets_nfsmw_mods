@@ -14,8 +14,9 @@
  *   world_map.cpp      the world map: the right stick moves its cursor, LT and RT zoom
  *   extra_device.cpp   a second game input device, so that a second local player has an input path of the game's own
  *   rumble.cpp         rumble (the force feedback events, the controller's motors)
- *   rumble_page.cpp    Options > Rumble, a page of nfsmw_custom_menus (no entry in the Options menu)
- *   controls_rumble.cpp the Controls screen's Rumble hint opens that page for the selected controller, and comes back
+ *   device_settings.cpp  the dead zones of each XInput controller
+ *   controller_page.cpp  Controller Options (dead zones, rumble), a page of nfsmw_custom_menus (no entry in the Options menu)
+ *   controls_options.cpp the Controls screen's hint opens that page for the selected controller, and comes back
  *   menu_pages.cpp     registers the pages of this mod with nfsmw_custom_menus
  */
 #include "bindings.h"

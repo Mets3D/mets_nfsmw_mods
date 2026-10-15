@@ -11,7 +11,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 - **Analog steering, gas and brake**: The vanilla game maps them as on/off inputs, so even a stick bound to them was not analog. This mod enables analog throttle and reversing.
 - Better default controller bindings. They can also be fully remapped in the game's controls menu, which will show accurate and precise button names.
 - **Independent Triggers**: In the vanilla game, both triggers share one axis, so gas and brake on the triggers cancel each other. With this mod, you can hold gas and brake at the same time, just like you can on keyboard, causing a burnout.
-- **Dead zones**: The sticks have a dead zone to address stick drift (15% by default), which can be changed in the ini (`left_stick_deadzone`, `right_stick_deadzone`). Changing it from a menu is a TODO.
+- **Dead zones**: The sticks (15% by default) and triggers (5%) have a dead zone to address stick drift. Each controller has its own, set in **Options > Controls > a controller > Settings**, if [Custom Menus](../custom_menus/ReadMe.md) is installed. Otherwise, in the ini (`left_stick_deadzone`, `right_stick_deadzone`, `trigger_deadzone`).
 
 ### Camera look
 - All 3rd-person car cameras can be controlled with either the mouse, or the right stick
@@ -24,9 +24,12 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 - In single-player, all input devices (keyboard and all controllers) will be accepted.
 - This fully integrates with my [Split Screen Support](../split_screen_support/ReadMe.md) mod, so everything will work like you would expect from a video game that has split screen: Both players can pause the game, control the menus, control their own cameras, have their own input mapping, have their own rumble, etc.
 
-### Rumble
-- Hook up various events to controller rumble, such as gear shifts, collisions, driving on grass, nitrous, and more.
-- The rumble strength of each type of event can be cutomized per controller in **Options > Controls > a controller > Rumble Options**, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
+### Customizable Rumble
+- Various events in-game will create controller rumble, such as gear shifts, collisions, driving on grass, nitrous, and more.
+- The rumble strength of each type of event can be cutomized per controller in **Options > Controls > a controller > Settings**, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
+
+### Customizable Dead-zones
+- You can change the deadzone of each stick, and the triggers, in the same menu as the Rumble settings mentioned above.
 
 ### Menu Navigation
 - Menu navigation tested in all menus I could think of, including obscure menus like Showroom, Blacklist bio screen, Advanced Video Settings.
@@ -62,6 +65,5 @@ Enable = 0
 
 ## TODOs
 - The "Player->Controller Prompts" menu entry would be better if it was customizable per input device, so that when we switch from one controller to another, it might switch symbols.
-- Add options to tweak deadzones of triggers and sticks from the menu
 - Test per-controller rumble customization with >1 controller.
 - Add pictures and videos showcasing the mod to this ReadMe.

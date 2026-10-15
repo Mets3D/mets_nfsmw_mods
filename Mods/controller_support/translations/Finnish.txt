@@ -1,11 +1,11 @@
 # Finnish texts of nfsmw_controller_support. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
 # Copy this folder to <game>/scripts/mets_mods/translations/controller_support/.
-# "Rumble Options" is the hint of the Controls screen: at most 14 characters fit.
+# "Settings" is the hint of the Controls screen: at most 14 characters fit.
 
-Rumble = Tärinätoiminto
-RUMBLE = TÄRINÄTOIMINTO
-RUMBLE INFO = TÄRINÄTOIMINNON TIEDOT
-Rumble Options = Tärinäasetus
+Controller = Ohjain
+CONTROLLER = OHJAIN
+CONTROLLER INFO = OHJAIMEN TIEDOT
+Settings = Asetukset
 Controller Prompts = Ohjaimen symbolit
 Which buttons the menus show for a controller: Xbox or PlayStation. = Mitkä painikkeet valikot näyttävät ohjaimelle: Xbox tai PlayStation.
 Off = Pois
@@ -14,6 +14,13 @@ Look Right = Katso oikealle
 Look Up = Katso ylös
 Look Down = Katso alas
 Turns rumble on or off. This is the game's own Vibration setting, kept in your profile. = Kytkee tärinän päälle tai pois. Tämä on pelin oma värähtelytoiminto, joka tallentuu profiiliisi.
+
+Left Stick Dead Zone = Vasemman tikun kuollut alue
+Right Stick Dead Zone = Oikean tikun kuollut alue
+Trigger Dead Zone = Liipaisimien kuollut alue
+The left stick ignores movements smaller than this. Raise it if the car or the menu cursor drifts with the stick at rest. Hold Shift or LB for finer steps. = Vasen tikku ohittaa tätä pienemmät liikkeet. Nosta arvoa, jos auto tai valikon kohdistin liikkuu tikun levätessä. Pidä Vaihto tai LB painettuna hienompia askelia varten.
+The right stick ignores movements smaller than this. Raise it if the camera drifts with the stick at rest. Hold Shift or LB for finer steps. = Oikea tikku ohittaa tätä pienemmät liikkeet. Nosta arvoa, jos kamera liikkuu tikun levätessä. Pidä Vaihto tai LB painettuna hienompia askelia varten.
+The triggers ignore pulls lighter than this. Hold Shift or LB for finer steps. = Liipaisimet ohittavat tätä kevyemmät painallukset. Pidä Vaihto tai LB painettuna hienompia askelia varten.
 
 Collisions = Törmäykset
 Landings = Laskeutumiset
@@ -27,17 +34,17 @@ Engine = Moottori
 Tire Blowouts = Rengasrikot
 Blown Engine = Moottorin hajoaminen
 
-Hitting walls, cars and objects: a jolt, harder the more the hit slows your car down (small props barely register), and a grinding rumble at half strength while sliding along a wall or car. Hold Shift for finer steps. = Osumat seiniin, autoihin ja esineisiin: nykäisy, voimakkaampi mitä enemmän osuma hidastaa autoasi (pienet esineet tuskin lasketaan), ja hankaava jyrinä puolella voimalla, kun raavit seinää tai autoa pitkin. Pidä Vaihto painettuna hienompia askelia varten.
-The car's body hitting the ground: landing a jump, or bottoming out. Hold Shift for finer steps. = Auton korin osuminen maahan: hypyn laskeutuminen tai pohjaan ottaminen. Pidä Vaihto painettuna hienompia askelia varten.
-A short kick on every upshift. Hold Shift for finer steps. = Lyhyt potku jokaisella ylösvaihdolla. Pidä Vaihto painettuna hienompia askelia varten.
-A surge when the nitrous kicks in, settling into a steady push while it lasts. Hold Shift for finer steps. = Pontto, kun boosti iskee, joka tasoittuu tasaiseksi työnnöksi niin kauan kuin se kestää. Pidä Vaihto painettuna hienompia askelia varten.
-The tires sliding sideways. Stronger the faster they slide. Hold Shift for finer steps. = Renkaat liukuvat sivuttain. Voimakkaampi mitä nopeammin ne liukuvat. Pidä Vaihto painettuna hienompia askelia varten.
-Spinning wheels (burnouts, hard launches) and locked brakes. Hold Shift for finer steps. = Pyörivät renkaat (burnoutit, kovat lähdöt) ja lukkiutuneet jarrut. Pidä Vaihto painettuna hienompia askelia varten.
-Full throttle at maximum revs: at top speed in top gear, or a manual gear change left too late. Hold Shift for finer steps. = Täysi kaasu maksimikierroksilla: huippunopeudella ylimmällä vaihteella tai liian myöhään tehty manuaalinen vaihto. Pidä Vaihto painettuna hienompia askelia varten.
-Grass, gravel, dirt and wooden bridges, stronger with speed. Asphalt and concrete are smooth. Hold Shift for finer steps. = Ruoho, sora, multa ja puusillat, voimakkaampi nopeuden kasvaessa. Asfaltti ja betoni ovat tasaisia. Pidä Vaihto painettuna hienompia askelia varten.
-A hum that rises with revs and throttle, all the time while driving. Hold Shift for finer steps. = Hurina, joka nousee kierrosten ja kaasun mukana, koko ajan ajon aikana. Pidä Vaihto painettuna hienompia askelia varten.
-Police spike strips: a bang, then the flat tire thumping as it turns. Hold Shift for finer steps. = Poliisin piikkimatot: pamahdus, sitten tyhjä rengas, joka jyskyttää pyöriessään. Pidä Vaihto painettuna hienompia askelia varten.
-Drag races: the engine blowing from overheating. Also the sabotaged car in the opening race. Hold Shift for finer steps. = Dragajot: moottori hajoaa ylikuumenemiseen. Myös sabotoitu auto aloituskisassa. Pidä Vaihto painettuna hienompia askelia varten.
+Hitting walls, cars and objects: a jolt, harder the more the hit slows your car down (small props barely register), and a grinding rumble at half strength while sliding along a wall or car. Hold Shift or LB for finer steps. = Osumat seiniin, autoihin ja esineisiin: nykäisy, voimakkaampi mitä enemmän osuma hidastaa autoasi (pienet esineet tuskin lasketaan), ja hankaava jyrinä puolella voimalla, kun raavit seinää tai autoa pitkin. Pidä Vaihto tai LB painettuna hienompia askelia varten.
+The car's body hitting the ground: landing a jump, or bottoming out. Hold Shift or LB for finer steps. = Auton korin osuminen maahan: hypyn laskeutuminen tai pohjaan ottaminen. Pidä Vaihto tai LB painettuna hienompia askelia varten.
+A short kick on every upshift. Hold Shift or LB for finer steps. = Lyhyt potku jokaisella ylösvaihdolla. Pidä Vaihto tai LB painettuna hienompia askelia varten.
+A surge when the nitrous kicks in, settling into a steady push while it lasts. Hold Shift or LB for finer steps. = Pontto, kun boosti iskee, joka tasoittuu tasaiseksi työnnöksi niin kauan kuin se kestää. Pidä Vaihto tai LB painettuna hienompia askelia varten.
+The tires sliding sideways. Stronger the faster they slide. Hold Shift or LB for finer steps. = Renkaat liukuvat sivuttain. Voimakkaampi mitä nopeammin ne liukuvat. Pidä Vaihto tai LB painettuna hienompia askelia varten.
+Spinning wheels (burnouts, hard launches) and locked brakes. Hold Shift or LB for finer steps. = Pyörivät renkaat (burnoutit, kovat lähdöt) ja lukkiutuneet jarrut. Pidä Vaihto tai LB painettuna hienompia askelia varten.
+Full throttle at maximum revs: at top speed in top gear, or a manual gear change left too late. Hold Shift or LB for finer steps. = Täysi kaasu maksimikierroksilla: huippunopeudella ylimmällä vaihteella tai liian myöhään tehty manuaalinen vaihto. Pidä Vaihto tai LB painettuna hienompia askelia varten.
+Grass, gravel, dirt and wooden bridges, stronger with speed. Asphalt and concrete are smooth. Hold Shift or LB for finer steps. = Ruoho, sora, multa ja puusillat, voimakkaampi nopeuden kasvaessa. Asfaltti ja betoni ovat tasaisia. Pidä Vaihto tai LB painettuna hienompia askelia varten.
+A hum that rises with revs and throttle, all the time while driving. Hold Shift or LB for finer steps. = Hurina, joka nousee kierrosten ja kaasun mukana, koko ajan ajon aikana. Pidä Vaihto tai LB painettuna hienompia askelia varten.
+Police spike strips: a bang, then the flat tire thumping as it turns. Hold Shift or LB for finer steps. = Poliisin piikkimatot: pamahdus, sitten tyhjä rengas, joka jyskyttää pyöriessään. Pidä Vaihto tai LB painettuna hienompia askelia varten.
+Drag races: the engine blowing from overheating. Also the sabotaged car in the opening race. Hold Shift or LB for finer steps. = Dragajot: moottori hajoaa ylikuumenemiseen. Myös sabotoitu auto aloituskisassa. Pidä Vaihto tai LB painettuna hienompia askelia varten.
 
 Left stick Left = Vasen sauva vasemmalle
 Left stick Right = Vasen sauva oikealle

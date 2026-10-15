@@ -1,6 +1,7 @@
 // nfsmw_controller_support.ini, the log, and the settings every part reads.
 #include "button_icons.h"
 #include "default_layout.h"
+#include "device_settings.h"
 #include "menu_buttons.h"
 #include "pad.h"
 #include "rumble.h"
@@ -32,8 +33,6 @@ void load_settings() {
     g_cfg.analog_input = GetPrivateProfileIntA("pad", "analog_input", 1, g_ini) != 0;
     g_cfg.split_triggers = GetPrivateProfileIntA("pad", "split_triggers", 1, g_ini) != 0;
     g_cfg.use_all_xinput_controllers = GetPrivateProfileIntA("pad", "use_all_xinput_controllers", 1, g_ini) != 0;
-    g_cfg.left_deadzone = ini_float("left_stick_deadzone", g_cfg.left_deadzone);
-    g_cfg.right_deadzone = ini_float("right_stick_deadzone", g_cfg.right_deadzone);
     LookSettings &l = g_look_cfg;
     l.enabled = GetPrivateProfileIntA("look", "enabled", 1, g_ini) != 0;
     l.stick_speed = ini_float("stick_speed", l.stick_speed, "look");
@@ -49,9 +48,9 @@ void load_settings() {
     button_icons::load_settings();
     default_layout::load_settings();
     rumble::load_settings();
-    log_line("settings: enabled=%d analog_input=%d split_triggers=%d use_all_xinput_controllers=%d left_stick_deadzone=%.2f right_stick_deadzone=%.2f",
-             g_cfg.enabled, g_cfg.analog_input, g_cfg.split_triggers, g_cfg.use_all_xinput_controllers, g_cfg.left_deadzone,
-             g_cfg.right_deadzone);
+    device_settings::load();
+    log_line("settings: enabled=%d analog_input=%d split_triggers=%d use_all_xinput_controllers=%d", g_cfg.enabled,
+             g_cfg.analog_input, g_cfg.split_triggers, g_cfg.use_all_xinput_controllers);
 }
 
 }  // namespace pad

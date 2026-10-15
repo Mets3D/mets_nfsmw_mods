@@ -9,9 +9,9 @@ namespace pad::rumble {
 
 // One level per effect, 0-100 (per controller: see below): how hard the motors run in an ordinary instance of the effect (a solid
 // hit, a normal drift, the moment NOS kicks in; bigger ones stay at that level). The same number means the same strength for
-// every effect, and Options > Rumble plays exactly that when a level changes; 0 is off. The last number of each line is the
+// every effect, and the Controller Options page plays exactly that when a level changes; 0 is off. The last number of each line is the
 // default, the one a controller starts with and Defaults restores. [rumble] enabled is read at start-up. The levels are edited in
-// Options > Rumble (rumble_page.cpp) and reloaded whenever the ini changes.
+// the Controller Options page (controller_page.cpp) and reloaded whenever the ini changes.
 const EffectInfo kEffects[E_COUNT] = {
     {"collisions", "Collisions",
      "Hitting walls, cars and objects: a jolt, harder the more the hit slows your car down (small props barely "
@@ -35,7 +35,7 @@ const EffectInfo kEffects[E_COUNT] = {
 constexpr int kSlots = 4;
 bool g_rumble_enabled = true;
 float g_levels[kSlots][E_COUNT];  // 0..1
-int g_edit_slot = 0;              // the controller Options > Rumble edits
+int g_edit_slot = 0;              // the controller the Controller Options page edits
 FILETIME g_ini_time{};
 
 void section_of(int slot, char *out, size_t n) { snprintf(out, n, "rumble_%d", slot + 1); }
@@ -138,7 +138,7 @@ bool on_ground(const void *surface) {
 
 // Motors. Both run at the same level: an effect's level is simply how hard the controller shakes. Only the rumble
 // thread talks to the controller: in a race the game thread just sets the level it should play (each frame), and
-// Options > Rumble's previews are played by the thread itself, so a crash and its preview reach the controller the same
+// the Controller Options page's previews are played by the thread itself, so a crash and its preview reach the controller the same
 // way. The thread also stops the motors when the game stops updating (loading, a hang).
 // Two players can rumble (the second one reads the extra device, see extra_device.h); g_cur is the one the game thread is
 // working on, set at every entry from the game (the feedback objects know their player).
@@ -235,7 +235,7 @@ DWORD WINAPI rumble_thread(void *) {
         // to 0 every few frames, which made every effect in a race feel weak.)
         for (int player = 0; player < 2; ++player) {
             float level = 0.0f;
-            const LONG effect = player == 0 ? g_preview_effect : -1;  // Options > Rumble plays on player 1's controller
+            const LONG effect = player == 0 ? g_preview_effect : -1;  // the Controller Options page plays on player 1's controller
             const DWORD preview_start = g_preview_start, last_update = g_last_rumble_update[player];
             const LONG preview_age = static_cast<LONG>(GetTickCount() - preview_start);
             const LONG update_age = static_cast<LONG>(GetTickCount() - last_update);

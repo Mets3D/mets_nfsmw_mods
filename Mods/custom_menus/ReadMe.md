@@ -4,7 +4,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
 
 ## Example Mods
 - [Camera Settings](../camera_settings/ReadMe.md): Adds the Options > Camera page.
-- [Controller Support](../controller_support/ReadMe.md): Adds the Rumble page (opened from the Controls screen), and the Look and Previous Camera View rows on the Controls screen.
+- [Controller Support](../controller_support/ReadMe.md): Adds the Settings page with dead zones and rumble (opened from the Controls screen), and the Look and Previous Camera View rows on the Controls screen.
 
 ## Features
 - Mods can add their own Options pages: an entry with the page's icon after "Controls" in the pause menu's Options (and, if the page asks for it, the main menu's Options, before EA Trax and Credits).
@@ -18,7 +18,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
   - The page is accepted, discarded or reset to defaults
 - **Accept / Back** work like the game's own: Leaving the menu with "Accept" keeps changes; "Back" asks "discard changes?" if something changed. **Defaults** asks for confirmation first.
 - **Rows in the game's own Player options**: a page can also put its rows at the end of Options > Player (`placement = kPlayerOptions`).
-- **Pages opened by a mod**: a page with `placement = kHidden` has no entry in the Options menu; the mod opens it with `open_page` from another screen (for example the Rumble Options button in the Controller Support mod).
+- **Pages opened by a mod**: a page with `placement = kHidden` has no entry in the Options menu; the mod opens it with `open_page` from another screen (for example the Settings button in the Controller Support mod).
 - **Rows on the Controls screen**: a mod can add rows for its own key and button bindings to Options > Controls, and rename the game's texts.
 - **Localization**: Mods can provide translations for the game's 9 supported additional languages for the UI elements that they're adding.
 

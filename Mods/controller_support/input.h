@@ -15,7 +15,7 @@ int player_one_rumble_slot();    // the XInput controller player 1 rumbles on, o
 int xinput_slot_of_joystick(int index);  // the XInput controller a game controller reports, or -1
 int rumble_slot_of_joystick(int index);  // the XInput controller it rumbles through (the one in use when it is the only one), or -1
 bool key_down(int dik);  // a key of the real keyboard (whether or not it reaches the game)
-float binding_value(int type, int object, const xinput::Gamepad &pad);  // a controller binding, read from a controller
+float binding_value(int type, int object, const xinput::Gamepad &pad, int slot);  // a controller binding, read from XInput controller `slot`
 // The last thing the player touched was a controller (not the keyboard or the mouse).
 bool last_input_was_pad();
 // The connected XInput controllers as one (sticks and triggers from the one pushing furthest); false when there is none.

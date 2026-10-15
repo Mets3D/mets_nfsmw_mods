@@ -36,12 +36,13 @@ Binding table, devices and queues: see [input-system.md](input-system.md). Marks
 - `default_layout.cpp` writes our layout (slot 2, slot 3 cleared) into the default table at start-up, into the live table at the first poll (after InitInputs) and, through `nfsmw_custom_menus` (`add_controller_defaults`, which hooks 63CD80), after every later reset.
   Entry names for the Controls rows [read from English.bin]: 11 View Blacklist, 12 View World Map, 13 View SMS Messages (the HUD pad entries), 15 Change Camera View, 16 Look Behind, 17 Pull Camera Back.
 
-## Rumble from the Controls screen
+## Settings (rumble and dead zones) from the Controls screen
 - The Controls screen's "Rumble: On/Off" hint (language string 0x3DF9961B, controller column only) is the message 0x36D64627 in `UIOptionsPCController::NotificationMessage` 0x545F70 [read]: it flips the profile's Rumble byte (options +0x84) and redraws the hint (`this+0x2C`).
   We turn it into the right shoulder button's message (0xD9FEEC59), whose path asks "Do you wish to keep the modified settings?" (messages 0xB850B019 yes / 0x6DC9631 no, 0x34DC1BCF cancel) when the bindings changed, and ends in `SwitchDevice` 0x52AF20; our hook there opens the page instead.
 - Opening an Options screen from another screen [read]: `UIOptionsMain::NotificationMessage` selects the category (`options+0x24`; Player = 4) and calls `cFEng::QueuePackageSwitch(pkg, arg, 0, false)` 0x525940 with `Pause_Options.fng`, arg 1 (pause menu layout: in game and bits 3 and 6 of FEDatabase+0x12C clear) or `Options.fng`, arg 0.
   The Controls screens are `Pause_PC_Controller.fng` (arg 1) and `Options_PC_Controller.fng` (arg 0). `UIOptionsScreen::NotificationMessage` 0x545750 leaves on FEHASH_EXITCOMPLETE 0xE1FDE1D1: it updates the "options changed" flag (FEDatabase+4) and then switches to `Pause_Main.fng` / `OL_MAIN.fng` / `MainMenu_Sub.fng`,
   so a mod that wants the page to return elsewhere replaces that last switch (nfsmw_custom_menus does, `open_page`).
+- Dead zones (sticks and triggers) and rumble levels are per XInput controller (`device_settings.cpp`: `[controller_1]`..`[controller_4]`, falling back to `[pad]`). `process_pad_state` applies the dead zones of the controller's own slot, or of the one in use when the game cannot tell its slot.
 - Rumble levels are per XInput controller (slot 0-3): `[rumble_1]`..`[rumble_4]` in the ini, falling back to `[rumble]` for effects a controller has no key for.
 
 ## Button prompts and menu hotkeys

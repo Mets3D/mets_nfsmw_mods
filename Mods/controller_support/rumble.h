@@ -20,7 +20,7 @@ extern const EffectInfo kEffects[E_COUNT];
 // Each XInput controller (slot 0-3) has its own levels, 0..1.
 float level(int slot, int effect);
 void set_level(int slot, int effect, float value);
-int edit_slot();                // the controller Options > Rumble edits (and plays its previews on)
+int edit_slot();                // the controller the Controller Options page edits (and plays its previews on)
 void set_edit_slot(int slot);
 
 bool enabled();         // [rumble] enabled, and XInput can vibrate
