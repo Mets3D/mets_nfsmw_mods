@@ -1,0 +1,57 @@
+# German texts of nfsmw_controller_support. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Copy this folder to <game>/scripts/mets_mods/translations/controller_support/.
+# "Rumble Options" is the hint of the Controls screen: at most 14 characters fit.
+
+Rumble = Rumble
+RUMBLE = RUMBLE
+RUMBLE INFO = RUMBLE-INFO
+Rumble Options = Rumble-Menü
+Controller Prompts = Controller-Symbole
+Which buttons the menus show for a controller: Xbox or PlayStation. = Welche Tasten die Menüs für einen Controller anzeigen: Xbox oder PlayStation.
+Off = Aus
+Look Left = Nach links schauen
+Look Right = Nach rechts schauen
+Look Up = Nach oben schauen
+Look Down = Nach unten schauen
+Turns rumble on or off. This is the game's own Vibration setting, kept in your profile. = Schaltet Rumble ein oder aus. Das ist die Vibrationsfunktion des Spiels, die in deinem Profil gespeichert wird.
+
+Collisions = Kollisionen
+Landings = Landungen
+Gear Shifts = Gangwechsel
+Nitrous = Nitro
+Drifting = Driften
+Wheelspin = Durchdrehende Räder
+Rev Limiter = Drehzahlbegrenzer
+Rough Ground = Unebener Untergrund
+Engine = Motor
+Tire Blowouts = Reifenplatzer
+Blown Engine = Motorschaden
+
+Hitting walls, cars and objects: a jolt, harder the more the hit slows your car down (small props barely register), and a grinding rumble at half strength while sliding along a wall or car. Hold Shift for finer steps. = Treffer gegen Wände, Autos und Objekte: ein Ruck, der stärker ist, je mehr der Aufprall dein Auto abbremst (kleine Gegenstände kaum), und ein mahlendes Rumpeln mit halber Stärke beim Entlangschrammen an einer Wand oder einem Auto. Mit Umschalt in feineren Schritten ändern.
+The car's body hitting the ground: landing a jump, or bottoming out. Hold Shift for finer steps. = Die Karosserie des Autos trifft auf den Boden: Landung nach einem Sprung oder Aufsetzen. Mit Umschalt in feineren Schritten ändern.
+A short kick on every upshift. Hold Shift for finer steps. = Ein kurzer Stoß bei jedem Hochschalten. Mit Umschalt in feineren Schritten ändern.
+A surge when the nitrous kicks in, settling into a steady push while it lasts. Hold Shift for finer steps. = Ein Schub, wenn das Nitro zündet, der in einen gleichmäßigen Druck übergeht, solange es anhält. Mit Umschalt in feineren Schritten ändern.
+The tires sliding sideways. Stronger the faster they slide. Hold Shift for finer steps. = Die Reifen rutschen seitlich. Stärker, je schneller sie rutschen. Mit Umschalt in feineren Schritten ändern.
+Spinning wheels (burnouts, hard launches) and locked brakes. Hold Shift for finer steps. = Durchdrehende Räder (Burnouts, harte Starts) und blockierende Bremsen. Mit Umschalt in feineren Schritten ändern.
+Full throttle at maximum revs: at top speed in top gear, or a manual gear change left too late. Hold Shift for finer steps. = Vollgas bei maximaler Drehzahl: bei Höchstgeschwindigkeit im höchsten Gang oder wenn ein manueller Gangwechsel zu spät kommt. Mit Umschalt in feineren Schritten ändern.
+Grass, gravel, dirt and wooden bridges, stronger with speed. Asphalt and concrete are smooth. Hold Shift for finer steps. = Gras, Kies, Erde und Holzbrücken, stärker mit zunehmender Geschwindigkeit. Asphalt und Beton sind glatt. Mit Umschalt in feineren Schritten ändern.
+A hum that rises with revs and throttle, all the time while driving. Hold Shift for finer steps. = Ein Brummen, das mit Drehzahl und Gas steigt, die ganze Zeit während der Fahrt. Mit Umschalt in feineren Schritten ändern.
+Police spike strips: a bang, then the flat tire thumping as it turns. Hold Shift for finer steps. = Polizei-Nagelbänder: ein Knall, dann der platte Reifen, der beim Drehen schlägt. Mit Umschalt in feineren Schritten ändern.
+Drag races: the engine blowing from overheating. Also the sabotaged car in the opening race. Hold Shift for finer steps. = Dragrennen: der Motor, der durch Überhitzung hochgeht. Auch das sabotierte Auto im ersten Rennen. Mit Umschalt in feineren Schritten ändern.
+
+Left stick Left = Linker Stick links
+Left stick Right = Linker Stick rechts
+Left stick Up = Linker Stick oben
+Left stick Down = Linker Stick unten
+Right stick Left = Rechter Stick links
+Right stick Right = Rechter Stick rechts
+Right stick Up = Rechter Stick oben
+Right stick Down = Rechter Stick unten
+D-pad Up = Steuerkreuz oben
+D-pad Right = Steuerkreuz rechts
+D-pad Down = Steuerkreuz unten
+D-pad Left = Steuerkreuz links
+Left stick press = Linker Stick drücken
+Right stick press = Rechter Stick drücken
+RT (shared trigger axis) = RT (gemeinsame Triggerachse)
+LT (shared trigger axis) = LT (gemeinsame Triggerachse)

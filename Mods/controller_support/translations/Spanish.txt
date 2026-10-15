@@ -1,0 +1,57 @@
+# Spanish texts of nfsmw_controller_support. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Copy this folder to <game>/scripts/mets_mods/translations/controller_support/.
+# "Rumble Options" is the hint of the Controls screen: at most 14 characters fit.
+
+Rumble = Vibración
+RUMBLE = VIBRACIÓN
+RUMBLE INFO = INFORMACIÓN DE VIBRACIÓN
+Rumble Options = Vibración
+Controller Prompts = Símbolos del mando
+Which buttons the menus show for a controller: Xbox or PlayStation. = Qué botones muestran los menús para un mando: Xbox o PlayStation.
+Off = No
+Look Left = Mirar a la izquierda
+Look Right = Mirar a la derecha
+Look Up = Mirar arriba
+Look Down = Mirar abajo
+Turns rumble on or off. This is the game's own Vibration setting, kept in your profile. = Activa o desactiva la vibración. Es el ajuste Vibración del juego, guardado en tu perfil.
+
+Collisions = Colisiones
+Landings = Aterrizajes
+Gear Shifts = Cambios de marcha
+Nitrous = Nitroso
+Drifting = Derrapes
+Wheelspin = Patinaje
+Rev Limiter = Limitador de revoluciones
+Rough Ground = Terreno irregular
+Engine = Motor
+Tire Blowouts = Reventones
+Blown Engine = Motor averiado
+
+Hitting walls, cars and objects: a jolt, harder the more the hit slows your car down (small props barely register), and a grinding rumble at half strength while sliding along a wall or car. Hold Shift for finer steps. = Golpes contra paredes, coches y objetos: una sacudida, más fuerte cuanto más frena el golpe a tu coche (los objetos pequeños casi no cuentan), y un rumor áspero a media intensidad al rozar una pared o un coche. Mantén pulsado Mayús para pasos más finos.
+The car's body hitting the ground: landing a jump, or bottoming out. Hold Shift for finer steps. = La carrocería del coche golpeando el suelo: aterrizar tras un salto o tocar fondo. Mantén pulsado Mayús para pasos más finos.
+A short kick on every upshift. Hold Shift for finer steps. = Un breve golpe en cada cambio de marcha hacia arriba. Mantén pulsado Mayús para pasos más finos.
+A surge when the nitrous kicks in, settling into a steady push while it lasts. Hold Shift for finer steps. = Un empujón cuando entra el nitroso, que se convierte en un empuje constante mientras dura. Mantén pulsado Mayús para pasos más finos.
+The tires sliding sideways. Stronger the faster they slide. Hold Shift for finer steps. = Los neumáticos deslizándose de lado. Más fuerte cuanto más deslizan. Mantén pulsado Mayús para pasos más finos.
+Spinning wheels (burnouts, hard launches) and locked brakes. Hold Shift for finer steps. = Ruedas que patinan (quemadas de goma, arranques fuertes) y frenos bloqueados. Mantén pulsado Mayús para pasos más finos.
+Full throttle at maximum revs: at top speed in top gear, or a manual gear change left too late. Hold Shift for finer steps. = Acelerador a fondo con las revoluciones al máximo: a velocidad máxima en la marcha más larga, o un cambio manual hecho demasiado tarde. Mantén pulsado Mayús para pasos más finos.
+Grass, gravel, dirt and wooden bridges, stronger with speed. Asphalt and concrete are smooth. Hold Shift for finer steps. = Hierba, grava, tierra y puentes de madera, más fuerte con la velocidad. El asfalto y el hormigón son lisos. Mantén pulsado Mayús para pasos más finos.
+A hum that rises with revs and throttle, all the time while driving. Hold Shift for finer steps. = Un zumbido que sube con las revoluciones y el acelerador, todo el tiempo mientras conduces. Mantén pulsado Mayús para pasos más finos.
+Police spike strips: a bang, then the flat tire thumping as it turns. Hold Shift for finer steps. = Pinchos de la policía: un estallido y luego el neumático pinchado golpeando al girar. Mantén pulsado Mayús para pasos más finos.
+Drag races: the engine blowing from overheating. Also the sabotaged car in the opening race. Hold Shift for finer steps. = Carreras de aceleración: el motor reventando por sobrecalentamiento. También el coche saboteado de la carrera inicial. Mantén pulsado Mayús para pasos más finos.
+
+Left stick Left = Stick izquierdo: izquierda
+Left stick Right = Stick izquierdo: derecha
+Left stick Up = Stick izquierdo: arriba
+Left stick Down = Stick izquierdo: abajo
+Right stick Left = Stick derecho: izquierda
+Right stick Right = Stick derecho: derecha
+Right stick Up = Stick derecho: arriba
+Right stick Down = Stick derecho: abajo
+D-pad Up = Cruceta arriba
+D-pad Right = Cruceta derecha
+D-pad Down = Cruceta abajo
+D-pad Left = Cruceta izquierda
+Left stick press = Pulsar stick izquierdo
+Right stick press = Pulsar stick derecho
+RT (shared trigger axis) = RT (eje de gatillos compartido)
+LT (shared trigger axis) = LT (eje de gatillos compartido)

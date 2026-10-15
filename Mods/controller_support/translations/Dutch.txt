@@ -1,0 +1,57 @@
+# Dutch texts of nfsmw_controller_support. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Copy this folder to <game>/scripts/mets_mods/translations/controller_support/.
+# "Rumble Options" is the hint of the Controls screen: at most 14 characters fit.
+
+Rumble = Trilfunctie
+RUMBLE = TRILFUNCTIE
+RUMBLE INFO = TRILFUNCTIE-INFO
+Rumble Options = Trilopties
+Controller Prompts = Controllersymbolen
+Which buttons the menus show for a controller: Xbox or PlayStation. = Welke knoppen de menu's tonen voor een controller: Xbox of PlayStation.
+Off = Uit
+Look Left = Links kijken
+Look Right = Rechts kijken
+Look Up = Omhoog kijken
+Look Down = Omlaag kijken
+Turns rumble on or off. This is the game's own Vibration setting, kept in your profile. = Zet trilling aan of uit. Dit is de trilinstelling van het spel zelf, opgeslagen in je profiel.
+
+Collisions = Botsingen
+Landings = Landingen
+Gear Shifts = Schakelen
+Nitrous = Nitro
+Drifting = Driften
+Wheelspin = Doorslippende wielen
+Rev Limiter = Toerenbegrenzer
+Rough Ground = Ruw terrein
+Engine = Motor
+Tire Blowouts = Klapbanden
+Blown Engine = Motorschade
+
+Hitting walls, cars and objects: a jolt, harder the more the hit slows your car down (small props barely register), and a grinding rumble at half strength while sliding along a wall or car. Hold Shift for finer steps. = Botsingen tegen muren, auto's en voorwerpen: een schok, harder naarmate de botsing je auto meer afremt (kleine voorwerpen nauwelijks), en een schurend gerommel op halve sterkte terwijl je langs een muur of auto schuurt. Houd Shift ingedrukt voor kleinere stappen.
+The car's body hitting the ground: landing a jump, or bottoming out. Hold Shift for finer steps. = De carrosserie van de auto die de grond raakt: landen na een sprong of doorslaan. Houd Shift ingedrukt voor kleinere stappen.
+A short kick on every upshift. Hold Shift for finer steps. = Een korte trap bij elke keer opschakelen. Houd Shift ingedrukt voor kleinere stappen.
+A surge when the nitrous kicks in, settling into a steady push while it lasts. Hold Shift for finer steps. = Een stoot wanneer de nitro aanslaat, die overgaat in een constante duw zolang hij duurt. Houd Shift ingedrukt voor kleinere stappen.
+The tires sliding sideways. Stronger the faster they slide. Hold Shift for finer steps. = De banden die zijwaarts glijden. Sterker naarmate ze sneller glijden. Houd Shift ingedrukt voor kleinere stappen.
+Spinning wheels (burnouts, hard launches) and locked brakes. Hold Shift for finer steps. = Doorslippende wielen (burn-outs, harde starts) en geblokkeerde remmen. Houd Shift ingedrukt voor kleinere stappen.
+Full throttle at maximum revs: at top speed in top gear, or a manual gear change left too late. Hold Shift for finer steps. = Vol gas bij maximaal toerental: op topsnelheid in de hoogste versnelling, of een handmatige schakeling die te laat komt. Houd Shift ingedrukt voor kleinere stappen.
+Grass, gravel, dirt and wooden bridges, stronger with speed. Asphalt and concrete are smooth. Hold Shift for finer steps. = Gras, grind, aarde en houten bruggen, sterker bij hogere snelheid. Asfalt en beton zijn glad. Houd Shift ingedrukt voor kleinere stappen.
+A hum that rises with revs and throttle, all the time while driving. Hold Shift for finer steps. = Een gebrom dat stijgt met toerental en gas, de hele tijd tijdens het rijden. Houd Shift ingedrukt voor kleinere stappen.
+Police spike strips: a bang, then the flat tire thumping as it turns. Hold Shift for finer steps. = Politiespijkermatten: een knal, daarna de lekke band die bonkt tijdens het draaien. Houd Shift ingedrukt voor kleinere stappen.
+Drag races: the engine blowing from overheating. Also the sabotaged car in the opening race. Hold Shift for finer steps. = Dragraces: de motor die doorslaat door oververhitting. Ook de gesaboteerde auto in de openingsrace. Houd Shift ingedrukt voor kleinere stappen.
+
+Left stick Left = Linkerstick links
+Left stick Right = Linkerstick rechts
+Left stick Up = Linkerstick omhoog
+Left stick Down = Linkerstick omlaag
+Right stick Left = Rechterstick links
+Right stick Right = Rechterstick rechts
+Right stick Up = Rechterstick omhoog
+Right stick Down = Rechterstick omlaag
+D-pad Up = D-pad omhoog
+D-pad Right = D-pad rechts
+D-pad Down = D-pad omlaag
+D-pad Left = D-pad links
+Left stick press = Linkerstick indrukken
+Right stick press = Rechterstick indrukken
+RT (shared trigger axis) = RT (gedeelde triggeras)
+LT (shared trigger axis) = LT (gedeelde triggeras)

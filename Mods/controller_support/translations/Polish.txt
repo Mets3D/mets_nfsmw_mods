@@ -1,0 +1,57 @@
+# Polish texts of nfsmw_controller_support. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Copy this folder to <game>/scripts/mets_mods/translations/controller_support/. (The game's Polish font has its letters in other places than Windows-1252; the loader knows where.)
+# "Rumble Options" is the hint of the Controls screen: at most 14 characters fit.
+
+Rumble = Wibracje
+RUMBLE = WIBRACJE
+RUMBLE INFO = INFORMACJE O WIBRACJACH
+Rumble Options = Wibracje
+Controller Prompts = Symbole kontrolera
+Which buttons the menus show for a controller: Xbox or PlayStation. = Jakie przyciski pokazują menu dla kontrolera: Xbox lub PlayStation.
+Off = Wył.
+Look Left = Spójrz w lewo
+Look Right = Spójrz w prawo
+Look Up = Spójrz w górę
+Look Down = Spójrz w dół
+Turns rumble on or off. This is the game's own Vibration setting, kept in your profile. = Włącza lub wyłącza wibracje. To własne ustawienie wibracji gry, zapisane w profilu.
+
+Collisions = Kolizje
+Landings = Lądowania
+Gear Shifts = Zmiany biegów
+Nitrous = Nitro
+Drifting = Dryft
+Wheelspin = Poślizg kół
+Rev Limiter = Ogranicznik obrotów
+Rough Ground = Nierówne podłoże
+Engine = Silnik
+Tire Blowouts = Przebicia opon
+Blown Engine = Awaria silnika
+
+Hitting walls, cars and objects: a jolt, harder the more the hit slows your car down (small props barely register), and a grinding rumble at half strength while sliding along a wall or car. Hold Shift for finer steps. = Uderzenia w ściany, samochody i obiekty: szarpnięcie, tym silniejsze, im bardziej uderzenie wyhamowuje twój samochód (małe przedmioty ledwo się liczą), oraz zgrzytliwe dudnienie przy połowie siły podczas ocierania się o ścianę lub samochód. Przytrzymaj Shift, aby zmieniać wartość drobniejszymi krokami.
+The car's body hitting the ground: landing a jump, or bottoming out. Hold Shift for finer steps. = Karoseria samochodu uderzająca w ziemię: lądowanie po skoku lub uderzenie podwoziem. Przytrzymaj Shift, aby zmieniać wartość drobniejszymi krokami.
+A short kick on every upshift. Hold Shift for finer steps. = Krótkie szarpnięcie przy każdej zmianie biegu w górę. Przytrzymaj Shift, aby zmieniać wartość drobniejszymi krokami.
+A surge when the nitrous kicks in, settling into a steady push while it lasts. Hold Shift for finer steps. = Przypływ mocy, gdy włącza się nitro, przechodzący w stały nacisk, dopóki trwa. Przytrzymaj Shift, aby zmieniać wartość drobniejszymi krokami.
+The tires sliding sideways. Stronger the faster they slide. Hold Shift for finer steps. = Opony ślizgają się bokiem. Tym silniej, im szybciej się ślizgają. Przytrzymaj Shift, aby zmieniać wartość drobniejszymi krokami.
+Spinning wheels (burnouts, hard launches) and locked brakes. Hold Shift for finer steps. = Buksujące koła (palenie gumy, mocne starty) i zablokowane hamulce. Przytrzymaj Shift, aby zmieniać wartość drobniejszymi krokami.
+Full throttle at maximum revs: at top speed in top gear, or a manual gear change left too late. Hold Shift for finer steps. = Pełny gaz przy maksymalnych obrotach: przy prędkości maksymalnej na najwyższym biegu lub zbyt późna ręczna zmiana biegu. Przytrzymaj Shift, aby zmieniać wartość drobniejszymi krokami.
+Grass, gravel, dirt and wooden bridges, stronger with speed. Asphalt and concrete are smooth. Hold Shift for finer steps. = Trawa, żwir, ziemia i drewniane mosty, silniej wraz z prędkością. Asfalt i beton są gładkie. Przytrzymaj Shift, aby zmieniać wartość drobniejszymi krokami.
+A hum that rises with revs and throttle, all the time while driving. Hold Shift for finer steps. = Szum rosnący wraz z obrotami i gazem, przez cały czas podczas jazdy. Przytrzymaj Shift, aby zmieniać wartość drobniejszymi krokami.
+Police spike strips: a bang, then the flat tire thumping as it turns. Hold Shift for finer steps. = Kolczatki policji: huk, a potem przebita opona uderzająca przy każdym obrocie. Przytrzymaj Shift, aby zmieniać wartość drobniejszymi krokami.
+Drag races: the engine blowing from overheating. Also the sabotaged car in the opening race. Hold Shift for finer steps. = Wyścigi drag: silnik psujący się od przegrzania. Także sabotowany samochód w pierwszym wyścigu. Przytrzymaj Shift, aby zmieniać wartość drobniejszymi krokami.
+
+Left stick Left = Lewy drążek w lewo
+Left stick Right = Lewy drążek w prawo
+Left stick Up = Lewy drążek w górę
+Left stick Down = Lewy drążek w dół
+Right stick Left = Prawy drążek w lewo
+Right stick Right = Prawy drążek w prawo
+Right stick Up = Prawy drążek w górę
+Right stick Down = Prawy drążek w dół
+D-pad Up = Krzyżak w górę
+D-pad Right = Krzyżak w prawo
+D-pad Down = Krzyżak w dół
+D-pad Left = Krzyżak w lewo
+Left stick press = Wciśnięcie lewego drążka
+Right stick press = Wciśnięcie prawego drążka
+RT (shared trigger axis) = RT (wspólna oś spustów)
+LT (shared trigger axis) = LT (wspólna oś spustów)

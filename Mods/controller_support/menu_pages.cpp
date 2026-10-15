@@ -8,6 +8,9 @@
 #include "rumble_page.h"
 
 extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const nfsmw::custom_menus::Host *host) {
+    char translations[MAX_PATH];
+    nfsmw::data_file("translations\\controller_support", translations, sizeof(translations));
+    host->register_translations(translations);  // before any text is registered
     pad::rumble_page::provide(host);      // Options > Rumble
     pad::prompts_option::provide(host);   // Options > Player > Controller Prompts
     pad::bindings::provide_controls_rows(host);  // Options > Controls: the look rows

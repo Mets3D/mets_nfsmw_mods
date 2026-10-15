@@ -175,7 +175,14 @@ BindingLabelHookFn g_orig_label;
 void hook_label(char *out, int column, int row, bool primary) {
     const int entry = entry_for_row(column, row);
     g_orig_label(out, column, entry, primary);
-    if (g_label_fn && out) g_label_fn(out, column, entry, primary);
+    if (g_label_fn && out) {
+        g_label_fn(out, column, entry, primary);
+        const char *translated = translations::translate(out);  // the label buffer is 0x104 bytes
+        if (translated != out) {
+            strncpy(out, translated, 0x103);
+            out[0x103] = 0;
+        }
+    }
 }
 
 }  // namespace

@@ -5,8 +5,7 @@ TODO:
 - A replay system could help make comparison videos.
 
 REDUX v3 compatibility:
-    - HUD in split-screen is all over the place
-    - Some bonus cars seem to crash the game, yikes?
+    - Some bonus cars seem to crash the game, yikes? Not related to my mods tho.
     - I don't love that redux v3 apparently doesn't have speed lines (contrails)
 
 I think this Rework thing is the continuation of Redux v3? Costs like 10 bucks: https://www.patreon.com/MWRework/posts/mw-rework-145151343

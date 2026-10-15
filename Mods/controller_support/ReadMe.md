@@ -17,6 +17,9 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 - With more than one controller, the Controls menu's device switch goes keyboard, controller 1, controller 2, ... (the header shows `#n`), and each controller has bindings of its own. Controller 1's are the game's own (saved in the profile); the others are saved by this mod. A controller you have not edited uses controller 1's bindings.
 - All controllers play at the same time, each with its own bindings.
 
+### Translations
+- The texts this mod adds (the Rumble Options, the Controller Prompts option, the look rows and the names of controller buttons in the Controls menu) are translated into the game's nine other PC languages, with [Custom Menus](../custom_menus/ReadMe.md) installed.
+
 ### Rumble (Options > Controls > a controller > Rumble Options)
 - Hook up various events to controller rumble, such as gear shifts, collisions, driving on grass, and more.
 - The rumble strength of each type of event can be cutomized per controller in a "Rumble Options" menu, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
