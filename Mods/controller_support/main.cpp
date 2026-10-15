@@ -3,14 +3,19 @@
  * files, each with its own header and namespace:
  *   settings.cpp       nfsmw_controller_support.ini and the log
  *   input.cpp          DirectInput state (dead zones, separate triggers, mouse) and the analog action mapping
- *   bindings.cpp       the PC binding table: our entries (camera look, Previous Camera View), a log of binding changes
+ *   bindings.cpp       the PC binding table: our entries (camera look), a log of binding changes
+ *   pad_sets.cpp       one set of bindings per controller, and the Controls menu's list of them
  *   controls_menu.cpp  Options > Controls: readable names for XInput bindings
  *   default_layout.cpp our default controller bindings (RT accelerates, ...)
  *   look.cpp           camera look
  *   button_icons.cpp   controller pictures in the button prompts of the menus, instead of keyboard keys
- *   menu_buttons.cpp   A accepts, B goes back in the menus
+ *   prompts_option.cpp Options > Player > Controller Prompts: which controller's buttons the prompts show
+ *   menu_buttons.cpp   A accepts, B goes back in the menus; X, View and Menu press the hotkeys 2, 3, 4; B quits from the main menu
+ *   extra_device.cpp   a second game input device, so that a second local player has an input path of the game's own
  *   rumble.cpp         rumble (the force feedback events, the controller's motors)
- *   rumble_page.cpp    Options > Rumble, a page of nfsmw_custom_menus
+ *   rumble_page.cpp    Options > Rumble, a page of nfsmw_custom_menus (no entry in the Options menu)
+ *   controls_rumble.cpp the Controls screen's Rumble hint opens that page for the selected controller, and comes back
+ *   menu_pages.cpp     registers the pages of this mod with nfsmw_custom_menus
  */
 #include "bindings.h"
 #include "button_icons.h"

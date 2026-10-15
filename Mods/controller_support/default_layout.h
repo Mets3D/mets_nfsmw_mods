@@ -8,7 +8,7 @@
 
 namespace pad::default_layout {
 
-void load_settings();         // [buttons] driving_layout
+void load_settings();         // [buttons] better_default_controller_bindings
 void patch_default_table();   // at start-up
 void apply_live();            // the live table, once, on the first input poll (after the game's own start-up defaults)
 void provide(const nfsmw::custom_menus::Host *host);  // the callback for the game's defaults being reset

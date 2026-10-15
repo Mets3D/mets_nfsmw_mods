@@ -16,14 +16,6 @@ void log_line(const char *fmt, ...) {
     va_end(ap);
 }
 
-void log_debug(const char *fmt, ...) {
-    if (!g_cfg.verbose) return;
-    va_list ap;
-    va_start(ap, fmt);
-    g_log.vline(fmt, ap);
-    va_end(ap);
-}
-
 char g_ini[MAX_PATH];
 Settings g_cfg;
 LookSettings g_look_cfg;
@@ -37,14 +29,11 @@ float ini_float(const char *key, float def, const char *section) {
 void load_settings() {
     nfsmw::data_file("nfsmw_controller_support.ini", g_ini, sizeof(g_ini));
     g_cfg.enabled = GetPrivateProfileIntA("pad", "enabled", 1, g_ini) != 0;
-    g_cfg.analog_mapping = GetPrivateProfileIntA("pad", "analog_mapping", 1, g_ini) != 0;
+    g_cfg.analog_input = GetPrivateProfileIntA("pad", "analog_input", 1, g_ini) != 0;
     g_cfg.split_triggers = GetPrivateProfileIntA("pad", "split_triggers", 1, g_ini) != 0;
-    g_cfg.merge_controllers = GetPrivateProfileIntA("pad", "merge_controllers", 1, g_ini) != 0;
-    g_cfg.left_deadzone = ini_float("stick_deadzone", g_cfg.left_deadzone);
+    g_cfg.use_all_xinput_controllers = GetPrivateProfileIntA("pad", "use_all_xinput_controllers", 1, g_ini) != 0;
+    g_cfg.left_deadzone = ini_float("left_stick_deadzone", g_cfg.left_deadzone);
     g_cfg.right_deadzone = ini_float("right_stick_deadzone", g_cfg.right_deadzone);
-    g_cfg.labels = GetPrivateProfileIntA("pad", "labels", 1, g_ini) != 0;
-    g_cfg.verbose = GetPrivateProfileIntA("log", "verbose", 0, g_ini) != 0;
-    g_cfg.log_inputs = GetPrivateProfileIntA("log", "inputs", 0, g_ini) != 0;
     LookSettings &l = g_look_cfg;
     l.enabled = GetPrivateProfileIntA("look", "enabled", 1, g_ini) != 0;
     l.stick_speed = ini_float("stick_speed", l.stick_speed, "look");
@@ -58,11 +47,10 @@ void load_settings() {
              "pitch %.0f..%.0f", l.enabled, l.stick_speed, l.mouse_sensitivity, l.invert_y, l.return_delay,
              l.return_speed, l.min_pitch, l.max_pitch);
     button_icons::load_settings();
-    menu_buttons::load_settings();
     default_layout::load_settings();
     rumble::load_settings();
-    log_line("settings: enabled=%d analog_mapping=%d split_triggers=%d merge_controllers=%d stick_deadzone=%.2f right_stick_deadzone=%.2f",
-             g_cfg.enabled, g_cfg.analog_mapping, g_cfg.split_triggers, g_cfg.merge_controllers, g_cfg.left_deadzone,
+    log_line("settings: enabled=%d analog_input=%d split_triggers=%d use_all_xinput_controllers=%d left_stick_deadzone=%.2f right_stick_deadzone=%.2f",
+             g_cfg.enabled, g_cfg.analog_input, g_cfg.split_triggers, g_cfg.use_all_xinput_controllers, g_cfg.left_deadzone,
              g_cfg.right_deadzone);
 }
 

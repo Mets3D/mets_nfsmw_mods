@@ -169,31 +169,8 @@ bool actions_of_slot(int xinput_slot, float *values) {
 // ---- what the game gets ---------------------------------------------------------------------------------------------------
 // The game polled the live set (against the controllers it names); every other controller's set is read the same way, by
 // putting its two slots in the entry for a moment, and the strongest value of an entry wins.
-int g_source[kBindingCount];  // whose set made each entry's value (0 = the live set, n = controller n)
-
-void log_active(const float *values) {
-    static unsigned long long last[2] = {};
-    static int lines = 0;
-    unsigned long long mask[2] = {};
-    for (int e = 0; e < kBindingCount; ++e)
-        if (values[e] > 0.3f) mask[e / 64] |= 1ull << (e % 64);
-    if (mask[0] == last[0] && mask[1] == last[1]) return;
-    last[0] = mask[0];
-    last[1] = mask[1];
-    if (lines++ >= 400) return;
-    char text[400];
-    int n = snprintf(text, sizeof(text), "inputs:");
-    for (int e = 0; e < kBindingCount && n < 330; ++e)
-        if (mask[e / 64] >> (e % 64) & 1) {
-            const char *name = *reinterpret_cast<const char *const *>(kBindingTable + e * kEntrySize);
-            n += snprintf(text + n, sizeof(text) - n, " %s(%d)=%.1f<-%s%d", name, e, values[e], g_source[e] ? "controller " : "the live set", g_source[e]);
-        }
-    log_line("%s", text);
-}
-
 void add_values(float *values) {
     const int n = joystick_count();
-    for (int e = 0; e < kBindingCount; ++e) g_source[e] = 0;
     if (n >= 2) {
     using ValueFn = float(__stdcall *)(int, int);
     const ValueFn value = reinterpret_cast<ValueFn>(kBindingValue);
@@ -211,17 +188,13 @@ void add_values(float *values) {
                 live[0] = live[1] = {kNone, 0, 0};
                 live[s] = slot;
                 const float v = value(e, kControllerSlot + s);
-                if (v > values[e]) {
-                    values[e] = v;
-                    g_source[e] = pad + 1;
-                }
+                if (v > values[e]) values[e] = v;
             }
             live[0] = saved[0];
             live[1] = saved[1];
         }
     }
     }
-    if (g_cfg.log_inputs) log_active(values);
 }
 
 // ---- the Controls screen --------------------------------------------------------------------------------------------------

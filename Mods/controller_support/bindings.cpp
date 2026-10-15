@@ -141,7 +141,6 @@ void log_binding_changes() {
         if (!n) snprintf(text, sizeof(text), " (none)");
         // The first pass is the table as it was loaded (all of it): only what changes after that is the user's doing.
         if (g_have_slots) log_line("binding %2d %-24s%s", e, *reinterpret_cast<const char *const *>(entry), text);
-        else if (n) log_debug("binding %2d %-24s%s", e, *reinterpret_cast<const char *const *>(entry), text);
         if (g_have_slots)
             for (int l = 0; l < L_COUNT; ++l) look_changed |= kLookEntry[l] == e;
         memcpy(g_last_slots[e], slots, sizeof(g_last_slots[e]));

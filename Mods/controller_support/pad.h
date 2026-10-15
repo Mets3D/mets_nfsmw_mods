@@ -18,9 +18,7 @@ using MethodFn = void(FASTCALL *)(void *, void *);  // a hooked thiscall method 
 
 extern nfsmw::Logger g_log;
 void log_line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-// Only with `verbose=1` under [log] in the ini: traces for working on the mod (rumble, camera, device readings),
-// which would otherwise flood the log. log_line is for what a bug report needs: the setup and what the user did.
-void log_debug(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+// log_line is for what a bug report needs: the setup and what the user did.
 
 inline float clamp01(float x) { return x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x; }
 inline float ramp(float x, float lo, float hi) { return clamp01((x - lo) / (hi - lo)); }
@@ -31,14 +29,11 @@ float ini_float(const char *key, float def, const char *section = "pad");
 
 struct Settings {  // [pad]
     bool enabled = true;
-    bool analog_mapping = true;  // steering, gas and brake are analog
+    bool analog_input = true;  // steering, gas and brake are analog
     bool split_triggers = true;  // LT and RT as two axes
-    bool merge_controllers = true;  // every XInput controller drives the game, not just the first one DirectInput gave it
+    bool use_all_xinput_controllers = true;  // every XInput controller drives the game, not just the first one DirectInput gave it
     float left_deadzone = 0.15f;
     float right_deadzone = 0.15f;
-    bool labels = true;  // direction names for controller bindings in the Controls menu
-    bool verbose = false;  // [log] verbose: see log_debug
-    bool log_inputs = false;  // [log] inputs: which binding entries are active, and from which controller's set
 };
 extern Settings g_cfg;
 

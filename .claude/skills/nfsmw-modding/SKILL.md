@@ -38,7 +38,7 @@ description: How to work on the NFS Most Wanted (2005) ASI mods in this repo - w
 - Say plainly what is confirmed, what is a guess, and what you did not run. Do not claim a fix works before the user has seen it.
 
 ## Logging
-`log_line` only for what a bug report needs (setup, devices, hooks, what the user did, errors). Traces for development go through `log_debug` (`[log] verbose=1`) or a targeted switch (`[log] inputs=1`).
+`log_line` only for what a bug report needs (setup, devices, hooks, what the user did, errors). Traces for development are temporary `log_line`s, taken out again once the question is answered.
 A diagnosis that needs one fact gets one targeted line, not a dump; a flooded log costs the user's budget. But when the unknown is a *structure* (a tree of objects, a table), dump all of it once, in one compact line per item,
 behind a one-shot trigger: a test run costs the user more than a few hundred log lines, and guessing which part to log in successive runs is the most expensive way to find out.
 

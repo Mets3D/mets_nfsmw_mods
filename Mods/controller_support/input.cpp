@@ -281,18 +281,12 @@ void process_pad_state(void *device, JoyState *state) {
     // Each XInput controller reports its own state (every controller has bindings of its own); a single one, or none that
     // can be told apart, gets the merged state.
     xinput::Gamepad chosen = {};
-    const bool replaced = g_cfg.merge_controllers;
+    const bool replaced = g_cfg.use_all_xinput_controllers;
     if (replaced) {
         const int slot = own_slot(device);
         if (!(slot >= 0 ? xinput::read_slot(slot, &chosen) : read_merged(&chosen))) return report_at_rest(s);
         if (slot >= 0 && in_use(chosen)) xinput::port = slot;  // the controller in use is the one that rumbles
         report_xinput(s, chosen);
-    }
-
-    static bool logged_raw = false;
-    if (!logged_raw && (s.z < 30000 || s.z > 35500)) {
-        logged_raw = true;
-        log_debug("raw trigger reading: z=%ld rz=%ld slider=%ld/%ld", s.z, s.rz, s.slider[0], s.slider[1]);
     }
 
     apply_deadzone(&s.x, &s.y, g_cfg.left_deadzone);
@@ -406,18 +400,6 @@ bool install_game_level_joystick_hook() {
 
 HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
     const HRESULT hr = g_orig_get_device_state(device, size, data);
-    static struct {
-        void *device;
-        DWORD size;
-    } seen[16];
-    static int seen_count = 0;
-    bool known = false;
-    for (int i = 0; i < seen_count; ++i) known |= seen[i].device == device && seen[i].size == size;
-    if (!known && seen_count < 16) {
-        seen[seen_count++] = {device, size};
-        log_debug("GetDeviceState: device %p, state of %lu bytes (%s)", device, size,
-                 hr >= 0 ? "ok" : "not available");
-    }
     if (hr >= 0 && data && (size == kMouseStateSize || size == kMouseState2Size)) {
         if (device != g_own_mouse) g_other_mouse_seen = true;
         const LONG *mouse = static_cast<const LONG *>(data);
@@ -507,9 +489,9 @@ MappingCtorFn g_orig_mapping_ctor;
 
 void *FASTCALL hook_mapping_ctor(void *self, void *edx, void *device, void *spec) {
     void *result = g_orig_mapping_ctor(self, edx, device, spec);
-    if (!g_cfg.analog_mapping) return result;
+    if (!g_cfg.analog_input) return result;
     void *head = field<void *>(self, 4);
-    int changed = 0, seen = 0;
+    int seen = 0;
     for (void *node = head ? field<void *>(head, 0) : nullptr; node && node != head && seen < 512;
          node = field<void *>(node, 0), ++seen) {
         int &type = field<int>(node, 0x08);
@@ -520,17 +502,11 @@ void *FASTCALL hook_mapping_ctor(void *self, void *edx, void *device, void *spec
             continue;
         // Types 1-4 are the on/off kinds; anything else (kCenterControl = 5) is left alone.
         const bool convert = (type >= 1 && type <= 4) || (type == 0 && (lower != 0.0f || upper != 0.0f));
-        static int logged = 0;
-        if (logged++ < 32)
-            log_debug("mapping: action %d scalar %d type %d dead zones %.2f/%.2f%s", action, field<int>(node, 0x18), type,
-                     lower, upper, convert ? " -> analog" : "");
         if (convert) {
             type = 0;
             lower = upper = 0.0f;
-            ++changed;
         }
     }
-    if (changed) log_debug("mapping %p: %d steering/throttle entries made analog", self, changed);
     return result;
 }
 

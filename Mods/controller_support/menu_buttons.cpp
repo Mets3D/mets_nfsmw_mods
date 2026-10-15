@@ -19,7 +19,6 @@ namespace pad::menu_buttons {
 
 namespace {
 
-bool g_enabled = true;
 
 struct Remap {
     int entry;
@@ -59,18 +58,10 @@ int patch_table(uintptr_t table) {
 
 }  // namespace
 
-void load_settings() {
-    g_enabled = GetPrivateProfileIntA("buttons", "menu_layout", 1, g_ini) != 0;
-    log_line("menu buttons: %s", g_enabled ? "A accepts, B goes back, Y is the \"1\" action" : "the game's own");
-}
-
-void patch_default_table() {
-    if (g_enabled) log_line("menu buttons: default table, %d change(s)", patch_table(kDefaultBindingTable));
-}
+void patch_default_table() { log_line("menu buttons: default table, %d change(s)", patch_table(kDefaultBindingTable)); }
 
 // The hotkeys 2 / 3 / 4 and Quit follow the buttons of every controller: a key is down while any of them holds its button.
 void pad_buttons(int controller, const unsigned char buttons[32]) {
-    if (!g_enabled) return;
     if (controller < 0 || controller >= 8) controller = 0;
     struct Hotkey {
         int button;
@@ -98,7 +89,6 @@ void pad_buttons(int controller, const unsigned char buttons[32]) {
 
 void apply_live() {
     static bool logged = false;
-    if (!g_enabled) return;
     const int changed = patch_table(bindings::kBindingTable);
     if (changed && !logged) {
         logged = true;

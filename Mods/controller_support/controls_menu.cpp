@@ -47,7 +47,7 @@ bool controller_label(const Slot &b, char *out, size_t n) {
 // Called by nfsmw_custom_menus after the game wrote a binding's label: the widescreen fix turns the game's "Button 2" /
 // "X Axis +" text into names without a direction, so an XInput controller's get proper ones here.
 void binding_label(char *out, int column, int entry, bool primary) {
-    if (!g_cfg.labels || column == 1 || !out || entry < 0 || entry >= kBindingCount || !input::any_xinput_device()) return;
+    if (column == 1 || !out || entry < 0 || entry >= kBindingCount || !input::any_xinput_device()) return;
     char text[64];
     if (controller_label(slots_of(kBindingTable, entry)[primary ? 2 : 3], text, sizeof(text))) {
         strncpy(out, text, 0x103);

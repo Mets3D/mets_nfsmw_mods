@@ -70,7 +70,7 @@ void on_controller_defaults() {
 }  // namespace
 
 void load_settings() {
-    g_enabled = GetPrivateProfileIntA("buttons", "driving_layout", 1, g_ini) != 0;
+    g_enabled = GetPrivateProfileIntA("buttons", "better_default_controller_bindings", 1, g_ini) != 0;
     log_line("default layout: %s", g_enabled ? "ours (RT / LT drive, ...)" : "the game's own");
 }
 

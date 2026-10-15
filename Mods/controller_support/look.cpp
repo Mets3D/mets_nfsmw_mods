@@ -66,11 +66,6 @@ void look_at(void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
     const auto original = reinterpret_cast<LookAtFn>(kLookAt);
     const int mode = g_mover ? field<int>(g_mover, 0x9C) : -1;
     const bool looking_back = g_mover && field<unsigned char>(g_mover, 0xA1);
-    static int last_mode = -2;
-    if (mode != last_mode) {
-        log_debug("look: camera mode %d%s", mode, mode >= 2 ? "" : " (no look)");
-        last_mode = mode;
-    }
     LookState &l = g_state[g_who];
     LONG mouse_x = 0, mouse_y = 0;
     if (g_who == (extra_device::keyboard_source() ? 1 : 0)) {  // the mouse is the keyboard player's

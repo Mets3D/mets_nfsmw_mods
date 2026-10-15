@@ -50,39 +50,7 @@ struct CallbackVtable {
     void *function;
 };
 
-// For finding out which pictures a screen uses: [buttons] log_images=1 writes every image and string the game draws
-// (the object's name and texture or text, as hashes) to the log, once each.
-bool g_log_images = false;
-constexpr unsigned kNameHash = 0x10, kStringLabel = 0x60;
-constexpr int kString = 2;
-
-void log_new_object(void *object) {
-    // Called for every object of every package on every frame, so the lookup is a hash table (open addressing, never more than half full).
-    constexpr unsigned kSize = 8192;
-    static unsigned seen[kSize][3];
-    static bool used[kSize];
-    static int seen_count = 0;
-    const int type = field<int>(object, kType);
-    if (type != kImage && type != kString) return;
-    const unsigned name = field<unsigned>(object, kNameHash);
-    const unsigned what = type == kImage ? field<unsigned>(object, kTexture) : field<unsigned>(object, kStringLabel);
-    unsigned slot = (name * 2654435761u ^ what * 40503u ^ static_cast<unsigned>(type)) % kSize;
-    while (used[slot]) {
-        if (seen[slot][0] == name && seen[slot][1] == static_cast<unsigned>(type) && seen[slot][2] == what) return;
-        slot = (slot + 1) % kSize;
-    }
-    if (seen_count >= static_cast<int>(kSize / 2)) return;
-    used[slot] = true;
-    seen[slot][0] = name;
-    seen[slot][1] = static_cast<unsigned>(type);
-    seen[slot][2] = what;
-    ++seen_count;
-    log_line("fe %s object %08x %s %08x", type == kImage ? "image" : "string", name,
-             type == kImage ? "texture" : "text", what);
-}
-
 char __stdcall visit_object(void *object) {
-    if (g_log_images) log_new_object(object);
     if (field<int>(object, kType) != kImage) return 1;
     unsigned &texture = field<unsigned>(object, kTexture);
     const bool pad = input::last_input_was_pad();
@@ -181,16 +149,15 @@ bool quit_prompt_shown() { return g_quit_available; }
 Style style() { return g_style; }
 void set_style(Style new_style) { g_style = new_style; }
 void save_style() {
-    WritePrivateProfileStringA("buttons", "icons", g_style == Style::kOff ? "off" : g_style == Style::kXbox ? "xbox" : "playstation", g_ini);
+    WritePrivateProfileStringA("buttons", "button_prompts", g_style == Style::kOff ? "off" : g_style == Style::kXbox ? "xbox" : "playstation", g_ini);
 }
 
 void load_settings() {
     char text[32] = {};
-    GetPrivateProfileStringA("buttons", "icons", "xbox", text, sizeof(text), g_ini);
+    GetPrivateProfileStringA("buttons", "button_prompts", "xbox", text, sizeof(text), g_ini);
     if (!_stricmp(text, "off") || !_stricmp(text, "0") || !_stricmp(text, "none")) g_style = Style::kOff;
     else if (!_stricmp(text, "playstation") || !_stricmp(text, "ps")) g_style = Style::kPlayStation;
     else g_style = Style::kXbox;
-    g_log_images = GetPrivateProfileIntA("buttons", "log_images", 0, g_ini) != 0;
     log_line("button icons: %s", g_style == Style::kOff ? "off" : g_style == Style::kXbox ? "xbox" : "playstation");
 }
 

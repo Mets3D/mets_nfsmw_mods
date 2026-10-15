@@ -7,11 +7,11 @@
 
 namespace pad::rumble {
 
-// [rumble]: one level per effect, 0-100 (per controller: see below): how hard the motors run in an ordinary instance of the effect (a solid hit, a
-// normal drift, the moment NOS kicks in; bigger ones stay at that level). The same number means the same strength for
-// every effect, and Options > Rumble plays exactly that when a level changes; 0 is off.
-// enabled is read at start-up. The levels are also edited in Options > Rumble (rumble_page.cpp), and reloaded whenever
-// the ini changes.
+// One level per effect, 0-100 (per controller: see below): how hard the motors run in an ordinary instance of the effect (a solid
+// hit, a normal drift, the moment NOS kicks in; bigger ones stay at that level). The same number means the same strength for
+// every effect, and Options > Rumble plays exactly that when a level changes; 0 is off. The last number of each line is the
+// default, the one a controller starts with and Defaults restores. [rumble] enabled is read at start-up. The levels are edited in
+// Options > Rumble (rumble_page.cpp) and reloaded whenever the ini changes.
 const EffectInfo kEffects[E_COUNT] = {
     {"collisions", "Collisions",
      "Hitting walls, cars and objects: a jolt, harder the more the hit slows your car down (small props barely "
@@ -31,7 +31,7 @@ const EffectInfo kEffects[E_COUNT] = {
      "Drag races: the engine blowing from overheating. Also the sabotaged car in the opening race.", 80},
 };
 // Each XInput controller (0-3) has its own levels, kept in [rumble_1] .. [rumble_4]; an effect a controller has no key for
-// takes the level of [rumble], so an ini from before this existed keeps working for all of them.
+// takes the default above.
 constexpr int kSlots = 4;
 bool g_rumble_enabled = true;
 float g_levels[kSlots][E_COUNT];  // 0..1
@@ -53,8 +53,7 @@ void load_rumble_levels() {
         char section[16];
         section_of(slot, section, sizeof(section));
         for (int e = 0; e < E_COUNT; ++e) {
-            const float base = ini_float(kEffects[e].key, static_cast<float>(kEffects[e].def), "rumble");
-            g_levels[slot][e] = clamp01(ini_float(kEffects[e].key, base, section) / 100.0f);
+            g_levels[slot][e] = clamp01(ini_float(kEffects[e].key, static_cast<float>(kEffects[e].def), section) / 100.0f);
             if (slot == 0) n += snprintf(text + n, sizeof(text) - n, " %s=%.0f", kEffects[e].key, g_levels[slot][e] * 100.0f);
         }
     }
@@ -125,17 +124,6 @@ bool read_surface(const void *surface, SurfaceData *out) {
     *out = {collection ? *reinterpret_cast<const unsigned *>(collection + 0x20) : 0u,
             *reinterpret_cast<const char *const *>(layout + 0xDC), noise[0], noise[1], noise[2], noise[3],
             *reinterpret_cast<const unsigned short *>(layout + 0xF8), layout[0xFA]};
-    static const unsigned char *seen[96];
-    static int seen_count = 0;
-    for (int i = 0; i < seen_count; ++i)
-        if (seen[i] == layout) return true;
-    if (seen_count < 96) {
-        seen[seen_count++] = layout;
-        log_debug("rumble: surface \"%s\" (%08X): road noise %.1f Hz %.2f degrees at %.0f-%.0f m/s, wheel effect "
-                 "frequency %u intensity %u", out->name ? out->name : "?", out->key, out->noise_freq, out->noise_amp,
-                 out->noise_min,
-                 out->noise_max, out->wheel_freq, out->wheel_intensity);
-    }
     return true;
 }
 
@@ -159,11 +147,7 @@ volatile float g_game_level[2] = {};
 volatile DWORD g_last_rumble_update[2] = {};  // when the race last set g_game_level
 volatile LONG g_preview_effect = -1;      // the effect being previewed, or -1
 volatile DWORD g_preview_start = 0;
-volatile DWORD g_trace_start = 0;  // log every send for a while after a big jolt (see start_jolt)
 
-// Why the race level was 0, counted for the log (the trace showed it dropping to 0 every other frame).
-volatile LONG g_n_updates = 0, g_n_pauses = 0, g_n_resets = 0, g_n_zero_frames = 0;
-volatile LONG g_n_cut_vibration = 0, g_n_cut_idle = 0, g_n_cut_focus = 0;  // frames with rumble cut by each check
 volatile LONG g_stop_now[2] = {};  // pause / reset: the motors stop at once, not after the short hold below
 
 void set_motors(float level) { g_game_level[g_cur] = level; }
@@ -190,14 +174,9 @@ void send_level(int player, float level, int port) {
     const bool urgent = v == 0 || v >= sent[player] + 6554;
     if (!(changed && (urgent || now - last_send[player] >= 30)) && !(v && now - last_send[player] >= 500)) return;
     xinput::Vibration vib = {v, v};
-    const DWORD t0 = GetTickCount();
     const DWORD result = xinput::set_state(port, &vib);
     static int failures = 0;
     if (result != ERROR_SUCCESS && failures++ < 5) log_line("rumble: XInputSetState(%d) failed: %lu", port, result);
-    const DWORD trace_start = g_trace_start;
-    if (trace_start && static_cast<LONG>(now - trace_start) < 2500)
-        log_debug("rumble:   sent %3.0f%% at +%4ld ms (took %lu ms)", v * 100.0f / 65535.0f,
-                 static_cast<long>(static_cast<LONG>(now - trace_start)), GetTickCount() - t0);
     sent[player] = v;
     last_send[player] = now;
 }
@@ -336,12 +315,6 @@ void start_jolt(int effect, float severity) {
     if (v <= rs().jolt) return;
     rs().jolt = v;
     rs().jolt_effect = effect;
-    static int traced = 0;
-    if (v >= 0.5f && traced < 6 && (!g_trace_start || GetTickCount() - g_trace_start > 3000)) {
-        ++traced;
-        g_trace_start = GetTickCount();
-        log_debug("rumble: %s jolt at %.0f%%, tracing what is sent:", kEffects[effect].key, v * 100.0f);
-    }
     rs().jolt_hold = jolt_hold(severity);
     rs().jolt_fade = jolt_fade(severity);
 }
@@ -358,14 +331,6 @@ void start_scrape(int effect, float strength) {
 // The player's Vibration setting, read before each DoFFB (see hook_do_ffb).
 bool g_vibration_on[2] = {true, true};
 
-// One log line per event start (NOS, gear change, rev limiter, blowouts), to match the log to what was felt.
-void log_rumble_event(const char *what, int value = -1) {
-    static int lines = 0;
-    if (lines++ >= 300) return;
-    if (value >= 0) log_debug("rumble: %s %d at %.1f s", what, value, rs().time);
-    else log_debug("rumble: %s at %.1f s", what, rs().time);
-}
-
 void update_rumble() {
     LARGE_INTEGER now, freq;
     QueryPerformanceCounter(&now);
@@ -378,31 +343,13 @@ void update_rumble() {
     rs().time += dt;
     g_last_rumble_update[g_cur] = GetTickCount();
     reload_rumble_levels_if_changed();
-    static DWORD rate_start = 0;
-    static int rate_count = 0, rate_lines = 0;
-    ++rate_count;
-    if (GetTickCount() - rate_start >= 5000) {
-        if (rate_start && rate_lines++ < 12)
-            log_debug("rumble: %.0f updates per second from the game; since the last line: %ld pauses, %ld resets, "
-                     "%ld zero frames, cut by Vibration %ld / idle controller %ld / focus %ld (of %ld frames)",
-                     rate_count * 1000.0f / (GetTickCount() - rate_start), InterlockedExchange(&g_n_pauses, 0),
-                     InterlockedExchange(&g_n_resets, 0), InterlockedExchange(&g_n_zero_frames, 0),
-                     InterlockedExchange(&g_n_cut_vibration, 0), InterlockedExchange(&g_n_cut_idle, 0),
-                     InterlockedExchange(&g_n_cut_focus, 0), InterlockedExchange(&g_n_updates, 0));
-        rate_start = GetTickCount();
-        rate_count = 0;
-    }
     const float *level = levels_of(g_cur);
 
     // Each effect gives its level times how strong it is right now (0..1, reaching 1 in an ordinary instance of the
     // event: a normal drift, a solid hit). Effects at the same time combine like independent shakes, 1 - (1 - a)(1 - b),
-    // so together they never go past full. contrib[] keeps each one's part, for the log.
-    float out = 0.0f, contrib[E_COUNT] = {};
-    const auto add = [&](int effect, float v) {
-        v = clamp01(v);
-        out = either(out, v);
-        if (v > contrib[effect]) contrib[effect] = v;
-    };
+    // so together they never go past full.
+    float out = 0.0f;
+    const auto add = [&](int effect, float v) { out = either(out, clamp01(v)); };
 
     // Rough ground: the roughest wheel, pulsing faster with speed.
     if (rs().road > 0.0f) {
@@ -414,23 +361,15 @@ void update_rumble() {
     const float pb = rs().powerband;
     add(E_ENGINE, level[E_ENGINE] * pb * pb * (0.3f + 0.7f * rs().throttle));
     // The rev limiter: held at maximum revs for a while (an automatic gearbox sits there briefly before each upshift).
-    const float was_redline_time = rs().redline_time;
     rs().redline_time = pb > 0.985f && rs().throttle > 0.6f ? rs().redline_time + dt : 0.0f;
-    if (rs().redline_time > 0.6f && was_redline_time <= 0.6f) log_rumble_event("rev limiter");
     if (rs().redline_time > 0.6f) add(E_REV_LIMITER, level[E_REV_LIMITER] * pulse_at(rs().time * 8.0f, 0.4f));
     if (rs().blown) {
-        if (!rs().was_blown) {
-            start_jolt(E_ENGINE_BLOWN, 1.0f);
-            log_rumble_event("blown engine");
-        }
+        if (!rs().was_blown) start_jolt(E_ENGINE_BLOWN, 1.0f);
         add(E_ENGINE_BLOWN, level[E_ENGINE_BLOWN] * pulse_at(rs().time * 2.5f, 0.2f));
     }
     rs().was_blown = rs().blown;
     // Tire blowouts: a bang, then the flat tire thumping once per turn of the wheel (about 2 m).
-    if (rs().flat_tires > rs().was_flat_tires) {
-        start_jolt(E_TIRE_BLOWOUT, 1.0f);
-        log_rumble_event("tire blowout, flat tires:", rs().flat_tires);
-    }
+    if (rs().flat_tires > rs().was_flat_tires) start_jolt(E_TIRE_BLOWOUT, 1.0f);
     rs().was_flat_tires = rs().flat_tires;
     if (rs().flat_tires > 0 && rs().speed > 1.0f) {
         const float rate = rs().speed / 2.0f < 8.0f ? rs().speed / 2.0f : 8.0f;
@@ -439,10 +378,7 @@ void update_rumble() {
                                 (0.25f + 0.75f * pulse_at(rs().tire_phase, 0.0f)));
     }
     if (rs().nos) {
-        if (!rs().was_nos) {
-            rs().nos_time = 0.0f;
-            log_rumble_event("NOS");
-        }
+        if (!rs().was_nos) rs().nos_time = 0.0f;
         rs().nos_time += dt;
         add(E_NOS, level[E_NOS] * nos_shape(rs().nos_time));
     }
@@ -450,7 +386,6 @@ void update_rumble() {
     // Upshifts, from the transmission's gear (forward gears only); the game's own report (which also includes
     // downshifts) only when the gear is unknown.
     const bool upshift = rs().gear >= 2 && rs().was_gear >= 2 && rs().gear > rs().was_gear;
-    if (upshift) log_rumble_event("shift up to gear", rs().gear - 1);
     if (upshift || (rs().gear < 0 && rs().shifting && !rs().was_shifting)) rs().shift_time = 0.0f;
     if (rs().gear >= 0) rs().was_gear = rs().gear;
     rs().was_shifting = rs().shifting;
@@ -472,36 +407,9 @@ void update_rumble() {
         if (rs().scrape < 0.02f) rs().scrape = 0.0f;
     }
 
-    InterlockedIncrement(&g_n_updates);
-    if (out > 0.0f) {
-        volatile LONG *cut = !g_vibration_on[g_cur] ? &g_n_cut_vibration
-                             : (g_cur == 0 && !pad_in_use()) ? &g_n_cut_idle
-                             : !game_in_foreground() ? &g_n_cut_focus
-                                                     : nullptr;
-        if (cut) {
-            InterlockedIncrement(cut);
-            out = 0.0f;
-        }
-    }
-    if (out == 0.0f) InterlockedIncrement(&g_n_zero_frames);
+    // The player's Vibration setting off, an idle controller or the game in the background: no rumble.
+    if (!g_vibration_on[g_cur] || (g_cur == 0 && !pad_in_use()) || !game_in_foreground()) out = 0.0f;
     set_motors(out);
-
-    // Every 2 seconds while rumbling: what the game reported and which effects made up the rumble.
-    static DWORD next_log = 0;
-    static int log_lines = 0;
-    if (out > 0.02f && GetTickCount() >= next_log && log_lines < 400) {
-        next_log = GetTickCount() + 2000;
-        ++log_lines;
-        char parts[256];
-        int n = 0;
-        parts[0] = 0;
-        for (int e = 0; e < E_COUNT; ++e)
-            if (contrib[e] >= 0.02f)
-                n += snprintf(parts + n, sizeof(parts) - n, " %s %.0f", kEffects[e].key, contrib[e] * 100.0f);
-        log_debug("rumble: player %d: %.0f m/s, road %.2f, skid %.1f, slip %.1f, revs %.2f, throttle %.2f%s -> %.0f%% (%s )",
-                 g_cur + 1, rs().speed, rs().road, rs().skid, rs().slip, pb, rs().throttle, rs().nos ? ", NOS" : "",
-                 out * 100.0f, parts);
-    }
 }
 
 struct Feedback {
@@ -522,10 +430,6 @@ void pass_on(int index, A... args) {
 void *FASTCALL fb_destroy(Feedback *self, void *, int) { return self; }
 void FASTCALL fb_pause(Feedback *self, void *) { g_cur = self->index;
     pass_on(1);
-    InterlockedIncrement(&g_n_pauses);
-    static bool logged = false;
-    if (!logged) log_debug("rumble: first pause from the game (paused, AI control, or the profile's Rumble setting off)");
-    logged = true;
     clear_rumble_effects();
     set_motors(0.0f);
     g_stop_now[g_cur] = 1;
@@ -533,7 +437,6 @@ void FASTCALL fb_pause(Feedback *self, void *) { g_cur = self->index;
 void FASTCALL fb_resume(Feedback *self, void *) { g_cur = self->index; pass_on(2); }
 void FASTCALL fb_reset(Feedback *self, void *) { g_cur = self->index;
     pass_on(3);
-    InterlockedIncrement(&g_n_resets);
     clear_rumble_effects();
     set_motors(0.0f);
     g_stop_now[g_cur] = 1;
@@ -546,9 +449,6 @@ void FASTCALL fb_begin(Feedback *self, void *) { g_cur = self->index;
 }
 void FASTCALL fb_end(Feedback *self, void *) { g_cur = self->index;
     pass_on(5);
-    static bool logged = false;
-    if (!logged) log_debug("rumble: first update from the game");
-    logged = true;
     update_rumble();
 }
 void FASTCALL fb_road_noise(Feedback *self, void *, int front, const void *surface, float speed) { g_cur = self->index;
@@ -602,7 +502,6 @@ void FASTCALL fb_collision(Feedback *self, void *, const unsigned char *info, in
     pass_on(14, info, iam_a);
     if (!info) return;
     const unsigned bits = *reinterpret_cast<const unsigned *>(info + 0x1C);
-    const float *closing = reinterpret_cast<const float *>(info + 0x20);
     const float *sliding_vel = reinterpret_cast<const float *>(info + 0x70);
     const float dv = std::fabs(*reinterpret_cast<const float *>(info + ((iam_a & 0xFF) ? 0x5C : 0x6C)));
     const float sliding_speed = std::sqrt(sliding_vel[0] * sliding_vel[0] + sliding_vel[1] * sliding_vel[1] +
@@ -613,14 +512,6 @@ void FASTCALL fb_collision(Feedback *self, void *, const unsigned char *info, in
     const int effect = ground ? E_LANDINGS : E_COLLISIONS;
     if (severity > 0.0f) start_jolt(effect, severity);
     if (sliding) start_scrape(effect, ramp(sliding_speed, 2.0f, 12.0f));
-    static int logged = 0;
-    if ((dv > 0.3f || sliding) && logged < 80) {
-        ++logged;
-        log_debug("rumble: collision type %u%s%s, speed change %.2f m/s, closing %.1f m/s, force %.0f, sliding %.1f m/s "
-                 "-> severity %.2f", bits & 7, (iam_a & 0xFF) ? "" : " (as B)", sliding ? ", sliding" : "", dv,
-                 std::sqrt(closing[0] * closing[0] + closing[1] * closing[1] + closing[2] * closing[2]),
-                 *reinterpret_cast<const float *>(info + 0x2C), sliding_speed, severity);
-    }
 }
 
 void *g_feedback_vtbl[15] = {
@@ -697,14 +588,6 @@ int install_feedback(void *&ffb, int port) {
 using DoFfbFn = void(FASTCALL *)(void *, void *);
 DoFfbFn g_orig_do_ffb;
 void FASTCALL hook_do_ffb(void *player, void *edx) {
-    static void *seen[4];
-    static int seen_count = 0;
-    bool known = false;
-    for (int i = 0; i < seen_count; ++i) known |= seen[i] == player;
-    if (!known && seen_count < 4) {
-        seen[seen_count++] = player;
-        log_debug("rumble: DoFFB for the player at %p (feedback object %p)", player, field<void *>(player, 0x58));
-    }
     // DoFFB's view of the player has the feedback object at +0x58 and the steering wheel at +0x5C; SetControllerPort's
     // view (0x4C further on) has the object at +0xC.
     void *&ffb = field<void *>(player, 0x58);
@@ -736,18 +619,10 @@ SetPortFn g_orig_set_controller_port;
 void FASTCALL hook_set_controller_port(void *player, void *edx, int port) {
     port = extra_device::port_for_player(port);  // the second player reads the extra device
     g_orig_set_controller_port(player, edx, port);
-    static int logged = 0;
-    if (logged++ < 8) log_debug("rumble: SetControllerPort(%d) for the player at %p", port, player);
     install_feedback(field<void *>(player, 0x0C), port);
 }
 
 void play_preview(int effect) {
-    static int traced = 0;
-    if (traced < 4 && (!g_trace_start || GetTickCount() - g_trace_start > 3000)) {
-        ++traced;
-        g_trace_start = GetTickCount();
-        log_debug("rumble: preview of %s at %.0f%%, tracing what is sent:", kEffects[effect].key, g_levels[g_edit_slot][effect] * 100.0f);
-    }
     g_preview_start = GetTickCount();
     g_preview_effect = effect;
 }
