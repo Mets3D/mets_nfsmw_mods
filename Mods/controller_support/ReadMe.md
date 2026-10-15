@@ -52,7 +52,8 @@ All 3rd-person car cameras can be controlled with either the mouse, or the right
 
 ## TODOs
 - I think if the mouse is ever moved with widescreenfix, the button prompts keep switching back to keyboard symbols.
-- The "Controller Prompts" menu entry would be better if it was customizable per input device, so that when we switch from one controller to another, it might switch symbols.
+- Navigating the world map doesn't work with the stick,
+- The "Player->Controller Prompts" menu entry would be better if it was customizable per input device, so that when we switch from one controller to another, it might switch symbols.
 - Add options to tweak deadzones of triggers and sticks from the menu
 - Test per-controller rumble customization with >1 controller.
 - The widescreen fix's `ImproveGamepadSupport` also changes the title screen's "Press START" text; we did not take that over.

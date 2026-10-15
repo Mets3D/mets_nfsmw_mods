@@ -28,12 +28,36 @@ int *cur_cam(int view) {
     return settings ? &field<int>(settings, kCurCamOfView + view * 0x14) : nullptr;
 }
 
+// The game's Gameplay > Rearview Mirror option (RearviewOn, the byte at +0x39 of the options settings) is replaced by the per-view
+// Mirror setting, when the Camera page is there to set it (nfsmw_custom_menus): its row is left out of the Gameplay screen
+// and the value is kept on, so everything that reads it (the mirror's visibility, the minimap and radar detector checks of the
+// view mode) behaves as with the option on. Without the page the game's own option stays.
+constexpr unsigned kRearviewOn = 0x39;
+constexpr uintptr_t kGORearviewVtable = 0x89BF1C;
+
+using AddToggleFn = unsigned(FASTCALL *)(void *, void *, void *, int);
+AddToggleFn g_orig_add_toggle;  // null when the row's hook is not installed (then the game's option stays in charge)
+
+bool option_replaced() {
+    if (!g_orig_add_toggle) return false;
+    static bool found = false;
+    found = found || GetModuleHandleA("nfsmw_custom_menus.asi") != nullptr;  // it may load after this plugin
+    return found;
+}
+
+void keep_rearview_on() {
+    void *database = *reinterpret_cast<void **>(kFEDatabase);
+    void *settings = database ? field<void *>(database, kSettings) : nullptr;
+    if (settings && option_replaced()) field<unsigned char>(settings, kRearviewOn) = 1;
+}
+
 bool outside_view(int cam) { return cam >= 2 && cam <= 6; }
 
 using VisibleFn = bool (*)(int);
 VisibleFn g_orig_visible;
 
 bool hook_visible(int view) {
+    keep_rearview_on();
     int *cam = cur_cam(view);
     const int shown = cam ? mirror_override(*cam) : -1;
     if (shown == 0) return false;
@@ -64,6 +88,17 @@ __attribute__((noinline)) bool FASTCALL hook_outside(void *self, void *edx) {
     return !(cam && mirror_override(*cam) == 1 && hook_visible(1));
 }
 
+// UIWidgetMenu::AddToggleOption(screen, widget, enabled): the Gameplay screen's Rearview Mirror row (a GORearview) is not added.
+unsigned FASTCALL hook_add_toggle(void *screen, void *edx, void *widget, int enabled) {
+    if (widget && field<uintptr_t>(widget, 0) == kGORearviewVtable && option_replaced()) {
+        static bool logged = false;
+        if (!logged) g_log->line("mirror: the Gameplay screen's Rearview Mirror option is left out (it is a setting of each camera view now)");
+        logged = true;
+        return 0;
+    }
+    return g_orig_add_toggle(screen, edx, widget, enabled);
+}
+
 }  // namespace
 
 void install_hooks(nfsmw::Logger &log, const char *ini) {
@@ -73,6 +108,8 @@ void install_hooks(nfsmw::Logger &log, const char *ini) {
          nfsmw::detour(&hook_visible), nfsmw::orig(&g_orig_visible)},
         {"outsidepov", "CubicCameraMover::OutsidePOV", 0x46AFA0, {0x8B, 0x81, 0x9C, 0x00, 0x00, 0x00, 0x83}, false,
          nfsmw::detour(&hook_outside), nfsmw::orig(&g_orig_outside)},
+        {"rearviewrow", "UIWidgetMenu::AddToggleOption", 0x588570, {0x83, 0xEC, 0x08, 0x56, 0x8B, 0xF1, 0x8B}, false,
+         nfsmw::detour(&hook_add_toggle), nfsmw::orig(&g_orig_add_toggle)},
     };
     nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), log, ini, "mirror");
 }

@@ -104,8 +104,8 @@ const char *kLabel[NPARAM] = {"Enabled", "Mirror", "FOV", "Speed FoV", "Height",
 // Help texts (2 key on the Camera options screen). Wording for lag, pitch, lateral offset and tilting is
 // inferred from the field names and values, so adjust here if a description does not match what you see.
 const char *kHelp[NPARAM + 1] = {
-    "Whether Next and Previous Camera View stop at this view. Off skips it; it can still be picked in the Camera option.",
-    "Enable rear view mirror in this view. The Gameplay -> Rearview Mirror must also be on.",
+    "Whether Next and Previous Camera View stop at this view.",
+    "Enable rear view mirror in this view.",
     "Field of view in degrees. Higher values show more of the scene and exaggerate the feeling of speed. "
     "Lower values zoom in. Hold Shift or LB for finer steps.",
     "Extra field of view in degrees, added on top of the base FoV as you speed up, to exaggerate the feeling of "
