@@ -11,10 +11,10 @@ first 7 bytes of each function, so the same addresses install on both):
 - `python Mods/set_mods.py --mode all|ours|none --game <dir> [--only <mods>]` picks which `.asi` load (the rest wait in `scripts_disabled/`) and builds the texture packs.
 
 ## Our mods (`Mods/`, one folder each, built together)
-`custom_menus` (Options menu framework, crash log), `camera_settings` (camera presets, Options > Camera), `controller_support` (controller input, bindings
-per controller, camera look, rumble, button icons; namespaces are `pad::`), `split_screen_support`, `dev_tools` (start-up and diagnostic tools), `common/`
+`custom_menus` (Options menu framework), `camera_settings` (camera presets, Options > Camera), `controller_support` (controller input, bindings
+per controller, camera look, rumble, button icons; namespaces are `pad::`), `split_screen_support`, `dev_tools` (start-up and diagnostic tools), `example_options_page` (an example plugin with a dummy Options page, built but not in `set_mods.py`), `common/`
 (header-only: log file, `hooks.h`, language table merge, XInput, the APIs between mods). Each mod has a ReadMe for players; how to work on them is in `.claude/skills/nfsmw-modding`, what we know about the game in `docs/`.
-- Everything our mods write or ship lives in `<game>/scripts/mets_mods/` (`nfsmw::data_file()`): `.ini`, `.log`, `nfsmw_custom_menus_crash.log`, texture packs.
+- Everything our mods write or ship lives in `<game>/scripts/mets_mods/` (`nfsmw::data_file()`): `.ini`, `.log`, texture packs.
   Uninstall = delete the `.asi` files and that folder.
 - `common/hooks.h` `install_hooks`: checks the first 7 bytes (a function that starts with a jump, i.e. another mod's hook, is hooked on top of it; any other difference skips the hook), optional `[hooks]` skip list in the mod's ini, required hooks
   are all-or-nothing; log lines read "hooks installed - <group>: n of m". **Two plugins cannot hook the same function**, so code that builds a screen sits

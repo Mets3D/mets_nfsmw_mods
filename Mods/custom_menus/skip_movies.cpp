@@ -56,7 +56,7 @@ void *FASTCALL hook_ingame_tutorial_ctor(void *self, void *edx, void *data) {
 }  // namespace
 
 void install_hooks(nfsmw::Logger &log, const char *ini) {
-    if (!GetPrivateProfileIntA("features", "skip_movies", 1, ini)) return;
+    if (!GetPrivateProfileIntA("features", "skippable_cutscenes", 1, ini)) return;
     const nfsmw::Hook hooks[] = {
         {"storymovie", "FEAnyMovieScreen::NotificationMessage", 0x559880, {0x56, 0x57, 0x8B, 0x7C, 0x24, 0x0C, 0x8D}, false,
          nfsmw::detour(&hook_story_notification), nfsmw::orig(&g_orig_story_notification)},

@@ -100,7 +100,7 @@ const char *redirect_switch(const char *pkg) {
 }
 
 void install_hooks(nfsmw::Logger &log, const char *ini) {
-    if (!GetPrivateProfileIntA("features", "resume_career", 1, ini)) return;
+    if (!GetPrivateProfileIntA("features", "skip_career_menu", 1, ini)) return;
     g_log = &log;
     const nfsmw::Hook hooks[] = {
         {"updateprofile", "UIMain::UpdateProfileData", 0x528BC0, {0x83, 0xEC, 0x08, 0x53, 0x56, 0x8B, 0xF1}, false,

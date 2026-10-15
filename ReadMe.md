@@ -10,3 +10,9 @@ I try to make these mods feel like a native part of the game. See the page of ea
 | [**Split Screen Support**](Mods/split_screen_support/ReadMe.md) | Full local split screen support, found in Quick Race > Split Screen. Tested with different input devices, rumble and remapping works for each device, and each player gets their own minimap. |
 | [**Camera Settings**](Mods/camera_settings/ReadMe.md) | Customize FOV, height, distance, etc, for each camera view in-game, in Options > Camera. |
 | [**Dev Tools**](Mods/dev_tools/ReadMe.md) | Dev tools to help work on these mods. |
+
+## General Requirements
+- Required: NFS: MW 2005 v1.3. Black Box or not, shouldn't matter.
+- Required: [Ultimate ASI Loader (dinput8.dll)](https://github.com/ThirteenAG/Ultimate-ASI-Loader). (This ships with most distributions of WideScreenFix, so you probably already have it.)
+- All my mods were tested with the [Redux v3 mod pack](https://docs.google.com/spreadsheets/d/e/2PACX-1vTEQaQpo3EscLpyFm7jrr7Q9ivAmBIXN6rklMVuXAsZec0tRRw4MvHnUSD7V2kgyw/pubhtml). Some .ini tweaks needed, mentioned in the ReadMe of each mod.
+- My mods were also tested and confirmed fully working on Linux with Steam's Proton Experimental.

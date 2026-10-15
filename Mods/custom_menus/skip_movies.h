@@ -7,7 +7,7 @@
 
 namespace custom_menus::skip_movies {
 
-// Installed on its own: nothing else depends on it. `[features] skip_movies=0` turns it off.
+// Installed on its own: nothing else depends on it. `[features] skippable_cutscenes=0` turns it off.
 void install_hooks(nfsmw::Logger &log, const char *ini);
 
 }  // namespace custom_menus::skip_movies

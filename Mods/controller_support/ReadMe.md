@@ -28,27 +28,28 @@ All 3rd-person car cameras can be controlled with either the mouse, or the right
 - Automatically switch to controller button prompts as soon as controller input is detected, and vice versa.
 - Button prompts show Xbox buttons by default. If [Custom Menus](../custom_menus/ReadMe.md) is installed, you can switch to Playstation button prompts via **Options > Player > Controller Prompts**. Otherwise, you can set `icons=playstation` in the ini.
 
-
 ## Controller Compatibility
 
-- xBox 1 Controller: Tested raw, works.
-- xBox 360 Controller: Not tested, expected to work.
+- Xbox 1 Controller: Tested both raw and via SteamInput, both work.
+- Xbox 360 Controller: Not tested, expected to work.
 - PS5 DualSense Controller: Tested with Steam Input, works, including rumble.
 - Other controllers: Not tested, expected to work with Steam Input. Just add `speed.exe` to Steam as a non-steam game.
 - Gyro controls: Not tested, not sure what you would use it for, but Steam Input can do it for you without a doubt.
 
 ## Mod Compatibility
 
-- Required: Game version 1.3. Black Edition or not, doesn't matter.
-- Required: [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
+- See [General Requirements](../../ReadMe.md#general-requirements).
 - Recommended: [Custom Menus](../custom_menus/ReadMe.md) mod if you want to customize rumble and camera look keybindings.
-- Recommended but **must be configured**: WideScreenFix: Set the following settings in that mod:
-  - `ImproveGamepadSupport`: not needed, this mod has the controller icons and the menu buttons. If you leave it at 1, the
-    widescreen fix's icons are used (they are the same pictures) and ours stay out of the way.
-  - `LeftStickDeadzone = 0` and `RightStickDeadzone = 0` because this mod will handle deadzones.
-  - `[CAMERA] Enable = 0` because our mod adds camera look to all third-person camera types instead of just two arbitrary ones.
-- Incompatible: NFS-XtendedInput, potentially other similar mods that mess with controller functions.
+- Recommended WideScreenFix .ini config:
+```
+ImproveGamepadSupport = 0
+LeftStickDeadzone = 0
+RightStickDeadzone = 0
 
+[CAMERA]
+Enable = 0
+```
+- Incompatible: NFS-XtendedInput, potentially other similar mods that mess with controller functions.
 
 ## TODOs
 - I think if the mouse is ever moved with widescreenfix, the button prompts keep switching back to keyboard symbols.

@@ -140,7 +140,7 @@ void FASTCALL hook_save_confirm(void *screen, void *edx) {
 }  // namespace
 
 void install_hooks(nfsmw::Logger &log, const char *ini) {
-    if (!GetPrivateProfileIntA("features", "skip_dialogs", 1, ini)) return;
+    if (!GetPrivateProfileIntA("features", "fewer_popups", 1, ini)) return;
     g_log = &log;
     const nfsmw::Hook hooks[] = {
         {"showdialog", "DialogInterface::ShowDialog", 0x5983C0, {0x56, 0x8B, 0x74, 0x24, 0x08, 0x57, 0x8B}, false,

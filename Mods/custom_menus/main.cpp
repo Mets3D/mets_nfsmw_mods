@@ -13,10 +13,9 @@
  *    highlighted row in the game's message box.
  * Every plugin that exports nfsmw_custom_menus_provide gets asked for its pages the first time the Options menu opens.
  *
- * Files in <game>/scripts/mets_mods/: nfsmw_custom_menus.ini (settings), nfsmw_custom_menus.log, nfsmw_custom_menus_crash.log (access
- * violations anywhere in the game, with the modules involved; handy for any of our mods).
+ * Files in <game>/scripts/mets_mods/: nfsmw_custom_menus.ini (settings), nfsmw_custom_menus.log.
  * ini settings, all optional:
- *   [features] help_hint=0, hide_dialog_icon=0, texture_pack=0, skip_dialogs=0, resume_career=0, skip_movies=0  turn those parts off
+ *   [features] fewer_popups=0, skip_career_menu=0, skippable_cutscenes=0  turn those parts off
  *   [hooks]    <name>=0  skips one hook (names in install_hooks)
  *
  * Offsets come from the PC disassembly; the decomp's struct offsets are from the console builds and differ.
@@ -67,76 +66,19 @@ void log_line(const char *fmt, ...) {
 char g_ini[MAX_PATH];
 
 // ------------------------------------------------------------------------------------------------
-// Crash diagnostics. The handler runs in the middle of a crash, so it avoids the CRT's FILE locks and the
-// loader lock (an earlier version could hang the game): raw WriteFile, module bases from VirtualQuery.
-// The Help-hint code runs under a guard: an access violation inside it is logged and skipped.
+// The Help-hint code runs under a guard: an access violation inside it is skipped (the rest of the screen works without the hint)
+// and logged. Faults anywhere else are not ours and pass through (nfsmw_dev_tools' diagnostics logs those).
 // ------------------------------------------------------------------------------------------------
-HANDLE g_crash_file = INVALID_HANDLE_VALUE;
-void *g_self_base = nullptr;
 jmp_buf g_guard_jb;
 volatile bool g_guard_on = false;
+unsigned long g_fault_eip = 0, g_fault_address = 0;  // of the last fault the guard caught
 
-void crash_write(const char *fmt, ...) {
-    if (g_crash_file == INVALID_HANDLE_VALUE) return;
-    char buf[512];
-    va_list ap;
-    va_start(ap, fmt);
-    int n = _vsnprintf(buf, sizeof(buf) - 2, fmt, ap);
-    va_end(ap);
-    if (n < 0) n = sizeof(buf) - 2;
-    buf[n++] = '\r';
-    buf[n++] = '\n';
-    DWORD written = 0;
-    WriteFile(g_crash_file, buf, static_cast<DWORD>(n), &written, nullptr);
-}
-
-const char *label_for(const void *addr, unsigned *offset) {
-    MEMORY_BASIC_INFORMATION mbi;
-    if (!VirtualQuery(addr, &mbi, sizeof(mbi)) || mbi.Type != MEM_IMAGE) return nullptr;
-    *offset = static_cast<unsigned>(static_cast<const unsigned char *>(addr) - static_cast<unsigned char *>(mbi.AllocationBase));
-    if (mbi.AllocationBase == reinterpret_cast<void *>(0x400000)) return "speed.exe";
-    if (mbi.AllocationBase == g_self_base) return "nfsmw_custom_menus.asi";
-    return "module";
-}
-
-LONG WINAPI crash_logger(EXCEPTION_POINTERS *e) {
-    static int count = 0;
-    if (e->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION) return EXCEPTION_CONTINUE_SEARCH;
-    const bool guarded = g_guard_on;
-    if (count++ < 4) {
-        const CONTEXT *c = e->ContextRecord;
-        unsigned off = 0;
-        const char *mod = label_for(reinterpret_cast<void *>(c->Eip), &off);
-        crash_write("!! ACCESS VIOLATION at eip=%#lx (%s+%#x) %s address %#lx%s", c->Eip, mod ? mod : "?", off,
-                    e->ExceptionRecord->ExceptionInformation[0] == 0 ? "reading" : "writing",
-                    static_cast<unsigned long>(e->ExceptionRecord->ExceptionInformation[1]),
-                    guarded ? "  [inside the guarded Help-hint code]" : "");
-        crash_write("!! eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx ebp=%08lx esp=%08lx", c->Eax, c->Ebx,
-                    c->Ecx, c->Edx, c->Esi, c->Edi, c->Ebp, c->Esp);
-        const unsigned long *sp = reinterpret_cast<const unsigned long *>(c->Esp);
-        MEMORY_BASIC_INFORMATION smbi;
-        if (VirtualQuery(sp, &smbi, sizeof(smbi))) {
-            const unsigned long *end = reinterpret_cast<const unsigned long *>(
-                static_cast<unsigned char *>(smbi.BaseAddress) + smbi.RegionSize);
-            int shown = 0;
-            for (int i = 0; i < 512 && sp + i < end && shown < 30; ++i) {
-                const unsigned long v = sp[i];
-                if (v < 0x10000) continue;
-                MEMORY_BASIC_INFORMATION mbi;
-                if (!VirtualQuery(reinterpret_cast<void *>(v), &mbi, sizeof(mbi)) || mbi.Type != MEM_IMAGE) continue;
-                if (!(mbi.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY))) continue;
-                if (const char *m = label_for(reinterpret_cast<void *>(v), &off)) {
-                    crash_write("!!   [esp+%03x] %#lx = %s+%#x", i * 4, v, m, off);
-                    ++shown;
-                }
-            }
-        }
-    }
-    if (guarded) {
-        g_guard_on = false;
-        longjmp(g_guard_jb, 1);
-    }
-    return EXCEPTION_CONTINUE_SEARCH;
+LONG WINAPI guard_handler(EXCEPTION_POINTERS *e) {
+    if (!g_guard_on || e->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION) return EXCEPTION_CONTINUE_SEARCH;
+    g_fault_eip = e->ContextRecord->Eip;
+    g_fault_address = static_cast<unsigned long>(e->ExceptionRecord->ExceptionInformation[1]);
+    g_guard_on = false;
+    longjmp(g_guard_jb, 1);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -953,7 +895,6 @@ void add_help_hint_unguarded(void *screen) {
 }
 
 void add_help_hint(void *screen) {
-    if (!GetPrivateProfileIntA("features", "help_hint", 1, g_ini)) return;
     if (setjmp(g_guard_jb) == 0) {
         g_guard_on = true;
         add_help_hint_unguarded(screen);
@@ -962,7 +903,8 @@ void add_help_hint(void *screen) {
         g_guard_on = false;
         g_hint.n = 0;
         g_hint.clone = nullptr;
-        log_line("Help hint: failed (see nfsmw_custom_menus_crash.log); the rest of the screen is unaffected");
+        log_line("Help hint: failed (access violation at eip=%#lx, address %#lx); the rest of the screen is unaffected", g_fault_eip,
+                 g_fault_address);
     }
 }
 
@@ -1024,10 +966,8 @@ void FASTCALL hook_dialog_build(void *self, void *edx) {
     const char *pkg = field<const char *>(self, kScreenPackage);
     game::FEngSetLanguageHashPkg(pkg, kHeaderText, g_page->help_title_hash);
     game::FEPrintfPkg(pkg, static_cast<int>(kHeaderText), "%s", g_page->page->help_title);
-    if (GetPrivateProfileIntA("features", "hide_dialog_icon", 1, g_ini)) {
-        game::FEngSetInvisiblePkg(pkg, kDialogIcon1);
-        game::FEngSetInvisiblePkg(pkg, kDialogIcon2);
-    }
+    game::FEngSetInvisiblePkg(pkg, kDialogIcon1);
+    game::FEngSetInvisiblePkg(pkg, kDialogIcon2);
 }
 
 // The controller's X button opens Help too: with the widescreen fix's gamepad icons, the "2" key glyph on our hint is
@@ -1234,7 +1174,7 @@ void FASTCALL hook_optmain_notify(void *self, void *edx, unsigned msg, void *obj
 // A mod's icons live in its own texture pack (a .tpk in the data folder), loaded once, the first time a page needs it.
 void load_texture_pack(const char *path) {
     static std::vector<std::string> tried;
-    if (!path || !*path || !GetPrivateProfileIntA("features", "texture_pack", 1, g_ini)) return;
+    if (!path || !*path) return;
     for (const std::string &t : tried)
         if (t == path) return;
     tried.push_back(path);
@@ -1385,14 +1325,7 @@ void install_hooks() {
 NFSMW_PLUGIN_MAIN() {
     g_log.open_in_data_folder("nfsmw_custom_menus.log");
     log_line("nfsmw_custom_menus 1.0.0 starting");
-    char crash_path[MAX_PATH];
-    nfsmw::data_file("nfsmw_custom_menus_crash.log", crash_path, sizeof(crash_path));
-    g_crash_file = CreateFileA(crash_path, FILE_APPEND_DATA, FILE_SHARE_READ, nullptr, OPEN_ALWAYS,
-                               FILE_ATTRIBUTE_NORMAL, nullptr);
-    MEMORY_BASIC_INFORMATION mbi;
-    if (VirtualQuery(reinterpret_cast<void *>(&crash_logger), &mbi, sizeof(mbi))) g_self_base = mbi.AllocationBase;
-    crash_write("---- nfsmw_custom_menus 1.0.0 session (tick %lu) ----", GetTickCount());
-    AddVectoredExceptionHandler(1, crash_logger);
+    AddVectoredExceptionHandler(1, guard_handler);
     nfsmw::data_file("nfsmw_custom_menus.ini", g_ini, sizeof(g_ini));
     nfsmw::xinput::load(&g_log);
     install_hooks();

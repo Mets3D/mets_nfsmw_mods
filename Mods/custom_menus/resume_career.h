@@ -7,7 +7,7 @@
 
 namespace custom_menus::resume_career {
 
-// `[features] resume_career=0` turns it off.
+// `[features] skip_career_menu=0` turns it off.
 void install_hooks(nfsmw::Logger &log, const char *ini);
 
 // Called for every option added to an icon menu (IconScrollerMenu::AddOption): remembers the main menu's Career entry.

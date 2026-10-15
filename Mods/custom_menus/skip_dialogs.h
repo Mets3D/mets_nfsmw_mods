@@ -7,7 +7,7 @@
 
 namespace custom_menus::skip_dialogs {
 
-// Installed on its own: nothing else depends on it. `[features] skip_dialogs=0` turns it off.
+// Installed on its own: nothing else depends on it. `[features] fewer_popups=0` turns it off.
 void install_hooks(nfsmw::Logger &log, const char *ini);
 
 }  // namespace custom_menus::skip_dialogs

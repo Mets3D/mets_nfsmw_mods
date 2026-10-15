@@ -24,17 +24,17 @@ description: How to work on the NFS Most Wanted (2005) ASI mods in this repo - w
 - Deploy by copying `Mods/build/nfsmw_<mod>.asi` into each game install's `scripts/` (or `python Mods/set_mods.py --mode ours --game <dir>`; no install path is hard-coded, always pass `--game`).
   **Never launch the game.** The user tests; kill a running
   `speed.exe` before deploying (the file is locked).
-- Our files at run time: `<game>/scripts/mets_mods/` (ini, logs, crash log, packs).
+- Our files at run time: `<game>/scripts/mets_mods/` (ini, logs, packs).
 
 ## Adding a mod
 1. `Mods/<name>/main.cpp` with `NFSMW_PLUGIN_DECLARE` / `NFSMW_PLUGIN_MAIN` (`camera_settings/main.cpp` is a small one), a line in `Mods/CMakeLists.txt` (`nfsmw_add_plugin(...)`, and the `foreach` list below it).
 2. Hooks through `common/hooks.h` (address + first 7 bytes; a changed function is skipped), log / strings / language table through `common/nfsmw_util.h`.
-3. An Options menu page: export `nfsmw_custom_menus_provide` (see `Mods/custom_menus/ReadMe.md`).
+3. An Options menu page: export `nfsmw_custom_menus_provide` (copy from `Mods/example_options_page/main.cpp`, which documents every callback).
 4. Add it to `Mods/set_mods.py` (`ALL_MODS`, the `--only` choices, texture packs), write the mod's own `ReadMe.md` (what it does for a player; no build or developer notes there), and put findings in `docs/`.
 5. Uninstall = delete the mod's `.asi` (and `.tpk`) from `scripts/`; everything else of ours is in `scripts/mets_mods/`.
 
 ## After the user tests
-- Read the logs yourself (`scripts/mets_mods/nfsmw_*.log`, `nfsmw_custom_menus_crash.log` for access violations: eip is `speed.exe+offset`, add 0x400000 and use `Tools/re/re.py name`). Do not ask the user to send logs.
+- Read the logs yourself (`scripts/mets_mods/nfsmw_*.log`, `nfsmw_dev_tools.log` (`[diagnostics] enabled=1` in its ini) for access violations: eip is `speed.exe+offset`, add 0x400000 and use `Tools/re/re.py name`). Do not ask the user to send logs.
 - Say plainly what is confirmed, what is a guess, and what you did not run. Do not claim a fix works before the user has seen it.
 
 ## Logging
