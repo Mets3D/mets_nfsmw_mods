@@ -20,21 +20,22 @@ In the base game, every car has its own camera values. This mod preserves that b
 ## Features
 
 It was my goal to integrate this mod into the original game's design as if it was a native feature that shipped with the game. If used with the Custom Menus mod, the Camera menu has:
-- Separate customization for each camera type, including additional cameras added by other mods.
+- Separate customization for each camera type, including additional cameras added by other mods. Cameras have these options:
+  - FoV, Height, Forward/Backward Distance, Left-Right lateral offset.
+  - Smoothing
+  - Tilt: How much the camera tilts with the car.
+  - Acceleration: How much the camera's forward/backward distance reacts to acceleration and braking.
+  - Speed FoV: Additional FoV / "vertigo effect" based on your speed.
+  - Mirror: Whether a rear-view mirror is visible in this view. (The vanilla game's "Player -> Rearview Mirror" option is removed.)
+  - Enabled: Whether this camera view is used by the Next/Previous Camera View hotkeys.
 - You can hold Shift or LB to change values with smaller increments.
-- Cycling cameras:
-  - Renames the vanilla game's "Change Camera View" keybind to **"Next Camera View"** and adds a **Previous Camera View** counterpart. This requires the [Custom Menus](../custom_menus/ReadMe.md) mod.
-  - A camera can be set to Enabled=Off in its options. This way, Previous/Next camera keybind will skip that camera.
-- Mirror:
-  - The vanilla game's "Player -> Rearview Mirror" option is removed.
-  - Instead, each camera has a "Mirror" toggle.
-- Native feel:
+- Cycling cameras: Renames the vanilla game's "Change Camera View" keybind to **"Next Camera View"** and adds a **Previous Camera View** counterpart. This requires the [Custom Menus](../custom_menus/ReadMe.md) mod.
+- Native UX:
   - A custom hand-made icon for the menu.
   - Hit **Apply** to save. Otherwise, hitting **Back** will ask if you want to discard your changes.
   - A button to reset to defaults.
   - A help button that explains what each setting does.
   - Controller input tested and fully supported.
-- **Speed FoV**: This option adds additional field of view based on your speed. It's great for making the game feel more intense. The base game doesn't do this. It's disabled by default.
 
 ## Settings, files
 
@@ -50,10 +51,9 @@ After launching the game with the mod installed, it will store camera settings i
   - "DRIFT" and "Pursuit" camera modes added by [`NFSMWExtraOptions`](https://github.com/ExOptsTeam/NFSMWExOpts).
 
 ## Ideas / TODO
+- Instead of showing the values with the current car's offsets applied, we could show them with just one hard-coded car's offsets applied. The end result should be the same, except this way the numbers don't change when switching to a different car.
+- Custom Menus mod should probably be a requirement, and maybe we should raise an error if it's not installed.
 - Ship the mod with a preset .ini with my recommended defaults.
-- I'm not convinced that the "Tilting" option works.
-  - Pretty much confirmed, it either doesn't work or doesn't do what I think.
-  - This raises my suspicion that the Stiffness also does not work.
-- I don't get why "Distance / Lag" is one option... These feel like two incredibly distinct and unrelated concepts to me.
+- I'd be curious about an option (name pending) which makes the camera swivel left and right based on your turning. So if you're turning to the right, it would turn the camera to the right, by a customizable amount. And it would listen to the analog steering also.
 - A way to try values while driving without pausing.
 - Update the YT link above, possibly make it an embed.

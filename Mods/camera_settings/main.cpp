@@ -9,6 +9,9 @@
  *    Camera View is renamed Next Camera View.
  *  - Enabled (camera_cycle.cpp): Next / Previous Camera View skip the views switched off. Mirror (mirror.cpp): the rear view mirror
  *    shown or hidden per view.
+ *  - Smoothing (smoothing.cpp): the durations of the chase camera's springs, scaled per view.
+ *  - Acceleration (acceleration.cpp): how far the camera moves and leans with the car's acceleration, per view.
+ *  - Tilt (tilt.cpp): how far the chase camera's horizon follows the car's own tilt, per view.
  *  - The Drift camera's name ("DRIFT", from NFSMWExtraOptions) is shown with the game's own "Drift" string.
  *
  * Files in <game>/scripts/mets_mods/: nfsmw_camera_settings.ini (your changes and settings), nfsmw_camera_settings.log, nfsmw_camera_settings.tpk (the Options icon).
@@ -30,9 +33,12 @@
 #include "hooks.h"
 #include "nfsmw_util.h"
 #include "custom_menus_api.h"
+#include "acceleration.h"
 #include "camera_cycle.h"
 #include "mirror.h"
 #include "previous_camera.h"
+#include "smoothing.h"
+#include "tilt.h"
 #include "view_flags.h"
 
 NFSMW_PLUGIN_DECLARE("NFSMW Camera Editor", "1.1.0", "Demeter Dzadik")
@@ -88,21 +94,21 @@ struct Pov {
     float lat_offset;      // 0x0C
     unsigned short fov;    // 0x10  16-bit angle
     short pad;             // 0x12
-    float stiffness;       // 0x14
-    short tilting;         // 0x18
+    float stiffness;       // 0x14  never read by the game
+    short tilting;         // 0x18  the game's lean with acceleration; tilt.cpp replaces what it leads to
 };
 
-enum Param { P_ENABLED, P_MIRROR, P_FOV, P_SPEED, P_HEIGHT, P_LAG, P_ANGLE, P_LAT, P_STIFF, P_TILT, NPARAM };
+enum Param { P_ENABLED, P_MIRROR, P_FOV, P_SPEED, P_SMOOTH, P_ACCEL, P_HEIGHT, P_LAG, P_ANGLE, P_LAT, P_TILT, NPARAM };
 // On / off rows: their value is stored as it is (1 / 0), not as a difference from the game's own.
-constexpr bool is_toggle(int i) { return i == P_TILT || i == P_ENABLED || i == P_MIRROR; }
+constexpr bool is_toggle(int i) { return i == P_ENABLED || i == P_MIRROR; }
 constexpr int kNumPresets = 7;
 
 const char *kPresetName[kNumPresets] = {"bumper", "hood", "close", "far", "super_far", "drift", "pursuit"};
-const char *kKey[NPARAM] = {"enabled", "mirror", "fov", "speed_fov", "height", "lag", "angle", "lat", "stiffness", "tilting"};
-const char *kLabel[NPARAM] = {"Enabled", "Mirror", "FOV", "Speed FoV", "Height", "Lag / Distance", "Pitch", "Lateral Offset", "Stiffness", "Tilting"};
+const char *kKey[NPARAM] = {"enabled", "mirror", "fov", "speed_fov", "smoothing", "acceleration", "height", "lag", "angle", "lat", "tilt"};
+const char *kLabel[NPARAM] = {"Enabled", "Mirror", "FOV", "Speed FoV", "Smoothing", "Acceleration", "Height", "Distance", "Pitch", "Lateral Offset", "Tilt"};
 
-// Help texts (2 key on the Camera options screen). Wording for lag, pitch, lateral offset and tilting is
-// inferred from the field names and values, so adjust here if a description does not match what you see.
+// Help texts (2 key on the Camera options screen). Pitch and lateral offset are worded from the field names and values, so
+// adjust them here if a description does not match what you see.
 const char *kHelp[NPARAM + 1] = {
     "Whether Next and Previous Camera View stop at this view.",
     "Enable rear view mirror in this view.",
@@ -110,14 +116,13 @@ const char *kHelp[NPARAM + 1] = {
     "Lower values zoom in. Hold Shift or LB for finer steps.",
     "Extra field of view in degrees, added on top of the base FoV as you speed up, to exaggerate the feeling of "
     "speed. It reaches this value at 300 km/h. 0 turns it off. Hold Shift or LB for finer steps.",
-    "How high the camera sits above the car. Higher values give a more top-down view. Hold Shift or LB for finer steps.",
-    "Camera lag distance. Negative values place the camera behind the car, and larger negative values pull it "
-    "further back. Values near zero place it at the car. Hold Shift or LB for finer steps.",
+    "How much the camera's movement is smoothed. Hold Shift or LB for finer steps.",
+    "How much the camera pulls back and pushes forward during acceleration and braking. Hold Shift or LB for finer steps.",
+    "The camera's height above the car. Hold Shift or LB for finer steps.",
+    "The camera's backwards/forwards offset from the car. Hold Shift or LB for finer steps.",
     "Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps.",
     "Moves the camera sideways, away from the center line of the car. Hold Shift or LB for finer steps.",
-    "How tightly the camera follows the car. Higher values keep it close to the car, lower values let it "
-    "drift and lag behind. Hold Shift or LB for finer steps.",
-    "Lets the camera lean with the car as it rolls and turns.",
+    "How much the camera tilts with the car. Hold Shift or LB for finer steps.",
     "Selects the camera view whose settings you are editing. This is the same setting as the Camera option "
     "under Player.",
 };
@@ -130,12 +135,13 @@ const Range kRange[NPARAM] = {
     {-1.0f, 1.0f, 2.0f, 2.0f},      // mirror
     {20.0f, 140.0f, 5.0f, 1.0f},    // FOV
     {0.0f, 50.0f, 5.0f, 1.0f},      // speed FoV, degrees at full speed (the game has no value of its own: base is 0)
+    {10.0f, 400.0f, 10.0f, 1.0f},   // smoothing, percent of the game's (base 100)
+    {0.0f, 300.0f, 10.0f, 1.0f},    // acceleration, percent of the game's (base 100)
     {0.0f, 8.0f, 0.25f, 0.05f},     // height
     {-30.0f, 3.0f, 0.5f, 0.1f},     // lag (negative = behind the car)
     {-20.0f, 20.0f, 0.5f, 0.1f},    // pitch
     {-3.0f, 3.0f, 0.25f, 0.05f},    // lateral
-    {0.0f, 1.0f, 0.05f, 0.01f},     // stiffness
-    {-1.0f, 1.0f, 2.0f, 2.0f},      // tilting off/on
+    {0.0f, 100.0f, 10.0f, 1.0f},    // tilt, percent of the car's (the game has none: base 0)
 };
 
 // What the player changed for one view. `val` is a difference from the game's own value for the car being driven (cars
@@ -167,8 +173,6 @@ float get_field(const Pov &p, int i) {
         case P_LAG: return p.lag;
         case P_ANGLE: return ang_to_deg(p.angle);
         case P_LAT: return p.lat_offset;
-        case P_STIFF: return p.stiffness;
-        case P_TILT: return p.tilting ? 1.0f : 0.0f;
         default: return 0.0f;  // Speed FoV has no value of the game's; Enabled and Mirror are not in the Pov (read_base)
     }
 }
@@ -178,6 +182,8 @@ float get_field(const Pov &p, int i) {
 void read_base(const Pov &p, int type, float *out) {
     for (int i = 0; i < NPARAM; ++i) out[i] = get_field(p, i);
     out[P_ENABLED] = 1.0f;
+    out[P_SMOOTH] = 100.0f;
+    out[P_ACCEL] = 100.0f;
     out[P_MIRROR] = type < 2 ? 1.0f : 0.0f;
 }
 
@@ -188,8 +194,6 @@ void apply_field(Pov *p, int i, float v) {
         case P_LAG: p->lag = v; break;
         case P_ANGLE: p->angle = deg_to_ang(v); break;
         case P_LAT: p->lat_offset = v; break;
-        case P_STIFF: p->stiffness = v; break;
-        case P_TILT: p->tilting = v >= 0.5f ? 1 : 0; break;
         default: break;  // P_SPEED is applied by apply_speed_fov
     }
 }
@@ -270,7 +274,7 @@ void ini_save() {
 constexpr unsigned kAnchorVelMag = 0x10;  // CameraAnchor: speed of the car in m/s (written by CameraAnchor::Update)
 constexpr float kFullSpeed = 300.0f / 3.6f; // m/s (300 km/h) where the effect reaches its full strength
 constexpr float kMaxFov = 140.0f;         // the FoV row's maximum
-constexpr float kSmoothing = 0.04f;       // per GetPov call (~110/s): the effect eases in and out over ~0.2 s
+constexpr float kSpeedFovEase = 0.04f;       // per GetPov call (~110/s): the effect eases in and out over ~0.2 s
 
 struct SpeedState {
     void *anchor;
@@ -288,7 +292,7 @@ void apply_speed_fov(void *anchor, Pov *p, float max_gain_deg) {
     if (!st) return;
     float target = field<float>(anchor, kAnchorVelMag) / kFullSpeed;
     target = target < 0.0f ? 0.0f : (target > 1.0f ? 1.0f : target);
-    st->t += (target - st->t) * kSmoothing;
+    st->t += (target - st->t) * kSpeedFovEase;
     // Dolly zoom: distance * tan(fov / 2) stays constant, so the car keeps its size on screen while the
     // background widens; the camera moves in by tan(old / 2) / tan(new / 2). Only the square root of that is
     // used: the full amount left the camera so close that braking made it overshoot above the car.
@@ -314,9 +318,9 @@ Pov *FASTCALL hook_getpov(void *self, void *edx, int type) {
         if (!g_have_base[type] || memcmp(now, g_base[type], sizeof(now)) != 0) {
             static unsigned logged = 0;
             if (logged++ < 200)
-                log_line("base %-9s fov=%.1f height=%.3f lag=%.3f pitch=%.1f lat=%.3f stiff=%.3f tilt=%d",
+                log_line("base %-9s fov=%.1f height=%.3f lag=%.3f pitch=%.1f lat=%.3f",
                          kPresetName[type], now[P_FOV], now[P_HEIGHT], now[P_LAG], now[P_ANGLE],
-                         now[P_LAT], now[P_STIFF], p->tilting);
+                         now[P_LAT]);
             memcpy(g_base[type], now, sizeof(now));
             g_have_base[type] = true;
         }
@@ -360,8 +364,10 @@ void format_value(char *out, size_t n, int param, float v) {
         case P_LAG: snprintf(out, n, "%.1f", v); break;
         case P_ANGLE: snprintf(out, n, "%.1f%s", v, deg); break;
         case P_LAT: snprintf(out, n, "%.2f", v); break;
-        case P_STIFF: snprintf(out, n, "%.2f", v); break;
         case P_SPEED: snprintf(out, n, "%.0f%s", v, deg); break;
+        case P_SMOOTH:
+        case P_ACCEL:
+        case P_TILT: snprintf(out, n, "%.0f%%", v); break;
         default: snprintf(out, n, "%s", v >= 0.5f ? "On" : "Off"); break;
     }
 }
@@ -412,9 +418,9 @@ void page_opened() {
         if (Pov *p = g_orig_getpov(value_source(), nullptr, t)) {
             read_base(*p, t, g_base[t]);
             g_have_base[t] = true;
-            log_line("game values %-9s fov=%.4f height=%.4f lag=%.4f pitch=%.4f lat=%.4f stiff=%.4f tilt=%d",
+            log_line("game values %-9s fov=%.4f height=%.4f lag=%.4f pitch=%.4f lat=%.4f",
                      kPresetName[t], g_base[t][P_FOV], g_base[t][P_HEIGHT], g_base[t][P_LAG], g_base[t][P_ANGLE],
-                     g_base[t][P_LAT], g_base[t][P_STIFF], p->tilting);
+                     g_base[t][P_LAT]);
         }
     }
     log_line("Options > Camera opened (editing %s)", kPresetName[camera_type_being_edited()]);
@@ -472,6 +478,21 @@ int preset_of(int cam) {
 
 namespace camera_settings {
 
+float smoothing_factor(int type) {
+    if (type < 0 || type >= kNumPresets || !g_ovr[type].set[P_SMOOTH]) return 1.0f;
+    return resolved(g_ovr[type], P_SMOOTH, 100.0f) / 100.0f;
+}
+
+float acceleration_factor(int type) {
+    if (type < 0 || type >= kNumPresets || !g_ovr[type].set[P_ACCEL]) return 1.0f;
+    return resolved(g_ovr[type], P_ACCEL, 100.0f) / 100.0f;
+}
+
+float tilt_factor(int type) {
+    if (type < 0 || type >= kNumPresets || !g_ovr[type].set[P_TILT]) return 0.0f;
+    return resolved(g_ovr[type], P_TILT, 0.0f) / 100.0f;
+}
+
 bool in_cycle(int cam) {
     const int type = preset_of(cam);
     return type < 0 || !g_ovr[type].set[P_ENABLED] || g_ovr[type].val[P_ENABLED] >= 0.5f;
@@ -525,5 +546,8 @@ NFSMW_PLUGIN_MAIN() {
     camera_settings::previous_camera::install_hooks(g_log, g_ini);
     camera_settings::camera_cycle::install_hooks(g_log, g_ini);
     camera_settings::mirror::install_hooks(g_log, g_ini);
+    camera_settings::smoothing::install_hooks(g_log, g_ini);
+    camera_settings::acceleration::install_hooks(g_log, g_ini);
+    camera_settings::tilt::install_hooks(g_log, g_ini);
     return NFSMW_OK;
 }

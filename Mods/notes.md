@@ -2,6 +2,7 @@ TODO:
 - Write ReadMe for each mod.
     - Done, but update it with images and videos, and remove Claude's nonsense. Maybe let Claude write a separate doc about the code's structure.
 - I'd like some options of other mods to be customizable from in-game... but that should probably be implemented in those mods... idk... I guess in open source cases, I could try to upstream some integrations with Custom Menus mod.
+- A replay system could help make comparison videos.
 
 REDUX v3 compatibility:
     - HUD in split-screen is all over the place
