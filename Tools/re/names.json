@@ -269,5 +269,25 @@
     "name": "FEObject::FEObject(const FEObject&, bool)",
     "confidence": "tested",
     "note": "zero-fills the data (rep stosd); reads the source's current script without a null check"
+  },
+  "0x552DA0": {
+    "name": "WorldMap::UpdateMouseCursor",
+    "confidence": "read",
+    "note": "thiscall, per screen tick (from NotificationMessage on FEMSG_SCREEN_TICK 0xC98356BA): when the mouse [0x987F54/58] is over the map shows the Cursor object, snaps it to an item, follows the mouse while [esi+0x15C] is unset; else hides it and clears [0x91CFB9]"
+  },
+  "0x552F40": {
+    "name": "WorldMap::UpdateCursor(bool)",
+    "confidence": "read",
+    "note": "thiscall (zoom_thing), ret 4: the console cursor (CurrentVelocity +0x128/+0x12C -> MoveCursor, SnapCursor, cursoractive / cursoridle messages); NO caller in the PC exe, nothing writes the velocity"
+  },
+  "0x511B80": {
+    "name": "WorldMap::HandleMouseDrag",
+    "confidence": "read",
+    "note": "thiscall, called after the mouse wheel zoom; while [esi+0x173] (left button held on the map) subtracts the mouse delta [0x987F64/68] (scaled by zoom and map size) from the streamer pan and calls UITrackMapStreamer::SetPan"
+  },
+  "0x510E20": {
+    "name": "UITrackMapStreamer::SetZoom",
+    "confidence": "read",
+    "note": "thiscall (bVector2* visible fraction x, y), ret 4: sets the zoom cubic (streamer +0x1C) and snaps it; SetPan 0x510E60 does the same for the pan cubic (+0x74, centre 0..1)"
   }
 }

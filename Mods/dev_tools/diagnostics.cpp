@@ -19,7 +19,8 @@ constexpr unsigned long kCodeStart = 0x401008, kCodeEnd = 0x88F2A5;  // speed.ex
 // Up to 14 values from the stack that look like return addresses into the game.
 void log_game_stack(const unsigned long *sp) {
     int shown = 0;
-    for (int i = 0; i < 400 && shown < 14; ++i) {
+    const unsigned long *top = static_cast<const unsigned long *>(reinterpret_cast<NT_TIB *>(NtCurrentTeb())->StackBase);
+    for (int i = 0; sp + i < top && i < 6000 && shown < 14; ++i) {  // d3d9 frames can be big
         const unsigned long v = sp[i];
         if (v < kCodeStart || v > kCodeEnd) continue;
         const unsigned char *at = reinterpret_cast<const unsigned char *>(v);

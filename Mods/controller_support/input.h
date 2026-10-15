@@ -18,6 +18,8 @@ bool key_down(int dik);  // a key of the real keyboard (whether or not it reache
 float binding_value(int type, int object, const xinput::Gamepad &pad);  // a controller binding, read from a controller
 // The last thing the player touched was a controller (not the keyboard or the mouse).
 bool last_input_was_pad();
+// The connected XInput controllers as one (sticks and triggers from the one pushing furthest); false when there is none.
+bool read_merged(xinput::Gamepad *out);
 // The mouse movement since the last call (the camera look reads it).
 void take_mouse_delta(LONG *dx, LONG *dy);
 void install_hooks();  // InputMapping

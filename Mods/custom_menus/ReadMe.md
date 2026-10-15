@@ -20,7 +20,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
 - **Rows in the game's own Player options**: a page can also put its rows at the end of Options > Player (`placement = kPlayerOptions`).
 - **Pages opened by a mod**: a page with `placement = kHidden` has no entry in the Options menu; the mod opens it with `open_page` from another screen (for example the Rumble Options button in the Controller Support mod).
 - **Rows on the Controls screen**: a mod can add rows for its own key and button bindings to Options > Controls, and rename the game's texts.
-- **Localization**: Mods can provide translations for the game's 10 supported additional languages for the UI elements that they're adding.
+- **Localization**: Mods can provide translations for the game's 9 supported additional languages for the UI elements that they're adding.
 
 ## Other fixes
 
