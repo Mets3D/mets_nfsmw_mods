@@ -17,7 +17,7 @@ include("${SDK}/cmake/nfsmw_sdkHelpers.cmake")
 set(COMMON "${CMAKE_CURRENT_SOURCE_DIR}/common")
 
 nfsmw_add_plugin(nfsmw_custom_menus SOURCES custom_menus/main.cpp custom_menus/title_icon.cpp custom_menus/controls_rows.cpp custom_menus/skip_dialogs.cpp custom_menus/resume_career.cpp custom_menus/skip_movies.cpp)  # the Options menu framework
-nfsmw_add_plugin(nfsmw_camera_settings SOURCES camera_settings/main.cpp camera_settings/previous_camera.cpp)          # camera presets (a page of nfsmw_custom_menus)
+nfsmw_add_plugin(nfsmw_camera_settings SOURCES camera_settings/main.cpp camera_settings/previous_camera.cpp camera_settings/camera_cycle.cpp camera_settings/mirror.cpp)          # camera presets (a page of nfsmw_custom_menus)
 nfsmw_add_plugin(nfsmw_controller_support SOURCES controller_support/main.cpp controller_support/settings.cpp controller_support/button_icons.cpp controller_support/menu_buttons.cpp controller_support/input.cpp controller_support/bindings.cpp controller_support/controls_menu.cpp controller_support/pad_sets.cpp controller_support/extra_device.cpp controller_support/look.cpp controller_support/rumble.cpp controller_support/controls_rumble.cpp controller_support/default_layout.cpp controller_support/rumble_page.cpp controller_support/prompts_option.cpp controller_support/menu_pages.cpp)          # controller input and rumble (a page of nfsmw_custom_menus)
 nfsmw_add_plugin(nfsmw_dev_tools SOURCES dev_tools/main.cpp dev_tools/diagnostics.cpp dev_tools/quick_start.cpp)  # for making mods: logs, quicker start-up
 target_link_libraries(nfsmw_dev_tools PRIVATE shell32)

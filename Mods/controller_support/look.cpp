@@ -109,8 +109,8 @@ void look_at(void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
         second_stick(&stick_x, &stick_y);  // none without a controller
     }
     float yaw_delta = -stick_x * g_look_cfg.stick_speed * dt - mouse_x * g_look_cfg.mouse_sensitivity;
-    // "Look Up" (stick_y > 0) raises the view, i.e. lowers the pitch offset; the mouse is as it always was.
-    float pitch_delta = -stick_y * g_look_cfg.stick_speed * dt - mouse_y * g_look_cfg.mouse_sensitivity;
+    // "Look Up" (stick_y > 0) raises the view, i.e. lowers the pitch offset; so does the mouse moving up (a negative count).
+    float pitch_delta = -stick_y * g_look_cfg.stick_speed * dt + mouse_y * g_look_cfg.mouse_sensitivity;
     if (g_look_cfg.invert_y) pitch_delta = -pitch_delta;
 
     if (std::fabs(yaw_delta) > 0.001f || std::fabs(pitch_delta) > 0.001f) {

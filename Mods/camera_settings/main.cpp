@@ -7,6 +7,8 @@
  *    selector, the rows below edit the selected view (hold Shift or LB for finer steps). Edits are kept on Accept.
  *  - Previous Camera View (previous_camera.cpp): a Controls screen binding that scrolls the camera backwards; the game's Change
  *    Camera View is renamed Next Camera View.
+ *  - Enabled (camera_cycle.cpp): Next / Previous Camera View skip the views switched off. Mirror (mirror.cpp): the rear view mirror
+ *    shown or hidden per view.
  *  - The Drift camera's name ("DRIFT", from NFSMWExtraOptions) is shown with the game's own "Drift" string.
  *
  * Files in <game>/scripts/mets_mods/: nfsmw_camera_settings.ini (your changes and settings), nfsmw_camera_settings.log, nfsmw_camera_settings.tpk (the Options icon).
@@ -28,7 +30,10 @@
 #include "hooks.h"
 #include "nfsmw_util.h"
 #include "custom_menus_api.h"
+#include "camera_cycle.h"
+#include "mirror.h"
 #include "previous_camera.h"
+#include "view_flags.h"
 
 NFSMW_PLUGIN_DECLARE("NFSMW Camera Editor", "1.1.0", "Demeter Dzadik")
 
@@ -87,16 +92,20 @@ struct Pov {
     short tilting;         // 0x18
 };
 
-enum Param { P_FOV, P_SPEED, P_HEIGHT, P_LAG, P_ANGLE, P_LAT, P_STIFF, P_TILT, NPARAM };
+enum Param { P_ENABLED, P_MIRROR, P_FOV, P_SPEED, P_HEIGHT, P_LAG, P_ANGLE, P_LAT, P_STIFF, P_TILT, NPARAM };
+// On / off rows: their value is stored as it is (1 / 0), not as a difference from the game's own.
+constexpr bool is_toggle(int i) { return i == P_TILT || i == P_ENABLED || i == P_MIRROR; }
 constexpr int kNumPresets = 7;
 
 const char *kPresetName[kNumPresets] = {"bumper", "hood", "close", "far", "super_far", "drift", "pursuit"};
-const char *kKey[NPARAM] = {"fov", "speed_fov", "height", "lag", "angle", "lat", "stiffness", "tilting"};
-const char *kLabel[NPARAM] = {"FOV", "Speed FoV", "Height", "Lag / Distance", "Pitch", "Lateral Offset", "Stiffness", "Tilting"};
+const char *kKey[NPARAM] = {"enabled", "mirror", "fov", "speed_fov", "height", "lag", "angle", "lat", "stiffness", "tilting"};
+const char *kLabel[NPARAM] = {"Enabled", "Mirror", "FOV", "Speed FoV", "Height", "Lag / Distance", "Pitch", "Lateral Offset", "Stiffness", "Tilting"};
 
 // Help texts (2 key on the Camera options screen). Wording for lag, pitch, lateral offset and tilting is
 // inferred from the field names and values, so adjust here if a description does not match what you see.
 const char *kHelp[NPARAM + 1] = {
+    "Whether Next and Previous Camera View stop at this view. Off skips it; it can still be picked in the Camera option.",
+    "Enable rear view mirror in this view. The Gameplay -> Rearview Mirror must also be on.",
     "Field of view in degrees. Higher values show more of the scene and exaggerate the feeling of speed. "
     "Lower values zoom in. Hold Shift or LB for finer steps.",
     "Extra field of view in degrees, added on top of the base FoV as you speed up, to exaggerate the feeling of "
@@ -117,6 +126,8 @@ struct Range {
     float min, max, step, fine;  // fine: the step while Shift is held; values are kept on this grid
 };
 const Range kRange[NPARAM] = {
+    {-1.0f, 1.0f, 2.0f, 2.0f},      // enabled
+    {-1.0f, 1.0f, 2.0f, 2.0f},      // mirror
     {20.0f, 140.0f, 5.0f, 1.0f},    // FOV
     {0.0f, 50.0f, 5.0f, 1.0f},      // speed FoV, degrees at full speed (the game has no value of its own: base is 0)
     {0.0f, 8.0f, 0.25f, 0.05f},     // height
@@ -128,7 +139,7 @@ const Range kRange[NPARAM] = {
 };
 
 // What the player changed for one view. `val` is a difference from the game's own value for the car being driven (cars
-// differ a little, and the game's values can also move with speed), except Tilting, which is the on / off (1 / 0) itself.
+// differ a little, and the game's values can also move with speed), except the on / off rows, which hold the 1 / 0 itself.
 struct Override {
     bool set[NPARAM];
     float val[NPARAM];
@@ -158,8 +169,16 @@ float get_field(const Pov &p, int i) {
         case P_LAT: return p.lat_offset;
         case P_STIFF: return p.stiffness;
         case P_TILT: return p.tilting ? 1.0f : 0.0f;
-        default: return 0.0f;
+        default: return 0.0f;  // Speed FoV has no value of the game's; Enabled and Mirror are not in the Pov (read_base)
     }
+}
+
+// The game's own values of a view: the Pov's, and for the two on / off rows that are not in it, Enabled (always) and Mirror
+// (the bumper and hood views have one).
+void read_base(const Pov &p, int type, float *out) {
+    for (int i = 0; i < NPARAM; ++i) out[i] = get_field(p, i);
+    out[P_ENABLED] = 1.0f;
+    out[P_MIRROR] = type < 2 ? 1.0f : 0.0f;
 }
 
 void apply_field(Pov *p, int i, float v) {
@@ -179,7 +198,7 @@ void apply_field(Pov *p, int i, float v) {
 // wherever `base` already is when that lies outside it.
 float resolved(const Override &o, int i, float base) {
     if (!o.set[i]) return base;
-    if (i == P_TILT) return o.val[i];
+    if (is_toggle(i)) return o.val[i];
     const float lo = kRange[i].min < base ? kRange[i].min : base;
     const float hi = kRange[i].max > base ? kRange[i].max : base;
     const float v = base + o.val[i];
@@ -291,7 +310,7 @@ Pov *FASTCALL hook_getpov(void *self, void *edx, int type) {
         g_cur_type = type;
         g_anchor = self;
         float now[NPARAM];
-        for (int i = 0; i < NPARAM; ++i) now[i] = get_field(*p, i);
+        read_base(*p, type, now);
         if (!g_have_base[type] || memcmp(now, g_base[type], sizeof(now)) != 0) {
             static unsigned logged = 0;
             if (logged++ < 200)
@@ -355,7 +374,7 @@ void store_value(int type, int param, float v) {
         g_ovr[type].set[param] = false;
     } else {
         g_ovr[type].set[param] = true;
-        g_ovr[type].val[param] = param == P_TILT ? v : std::round((v - base) * 10000.0f) / 10000.0f;
+        g_ovr[type].val[param] = is_toggle(param) ? v : std::round((v - base) * 10000.0f) / 10000.0f;
     }
     log_line("edit %s.%s = %g (base %g)%s", kPresetName[type], kKey[param], v, base,
              g_ovr[type].set[param] ? "" : " -> back to game value");
@@ -391,7 +410,7 @@ void page_opened() {
     // Read every preset's own values from the game so each can be edited without having been the active view.
     for (int t = 0; t < kNumPresets; ++t) {
         if (Pov *p = g_orig_getpov(value_source(), nullptr, t)) {
-            for (int i = 0; i < NPARAM; ++i) g_base[t][i] = get_field(*p, i);
+            read_base(*p, t, g_base[t]);
             g_have_base[t] = true;
             log_line("game values %-9s fov=%.4f height=%.4f lag=%.4f pitch=%.4f lat=%.4f stiff=%.4f tilt=%d",
                      kPresetName[t], g_base[t][P_FOV], g_base[t][P_HEIGHT], g_base[t][P_LAG], g_base[t][P_ANGLE],
@@ -413,7 +432,7 @@ void page_change(int row, int direction, bool fine) {
     const int type = camera_type_being_edited();
     const Range &r = kRange[param];
     float v = effective(type, param);
-    if (param == P_TILT) {
+    if (is_toggle(param)) {
         v = direction > 0 ? 1.0f : 0.0f;
     } else {
         v += direction * (fine ? r.fine : r.step);
@@ -443,7 +462,28 @@ void page_defaults() {
 opt::Page g_page;
 char g_pack_path[MAX_PATH];
 
+// The preset a PlayerSettings::CurCam stands for, or -1.
+int preset_of(int cam) {
+    const int type = game::GetPOVTypeFromPlayerCamera(cam);
+    return type >= 0 && type < kNumPresets ? type : -1;
+}
+
 }  // namespace
+
+namespace camera_settings {
+
+bool in_cycle(int cam) {
+    const int type = preset_of(cam);
+    return type < 0 || !g_ovr[type].set[P_ENABLED] || g_ovr[type].val[P_ENABLED] >= 0.5f;
+}
+
+int mirror_override(int cam) {
+    const int type = preset_of(cam);
+    if (type < 0 || !g_ovr[type].set[P_MIRROR]) return -1;
+    return g_ovr[type].val[P_MIRROR] >= 0.5f ? 1 : 0;
+}
+
+}  // namespace camera_settings
 
 // Called by nfsmw_custom_menus when the Options menu first opens.
 extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const opt::Host *host) {
@@ -483,5 +523,7 @@ NFSMW_PLUGIN_MAIN() {
     install_hooks();
     camera_settings::previous_camera::init(g_log, g_ini);
     camera_settings::previous_camera::install_hooks(g_log, g_ini);
+    camera_settings::camera_cycle::install_hooks(g_log, g_ini);
+    camera_settings::mirror::install_hooks(g_log, g_ini);
     return NFSMW_OK;
 }

@@ -1,7 +1,4 @@
 TODO:
-- MouseLook works in ReduxV3 in split screen with the touchpad???
-    - I thought mouselook didn't work in split screen!! At least not in vanilla!?
-    - Vertical feels inverted tho.
 - Write ReadMe for each mod.
     - Done, but update it with images and videos, and remove Claude's nonsense. Maybe let Claude write a separate doc about the code's structure.
 - I'd like some options of other mods to be customizable from in-game... but that should probably be implemented in those mods... idk... I guess in open source cases, I could try to upstream some integrations with Custom Menus mod.
