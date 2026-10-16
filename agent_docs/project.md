@@ -31,6 +31,8 @@ mingw32-winpthreads`): `cd Mods && cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=..
 cmake --build build`. The game itself runs through Steam Proton Experimental; only the build is cross-compiled, nothing in `Game Versions/` runs
 under Linux natively.
 
+Releases: `.github/workflows/release.yml` builds on Ubuntu (`g++-mingw-w64-i686`, the same cross build as on Linux above) when a tag `v*` is pushed or by hand from the Actions tab (typing the version, which makes the tag), and publishes `Mods/package_release.py`'s zip (the four player mods, their `.ini`, texture packs and translations in the game's `scripts/` layout; not dev_tools or the example) as a GitHub release [not run yet].
+
 Either way `build/` is disposable. The runtime must be linked statically (`Mods/CMakeLists.txt`), or the ASI
 loader fails with "Error 126" (missing `libgcc_s_dw2-1.dll`).
 

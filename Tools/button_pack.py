@@ -3,7 +3,7 @@
 usage: python button_pack.py <buttons folder> <out.tpk> <PACK_NAME>
 
 The folder has a prompts.ini ([xbox] and [playstation]: the game's prompt picture = the picture to show instead, a PNG
-of that name in the folder xbox\ or playstation\) and the PNGs themselves, named after what they show (A.png, Cross.png).
+of that name in the folder xbox/ or playstation/) and the PNGs themselves, named after what they show (A.png, Cross.png).
 Each prompt gets its own texture, named <STYLE>_<prompt> (XBOX_PC_KEY_ENTER), made from its picture: a picture several
 prompts share (B for Back, its French twin and Quit) is stored once per prompt, so that the plugin can tell the prompts
 apart again when it switches back to the keyboard keys. The plugin derives the same names from prompts.ini.

@@ -1,0 +1,56 @@
+# Builds the mods and publishes the release zip as a GitHub release, either when a version tag is pushed
+# (`git tag v1.0.0 && git push origin v1.0.0`), or by hand: "Run workflow" on the Actions tab, typing the version (v1.0.0); the
+# tag is then made on the commit the workflow was run for.
+name: Build
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (a tag name, like v1.0.0)'
+        required: true
+
+permissions:
+  contents: write  # creating a release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive  # Tools/nfsmw-2005-sdk (plugin helpers, MinHook)
+
+      - name: Install the 32 bit Windows cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++-mingw-w64-i686
+          # The win32 thread model, like the MinGW the mods are developed with: nothing extra to link in statically.
+          sudo update-alternatives --set i686-w64-mingw32-gcc /usr/bin/i686-w64-mingw32-gcc-win32 || true
+          sudo update-alternatives --set i686-w64-mingw32-g++ /usr/bin/i686-w64-mingw32-g++-win32 || true
+
+      - name: Build
+        run: |
+          cd Mods
+          cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=../Tools/nfsmw-2005-sdk/cmake/nfsmw-toolchain-mingw-i686.cmake
+          cmake --build build --parallel
+
+      - name: Make the zip
+        run: |
+          version="${{ inputs.version || github.ref_name }}"
+          python3 Mods/package_release.py --version "$version" --out dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mets_nfsmw_mods
+          path: dist/*.zip
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version || github.ref_name }}
+          target_commitish: ${{ github.sha }}  # where a new tag is made (when run by hand)
+          files: dist/*.zip
+          generate_release_notes: true

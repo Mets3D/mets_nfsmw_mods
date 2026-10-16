@@ -11,6 +11,9 @@ I try to make these mods feel like a native part of the game. See the page of ea
 | [**Camera Settings**](Mods/camera_settings/ReadMe.md) | Customize FOV, height, distance, etc, for each camera view in-game, in Options > Camera. |
 | [**Dev Tools**](Mods/dev_tools/ReadMe.md) | Dev tools to help work on these mods. |
 
+## Installation
+Download the latest `mets_nfsmw_mods_<version>.zip` from the [Releases](../../releases) page and copy its `scripts` folder into the game's folder (next to `speed.exe`). It has Custom Menus, Controller Support, Split Screen Support and Camera Settings; Dev Tools is only for making mods and has to be built from this repo.
+
 ## General Requirements
 - Required: NFS: MW 2005 v1.3. Black Box or not, shouldn't matter.
 - Required: [Ultimate ASI Loader (dinput8.dll)](https://github.com/ThirteenAG/Ultimate-ASI-Loader). (This ships with most distributions of WideScreenFix, so you probably already have it.)
