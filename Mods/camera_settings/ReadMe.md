@@ -42,6 +42,9 @@ It was my goal to integrate this mod into the original game's design as if it wa
   - A help button that explains what each setting does.
   - Controller input tested and fully supported.
 
+# TODO
+- We should ship our own camera defaults in the ini - Vanilla cameras unchanged, but the super far, drift, and pursuit cameras could be tweaked, eg. to be disabled tbh.
+
 ### AI Disclaimer
 
 The code was written by Claude (Sonnet & Opus). The custom menu icon, testing, design, and this page, were hand-made.
