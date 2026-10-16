@@ -39,11 +39,11 @@ Empty, or a name with no save: the game starts as usual.
 The save is looked for where the game looks, so a widescreen fix that keeps user files in the game folder (`CustomUserFilesDirectoryInGameDir`) is followed.
 
 ## Ideas / TODOs
-- A replay system, so we can spectate each other?
-- A ghost system, so we can race against our best times?
 - An options menu to tweak the current race's settings, like difficulty level, rubber banding (Catch Up), number of opponents, number of laps, traffic, police presence, and maybe even hidden values like opponent car value, however that is determined? The race would have to be restarted for the changes to take effect.
 - Would be interesting to display the perspective of a CPU player in the corner of the screen - Or, maybe it would be much easier, to allow a CPU to take control of one of the split screen players - But how do CPU players work, do they give their cars inputs like a human player, or is it something else?
 - Ability to disable collisions on the race arrow walls? Just allow the player to go past, or find some way to detect out of bounds and reset the car after a while?
+- A replay system, so we can spectate each other?
+- A ghost system, so we can race against our best times?
 
 ## AI Disclaimer
 

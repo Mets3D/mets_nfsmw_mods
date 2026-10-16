@@ -200,6 +200,23 @@ constexpr uintptr_t kEnvMapEnabled = 0x9017B8, kUpdateEnvMapCameras = 0x756060, 
 constexpr int kViewSize = 0x70, kFirstEnvMapView = 18, kLastEnvMapView = 23;
 constexpr unsigned kFarPlane = 0x466A6000;  // 15000.0f, as eDisplayFrame passes it
 
+// "Car Reflection Update Rate" is [0x9017B8] (1 to 3; 0 = no reflections): eEnvMap::UpdateCameras (0x6DA350) switches on only some of the
+// six faces each frame, by the frame number: one face a frame (rate 1, a cycle of 6 frames), three faces (rate 2, 4 frames), all six
+// (rate 3). With two players the faces are drawn twice a frame, around player 1 and then around player 2, into one cube map that the
+// cars of both passes use: the faces a frame leaves out keep what the other player's pass drew into them, so player 1 saw a reflection
+// of player 2's surroundings that came and went. In a split screen race every pass draws all six faces: the rate is 3 for the call.
+using UpdateEnvMapCamerasFn = void (*)();
+UpdateEnvMapCamerasFn g_orig_update_env_map_cameras = nullptr;
+bool g_view2_on = false;  // view 2 is on for a split screen race (switch_view2)
+
+void hook_update_env_map_cameras() {
+    int &rate = *reinterpret_cast<int *>(kEnvMapEnabled);
+    const int saved = rate;
+    if (g_view2_on && saved > 0 && saved < 3) rate = 3;
+    g_orig_update_env_map_cameras();
+    rate = saved;
+}
+
 void update_env_map_for_view1() {
     if (!*reinterpret_cast<int *>(kEnvMapEnabled)) return;
     reinterpret_cast<void(__cdecl *)()>(kUpdateEnvMapCameras)();
@@ -246,8 +263,6 @@ void trade_views() {
 }
 
 // View 2 on for a split screen race, and off again afterwards (see the top).
-bool g_view2_on = false;
-
 void switch_view2(bool on) {
     if (on == g_view2_on) return;
     g_view2_on = on;
@@ -337,8 +352,10 @@ void install() {
          nfsmw::detour(&hook_display_frame), nfsmw::orig(&g_orig_display_frame)},
         {"setupperview", "eView::SetupPerView", 0x6CF400, {0x83, 0xEC, 0x0C, 0x53, 0x55, 0x56, 0x57}, false,
          nfsmw::detour(&hook_setup_per_view), nfsmw::orig(&g_orig_setup_per_view)},
+        {"envmapcameras", "UpdateEnvironmentMapCameras", kUpdateEnvMapCameras, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x83}, false,
+         nfsmw::detour(&hook_update_env_map_cameras), nfsmw::orig(&g_orig_update_env_map_cameras)},
     };
-    nfsmw::install_hooks(hooks, 2, g_log, nullptr, "split view");
+    nfsmw::install_hooks(hooks, 3, g_log, nullptr, "split view");
 }
 
 }  // namespace split_screen_support::split_view
