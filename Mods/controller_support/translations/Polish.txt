@@ -64,3 +64,7 @@ RT (shared trigger axis) = RT (wspólna oś spustów)
 LT (shared trigger axis) = LT (wspólna oś spustów)
 Free Look Reset = Reset swobodnego widoku
 How long the camera waits after you stop looking around before it returns behind the car. Off leaves it where you put it. = Jak długo kamera czeka po zakończeniu rozglądania się, zanim wróci za samochód. Wyłączone zostawia ją tam, gdzie ją ustawiono.
+L2 (shared trigger axis) = L2 (wspólna oś spustów)
+R2 (shared trigger axis) = R2 (wspólna oś spustów)
+ZL (shared trigger axis) = ZL (wspólna oś spustów)
+ZR (shared trigger axis) = ZR (wspólna oś spustów)

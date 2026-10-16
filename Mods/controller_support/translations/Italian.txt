@@ -64,3 +64,7 @@ RT (shared trigger axis) = RT (asse trigger condiviso)
 LT (shared trigger axis) = LT (asse trigger condiviso)
 Free Look Reset = Ritorno vista libera
 How long the camera waits after you stop looking around before it returns behind the car. Off leaves it where you put it. = Quanto tempo la telecamera aspetta, dopo che hai smesso di guardarti intorno, prima di tornare dietro l'auto. Se disattivato, resta dove l'hai lasciata.
+L2 (shared trigger axis) = L2 (asse trigger condiviso)
+R2 (shared trigger axis) = R2 (asse trigger condiviso)
+ZL (shared trigger axis) = ZL (asse trigger condiviso)
+ZR (shared trigger axis) = ZR (asse trigger condiviso)

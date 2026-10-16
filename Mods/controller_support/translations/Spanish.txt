@@ -64,3 +64,7 @@ RT (shared trigger axis) = RT (eje de gatillos compartido)
 LT (shared trigger axis) = LT (eje de gatillos compartido)
 Free Look Reset = Reinicio de vista libre
 How long the camera waits after you stop looking around before it returns behind the car. Off leaves it where you put it. = Cuánto espera la cámara, después de que dejes de mirar a tu alrededor, antes de volver detrás del coche. Si está desactivado, se queda donde la dejaste.
+L2 (shared trigger axis) = L2 (eje de gatillos compartido)
+R2 (shared trigger axis) = R2 (eje de gatillos compartido)
+ZL (shared trigger axis) = ZL (eje de gatillos compartido)
+ZR (shared trigger axis) = ZR (eje de gatillos compartido)

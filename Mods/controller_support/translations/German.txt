@@ -64,3 +64,7 @@ RT (shared trigger axis) = RT (gemeinsame Triggerachse)
 LT (shared trigger axis) = LT (gemeinsame Triggerachse)
 Free Look Reset = Blick-Reset
 How long the camera waits after you stop looking around before it returns behind the car. Off leaves it where you put it. = Wie lange die Kamera wartet, nachdem du aufgehört hast, dich umzusehen, bevor sie hinter das Auto zurückkehrt. Aus lässt sie dort, wo du sie hingedreht hast.
+L2 (shared trigger axis) = L2 (gemeinsame Triggerachse)
+R2 (shared trigger axis) = R2 (gemeinsame Triggerachse)
+ZL (shared trigger axis) = ZL (gemeinsame Triggerachse)
+ZR (shared trigger axis) = ZR (gemeinsame Triggerachse)
