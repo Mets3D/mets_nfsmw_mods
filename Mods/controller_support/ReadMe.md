@@ -9,7 +9,6 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 - **Analog steering, gas and brake**: The vanilla game maps them as on/off inputs, so even a stick bound to them was not analog. This mod enables analog throttle and reversing.
 - Better default controller bindings. They can also be fully remapped in the game's controls menu, which will show accurate and precise button names.
 - **Independent Triggers**: In the vanilla game, both triggers share one axis, so gas and brake on the triggers cancel each other. With this mod, you can hold gas and brake at the same time, just like you can on keyboard, causing a burnout.
-- **Dead zones**: The sticks (15% by default) and triggers (5%) have a dead zone to address stick drift. Each controller has its own, set in **Options > Controls > a controller > Settings**, if [Custom Menus](../custom_menus/ReadMe.md) is installed. Otherwise, in the ini (`left_stick_deadzone`, `right_stick_deadzone`, `trigger_deadzone`).
 
 ### Camera look
 - All 3rd-person car cameras can be controlled with either the mouse, or the right stick
@@ -23,6 +22,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 
 ### Customizable Dead-zones
 - You can change the deadzone of each stick, and the triggers, in the same menu as the Rumble settings mentioned above.
+- The green bar under each dead zone slider shows the current activation value of the given stick/trigger. I recommend calibrating the deadzone by gently nudging the stick in all directions, letting go, and taking note of the highest value that the green bar can reach while not being touched.
 
 ### Several controllers
 - With more than one controller connected, each controller can be customized separately. Each has their own dead zone, rumble, and button mapping stored separately.
@@ -64,7 +64,6 @@ Enable = 0
 - Incompatible: `NFS-XtendedInput`, potentially other similar mods that mess with controller functions.
 
 ## TODOs
-- Could be cool to add a display of the current analogue activation levels under the deadzone sliders, like just a tiny 3px green bar or something? Idk.
 - I'd be curious about the throttle's activation curve, I think I'd like to change it, it feels like it activates a bit suddenly quite deep into the trigger pull right now.
 - In the showroom, I'd love non-stepped zooming.
 - Add pictures and videos showcasing the mod to this ReadMe.

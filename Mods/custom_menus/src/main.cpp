@@ -41,6 +41,7 @@
 #include "controls_rows.h"
 #include "language.h"
 #include "resume_career.h"
+#include "slider_meter.h"
 #include "skip_dialogs.h"
 #include "skip_movies.h"
 #include "translations.h"
@@ -611,6 +612,19 @@ void build_page_screen(void *screen) {
     update_scroll_bar(screen);
 }
 
+// The live bars (Page::live) under the sliders of the open page: asked every tick for the row each slot shows now.
+void update_meters(void *screen) {
+    if (!g_page || !g_page->page->live || screen != g_options_screen) return;
+    const opt::Page &page = *g_page->page;
+    const char *pkg = field<const char *>(screen, kScreenPackage);
+    const int widgets = g_windowed ? g_window_slots : std::min(page.row_count, g_window_slots);
+    for (int slot = 0; slot < widgets; ++slot) {
+        const int row = g_windowed ? slot + g_row_offset : slot;
+        const bool slider = row >= 0 && row < page.row_count && page.rows[row].kind == opt::kSliderRow && page.fill;
+        custom_menus::slider_meter::set(pkg, slot + 1, slider ? page.live(row) : -1.0f);
+    }
+}
+
 // Rows that mods add to the game's own Player options (Placement kPlayerOptions): after the game's rows, in the pages
 // that were available when the screen was built. Back, Defaults and Accept ask these pages as well as the game.
 std::vector<PageInfo *> g_player_pages;
@@ -1165,6 +1179,8 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
             g_help_dialog_open = false;  // our message box (or the Defaults one) closed
             g_help_dialog_pending = false;
         } else if (msg == kExitComplete && self == g_options_screen) {
+            // The live bars belong to the layout's package, which may stay loaded for the next screen that uses it.
+            for (int slot = 1; slot <= 16; ++slot) custom_menus::slider_meter::set(field<const char *>(self, kScreenPackage), slot, -1.0f);
             // Left the screen. A discard has already put the values back, so what differs now was accepted.
             if (page_changed() && g_page->page->accept) {
                 g_page->page->accept();
@@ -1192,6 +1208,7 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
     g_redirect_switch = false;
     // The game's own scrolling tells the scroll bar about its widgets only (hiding it, there being no more than fit).
     if (g_page && g_windowed && self == g_options_screen && (msg == kPadUp || msg == kPadDown || msg == kScreenTick)) update_scroll_bar(self);
+    if (msg == kScreenTick) update_meters(self);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1430,6 +1447,7 @@ NFSMW_PLUGIN_MAIN() {
     AddVectoredExceptionHandler(1, guard_handler);
     nfsmw::data_file("nfsmw_custom_menus.ini", g_ini, sizeof(g_ini));
     nfsmw::xinput::load(&g_log);
+    custom_menus::slider_meter::init(&g_log);
     install_hooks();
     return NFSMW_OK;
 }

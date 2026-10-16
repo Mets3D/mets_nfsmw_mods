@@ -137,6 +137,22 @@ void page_defaults() {
     if (g_rumble_rows) rumble::set_vibration(rumble::edit_slot(), true);
 }
 
+// The live bar under a dead zone slider: how far the edited controller's stick or trigger is pushed now, on the slider's scale (0 to
+// kMaxDeadzone of full travel), from the raw state, as the dead zone sees it. A stick is judged by its distance from the centre.
+float page_live(int row) {
+    if (!is_deadzone(row)) return -1.0f;
+    xinput::Gamepad pad = {};
+    if (!xinput::read_slot(rumble::edit_slot(), &pad)) return -1.0f;
+    float pushed;
+    if (row == kTrigger) {
+        pushed = std::max(pad.left_trigger, pad.right_trigger) / 255.0f;
+    } else {
+        const float x = (row == kLeftStick ? pad.lx : pad.rx) / 32767.0f, y = (row == kLeftStick ? pad.ly : pad.ry) / 32767.0f;
+        pushed = std::sqrt(x * x + y * y);
+    }
+    return std::min(1.0f, pushed / device_settings::kMaxDeadzone);
+}
+
 // The rumble levels mean nothing with Vibration off: greyed out.
 bool page_row_enabled(int row) { return effect_of_row(row) < 0 || vibration_option(); }
 
@@ -171,6 +187,6 @@ void pad::controller_page::provide(const nfsmw::custom_menus::Host *host) {
     g_page = {"controller", "Controller", "CONTROLLER", "CONTROLLER INFO", nfsmw::texture_hash("OPTIONS_RUMBLE"),
               kControlsIconTexture,  // the Controller icon until there is an OPTIONS_RUMBLE
               g_pack_path, rows, g_rows, page_available, page_opened, page_value,
-              page_change, page_changed, page_accept, page_discard, page_defaults, opt::kHidden, page_fill, page_row_enabled};
+              page_change, page_changed, page_accept, page_discard, page_defaults, opt::kHidden, page_fill, page_row_enabled, page_live};
     host->register_page(&g_page);
 }

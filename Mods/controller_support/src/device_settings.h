@@ -17,7 +17,7 @@ constexpr float kMaxDeadzone = 0.5f;
 struct Deadzones {
     float left_stick = 0.15f;   // 0..kMaxDeadzone: how far a stick or trigger has to move before it counts
     float right_stick = 0.15f;
-    float trigger = 0.05f;
+    float trigger = 0.02f;
 };
 
 void load();  // from the ini

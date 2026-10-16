@@ -25,6 +25,7 @@ ALL_MODS = ['custom_menus', 'camera_settings', 'controller_support', 'dev_tools'
 ALL_ASIS = [f'nfsmw_{m}.asi' for m in ALL_MODS]
 # Texture packs: <name>.tpk in the data folder, built from the PNGs of a folder in Mods/ (the texture's name is the file's)
 PACKS = [
+    {'mod': 'custom_menus', 'name': 'nfsmw_custom_menus', 'pngs': 'custom_menus/NFSMW_*.png'},  # the live bar under a slider (a flat green)
     {'mod': 'camera_settings', 'name': 'nfsmw_camera_settings', 'pngs': 'camera_settings/OPTIONS_*.png'},  # the Options > Camera icon
     {'mod': 'controller_support', 'name': 'nfsmw_controller_support', 'pngs': 'controller_support/OPTIONS_*.png'},  # the Options > Rumble icon
 ]

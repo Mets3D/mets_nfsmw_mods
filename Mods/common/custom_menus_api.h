@@ -65,6 +65,9 @@ struct Page {
     // Greyed out rows: false for a row that has no effect now (it is drawn grey, the cursor skips it and left / right do nothing). Asked
     // whenever the rows are drawn, which includes when the Camera selector changes. Leave it out for rows that are always usable.
     bool (*row_enabled)(int row);
+    // kSliderRow: what the setting is for is doing now, as a green bar under the slider, drawn to the length of the slider (0..1), asked
+    // every frame while the page is open; negative (or leave it out) for no bar. For example how far a stick is pushed, under its dead zone.
+    float (*live)(int row);
 };
 
 // Rows added to Options > Controls (Pause > Options > Controls, and the main menu's). Each row edits one entry of the game's binding
