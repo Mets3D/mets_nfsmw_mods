@@ -1,4 +1,4 @@
-// The world map screen (WorldMap, docs/menus-and-camera.md) is driven by the mouse on PC. The console cursor is still in the
+// The world map screen (WorldMap, agent_docs/menus-and-camera.md) is driven by the mouse on PC. The console cursor is still in the
 // exe: WorldMap::UpdateCursor(bool) 0x552F40 turns the velocity at +0x128 / +0x12C into cursor movement (panning the map at its
 // edges, snapping to icons), but nothing calls it and nothing writes the velocity. The mouse code, UpdateMouseCursor 0x552DA0,
 // runs once per screen tick; while a controller is in use it is replaced by the console path, with the right stick as the

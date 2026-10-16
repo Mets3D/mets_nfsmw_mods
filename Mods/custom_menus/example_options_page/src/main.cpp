@@ -41,7 +41,7 @@
  * its Settings.ini): German.txt, French.txt, Spanish.txt, Italian.txt, Dutch.txt, Swedish.txt, Danish.txt, Polish.txt, Finnish.txt.
  * A line is `English text = Translation`, # starts a comment. Everything the mod gives the framework (page and row texts, help,
  * register_text) is looked up there by its English text, and so are the texts value() writes; a text without a translation stays
- * English. See translations/German.txt next to this file (here installed to scripts/mets_mods/translations/example_options_page/).
+ * English. See ../translations/German.txt (next to src/) (here installed to scripts/mets_mods/translations/example_options_page/).
  *
  * Other places for rows (Page::placement): Options > Player (kPlayerOptions), a page that only the mod opens (kHidden), an entry in
  * the main menu's Options as well (kNewEntryEverywhere). The Controls screen takes binding rows (Host::register_controls_rows).

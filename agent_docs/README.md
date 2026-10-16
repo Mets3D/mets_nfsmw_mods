@@ -1,5 +1,7 @@
 # Reverse engineering reference (speed.exe 1.3)
 
+> **Written entirely by AI (Claude), for AI agents working on this repo.** Not hand-written or hand-checked: the confidence marks below say what was read, tested or guessed. Players and mod users want the mods' own `ReadMe.md` files instead.
+
 What we know about the game's code, by subject. Each page states **what is true now**, not how we found out; confidence is
 marked: **[read]** read in the disassembly, **[tested]** confirmed in the game or by a crash / log, **[guess]** inferred.
 Addresses are speed.exe 1.3 (image base 0x400000). Function names are the decomp's (`Tools/nfsmw-decomp`).

@@ -6,7 +6,7 @@
 # Build output (CMake build folder, built .asi/.tpk)
 /Mods/build/
 
-# Reference clones, not needed to build (URLs are in docs/project.md)
+# Reference clones, not needed to build (URLs are in agent_docs/project.md)
 /Tools/nfsmw-2005-re/
 /Tools/nfsmw-decomp/
 /Tools/OtherMods/

@@ -11,7 +11,7 @@
  *   players.cpp        which controller is whose (XInput), player 1's alone reaches the game
  *   state_log.cpp      a log of the player count, devices and view mode
  *   events.cpp         the game functions several parts need (world load, each frame)
- * What is known about the game's code these parts change: docs/split-screen.md.
+ * What is known about the game's code these parts change: agent_docs/split-screen.md.
  *
  * Files in <game>/scripts/mets_mods/: nfsmw_split_screen_support.log, nfsmw_split_screen_support.ini (optional).
  */

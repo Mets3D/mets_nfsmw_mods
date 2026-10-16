@@ -10,7 +10,7 @@
  *   - the map pictures come from a streamer that keeps only the tiles of the minimap that asked last, and both ask every frame,
  *     so it is given both sets at once;
  *   - the widescreen shift of the first minimap is repeated on the second.
- * Object layouts are the PC version's, not the decomp's: see docs/split-screen.md.
+ * Object layouts are the PC version's, not the decomp's: see agent_docs/split-screen.md.
  */
 #include "minimap.h"
 

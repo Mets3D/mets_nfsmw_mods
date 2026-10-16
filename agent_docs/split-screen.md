@@ -1,7 +1,7 @@
 # Split screen (nfsmw_split_screen_support)
 
 Input for player 2: see [input-system.md](input-system.md) (extra device). Marks: [read] [tested].
-The parts of the mod and their ini switches: the header comment of `Mods/split_screen_support/main.cpp` and `nfsmw_split_screen_support.ini`.
+The parts of the mod and their ini switches: the header comment of `Mods/split_screen_support/src/main.cpp` and `nfsmw_split_screen_support.ini`.
 
 ## What the PC exe still has
 - The console split screen: `UIQRMainMenu::Setup` 0x7AA730 adds only Quick Play (icon 0xE6313967) and Custom Race (0x2A49B5E2), but `NotificationMessage` 0x7A2E20 still handles

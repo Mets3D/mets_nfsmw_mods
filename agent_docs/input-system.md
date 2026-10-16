@@ -18,7 +18,7 @@ Marks: [read] disassembly, [tested] confirmed in game or by a crash, [guess].
   it also does what `GameDevice::InitInputs` does for joystick 0: its resting state into 0x91F1E8 (the Controls screen's rebinding compares with it), then `0x63CD80` (the defaults of its model); then the profile's
   saved bindings (`UserProfile::BindingsIO_B` 0x56E200, copy kept by a hook on it) go over those again, as the profile load does at start-up. FEngine's pad count is a constant 1 (0x51692F). The Controls screen builds with its device elements (object 0x8A41F5B9) hidden (script HIDE 0x16A259) when there is no joystick; `controllers_changed` in `pad_sets.cpp` shows them again. DirectInput does not say which XInput slot a device is, and its list order is not the slot order (a slot is the first free one): `input.cpp` pairs them when a device's buttons match exactly one slot's (`learn_slot`).
 - **Extra device** [tested]: a second GameDevice from `GameDevice::Create`, tables and records set up by hand, appended to the IOModule, filled each frame in
-  `PollDevice`'s hook (`Mods/controller_support/extra_device.cpp`). Gives a second player an input path of the game's own.
+  `PollDevice`'s hook (`Mods/controller_support/src/extra_device.cpp`). Gives a second player an input path of the game's own.
 
 ## Bindings
 - **Binding table** (0x91F418) [read, tested]: 76 entries × 0x34 bytes: `{name*, 4 × slot}`, slot = `{type, device, object}`. Slots 0/1 keyboard, 2/3 controller.

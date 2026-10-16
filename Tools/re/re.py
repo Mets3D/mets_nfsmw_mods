@@ -3,7 +3,7 @@
   python -I Tools/re/re.py dis  <speed.exe> <addr hex> <bytes>   x86 listing; calls and jumps get the decomp's names
   python -I Tools/re/re.py xref <speed.exe> <addr hex>           every direct call / jmp to that address in .text
   python -I Tools/re/re.py name <addr hex>                       function containing the address (decomp symbols)
-  python -I Tools/re/re.py unnamed                               functions the docs/ pages mention that are still sub_XXXXXX (add them to names.json)
+  python -I Tools/re/re.py unnamed                               functions the agent_docs/ pages mention that are still sub_XXXXXX (add them to names.json)
 
 capstone: pip install capstone --target Tools/re/pylib   (the folder is ignored by git)
 Names come from Tools/nfsmw-decomp/config/SPEED_EXE_1_3/symbols.json, overlaid with Tools/re/names.json (ours). Always run with -I (no implicit imports).
@@ -82,13 +82,13 @@ def xref(exe, target):
 
 
 def unnamed():
-    """Addresses in docs/*.md that start a function the decomp still calls sub_XXXXXX / nullsub and names.json does not name."""
+    """Addresses in agent_docs/*.md that start a function the decomp still calls sub_XXXXXX / nullsub and names.json does not name."""
     import glob
     data = json.load(open(SYMBOLS))['functions']
     decomp = {int(s['start'], 16): s['name'] for s in data}
     ours = {int(k, 16) for k in json.load(open(os.path.join(HERE, 'names.json'))) if k.startswith('0x')}
     found = {}
-    for path in sorted(glob.glob(os.path.join(HERE, '..', '..', 'docs', '*.md'))):
+    for path in sorted(glob.glob(os.path.join(HERE, '..', '..', 'agent_docs', '*.md'))):
         text = open(path, encoding='utf-8').read()
         for m in re.finditer(r'0x([0-9A-Fa-f]{6})\b', text):
             a = int(m.group(1), 16)

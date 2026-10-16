@@ -47,7 +47,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
 
 Copy [`common/custom_menus_api.h`](../common/custom_menus_api.h) (it has no dependencies) and export `nfsmw_custom_menus_provide`. The framework calls it in every loaded mod the first time the Options menu opens, and a mod works without its page when the framework is missing.
 
-[`example_options_page/main.cpp`](../example_options_page/main.cpp) is a complete example mod with a page of dummy settings (a slider, a choice and an On/Off row that uses the game's own strings), and its header comment explains every callback, the rows, the icons and the other places rows can go. Copy from there; it also shows how a mod ships translations of its texts.
+[`example_options_page/src/main.cpp`](example_options_page/src/main.cpp) is a complete example mod with a page of dummy settings (a slider, a choice and an On/Off row that uses the game's own strings), and its header comment explains every callback, the rows, the icons and the other places rows can go. Copy from there; it also shows how a mod ships translations of its texts.
 
 ## Files and settings
 
