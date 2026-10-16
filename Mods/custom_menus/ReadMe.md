@@ -31,10 +31,9 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
 
 ## Mod Compatibility
 
-- See [General Requirements](../../ReadMe.md#general-requirements).
+- See [General Compatibility](../../ReadMe.md#general-compatibility).
 - Incompatible:
   - NFS-XtendedInput due to touching `UIOptionsMain::Setup`.
-  - NFS MW Redux v3 mod pack.
 
 ## TODO
 - Ability to switch language in-game?

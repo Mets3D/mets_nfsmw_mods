@@ -4,7 +4,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) lets you tune camera views i
 
 ## Mod Compatibility
 
-- See [General Requirements](../../ReadMe.md#general-requirements).
+- See [General Compatibility](../../ReadMe.md#general-compatibility).
 - Required: [Custom Menus](../custom_menus/ReadMe.md). Otherwise all the customization options won't appear.
 - Incompatible: Other mods that change `CameraAnchor::GetPov`
 - Confirmed compatible:
