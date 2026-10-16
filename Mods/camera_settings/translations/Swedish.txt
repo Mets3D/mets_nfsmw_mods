@@ -13,7 +13,6 @@ Acceleration = Acceleration
 Height = Höjd
 Distance = Avstånd
 Pitch = Nigning
-Lateral Offset = Sidoförskjutning
 Tilt = Lutning
 Previous Camera View = Föregående kameravinkel
 Next Camera View = Nästa kameravinkel
@@ -27,6 +26,5 @@ How much the camera pulls back and pushes forward during acceleration and brakin
 The camera's height above the car. Hold Shift or LB for finer steps. = Kamerans höjd över bilen. Håll in Skift eller LB för finare steg.
 The camera's backwards/forwards offset from the car. Hold Shift or LB for finer steps. = Kamerans förskjutning bakåt eller framåt från bilen. Håll in Skift eller LB för finare steg.
 Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps. = Lutar kameran uppåt eller nedåt, i grader. Håll in Skift eller LB för finare steg.
-Moves the camera sideways, away from the center line of the car. Hold Shift or LB for finer steps. = Flyttar kameran i sidled, bort från bilens mittlinje. Håll in Skift eller LB för finare steg.
 How much the camera tilts with the car. Hold Shift or LB for finer steps. = Hur mycket kameran lutar med bilen. Håll in Skift eller LB för finare steg.
 Selects the camera view whose settings you are editing. This is the same setting as the Camera option under Player. = Väljer den kameravinkel vars inställningar du redigerar. Det är samma inställning som alternativet Kameravinkel under Spelare.

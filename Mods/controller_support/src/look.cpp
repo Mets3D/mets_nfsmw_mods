@@ -3,6 +3,7 @@
 #include "hooks.h"
 #include "input.h"
 #include "look.h"
+#include "look_options.h"
 
 namespace pad::look {
 
@@ -114,7 +115,8 @@ void look_at(void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
         l.idle = 0.0f;
     } else {
         l.idle += dt;
-        if (l.idle >= g_look_cfg.return_delay && car_speed > 0.5f) {
+        const float delay = look_options::return_delay(g_who);  // 0 = never
+        if (delay > 0.0f && l.idle >= delay && car_speed > 0.5f) {
             const float k = 1.0f - std::exp(-g_look_cfg.return_speed * dt);
             l.yaw -= l.yaw * k;
             l.pitch -= l.pitch * k;

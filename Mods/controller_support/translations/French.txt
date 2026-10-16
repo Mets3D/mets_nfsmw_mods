@@ -62,3 +62,5 @@ Left stick press = Clic stick gauche
 Right stick press = Clic stick droit
 RT (shared trigger axis) = RT (axe commun des gâchettes)
 LT (shared trigger axis) = LT (axe commun des gâchettes)
+Free Look Reset = Retour de la vue libre
+How long the camera waits after you stop looking around before it returns behind the car. Off leaves it where you put it. = Combien de temps la caméra attend, après que tu as arrêté de regarder autour de toi, avant de revenir derrière la voiture. Désactivé la laisse où tu l'as mise.

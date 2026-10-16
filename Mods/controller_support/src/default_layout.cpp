@@ -22,11 +22,11 @@ struct Binding {
 const Binding kLayout[] = {
     {0, {"GAME_ACTION_GAS"}, {kSliderLow, 0, 1}, true},                  // Accelerate: RT
     {1, {"GAME_ACTION_BRAKE"}, {kSliderLow, 0, 0}, true},                // Brake / Reverse: LT
-    {4, {"GAME_ACTION_HANDBRAKE"}, {kButton, 0, 5}, false},              // Handbrake: RB
+    {4, {"GAME_ACTION_HANDBRAKE"}, {kButton, 0, 4}, false},              // Handbrake: LB
     {5, {"GAME_ACTION_GAMEBREAKER"}, {kButton, 0, 2}, false},            // Speedbreaker: X
     {6, {"GAME_ACTION_NOS"}, {kButton, 0, 0}, false},                    // N2O: A
     {7, {"GAME_ACTION_SHIFTDOWN"}, {kPov, 0, 2}, false},                 // Shift Down: D-pad Down
-    {8, {"GAME_ACTION_SHIFTUP"}, {kButton, 0, 4}, false},                // Shift Up: LB
+    {8, {"GAME_ACTION_SHIFTUP"}, {kButton, 0, 5}, false},                // Shift Up: RB
     {9, {"GAME_ACTION_RESET"}, {kButton, 0, 9}, false},                  // Reset Car Position: right stick press
     {10, {"HUDACTION_ENGAGE_EVENT"}, {kButton, 0, 8}, false},            // Engage Event: left stick press
     {11, {"HUDACTION_PAD_DOWN"}, {kButton, 0, 3}, false},                // View Blacklist: Y

@@ -62,3 +62,5 @@ Left stick press = Vasemman sauvan painallus
 Right stick press = Oikean sauvan painallus
 RT (shared trigger axis) = RT (jaettu liipaisinakseli)
 LT (shared trigger axis) = LT (jaettu liipaisinakseli)
+Free Look Reset = Vapaan katselun palautus
+How long the camera waits after you stop looking around before it returns behind the car. Off leaves it where you put it. = Kuinka kauan kamera odottaa katselun lopettamisen jälkeen ennen kuin palaa auton taakse. Pois jättää sen siihen, mihin sen jätit.

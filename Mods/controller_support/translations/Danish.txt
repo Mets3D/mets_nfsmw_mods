@@ -62,3 +62,5 @@ Left stick press = Tryk på venstre stick
 Right stick press = Tryk på højre stick
 RT (shared trigger axis) = RT (delt triggerakse)
 LT (shared trigger axis) = LT (delt triggerakse)
+Free Look Reset = Nulstil frit blik
+How long the camera waits after you stop looking around before it returns behind the car. Off leaves it where you put it. = Hvor længe kameraet venter, efter du er holdt op med at kigge rundt, før det vender tilbage bag bilen. Fra lader det stå, hvor du satte det.

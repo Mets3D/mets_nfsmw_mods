@@ -22,7 +22,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) lets you tune camera views i
 It was my goal to integrate this mod into the original game's design as if it was a native feature that shipped with the game. Here's what you can expect:
 
 - Separate customization for each camera type, including additional cameras added by other mods. Each camera view has the following options:
-  - FoV, Height, Forward/Backward Distance, Left-Right lateral offset.
+  - FoV, Height, Forward/Backward Distance.
   - Smoothing: Reduce this to make the camera stick to the car more, but it will also be a bit more shaky.
   - Tilt: How much the camera tilts with the car.
   - Acceleration: How much the camera's forward/backward distance reacts to acceleration and braking.

@@ -98,17 +98,17 @@ struct Pov {
     short tilting;         // 0x18  the game's lean with acceleration; tilt.cpp replaces what it leads to
 };
 
-enum Param { P_ENABLED, P_MIRROR, P_FOV, P_SPEED, P_SMOOTH, P_ACCEL, P_HEIGHT, P_LAG, P_ANGLE, P_LAT, P_TILT, NPARAM };
+enum Param { P_ENABLED, P_MIRROR, P_FOV, P_SPEED, P_SMOOTH, P_ACCEL, P_HEIGHT, P_LAG, P_ANGLE, P_TILT, NPARAM };
 // On / off rows: their value is stored as it is (1 / 0), not as a difference from the game's own.
 constexpr bool is_toggle(int i) { return i == P_ENABLED || i == P_MIRROR; }
 constexpr int kNumPresets = 7;
 
 const char *kPresetName[kNumPresets] = {"bumper", "hood", "close", "far", "super_far", "drift", "pursuit"};
-const char *kKey[NPARAM] = {"enabled", "mirror", "fov", "speed_fov", "smoothing", "acceleration", "height", "lag", "angle", "lat", "tilt"};
-const char *kLabel[NPARAM] = {"Enabled", "Mirror", "FOV", "Speed FoV", "Smoothing", "Acceleration", "Height", "Distance", "Pitch", "Lateral Offset", "Tilt"};
+const char *kKey[NPARAM] = {"enabled", "mirror", "fov", "speed_fov", "smoothing", "acceleration", "height", "lag", "angle", "tilt"};
+const char *kLabel[NPARAM] = {"Enabled", "Mirror", "FOV", "Speed FoV", "Smoothing", "Acceleration", "Height", "Distance", "Pitch", "Tilt"};
 
-// Help texts (2 key on the Camera options screen). Pitch and lateral offset are worded from the field names and values, so
-// adjust them here if a description does not match what you see.
+// Help texts (2 key on the Camera options screen). Pitch is worded from the field name and values, so adjust it here if the
+// description does not match what you see.
 const char *kHelp[NPARAM + 1] = {
     "Whether Next and Previous Camera View stop at this view.",
     "Enable rear view mirror in this view.",
@@ -121,7 +121,6 @@ const char *kHelp[NPARAM + 1] = {
     "The camera's height above the car. Hold Shift or LB for finer steps.",
     "The camera's backwards/forwards offset from the car. Hold Shift or LB for finer steps.",
     "Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps.",
-    "Moves the camera sideways, away from the center line of the car. Hold Shift or LB for finer steps.",
     "How much the camera tilts with the car. Hold Shift or LB for finer steps.",
     "Selects the camera view whose settings you are editing. This is the same setting as the Camera option "
     "under Player.",
@@ -140,7 +139,6 @@ const Range kRange[NPARAM] = {
     {0.0f, 8.0f, 0.25f, 0.05f},     // height
     {-30.0f, 3.0f, 0.5f, 0.1f},     // lag (negative = behind the car)
     {-20.0f, 20.0f, 0.5f, 0.1f},    // pitch
-    {-3.0f, 3.0f, 0.25f, 0.05f},    // lateral
     {0.0f, 100.0f, 10.0f, 1.0f},    // tilt, percent of the car's (the game has none: base 0)
 };
 
@@ -172,7 +170,6 @@ float get_field(const Pov &p, int i) {
         case P_HEIGHT: return p.height;
         case P_LAG: return p.lag;
         case P_ANGLE: return ang_to_deg(p.angle);
-        case P_LAT: return p.lat_offset;
         default: return 0.0f;  // Speed FoV has no value of the game's; Enabled and Mirror are not in the Pov (read_base)
     }
 }
@@ -193,7 +190,6 @@ void apply_field(Pov *p, int i, float v) {
         case P_HEIGHT: p->height = v; break;
         case P_LAG: p->lag = v; break;
         case P_ANGLE: p->angle = deg_to_ang(v); break;
-        case P_LAT: p->lat_offset = v; break;
         default: break;  // P_SPEED is applied by apply_speed_fov
     }
 }
@@ -325,9 +321,8 @@ Pov *FASTCALL hook_getpov(void *self, void *edx, int type) {
         if (!g_have_base[type] || memcmp(now, g_base[type], sizeof(now)) != 0) {
             static unsigned logged = 0;
             if (logged++ < 200)
-                log_line("base %-9s fov=%.1f height=%.3f lag=%.3f pitch=%.1f lat=%.3f",
-                         kPresetName[type], now[P_FOV], now[P_HEIGHT], now[P_LAG], now[P_ANGLE],
-                         now[P_LAT]);
+                log_line("base %-9s fov=%.1f height=%.3f lag=%.3f pitch=%.1f",
+                         kPresetName[type], now[P_FOV], now[P_HEIGHT], now[P_LAG], now[P_ANGLE]);
             memcpy(g_base[type], now, sizeof(now));
             g_have_base[type] = true;
         }
@@ -370,7 +365,6 @@ void format_value(char *out, size_t n, int param, float v) {
         case P_HEIGHT: snprintf(out, n, "%.2f", v); break;
         case P_LAG: snprintf(out, n, "%.1f", v); break;
         case P_ANGLE: snprintf(out, n, "%.1f%s", v, deg); break;
-        case P_LAT: snprintf(out, n, "%.2f", v); break;
         case P_SPEED: snprintf(out, n, "%.0f%s", v, deg); break;
         case P_SMOOTH:
         case P_ACCEL:
@@ -425,9 +419,8 @@ void page_opened() {
         if (Pov *p = g_orig_getpov(value_source(), nullptr, t)) {
             read_base(*p, t, g_base[t]);
             g_have_base[t] = true;
-            log_line("game values %-9s fov=%.4f height=%.4f lag=%.4f pitch=%.4f lat=%.4f",
-                     kPresetName[t], g_base[t][P_FOV], g_base[t][P_HEIGHT], g_base[t][P_LAG], g_base[t][P_ANGLE],
-                     g_base[t][P_LAT]);
+            log_line("game values %-9s fov=%.4f height=%.4f lag=%.4f pitch=%.4f",
+                     kPresetName[t], g_base[t][P_FOV], g_base[t][P_HEIGHT], g_base[t][P_LAG], g_base[t][P_ANGLE]);
         }
     }
     log_line("Options > Camera opened (editing %s)", kPresetName[camera_type_being_edited()]);

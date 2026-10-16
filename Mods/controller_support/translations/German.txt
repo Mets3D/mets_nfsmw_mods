@@ -62,3 +62,5 @@ Left stick press = Linker Stick drücken
 Right stick press = Rechter Stick drücken
 RT (shared trigger axis) = RT (gemeinsame Triggerachse)
 LT (shared trigger axis) = LT (gemeinsame Triggerachse)
+Free Look Reset = Blick-Reset
+How long the camera waits after you stop looking around before it returns behind the car. Off leaves it where you put it. = Wie lange die Kamera wartet, nachdem du aufgehört hast, dich umzusehen, bevor sie hinter das Auto zurückkehrt. Aus lässt sie dort, wo du sie hingedreht hast.

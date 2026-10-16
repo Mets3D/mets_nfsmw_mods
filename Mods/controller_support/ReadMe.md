@@ -14,8 +14,8 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 ### Camera look
 - All 3rd-person car cameras can be controlled with either the mouse, or the right stick
 - The latter is remappable in the Controls menu, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
-- After letting go of the "Look" inputs for a few seconds, the camera returns to its default position.
-- This also works in the Look Behind view.
+- After letting go of the "Look" inputs for a few seconds, the camera returns to its default position. With [Custom Menus](../custom_menus/ReadMe.md) installed, **Options > Player > Free Look Reset** sets how many seconds that takes for each player, or Off to leave the camera where you put it.
+- Free look also works in the Look Behind view.
 
 ### Customizable Rumble
 - Various events in-game will create controller rumble, such as gear shifts, collisions, driving on grass, nitrous, and more.

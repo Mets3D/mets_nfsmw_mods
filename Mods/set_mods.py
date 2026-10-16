@@ -5,14 +5,19 @@ usage: python set_mods.py --mode all|ours|none --game <dir> [--only mod ...]
   ours = original mod set + our mods: custom_menus (the Options menu framework), camera_settings and
          controller_support, with their texture packs
   none = no plugins at all
---game is the game install to act on (no default: always pass it), and --only which of our mods go there
+--game is the game install to act on (no default: always pass it); a game running from that install is closed first (its .asi
+files are loaded from disk while it runs, and a changed one crashes it), unless --keep-running is given. --only says which of our
+mods go there
 (folder names of Mods/, default the first three; dev_tools and split_screen_support are only added when asked for):
   python set_mods.py --mode ours --game "../Game Versions/SomeMods" --only controller_support
 """
 import argparse
+import os
 import shutil
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 MODS_DIR = Path(__file__).resolve().parent
@@ -34,6 +39,53 @@ def run_last_line(cmd):
         print(lines[-1])
 
 
+def running_game_pids(game):
+    """Process ids of a speed.exe started from this install (Wine under Linux: its command line is Z:\\path\\speed.exe)."""
+    exe = (game.resolve() / 'speed.exe')
+    if sys.platform == 'win32':
+        script = f"Get-CimInstance Win32_Process -Filter \"Name='speed.exe'\" | Where-Object {{ $_.ExecutablePath -eq '{exe}' }} | ForEach-Object {{ $_.ProcessId }}"
+        out = subprocess.run(['powershell', '-NoProfile', '-Command', script], capture_output=True, text=True).stdout
+        return [int(w) for w in out.split() if w.isdigit()]
+    wanted = 'z:' + str(exe).replace('/', '\\').lower()
+    pids = []
+    for entry in Path('/proc').iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            argv0 = (entry / 'cmdline').read_bytes().split(b'\0')[0].decode('utf-8', 'replace')
+        except OSError:
+            continue
+        if argv0.lower() == wanted:
+            pids.append(int(entry.name))
+    return pids
+
+
+def stop_game(game):
+    """Closes the game running from this install (it would crash by itself when its .asi files change)."""
+    pids = running_game_pids(game)
+    if not pids:
+        return
+    print(f"closing the running game (pid {', '.join(map(str, pids))}); use --keep-running to leave it")
+    for pid in pids:
+        if sys.platform == 'win32':
+            subprocess.run(['taskkill', '/F', '/PID', str(pid)], capture_output=True)
+        else:
+            os.kill(pid, signal.SIGTERM)
+    deadline = time.time() + 10
+    while running_game_pids(game) and time.time() < deadline:
+        time.sleep(0.2)
+    for pid in running_game_pids(game):
+        os.kill(pid, signal.SIGKILL)
+    time.sleep(1)  # the loader and the files let go
+
+
+def copy_replace(src, dst):
+    """Copies src over dst as a new file: a game that is running keeps the old one (overwriting a mapped .asi in place crashes it under Wine)."""
+    dst = Path(dst)
+    dst.unlink(missing_ok=True)
+    shutil.copy2(src, dst)
+
+
 def move_force(src, dst_dir):
     dst = dst_dir / src.name
     dst.unlink(missing_ok=True)
@@ -44,6 +96,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--mode', required=True, choices=['all', 'ours', 'none'])
     parser.add_argument('--game', required=True, help='path to the game install to act on')
+    parser.add_argument('--keep-running', action='store_true', help='do not close a game running from this install')
     parser.add_argument('--only', nargs='+', choices=ALL_MODS, default=['custom_menus', 'camera_settings', 'controller_support'])
     args = parser.parse_args()
 
@@ -52,6 +105,9 @@ def main():
         siblings = sorted(p.name for p in (MODS_DIR.parent / 'Game Versions').glob('*') if p.is_dir()) \
             if (MODS_DIR.parent / 'Game Versions').is_dir() else []
         sys.exit(f"--game not found: {game}\nAvailable under 'Game Versions': {', '.join(siblings) or '(none)'}")
+
+    if not args.keep_running:
+        stop_game(game)
 
     on = game / 'scripts'
     off = game / 'scripts_disabled'
@@ -71,21 +127,21 @@ def main():
 
     if args.mode == 'ours':
         for n in ours:
-            shutil.copy2(MODS_DIR / 'build' / n, on / n)
+            copy_replace(MODS_DIR / 'build' / n, on / n)
         for pack in PACKS:
             name = pack['name']
             images = sorted(MODS_DIR.glob(pack['pngs']))
             if pack['mod'] in args.only and images:
                 run_last_line([sys.executable, str(MODS_DIR.parent / 'Tools' / 'tpk_build.py'),
                                 str(MODS_DIR / 'build' / f'{name}.tpk'), name.upper(), *map(str, images)])
-                shutil.copy2(MODS_DIR / 'build' / f'{name}.tpk', data / f'{name}.tpk')
+                copy_replace(MODS_DIR / 'build' / f'{name}.tpk', data / f'{name}.tpk')
             else:
                 (data / f'{name}.tpk').unlink(missing_ok=True)
         if 'controller_support' in args.only:
             run_last_line([sys.executable, str(MODS_DIR.parent / 'Tools' / 'button_pack.py'),
                             str(BUTTONS_DIR), str(MODS_DIR / 'build' / f'{BUTTONS_PACK}.tpk'), BUTTONS_PACK.upper()])
-            shutil.copy2(MODS_DIR / 'build' / f'{BUTTONS_PACK}.tpk', data / f'{BUTTONS_PACK}.tpk')
-            shutil.copy2(BUTTONS_DIR / 'prompts.ini', data / f'{BUTTONS_PACK}.ini')
+            copy_replace(MODS_DIR / 'build' / f'{BUTTONS_PACK}.tpk', data / f'{BUTTONS_PACK}.tpk')
+            copy_replace(BUTTONS_DIR / 'prompts.ini', data / f'{BUTTONS_PACK}.ini')
         else:
             (data / f'{BUTTONS_PACK}.tpk').unlink(missing_ok=True)
             (data / f'{BUTTONS_PACK}.ini').unlink(missing_ok=True)

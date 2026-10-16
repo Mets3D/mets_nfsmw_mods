@@ -51,10 +51,16 @@ inline void data_file(const char *name, char *out, size_t out_size) {
     strncat(out, name, out_size - strlen(out) - 1);
 }
 
-// Opens the log for writing, starting it afresh.
+// Opens the log for writing, starting it afresh. The previous run's log is kept as <name>.prev.<ext> (nfsmw_x.log -> nfsmw_x.prev.log),
+// so that a crash can still be looked at after the game was started again.
 inline void Logger::open_in_data_folder(const char *name) {
-    char path[MAX_PATH];
+    char path[MAX_PATH], previous[MAX_PATH + 8];
     data_file(name, path, sizeof(path));
+    const char *dot = strrchr(path, '.');
+    if (dot) {
+        snprintf(previous, sizeof(previous), "%.*s.prev%s", static_cast<int>(dot - path), path, dot);
+        MoveFileExA(path, previous, MOVEFILE_REPLACE_EXISTING);  // fails if another running copy has it open: then it is overwritten
+    }
     file_ = fopen(path, "w");
 }
 

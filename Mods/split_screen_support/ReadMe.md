@@ -27,7 +27,6 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - For supported controllers, see the [Controller Support](../controller_support/ReadMe.md) mod - The game natively supports Xbox controllers, and for everything else, Steam Input is tested and works as a translation layer.
 
 ## TODO
-- Bug?: In at least a sprint (didn't test other race modes), if either player reverses from the starting line, the race will be restarted. Seems unnecessary if this is intended, since the race can be restarted from the pause menu anyways.
 - Each minimap should be toggle-able per player, Options -> Player.
 - CPU racers in split screen races?
 - Allow AI to control one of, or even both the players? Maybe an option that Dev Tools adds in the Player menu? I believe this is already implemented in some mod on an esoteric hotkey for singleplayer.

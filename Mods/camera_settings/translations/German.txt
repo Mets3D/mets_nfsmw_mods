@@ -13,7 +13,6 @@ Acceleration = Beschleunigung
 Height = Höhe
 Distance = Abstand
 Pitch = Neigung
-Lateral Offset = Seitenversatz
 Tilt = Kippen
 Previous Camera View = Vorherige Kameraansicht
 Next Camera View = Nächste Kameraansicht
@@ -27,6 +26,5 @@ How much the camera pulls back and pushes forward during acceleration and brakin
 The camera's height above the car. Hold Shift or LB for finer steps. = Die Höhe der Kamera über dem Auto. Mit Umschalt oder LB in feineren Schritten ändern.
 The camera's backwards/forwards offset from the car. Hold Shift or LB for finer steps. = Der Versatz der Kamera nach hinten/vorn vom Auto. Mit Umschalt oder LB in feineren Schritten ändern.
 Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps. = Neigt die Kamera nach oben oder unten, in Grad. Mit Umschalt oder LB in feineren Schritten ändern.
-Moves the camera sideways, away from the center line of the car. Hold Shift or LB for finer steps. = Verschiebt die Kamera seitlich von der Mittellinie des Autos weg. Mit Umschalt oder LB in feineren Schritten ändern.
 How much the camera tilts with the car. Hold Shift or LB for finer steps. = Wie stark die Kamera mit dem Auto kippt. Mit Umschalt oder LB in feineren Schritten ändern.
 Selects the camera view whose settings you are editing. This is the same setting as the Camera option under Player. = Wählt die Kameraansicht, deren Einstellungen du bearbeitest. Das ist dieselbe Einstellung wie die Kameraoption unter Spieler.

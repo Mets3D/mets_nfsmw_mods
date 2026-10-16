@@ -13,7 +13,6 @@ Acceleration = Acceleratie
 Height = Hoogte
 Distance = Afstand
 Pitch = Helling
-Lateral Offset = Zijwaartse verschuiving
 Tilt = Kanteling
 Previous Camera View = Vorige camera
 Next Camera View = Volgende camera
@@ -27,6 +26,5 @@ How much the camera pulls back and pushes forward during acceleration and brakin
 The camera's height above the car. Hold Shift or LB for finer steps. = De hoogte van de camera boven de auto. Houd Shift of LB ingedrukt voor kleinere stappen.
 The camera's backwards/forwards offset from the car. Hold Shift or LB for finer steps. = De verschuiving van de camera naar achteren of voren ten opzichte van de auto. Houd Shift of LB ingedrukt voor kleinere stappen.
 Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps. = Kantelt de camera omhoog of omlaag, in graden. Houd Shift of LB ingedrukt voor kleinere stappen.
-Moves the camera sideways, away from the center line of the car. Hold Shift or LB for finer steps. = Verplaatst de camera zijwaarts, weg van de middenlijn van de auto. Houd Shift of LB ingedrukt voor kleinere stappen.
 How much the camera tilts with the car. Hold Shift or LB for finer steps. = Hoeveel de camera met de auto meekantelt. Houd Shift of LB ingedrukt voor kleinere stappen.
 Selects the camera view whose settings you are editing. This is the same setting as the Camera option under Player. = Kiest het camerabeeld waarvan je de instellingen bewerkt. Dit is dezelfde instelling als de optie Camera onder Speler.

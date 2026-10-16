@@ -22,8 +22,10 @@ description: How to work on the NFS Most Wanted (2005) ASI mods in this repo - w
   Linux, cross-compiling: `cd Mods && cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=../Tools/nfsmw-2005-sdk/cmake/nfsmw-toolchain-mingw-i686.cmake && cmake --build build`.
   Re-run the configure after adding files. Details: `agent_docs/project.md`.
 - Deploy by copying `Mods/build/nfsmw_<mod>.asi` into each game install's `scripts/` (or `python Mods/set_mods.py --mode ours --game <dir>`; no install path is hard-coded, always pass `--game`).
-  **Never launch the game.** The user tests; kill a running
-  `speed.exe` before deploying (the file is locked).
+  **Never launch the game.** The user tests. `set_mods.py` closes a game running from that install before it changes anything (`--keep-running`
+  to leave it), because a changed `.asi` crashes a running game (Wine maps the file; seen 2026-10-16: access violation in ntdll's TLS
+  callbacks reading garbage, dump written 3 ms after a `cp`). So deploy with `set_mods.py`, not `cp`; if you must copy by hand, check
+  `pgrep -af 'speed\.exe'` first and use `cp --remove-destination`. Windows: kill a running `speed.exe` before deploying (the file is locked).
 - Our files at run time: `<game>/scripts/mets_mods/` (ini, logs, packs).
 
 ## Adding a mod

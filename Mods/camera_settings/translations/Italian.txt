@@ -13,7 +13,6 @@ Acceleration = Accelerazione
 Height = Altezza
 Distance = Distanza
 Pitch = Beccheggio
-Lateral Offset = Spostamento laterale
 Tilt = Inclinazione
 Previous Camera View = Visuale precedente
 Next Camera View = Visuale successiva
@@ -27,6 +26,5 @@ How much the camera pulls back and pushes forward during acceleration and brakin
 The camera's height above the car. Hold Shift or LB for finer steps. = L'altezza della telecamera sopra l'auto. Tieni premuto Maiusc o LB per passi più fini.
 The camera's backwards/forwards offset from the car. Hold Shift or LB for finer steps. = Lo spostamento della telecamera avanti o indietro rispetto all'auto. Tieni premuto Maiusc o LB per passi più fini.
 Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps. = Inclina la telecamera verso l'alto o verso il basso, in gradi. Tieni premuto Maiusc o LB per passi più fini.
-Moves the camera sideways, away from the center line of the car. Hold Shift or LB for finer steps. = Sposta la telecamera lateralmente, lontano dalla linea centrale dell'auto. Tieni premuto Maiusc o LB per passi più fini.
 How much the camera tilts with the car. Hold Shift or LB for finer steps. = Quanto la telecamera si inclina insieme all'auto. Tieni premuto Maiusc o LB per passi più fini.
 Selects the camera view whose settings you are editing. This is the same setting as the Camera option under Player. = Seleziona la visuale di cui stai modificando le impostazioni. È la stessa impostazione dell'opzione Visuale in Giocatore.

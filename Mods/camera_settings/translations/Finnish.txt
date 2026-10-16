@@ -13,7 +13,6 @@ Acceleration = Kiihtyvyys
 Height = Korkeus
 Distance = Etäisyys
 Pitch = Kallistuskulma
-Lateral Offset = Sivusiirtymä
 Tilt = Kallistuminen
 Previous Camera View = Edellinen kuvakulma
 Next Camera View = Seuraava kuvakulma
@@ -27,6 +26,5 @@ How much the camera pulls back and pushes forward during acceleration and brakin
 The camera's height above the car. Hold Shift or LB for finer steps. = Kameran korkeus auton yläpuolella. Pidä Vaihto tai LB painettuna hienompia askelia varten.
 The camera's backwards/forwards offset from the car. Hold Shift or LB for finer steps. = Kameran siirtymä autoon nähden taakse tai eteenpäin. Pidä Vaihto tai LB painettuna hienompia askelia varten.
 Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps. = Kallistaa kameraa ylös tai alas asteina. Pidä Vaihto tai LB painettuna hienompia askelia varten.
-Moves the camera sideways, away from the center line of the car. Hold Shift or LB for finer steps. = Siirtää kameraa sivusuunnassa pois auton keskilinjalta. Pidä Vaihto tai LB painettuna hienompia askelia varten.
 How much the camera tilts with the car. Hold Shift or LB for finer steps. = Kuinka paljon kamera kallistuu auton mukana. Pidä Vaihto tai LB painettuna hienompia askelia varten.
 Selects the camera view whose settings you are editing. This is the same setting as the Camera option under Player. = Valitsee kuvakulman, jonka asetuksia muokkaat. Se on sama asetus kuin Pelaaja-valikon Kuvakulma-asetus.

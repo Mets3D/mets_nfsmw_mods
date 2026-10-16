@@ -13,7 +13,6 @@ Acceleration = Acceleration
 Height = Højde
 Distance = Afstand
 Pitch = Hældning
-Lateral Offset = Sidelæns forskydning
 Tilt = Krængning
 Previous Camera View = Forrige kameravinkel
 Next Camera View = Næste kameravinkel
@@ -27,6 +26,5 @@ How much the camera pulls back and pushes forward during acceleration and brakin
 The camera's height above the car. Hold Shift or LB for finer steps. = Kameraets højde over bilen. Hold Skift eller LB nede for finere trin.
 The camera's backwards/forwards offset from the car. Hold Shift or LB for finer steps. = Kameraets forskydning bagud eller fremad i forhold til bilen. Hold Skift eller LB nede for finere trin.
 Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps. = Hælder kameraet opad eller nedad, i grader. Hold Skift eller LB nede for finere trin.
-Moves the camera sideways, away from the center line of the car. Hold Shift or LB for finer steps. = Flytter kameraet sidelæns, væk fra bilens midterlinje. Hold Skift eller LB nede for finere trin.
 How much the camera tilts with the car. Hold Shift or LB for finer steps. = Hvor meget kameraet krænger med bilen. Hold Skift eller LB nede for finere trin.
 Selects the camera view whose settings you are editing. This is the same setting as the Camera option under Player. = Vælger den kameravinkel, hvis indstillinger du redigerer. Det er den samme indstilling som valgmuligheden Kameravinkel under Spiller.

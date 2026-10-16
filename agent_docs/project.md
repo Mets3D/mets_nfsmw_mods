@@ -8,7 +8,7 @@ first 7 bytes of each function, so the same addresses install on both):
   (ASI loader `dinput8.dll`, `scripts/`). `speed.exe` 5,926,912 bytes, SHA-256 `0C5675A0...2067E342`.
 - `SomeMods/` (2.9 GB): vanilla 1.3 from the ISO (RLD crack), where mods (including ours) are added one at a time and checked for
   compatibility. `speed.exe` 6,029,312 bytes, SHA-256 `80774C2E...`.
-- `python Mods/set_mods.py --mode all|ours|none --game <dir> [--only <mods>]` picks which `.asi` load (the rest wait in `scripts_disabled/`) and builds the texture packs.
+- `python Mods/set_mods.py --mode all|ours|none --game <dir> [--only <mods>]` picks which `.asi` load (the rest wait in `scripts_disabled/`) and builds the texture packs. It first closes a game running from that install (`--keep-running` skips that): overwriting a loaded `.asi` crashes the game.
 
 ## Our mods (`Mods/`, one folder each, built together)
 `custom_menus` (Options menu framework), `camera_settings` (camera presets, Options > Camera), `controller_support` (controller input, bindings
