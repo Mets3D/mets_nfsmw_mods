@@ -1,0 +1,5 @@
+# German texts of nfsmw_custom_menus. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Copy this folder to <game>/scripts/mets_mods/translations/custom_menus/.
+
+Language = Sprache
+Changes the language of the menus and texts. The game's speech stays as it is. It changes when you accept the changes. = Ändert die Sprache der Menüs und Texte. Die Sprachausgabe des Spiels bleibt unverändert. Die Sprache wechselt, sobald die Änderungen übernommen werden.

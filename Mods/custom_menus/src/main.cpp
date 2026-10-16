@@ -13,7 +13,10 @@
  *    highlighted row in the game's message box.
  * Every plugin that exports nfsmw_custom_menus_provide gets asked for its pages the first time the Options menu opens.
  *
- * Files in <game>/scripts/mets_mods/: nfsmw_custom_menus.ini (settings), nfsmw_custom_menus.log.
+ * Its own row, Options > Player > Language (language.cpp), changes the game's language while it runs; translations.cpp reads the
+ * mods' translations for the current language (and again after a change).
+ *
+ * Files in <game>/scripts/mets_mods/: nfsmw_custom_menus.ini (settings), nfsmw_custom_menus.log, translations/custom_menus/.
  * ini settings, all optional:
  *   [features] fewer_popups=0, skip_career_menu=0, skippable_cutscenes=0  turn those parts off
  *   [hooks]    <name>=0  skips one hook (names in install_hooks)
@@ -36,6 +39,7 @@
 #include "nfsmw_util.h"
 #include "custom_menus_api.h"
 #include "controls_rows.h"
+#include "language.h"
 #include "resume_career.h"
 #include "skip_dialogs.h"
 #include "skip_movies.h"
@@ -264,15 +268,9 @@ unsigned shown_icon(const opt::Page &page) {
     return page.fallback_icon;
 }
 
-void register_page(const opt::Page *page) {
-    if (!page || !page->id || !page->rows || page->row_count <= 0) {
-        log_line("register_page: page \"%s\" rejected (no id or rows)", page && page->id ? page->id : "?");
-        return;
-    }
-    PageInfo &p = g_pages.emplace_back();
-    g_page_count = static_cast<int>(g_pages.size());
-    p.page = page;
-    p.category = page->row_count > kPlayerSlots && g_video_hook ? kCategoryVideo : kCategoryPlayer;
+// The page's texts as language entries (also again after the game's language changed: the same hashes, the new translation).
+void add_page_texts(PageInfo &p) {
+    const opt::Page *page = p.page;
     p.entry_hash = add_text(page->id, "entry", -1, page->entry_text);
     p.title_hash = add_text(page->id, "title", -1, page->title);
     p.help_title_hash = add_text(page->id, "help_title", -1, page->help_title);
@@ -284,8 +282,22 @@ void register_page(const opt::Page *page) {
         else p.row_label_hash[r] = row.label_hash;
         p.row_help_hash[r] = add_text(page->id, "help", r, row.help);
     }
+}
+
+void register_page(const opt::Page *page) {
+    if (!page || !page->id || !page->rows || page->row_count <= 0) {
+        log_line("register_page: page \"%s\" rejected (no id or rows)", page && page->id ? page->id : "?");
+        return;
+    }
+    PageInfo &p = g_pages.emplace_back();
+    g_page_count = static_cast<int>(g_pages.size());
+    p.page = page;
+    p.category = page->row_count > kPlayerSlots && g_video_hook ? kCategoryVideo : kCategoryPlayer;
+    add_page_texts(p);
     log_line("page \"%s\": %d rows", page->id, page->row_count);
 }
+
+void language_changed();
 
 // Asks every loaded plugin for its pages, once. They are all loaded by the time the Options menu opens.
 void discover_pages() {
@@ -294,6 +306,7 @@ void discover_pages() {
     g_host = {&register_page, &custom_menus::controls_rows::add_rows, &custom_menus::controls_rows::add_text,
               &custom_menus::translations::add_folder, &custom_menus::controls_rows::set_binding_label,
               &custom_menus::controls_rows::add_refresh, &custom_menus::controls_rows::add_controller_defaults, &open_page};
+    custom_menus::language::provide(&g_host, &g_log, &language_changed);  // our own row in Options > Player
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId());
     if (snapshot == INVALID_HANDLE_VALUE) {
         log_line("could not list the loaded modules");
@@ -318,6 +331,17 @@ void discover_pages() {
 void ensure_language_entries() {
     if (nfsmw::merge_language_entries(g_entries.data(), static_cast<unsigned>(g_entries.size())))
         log_line("language table: merged %lu entries", static_cast<unsigned long>(g_entries.size()));
+}
+
+// The game's language changed (language.cpp): the translations are read again, our texts translated again and added to the new table
+// (the game replaced the old one, with ours in it).
+void language_changed() {
+    custom_menus::translations::reload();
+    g_entries.clear();
+    for (PageInfo &p : g_pages) add_page_texts(p);
+    custom_menus::controls_rows::retranslate();
+    ensure_language_entries();
+    log_line("language changed: %d translations", custom_menus::translations::count());
 }
 
 // FESetString takes 16-bit characters, which lets us pass the degree sign (U+00B0) without guessing the byte

@@ -12,6 +12,7 @@ namespace custom_menus::controls_rows {
 
 void add_rows(const nfsmw::custom_menus::ControlsRow *rows, int count);
 void add_text(unsigned hash, const char *text);
+void retranslate();  // the game's language changed (translations::reload ran): the texts are added to the table again with the next refresh
 void set_binding_label(nfsmw::custom_menus::BindingLabelFn fn);
 void add_refresh(void (*fn)());
 void add_controller_defaults(void (*fn)());

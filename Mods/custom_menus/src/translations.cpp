@@ -6,6 +6,7 @@
 #include <cstring>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "nfsmw_util.h"
 
@@ -17,6 +18,7 @@ constexpr uintptr_t kCurrentLanguage = 0x8F41C0;  // eLanguages
 const auto GetLanguageName = reinterpret_cast<const char *(*)(int)>(0x56B7E0);  // "GERMAN"
 
 std::map<std::string, std::string> g_table;
+std::vector<std::string> g_folders;  // every folder a mod registered, to read again when the language changes
 
 // The game's texts are Windows-1252 single bytes, except Polish, whose font has its letters at other places (found by comparing
 // the Polish texts with the English ones).
@@ -86,9 +88,17 @@ std::string language_name() {
 }  // namespace
 
 void add_folder(const char *folder) {
-    static const std::string name = language_name();
-    if (name.empty() || !folder || !*folder) return;
-    load_file((std::string(folder) + "\\" + name + ".txt").c_str());
+    if (!folder || !*folder) return;
+    g_folders.push_back(folder);
+    const std::string name = language_name();
+    if (!name.empty()) load_file((std::string(folder) + "\\" + name + ".txt").c_str());
+}
+
+void reload() {
+    g_table.clear();
+    const std::string name = language_name();
+    if (name.empty()) return;
+    for (const std::string &folder : g_folders) load_file((folder + "\\" + name + ".txt").c_str());
 }
 
 int count() { return static_cast<int>(g_table.size()); }

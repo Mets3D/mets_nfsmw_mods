@@ -48,6 +48,7 @@ const CodePatch kPatches[] = {
 nfsmw::Logger *g_log = nullptr;
 std::vector<opt::ControlsRow> g_rows;
 std::vector<nfsmw::LangEntry> g_texts;
+std::vector<nfsmw::LangEntry> g_sources;  // the same with the English texts, to translate again when the language changes
 opt::BindingLabelFn g_label_fn = nullptr;
 std::vector<void (*)()> g_refresh_fns, g_defaults_fns;
 
@@ -191,7 +192,14 @@ void add_rows(const opt::ControlsRow *rows, int count) {
     for (int i = 0; i < count; ++i) g_rows.push_back(rows[i]);
 }
 
-void add_text(unsigned hash, const char *text) { g_texts.push_back({hash, translations::translate(text)}); }
+void add_text(unsigned hash, const char *text) {
+    g_sources.push_back({hash, text});
+    g_texts.push_back({hash, translations::translate(text)});
+}
+
+void retranslate() {
+    for (size_t i = 0; i < g_sources.size(); ++i) g_texts[i].text = translations::translate(g_sources[i].text);
+}
 
 void set_binding_label(opt::BindingLabelFn fn) { g_label_fn = fn; }
 

@@ -1,0 +1,5 @@
+# Dutch texts of nfsmw_custom_menus. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Copy this folder to <game>/scripts/mets_mods/translations/custom_menus/.
+
+Language = Taal
+Changes the language of the menus and texts. The game's speech stays as it is. It changes when you accept the changes. = Verandert de taal van de menu's en teksten. De spraak in het spel blijft hetzelfde. De taal verandert zodra je de wijzigingen accepteert.
