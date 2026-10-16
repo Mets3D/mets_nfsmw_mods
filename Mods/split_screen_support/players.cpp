@@ -269,7 +269,7 @@ void install() {
         {"pressstartend", "uiQRPressStart::~uiQRPressStart", 0x7A3F10, {0xC7, 0x01, 0xCC, 0x72, 0x8B, 0x00, 0xE9}, false,
          nfsmw::detour(&hook_press_start_destructor), nfsmw::orig(&g_orig_press_start_destructor)},
     };
-    nfsmw::install_hooks(hooks, 3, g_log, g_ini, "players");
+    nfsmw::install_hooks(hooks, 3, g_log, nullptr, "players");
 }
 
 }  // namespace split_screen_support::players

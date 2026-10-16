@@ -42,6 +42,6 @@ It was my goal to integrate this mod into the original game's design as if it wa
   - A help button that explains what each setting does.
   - Controller input tested and fully supported.
 
-#### AI Disclaimer
+### AI Disclaimer
 
 The code was written by Claude (Sonnet & Opus). The custom menu icon, testing, design, and this page, were hand-made.

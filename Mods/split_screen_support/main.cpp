@@ -2,14 +2,16 @@
  * nfsmw_split_screen_support: the PC version of the game has much of the console versions' two player split screen
  * ("Split Screen" in the Quick Race menu) but not the way in, a renderer for two views or an input device for a second player
  * (that comes from nfsmw_controller_support).
- * Each part has its own file, header and namespace, and its own switch in nfsmw_split_screen_support.ini:
- *   menu_entry.cpp     the "Split Screen" entry of the Quick Race menu                      [menu] entry
- *   fixes.cpp          the changes that let the race load and show                           [fixes] shared_device, loading_screen, view_mode
- *   split_view.cpp     the screen in two: the world drawn once per player                     [render] split, shadow_fix
- *   minimap.cpp        a minimap for each player, a colour for each player's marker            [hud] minimap
- *   players.cpp        which controller is whose (XInput), player 1's alone reaches the game  [players] enabled
- *   state_log.cpp      a log of the player count, devices and view mode                       [log] state
+ * Each part has its own file, header and namespace. Split screen needs all of them but the minimap, which has a switch in
+ * nfsmw_split_screen_support.ini ([options] use_split_minimap), as has the scenery detail rule in fixes.cpp ([options] cull_small_objects):
+ *   menu_entry.cpp     the "Split Screen" entry of the Quick Race menu
+ *   fixes.cpp          the changes that let the race load and show
+ *   split_view.cpp     the screen in two: the world drawn once per player, each player's shadow map
+ *   minimap.cpp        a minimap for each player, a colour for each player's marker
+ *   players.cpp        which controller is whose (XInput), player 1's alone reaches the game
+ *   state_log.cpp      a log of the player count, devices and view mode
  *   events.cpp         the game functions several parts need (world load, each frame)
+ * What is known about the game's code these parts change: docs/split-screen.md.
  *
  * Files in <game>/scripts/mets_mods/: nfsmw_split_screen_support.log, nfsmw_split_screen_support.ini (optional).
  */
@@ -37,12 +39,12 @@ NFSMW_PLUGIN_MAIN() {
     g_log.open_in_data_folder("nfsmw_split_screen_support.log");
     g_log.line("nfsmw_split_screen_support 1.0.0 starting");
     nfsmw::data_file("nfsmw_split_screen_support.ini", g_ini, sizeof(g_ini));
-    if (ini_flag("menu", "entry")) menu_entry::install();
+    menu_entry::install();
     fixes::install();
-    if (ini_flag("render", "split")) split_view::install();
-    if (ini_flag("hud", "minimap")) minimap::install();
-    if (ini_flag("players", "enabled")) players::install();  // before state_log: the world load log shows its ports
-    if (ini_flag("log", "state")) state_log::install();
+    split_view::install();
+    if (ini_flag("options", "use_split_minimap")) minimap::install();
+    players::install();  // before state_log: the world load log shows its ports
+    state_log::install();
     events::install();
     return NFSMW_OK;
 }

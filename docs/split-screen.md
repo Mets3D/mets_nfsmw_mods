@@ -1,6 +1,7 @@
 # Split screen (nfsmw_split_screen_support)
 
 Input for player 2: see [input-system.md](input-system.md) (extra device). Marks: [read] [tested].
+The parts of the mod and their ini switches: the header comment of `Mods/split_screen_support/main.cpp` and `nfsmw_split_screen_support.ini`.
 
 ## What the PC exe still has
 - The console split screen: `UIQRMainMenu::Setup` 0x7AA730 adds only Quick Play (icon 0xE6313967) and Custom Race (0x2A49B5E2), but `NotificationMessage` 0x7A2E20 still handles
@@ -43,7 +44,7 @@ Input for player 2: see [input-system.md](input-system.md) (extra device). Marks
   Switching view 2 off for the two passes (so it is not culled for nothing) **did not fix the vanishing shadows** behind the car and was removed (seen with every fix on and off: not our regression; whether the single player game has it is unchecked).
   Also tried without effect: pre-culler off (`PrecullerMode` 0x903160 = 0), the scenery detail patch below. Not tried: the shadow map's extent / fade (the shadow camera sits at the chase camera + sun direction * `[0x8FAEB8]`, looking at the chase camera position).
 - **Scenery detail by view mode** [read; effect untested]: `ScenerySectionHeader::DrawAScenery` (0x729120) turns a pixel size into a model. In view modes >= 3 (`cmp eax,3; jl` at 0x729280) only objects over 22 px are
-  drawn, always with the low detail model (`pModel[2]`); in one view over 17 px with the model the size calls for. Shadow casters go through the same test. Patched to the one view rule (`[fixes] scenery_detail`).
+  drawn, always with the low detail model (`pModel[2]`); in one view over 17 px with the model the size calls for. Shadow casters go through the same test. Patched to the one view rule (`[options] cull_small_objects=0`).
 - Streaming: `UpdateCameraMovers` 0x47C880 gives the track streamer (0x9AA9D0) a position for each **active** view (`PredictStreamingPosition` 0x7238D0); with view 2 active the world around
   player 2 loads natively. The streamer has two positions (entries of 0x64 at +0xC0) and a split screen flag (+0xB0, from `InitRegion` 0x72C070) under which it keeps both sets of sections.
 - Seen/expected: effects updated in `___eDisplayFrame` (rain) run twice per frame; motion blur could
@@ -69,7 +70,7 @@ Input for player 2: see [input-system.md](input-system.md) (extra device). Marks
 - The minimap's circular backdrop is a black 128 x 128 image (hash 7af9160b) in the ring group (`TRACKMAPTARGETRING`, 382d2fc9) under the map picture. `HUD_Player2.fng` has an unrelated group with the same hash 157c5b37 at (-226, 7).
 - FEng colours are 0xAARRGGBB (ints b, g, r, a in `FEObjData`); an object with alpha 0 is not drawn.
 - **Built in `minimap.cpp`** [tested]: when player 2's HUD is made, the top level objects of `HUD_Player1.fng` that contain what the Minimap registered are cloned into `HUD_Player2.fng`; everything but the group holding the markers is moved
-  +-120 (`[hud] minimap_offset`; the map picture, ring and backdrop); a second `Minimap` is built on the clones and shown / updated from player 2's `FEngHud::Update`; each minimap's second marker is the other player (hooked
+  +-120 (`kMinimapOffset` in `minimap.cpp`; the map picture, ring and backdrop); a second `Minimap` is built on the clones and shown / updated from player 2's `FEngHud::Update`; each minimap's second marker is the other player (hooked
   `UpdatePlayer2Element`); the markers are orange (player 1) and blue (player 2); the tile list passed to `UncompressMaps` is the union of both minimaps'; `AdjustForWidescreen` is repeated on the second. Not done: the rest of player 2's HUD
   is as the console has it (speedometer bottom right).
 - **Minimap visibility on pause** [tested]: `FEngHud::DetermineHudFeatures` 0x57CA60 makes all HUD hide on pause (checks `FEManager::IsPaused()` and whether `Pause_Main.fng` is pushed, no per-player case: decomp

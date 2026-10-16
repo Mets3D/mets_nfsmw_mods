@@ -103,7 +103,7 @@ int g_pinned_x_count = 0;
 int g_hud_frames = 0;       // updates of the second HUD so far (restore_layout records the layout after kSettleFrames)
 constexpr int kSettleFrames = 120;
 unsigned long long g_features = ~0ull;
-float g_offset = 120.0f;
+constexpr float kMinimapOffset = 120.0f;
 
 constexpr unsigned kMapChildren[5] = {60, 64, 68, 72, 144};  // the Minimap's objects the widescreen fix moves, besides its own x (+184)
 
@@ -232,8 +232,8 @@ void build_second_minimap() {
         // where it is; everything else (the map picture, the ring and backdrop around it) is placed by the layout and is moved.
         g_pinned_y[g_clone_count] = 0;
         if (!has_descendant(parts[i], field<void *>(g_a, 0x90))) {
-            shift(copy, g_offset);
-            shift(parts[i], -g_offset);
+            shift(copy, kMinimapOffset);
+            shift(parts[i], -kMinimapOffset);
             g_pinned_y[g_clone_count] = position_y(copy);
         }
         reinterpret_cast<AddObjectFn>(0x50DB90)(package_b, nullptr, copy);  // FEPackage::AddObject
@@ -241,8 +241,8 @@ void build_second_minimap() {
         g_clones[g_clone_count++] = copy;
     }
     // the first minimap has already read the position it had
-    field<float>(g_a, 0xBC) -= g_offset;  // map centre y
-    field<float>(g_a, 0xA0) -= g_offset;  // default position y
+    field<float>(g_a, 0xBC) -= kMinimapOffset;  // map centre y
+    field<float>(g_a, 0xA0) -= kMinimapOffset;  // default position y
 
     void *memory = reinterpret_cast<MallocFn>(kMalloc)(kMinimapSize);
     if (!memory) return;
@@ -520,7 +520,6 @@ void restore_layout() {
 }  // namespace
 
 void install() {
-    g_offset = static_cast<float>(GetPrivateProfileIntA("hud", "minimap_offset", 120, g_ini));
     const nfsmw::Hook hooks[] = {
         {"minimap", "FEngHud::FEngHud", 0x5A6600, {0x6A, 0xFF, 0x68, 0xB6, 0x39, 0x87, 0x00}, true, nfsmw::detour(&hook_hud),
          nfsmw::orig(&g_orig_hud)},
@@ -541,7 +540,7 @@ void install() {
         {"minimap", "Minimap::AdjustForWidescreen", 0x5678A0, {0x8A, 0x44, 0x24, 0x04, 0x84, 0xC0, 0x74}, true,
          nfsmw::detour(&hook_widescreen), nfsmw::orig(&g_orig_widescreen)},
     };
-    nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), g_log, g_ini, "minimap");
+    nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), g_log, nullptr, "minimap");
     events::on_frame(update_visibility);
 }
 

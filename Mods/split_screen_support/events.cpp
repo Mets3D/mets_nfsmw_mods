@@ -45,7 +45,7 @@ void install() {
     if (g_frame.count)
         hooks[count++] = {"frame", "eDisplayFrame", 0x6E7220, {0xA0, 0xC8, 0x1A, 0x90, 0x00, 0x83, 0xEC}, false,
                           nfsmw::detour(&hook_display_frame), nfsmw::orig(&g_orig_display_frame)};
-    if (count) nfsmw::install_hooks(hooks, count, g_log, g_ini, "events");
+    if (count) nfsmw::install_hooks(hooks, count, g_log, nullptr, "events");
 }
 
 }  // namespace split_screen_support::events

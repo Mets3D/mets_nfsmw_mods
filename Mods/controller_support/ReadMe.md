@@ -1,7 +1,5 @@
 # Controller Support
 
-*Disclaimer: The code was written by Claude (Sonnet & Opus). The custom menu icon, testing, design, and this page, were made by me, a human.*
-
 This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller support including analogue steering and throttle, camera look while driving, input remapping, customizable rumble, and complete menu navigation.
 
 ## What it does
@@ -71,3 +69,7 @@ Enable = 0
 - Nintendo Switch prompts?? :') So overkill...
 - In the showroom, I'd love non-stepped zooming.
 - Add pictures and videos showcasing the mod to this ReadMe.
+
+### AI Disclaimer
+
+The code was written by Claude (Sonnet & Opus). Testing, design, and this page, were hand-made.

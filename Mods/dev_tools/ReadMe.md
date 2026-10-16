@@ -1,7 +1,5 @@
 # Dev Tools
 
-*Disclaimer: The code was written by Claude (Sonnet & Opus).*
-
 A plugin (`nfsmw_dev_tools.asi`) for Need for Speed: Most Wanted (2005, PC, `speed.exe` 1.3) with things that are useful
 while making mods for the game and not much outside of that. Leave it out of an install you only play. Each tool has its
 own source file and its own switch in `nfsmw_dev_tools.ini`.
@@ -47,13 +45,6 @@ The save is looked for where the game looks, so a widescreen fix that keeps user
 - Would be interesting to display the perspective of a CPU player in the corner of the screen - Or, maybe it would be much easier, to allow a CPU to take control of one of the split screen players - But how do CPU players work, do they give their cars inputs like a human player, or is it something else?
 - Ability to disable collisions on the race arrow walls? Just allow the player to go past, or find some way to detect out of bounds and reset the car after a while?
 
-## Files
+## AI Disclaimer
 
-In the folder `scripts/mets_mods/`: `nfsmw_dev_tools.log` and an optional
-`nfsmw_dev_tools.ini`.
-
-| File | What |
-|---|---|
-| `main.cpp`, `dev_tools.h` | the entry: the log, the ini, each tool's switch |
-| `diagnostics.cpp` | the exit and access violation logs |
-| `quick_start.cpp` | the movie-skip flag, the splash-screen skip |
+*Disclaimer: The code was written by Claude (Sonnet & Opus).*

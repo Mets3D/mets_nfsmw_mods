@@ -46,7 +46,7 @@ void install() {
         {"viewmode", "MaybeChangeViewMode", 0x6CFAD0, {0xA1, 0x44, 0x2B, 0x98, 0x00, 0x85, 0xC0}, false,
          nfsmw::detour(&hook_maybe_change_view_mode), nfsmw::orig(&g_orig_maybe_change_view_mode)},
     };
-    nfsmw::install_hooks(hooks, 1, g_log, g_ini, "state log");
+    nfsmw::install_hooks(hooks, 1, g_log, nullptr, "state log");
 }
 
 }  // namespace split_screen_support::state_log

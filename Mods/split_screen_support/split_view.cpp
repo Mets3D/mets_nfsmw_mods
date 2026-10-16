@@ -230,8 +230,7 @@ void *copy_of(void *original, size_t size) {
 }
 
 void make_shadow_copies() {
-    static const bool wanted = ini_flag("render", "shadow_fix");  // [render] shadow_fix=0: the game's own shadow picking
-    if (!wanted || (g_shadow_camera2 && g_shadow_plat_info2)) return;
+    if ((g_shadow_camera2 && g_shadow_plat_info2)) return;
     g_shadow_camera2 = copy_of(at<void *>(kShadowView1, kViewCamera), kCameraSize);
     g_shadow_plat_info2 = copy_of(at<void *>(kShadowView1, kViewPlatInfo), kPlatInfoSize);
 }
@@ -339,7 +338,7 @@ void install() {
         {"setupperview", "eView::SetupPerView", 0x6CF400, {0x83, 0xEC, 0x0C, 0x53, 0x55, 0x56, 0x57}, false,
          nfsmw::detour(&hook_setup_per_view), nfsmw::orig(&g_orig_setup_per_view)},
     };
-    nfsmw::install_hooks(hooks, 2, g_log, g_ini, "split view");
+    nfsmw::install_hooks(hooks, 2, g_log, nullptr, "split view");
 }
 
 }  // namespace split_screen_support::split_view
