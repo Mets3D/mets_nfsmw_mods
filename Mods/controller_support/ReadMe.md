@@ -66,8 +66,7 @@ Enable = 0
 - Incompatible: NFS-XtendedInput, potentially other similar mods that mess with controller functions.
 
 ## TODOs
-- BUG: Map navigation isn't quite right: Cursor is not always snapping to events, and if it does, when moved away, it snaps back when letting go of the stick. Also, LB/RB don't zoom nicely like LT/RT does.
-- Could be cool to add a display of the current analogue activation levels under the deadzone sliders, like just a tiny 3px green bar or something.
+- Could be cool to add a display of the current analogue activation levels under the deadzone sliders, like just a tiny 3px green bar or something? Idk.
 - I'd be curious about the throttle's activation curve, I think I'd like to change it, it feels like it activates a bit suddenly quite deep into the trigger pull right now.
 - Nintendo Switch prompts?? :') So overkill...
 - In the showroom, I'd love non-stepped zooming.
