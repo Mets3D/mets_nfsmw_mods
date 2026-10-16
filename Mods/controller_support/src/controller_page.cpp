@@ -56,7 +56,7 @@ void page_opened() {
 unsigned page_value(int row, char *out, unsigned out_size) {
     if (row == kPrompts) {
         const button_icons::Style style = prompts_style();
-        snprintf(out, out_size, "%s", style == button_icons::Style::kXbox ? "Xbox" : style == button_icons::Style::kPlayStation ? "PlayStation" : "Off");
+        snprintf(out, out_size, "%s", style == button_icons::Style::kXbox ? "Xbox" : style == button_icons::Style::kPlayStation ? "PlayStation" : style == button_icons::Style::kSwitch ? "Switch" : "Off");
         return 0;
     }
     if (g_rumble_rows && row == vibration_row()) return vibration_option() ? kOnText : kOffText;
@@ -67,9 +67,12 @@ unsigned page_value(int row, char *out, unsigned out_size) {
 }
 
 void page_change(int row, int direction, bool fine) {
-    if (row == kPrompts) {  // two choices: either arrow takes the other one (from Off, to Xbox)
+    if (row == kPrompts) {  // Xbox, PlayStation, Switch: the arrows go round (from Off, to Xbox)
         using button_icons::Style;
-        prompts_style() = prompts_style() == Style::kXbox ? Style::kPlayStation : Style::kXbox;
+        constexpr Style kStyles[] = {Style::kXbox, Style::kPlayStation, Style::kSwitch};
+        int i = 0;
+        while (i < 3 && kStyles[i] != prompts_style()) ++i;
+        prompts_style() = i == 3 ? Style::kXbox : kStyles[(i + (direction > 0 ? 1 : 2)) % 3];
         log_line("controller %d: button prompts set to %s", rumble::edit_slot() + 1, button_icons::style_text(prompts_style()));
         return;
     }
@@ -149,7 +152,7 @@ opt::Page g_page;
 void pad::controller_page::provide(const nfsmw::custom_menus::Host *host) {
     using namespace pad;
     g_rumble_rows = rumble::enabled();
-    g_rows[kPrompts] = {opt::kValueRow, "Controller Prompts", 0, "Which buttons the menus show while this controller is in use: Xbox or PlayStation."};
+    g_rows[kPrompts] = {opt::kValueRow, "Controller Prompts", 0, "Which buttons the menus show while this controller is in use: Xbox, PlayStation or Switch."};
     g_rows[kLeftStick] = {opt::kSliderRow, "Left Stick Dead Zone", 0, "The left stick ignores movements smaller than this. "
                           "Raise it if the car or the menu cursor drifts with the stick at rest. Hold Shift or LB for finer steps."};
     g_rows[kRightStick] = {opt::kSliderRow, "Right Stick Dead Zone", 0, "The right stick ignores movements smaller than this. "

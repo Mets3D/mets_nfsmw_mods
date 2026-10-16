@@ -43,7 +43,7 @@ It was my goal to integrate this mod into the original game's design as if it wa
   - Controller input tested and fully supported.
 
 # TODO
-- We should ship our own camera defaults in the ini - Vanilla cameras unchanged, but the super far, drift, and pursuit cameras could be tweaked, eg. to be disabled tbh.
+- We should ship our own camera defaults in the ini - Vanilla cameras mostly unchanged/replicated, but the super far, drift, and pursuit cameras could be tweaked, eg. to be disabled tbh.
 
 ### AI Disclaimer
 

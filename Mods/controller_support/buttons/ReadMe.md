@@ -1,7 +1,7 @@
 # Controller button pictures
 
 The pictures `nfsmw_controller_support` shows in the menus' button prompts while a controller is in use, one folder per
-style (`xbox/`, `playstation/`). [`prompts.ini`](prompts.ini) says which prompt of the game shows which picture, and how
+style (`xbox/`, `playstation/`, `switch/`). [`prompts.ini`](prompts.ini) says which prompt of the game shows which picture, and how
 to rebuild the pack after changing something.
 
 - Use the size of the picture you replace (the menu layout decides how big a prompt is drawn): 128x128 for single

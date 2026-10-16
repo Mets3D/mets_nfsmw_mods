@@ -7,8 +7,8 @@
 namespace pad::button_icons {
 
 // Which controller's buttons the prompts show: kOff keeps the keyboard keys.
-enum class Style { kOff, kXbox, kPlayStation };
-const char *style_text(Style style);  // "off", "xbox", "playstation": the ini's words
+enum class Style { kOff, kXbox, kPlayStation, kSwitch };
+const char *style_text(Style style);  // "off", "xbox", "playstation", "switch": the ini's words
 Style parse_style(const char *text, Style fallback);
 
 // The style of a controller that has none of its own (the ini's [buttons] button_prompts), and of a controller that is not XInput.

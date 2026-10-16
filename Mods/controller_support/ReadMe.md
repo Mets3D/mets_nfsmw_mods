@@ -34,7 +34,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 ### Menu Navigation
 - Menu navigation tested in all menus I could think of, including obscure menus like Showroom, Blacklist bio screen, Advanced Video Settings.
 - Automatically switch to controller button prompts as soon as controller input is detected, and vice versa.
-- Button prompts show Xbox buttons by default. Each controller has its own prompt style: if [Custom Menus](../custom_menus/ReadMe.md) is installed, you can switch a controller to Playstation button prompts via **Options > Controls > the controller > Settings > Controller Prompts**, and the prompts follow whichever controller you touched last. Otherwise, you can set `button_prompts=playstation` in the ini (in `[buttons]` for all controllers, or in `[controller_1]` .. `[controller_4]` for one).
+- Button prompts show Xbox buttons by default. Each controller has its own prompt style: if [Custom Menus](../custom_menus/ReadMe.md) is installed, you can switch a controller to PlayStation or Nintendo Switch button prompts via **Options > Controls > the controller > Settings > Controller Prompts**, and the prompts follow whichever controller you touched last.
 - The world map can be panned with the right stick, and zoomed with the shoulder buttons/triggers.
 
 ### Translations
@@ -66,7 +66,6 @@ Enable = 0
 ## TODOs
 - Could be cool to add a display of the current analogue activation levels under the deadzone sliders, like just a tiny 3px green bar or something? Idk.
 - I'd be curious about the throttle's activation curve, I think I'd like to change it, it feels like it activates a bit suddenly quite deep into the trigger pull right now.
-- Nintendo Switch prompts?? :') So overkill...
 - In the showroom, I'd love non-stepped zooming.
 - Add pictures and videos showcasing the mod to this ReadMe.
 

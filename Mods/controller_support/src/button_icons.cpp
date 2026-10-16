@@ -27,9 +27,9 @@ Style g_default_style = Style::kXbox;
 bool g_frame_pad = false;
 Style g_frame_style = Style::kXbox;
 
-// A prompt picture of the game and its two controller versions (the texture hashes).
+// A prompt picture of the game and its controller versions (the texture hashes).
 struct Hashes {
-    unsigned pc, xbox, playstation;
+    unsigned pc, xbox, playstation, nintendo;
 };
 std::vector<Hashes> g_hashes;
 unsigned g_quit_key, g_back_key, g_back_key_french;  // the picture hashes of the "Quit" (Q) and "Back" (Esc) prompts
@@ -60,13 +60,15 @@ char __stdcall visit_object(void *object) {
     unsigned &texture = field<unsigned>(object, kTexture);
     const bool visible = (field<unsigned>(object, kFlags) & kInvisible) == 0;
     for (const Hashes &h : g_hashes) {
-        if (texture != h.pc && texture != h.xbox && texture != h.playstation) continue;
+        if (texture != h.pc && texture != h.xbox && texture != h.playstation && texture != h.nintendo) continue;
         if (visible) {
             if (h.pc == g_quit_key) g_quit_prompt_seen = true;
             if (h.pc == g_back_key || h.pc == g_back_key_french) g_back_prompt_seen = true;
         }
         if (!g_pack_loaded) break;
-        const unsigned wanted = !g_frame_pad || g_frame_style == Style::kOff ? h.pc : g_frame_style == Style::kPlayStation ? h.playstation : h.xbox;
+        const unsigned wanted = !g_frame_pad || g_frame_style == Style::kOff ? h.pc
+                              : g_frame_style == Style::kPlayStation ? h.playstation
+                              : g_frame_style == Style::kSwitch ? h.nintendo : h.xbox;
         if (texture != wanted) {
             texture = wanted;
             field<unsigned>(object, kFlags) |= kTextureChanged;
@@ -112,7 +114,9 @@ void FASTCALL hook_update(void *engine, void *edx, int ticks, unsigned lock) {
     g_orig_update(engine, edx, ticks, lock);
 }
 
-const char *style_name(const char *section) { return !_stricmp(section, "xbox") ? "XBOX" : "PLAYSTATION"; }
+const char *style_name(const char *section) {
+    return !_stricmp(section, "xbox") ? "XBOX" : !_stricmp(section, "switch") ? "SWITCH" : "PLAYSTATION";
+}
 
 // The prompts of one style in prompts.ini: the names left of the "=" (the picture on the right is only for the pack).
 std::vector<std::string> read_prompts(const char *ini, const char *section) {
@@ -136,16 +140,22 @@ std::vector<std::string> read_prompts(const char *ini, const char *section) {
 void load_prompts() {
     char path[MAX_PATH];
     nfsmw::data_file("nfsmw_controller_buttons.ini", path, sizeof(path));
-    const std::vector<std::string> xbox = read_prompts(path, "xbox"), playstation = read_prompts(path, "playstation");
+    const std::vector<std::string> xbox = read_prompts(path, "xbox"), playstation = read_prompts(path, "playstation"),
+                                   nintendo = read_prompts(path, "switch");
     std::vector<std::string> all = xbox;
-    for (const std::string &p : playstation)
-        if (std::find(all.begin(), all.end(), p) == all.end()) all.push_back(p);
+    for (const std::vector<std::string> *other : {&playstation, &nintendo})
+        for (const std::string &p : *other)
+            if (std::find(all.begin(), all.end(), p) == all.end()) all.push_back(p);
+    const auto has = [](const std::vector<std::string> &list, const std::string &prompt) {
+        return std::find(list.begin(), list.end(), prompt) != list.end();
+    };
+    const auto hash_in = [](const char *section, const std::string &prompt) {
+        return nfsmw::texture_hash((std::string(style_name(section)) + "_" + prompt).c_str());
+    };
     for (const std::string &prompt : all) {
         const unsigned pc = nfsmw::texture_hash(prompt.c_str());
-        const bool in_xbox = std::find(xbox.begin(), xbox.end(), prompt) != xbox.end();
-        const bool in_playstation = std::find(playstation.begin(), playstation.end(), prompt) != playstation.end();
-        g_hashes.push_back({pc, in_xbox ? nfsmw::texture_hash((std::string(style_name("xbox")) + "_" + prompt).c_str()) : pc,
-                            in_playstation ? nfsmw::texture_hash((std::string(style_name("playstation")) + "_" + prompt).c_str()) : pc});
+        g_hashes.push_back({pc, has(xbox, prompt) ? hash_in("xbox", prompt) : pc, has(playstation, prompt) ? hash_in("playstation", prompt) : pc,
+                            has(nintendo, prompt) ? hash_in("switch", prompt) : pc});
     }
     log_line("button icons: %u prompts from %s%s", static_cast<unsigned>(all.size()), path,
              all.empty() ? " (missing or empty: the pictures stay as the game has them)" : "");
@@ -155,11 +165,14 @@ void load_prompts() {
 
 bool quit_prompt_shown() { return g_quit_available; }
 
-const char *style_text(Style style) { return style == Style::kOff ? "off" : style == Style::kXbox ? "xbox" : "playstation"; }
+const char *style_text(Style style) {
+    return style == Style::kOff ? "off" : style == Style::kXbox ? "xbox" : style == Style::kSwitch ? "switch" : "playstation";
+}
 
 Style parse_style(const char *text, Style fallback) {
     if (!_stricmp(text, "off") || !_stricmp(text, "0") || !_stricmp(text, "none")) return Style::kOff;
     if (!_stricmp(text, "playstation") || !_stricmp(text, "ps")) return Style::kPlayStation;
+    if (!_stricmp(text, "switch") || !_stricmp(text, "nintendo")) return Style::kSwitch;
     if (!_stricmp(text, "xbox")) return Style::kXbox;
     return fallback;
 }

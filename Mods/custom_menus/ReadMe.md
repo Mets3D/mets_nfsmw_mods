@@ -36,11 +36,11 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
   - `NFS-XtendedInput` due to touching `UIOptionsMain::Setup`.
 
 ## TODO
+- Some menu leaving prompts are "Unsaved changes will be lost, ok?" -> Yes loses changes, while other menu leaving prompts are "Save changes before leaving?" -> Yes saves changes. This is no good!! I think it should always be the latter.
+- Would be cool if strip menus would cycle, so pressing left on the left-most element would jump to the right-most element. Would make it faster to access the Options in the pause menu, and the controller options especially.
 - We now have the ability to add entries in the Player Options, but what about to the other menus? Should probably support all of them.
 - Multi-page menus? There's no solid precedent for this in the game, so this is quite a stretch goal, but it could be nice to put the Rumble options on a different page from the rest of the controller options, switchable with the shoulder buttons.
 - Ability to add not just sub-menus under "Options", but also in the pause menu, eg. to customize the current race, or other dev tools.
-- Would be cool if strip menus would cycle, so pressing left on the left-most element would jump to the right-most element. Would make it faster to access the Options in the pause menu, and the controller options especially.
-- Some menu leaving prompts are "Unsaved changes will be lost, ok?" -> Yes loses changes, while other menu leaving prompts are "Save changes before leaving?" -> Yes saves changes. This is no good!! I think it should always be the latter.
 
 ## Using it from your own mod
 
