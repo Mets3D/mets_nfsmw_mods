@@ -39,7 +39,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 - The world map can be panned with the right stick, and zoomed with the shoulder buttons/triggers.
 
 ### Translations
-- The texts this mod adds to the UI (via the [Custom Menus](../custom_menus/ReadMe.md) mod), such as the Rumble Options, the camera look input mappings, and the controller button names, are translated into the game's nine other PC languages.
+- The texts this mod adds to the UI (via the [Custom Menus](../custom_menus/ReadMe.md) mod), such as the Settings page, the camera look input mappings, and the controller button names, are translated into the game's nine other PC languages.
 
 ## Controller Compatibility
 
@@ -65,10 +65,10 @@ Enable = 0
 - Incompatible: NFS-XtendedInput, potentially other similar mods that mess with controller functions.
 
 ## TODOs
-- Do controller settings only get saved to disk (to .ini) when the career is saved? I don't agree with that, and I think that seems to be the case.
-- The help text of the Rumble toggle is probably not accurate anymore?
 - When a new device is connected after the game is already launched, it does not get initialized - Game must be restarted. Would be nicer if this wasn't the case.
-- Map navigation isn't quite right: Cursor is not always snapping to events, and if it does, when moved away, it snaps back when letting go of the stick. Also, LB/RB don't zoom nicely like LT/RT does.
-- Maybe we should associate device settings with a device ID of some sort, otherwise the settings of one device could end up being applied to a different device, eg. depending on the order they are connected to the computer, or even completely arbitrarily, I think?
-- Test per-controller settings and rumble customization with >1 controller.
+- BUG: Map navigation isn't quite right: Cursor is not always snapping to events, and if it does, when moved away, it snaps back when letting go of the stick. Also, LB/RB don't zoom nicely like LT/RT does.
+- Could be cool to add a display of the current analogue activation levels under the deadzone sliders, like just a tiny 3px green bar or something.
+- I'd be curious about the throttle's activation curve, I think I'd like to change it, it feels like it activates a bit suddenly quite deep into the trigger pull right now.
+- Nintendo Switch prompts?? :') So overkill...
+- In the showroom, I'd love non-stepped zooming.
 - Add pictures and videos showcasing the mod to this ReadMe.

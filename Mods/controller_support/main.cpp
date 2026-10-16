@@ -14,7 +14,7 @@
  *   extra_device.cpp   a second game input device, so that a second local player has an input path of the game's own
  *   rumble.cpp         rumble (the force feedback events, the controller's motors)
  *   device_settings.cpp  the dead zones of each XInput controller
- *   controller_page.cpp  Controller Options (dead zones, rumble), a page of nfsmw_custom_menus (no entry in the Options menu)
+ *   controller_page.cpp  the Settings page (prompts, dead zones, rumble), a page of nfsmw_custom_menus (no entry in the Options menu)
  *   controls_options.cpp the Controls screen's hint opens that page for the selected controller, and comes back
  *   menu_pages.cpp     registers the pages of this mod with nfsmw_custom_menus
  */

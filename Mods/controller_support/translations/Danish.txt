@@ -13,7 +13,7 @@ Look Left = Kig til venstre
 Look Right = Kig til højre
 Look Up = Kig op
 Look Down = Kig ned
-Turns rumble on or off. This is the game's own Vibration setting, kept in your profile. = Slår rumble til eller fra. Det er spillets egen vibrationsfunktion, som gemmes i din profil.
+Enable controller vibration. = Aktivér controllerens vibration.
 
 Left Stick Dead Zone = Dødzone venstre stick
 Right Stick Dead Zone = Dødzone højre stick

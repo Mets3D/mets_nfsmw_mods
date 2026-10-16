@@ -1,4 +1,4 @@
-// The Controls screen's hint (the game's rumble on / off toggle, shown while a controller is selected) opens the Controller Options
+// The Controls screen's hint (the game's rumble on / off toggle, shown while a controller is selected) opens the Settings
 // page for the selected controller instead, and leaving that page comes back to the Controls screen with the same controller
 // selected. The Controls screen's message handler and device switch are pad_sets.cpp's hooks; they call into here.
 #pragma once

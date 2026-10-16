@@ -13,7 +13,7 @@ Look Left = Se åt vänster
 Look Right = Se åt höger
 Look Up = Se uppåt
 Look Down = Se nedåt
-Turns rumble on or off. This is the game's own Vibration setting, kept in your profile. = Slår rumble på eller av. Det är spelets egen vibreringsfunktion, som sparas i din profil.
+Enable controller vibration. = Aktivera handkontrollens vibration.
 
 Left Stick Dead Zone = Dödzon vänster spak
 Right Stick Dead Zone = Dödzon höger spak

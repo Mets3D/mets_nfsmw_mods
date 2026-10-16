@@ -94,4 +94,34 @@ inline bool read_slot(int slot, Gamepad *out) {
     return true;
 }
 
+// All connected controllers as one: any button, and each trigger and stick axis from the controller pushing it furthest. Empty slots are
+// asked about at most every 2 seconds (that is slow). False when none is connected. (`read` is the first controller's only.) `each`, if given,
+// is called with every connected controller's slot and state.
+inline bool read_any(Gamepad *out, void (*each)(int slot, const Gamepad &pad) = nullptr) {
+    static bool connected[4];
+    static DWORD next = 0;
+    const bool scan = static_cast<LONG>(GetTickCount() - next) >= 0;
+    if (scan) next = GetTickCount() + 2000;
+    const auto furthest = [](SHORT a, SHORT b) { return (b < 0 ? -b : b) > (a < 0 ? -a : a) ? b : a; };
+    Gamepad merged = {};
+    bool any = false;
+    for (int i = 0; i < 4; ++i) {
+        if (!connected[i] && !scan) continue;
+        Gamepad p;
+        connected[i] = read_slot(i, &p);
+        if (!connected[i]) continue;
+        any = true;
+        if (each) each(i, p);
+        merged.buttons |= p.buttons;
+        if (p.left_trigger > merged.left_trigger) merged.left_trigger = p.left_trigger;
+        if (p.right_trigger > merged.right_trigger) merged.right_trigger = p.right_trigger;
+        merged.lx = furthest(merged.lx, p.lx);
+        merged.ly = furthest(merged.ly, p.ly);
+        merged.rx = furthest(merged.rx, p.rx);
+        merged.ry = furthest(merged.ry, p.ry);
+    }
+    *out = merged;
+    return any;
+}
+
 }  // namespace nfsmw::xinput

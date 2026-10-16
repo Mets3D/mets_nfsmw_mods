@@ -1,4 +1,4 @@
-// Controller Options: a page of nfsmw_custom_menus with the dead zones and rumble levels of one controller.
+// Settings: a page of nfsmw_custom_menus with the dead zones and rumble levels of one controller.
 #pragma once
 
 #include "custom_menus_api.h"

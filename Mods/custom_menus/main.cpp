@@ -21,6 +21,7 @@
  * Offsets come from the PC disassembly; the decomp's struct offsets are from the console builds and differ.
  */
 
+#include <algorithm>
 #include <nfsmw_sdk/nfsmw_sdk.h>
 #include <MinHook.h>
 #include <tlhelp32.h>
@@ -360,7 +361,7 @@ int &options_category() { return field<int>(field<void *>(*reinterpret_cast<void
 // A button of the first XInput controller, read directly (no controller_support needed).
 bool pad_button_down(WORD button) {
     nfsmw::xinput::Gamepad pad;
-    return nfsmw::xinput::read(&pad) && (pad.buttons & button) != 0;
+    return nfsmw::xinput::read_any(&pad) && (pad.buttons & button) != 0;  // any controller (read is the first one only)
 }
 
 // A page with more rows than the layout has slots shows a window of them: the widgets are the slots, and slot k shows the page's row
@@ -370,13 +371,26 @@ int g_page_category = kCategoryPlayer;  // the category of the open page's scree
 int g_row_offset = 0;
 int g_window_rows = 0;   // the page's rows, when windowed
 int g_window_slots = 0;  // the widgets (slots) it shows them in
-bool g_window_mixed = false;  // the rows are of both kinds (slider bars and values), so the slots' widgets must change with the window
 
 // The screen's own scroll bar (UIWidgetMenu's FEScrollBar member at +0x54; the Video layout has the objects, at +0x40 / +0x44 of it the track and
 // the handle). The game updates it itself when it scrolls, for the widgets there are; a windowed page has more rows than widgets, so we tell it the
 // rows after each up / down: Update(rows in view, rows, first row in view, selected row), 1-based.
 const auto ScrollBarUpdate = reinterpret_cast<void(THISCALL *)(void *bar, int view, int list, int head, int selected)>(0x589870);
-const auto GetWidgetIndex = reinterpret_cast<unsigned(THISCALL *)(void *screen, void *widget)>(0x588D60);
+const auto GetWidgetIndex = reinterpret_cast<unsigned(THISCALL *)(void *screen, void *widget)>(0x588D60);  // 1-based
+const auto GetWidget = reinterpret_cast<void *(THISCALL *)(void *screen, unsigned index)>(0x588280);         // 1-based
+const auto Reposition = reinterpret_cast<void(THISCALL *)(void *screen)>(0x59BFF0);  // shows the widgets from the view top (pViewTop, +0x38), hides the rest
+
+bool row_is_enabled(const PageInfo *page, int row);
+
+// The rows the window scrolls through: greyed out rows at the end of the page (past the last one the cursor can reach) do not count, so a
+// page whose last rows are greyed out neither scrolls nor shows a scroll bar that says it could.
+int last_enabled_row() {
+    int last = -1;
+    for (int r = 0; r < g_window_rows; ++r)
+        if (row_is_enabled(g_page, r)) last = r;
+    return last;
+}
+int window_list_rows() { return std::max(g_window_slots, last_enabled_row() + 1); }
 
 void update_scroll_bar(void *screen) {
     if (!g_windowed) return;
@@ -385,7 +399,9 @@ void update_scroll_bar(void *screen) {
     void *top = field<void *>(screen, 0x38), *current = field<void *>(screen, 0x34);
     const int top_index = top ? static_cast<int>(GetWidgetIndex(screen, top)) : 1;
     const int current_index = current ? static_cast<int>(GetWidgetIndex(screen, current)) : top_index;
-    ScrollBarUpdate(bar, field<int>(screen, 0x10C), g_window_rows, g_row_offset + top_index, g_row_offset + current_index);
+    // The screen shows 10 widgets at a time (9 in the main menu: UIOptionsScreen's constructor, +0x10C), however many slots the layout has.
+    const int shown = field<int>(screen, 0x10C);
+    ScrollBarUpdate(bar, shown, std::max(shown, last_enabled_row() + 1), g_row_offset + top_index, g_row_offset + current_index);
 }
 
 int row_of(void *widget) {
@@ -401,12 +417,27 @@ bool row_is_enabled(const PageInfo *page, int row) { return !page->page->row_ena
 // Called after the row's texts were set. Enabling plays UNHIGHLIGHT on the row's objects, which restores the label but not the value:
 // the layouts give the value only the scripts INIT (its normal look) and GREY, so INIT is played on it again (the arrows have INIT
 // and HIDE and cannot go grey).
+//
+// A slider row: FESliderWidget::Enable only sets the flag (the label would stay grey), so the toggle's Enable runs instead, which plays the
+// label's script; and the bar (BASE_SLIDER_n / FILLBAR_SLIDER_n, n the slot) gets the GREY script if it has one, UNHIGHLIGHT again when enabled.
 void apply_row_enabled(void *self, const PageInfo *page, int row) {
     if (!page->page->row_enabled) return;
     const bool want = page->page->row_enabled(row);
     if (want == (field<unsigned char>(self, kRowEnabled) != 0)) return;
-    reinterpret_cast<DrawFn>(field<void **>(self, 0)[want ? 7 : 8])(self);
+    void **vtbl = field<void **>(self, 0);
+    const bool slider = vtbl == g_slider_vtbl;
+    reinterpret_cast<DrawFn>((slider && want ? g_row_vtbl : vtbl)[want ? 7 : 8])(self);
     if (want) game::FEngSetScriptOn(field<void *>(self, kRowData), nfsmw::bstring_hash("INIT"), true);
+    if (slider && field<PageInfo *>(self, kRowPage) == g_page) {
+        const char *pkg = field<const char *>(g_options_screen, kScreenPackage);
+        const auto FindObject = reinterpret_cast<void *(*)(const char *, unsigned)>(0x524850);  // FEngFindObject
+        for (const char *name : {"BASE_SLIDER_%d", "FILLBAR_SLIDER_%d"}) {
+            char text[32];
+            snprintf(text, sizeof(text), name, field<int>(self, kRowIndex) + 1);
+            if (void *bar = FindObject(pkg, nfsmw::bstring_hash(text)))
+                game::FEngSetScriptOn(bar, nfsmw::bstring_hash(want ? "UNHIGHLIGHT" : "GREY"), true);
+        }
+    }
 }
 
 void THISCALL value_row_act(void *self, const char *pkg, unsigned data) {
@@ -417,6 +448,8 @@ void THISCALL value_row_act(void *self, const char *pkg, unsigned data) {
     if (!page || row < 0 || row >= page->page->row_count || !row_is_enabled(page, row)) return;
     if (page->page->change) page->page->change(row, data == kPadRight ? 1 : -1, (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0 || pad_button_down(nfsmw::xinput::kLeftShoulder));
     field<unsigned char>(self, kRowChanged) = 1;  // as PODriveCam::Act does
+    // Other rows may be greyed out or not now.
+    if (page->page->row_enabled && g_options_screen && field<PageInfo *>(self, kRowPage) == g_page) game::RefreshWidgets(g_options_screen);
     void **vtbl = field<void **>(self, 0);
     reinterpret_cast<BlinkFn>(vtbl[14])(self, data);  // arrow blink
     reinterpret_cast<DrawFn>(vtbl[3])(self);
@@ -541,10 +574,6 @@ void build_page_screen(void *screen) {
         log_line("page \"%s\" has %d rows but the screen has room for %d: the rest are left out", page.id, page.row_count, room);
     const int widgets = g_windowed ? room : (page.row_count < room ? page.row_count : room);
     const bool bars = layout_has_sliders(field<const char *>(screen, kScreenPackage));
-    // A window whose rows are of both kinds needs different widgets as it slides: see rebuild_window.
-    bool any_slider = false, any_other = false;
-    for (int r = 0; r < page.row_count; ++r) (page.rows[r].kind == opt::kSliderRow && page.fill ? any_slider : any_other) = true;
-    g_window_mixed = g_windowed && bars && any_slider && any_other;
     for (int r = 0; r < widgets; ++r) add_page_row(screen, g_page, r, r, bars);
     // The title object is a group of strings (text and shadow). Set the hash the way the game's own screens do, then
     // also print into the group so it does not depend on the table lookup.
@@ -990,51 +1019,73 @@ bool pad_x_down() { return pad_button_down(nfsmw::xinput::kButtonX); }
 using NotifyFn = void(FASTCALL *)(void *, void *, unsigned, void *, unsigned, unsigned);
 NotifyFn g_orig_notify = nullptr;
 
-// A window of rows of both kinds, after it slid: a slider bar and a value are different widgets, so the slots' widgets are made again for the rows
-// now in view, and the cursor goes back to its slot. (A window of one kind only keeps its widgets and redraws them.)
+// A window of rows after it slid: a slider bar and a value are different widgets, so the slots' widgets are made again for the rows now in view,
+// and the cursor goes to its slot.
+//
+// The screen shows `shown` (10) of its widgets at a time, from the view top (the game scrolls the rest into view as the cursor moves). The new
+// widgets would start with the view top on the cursor's widget (SetInitialOption), which scrolls for no reason: the view top is kept instead,
+// moved only as far as the cursor needs.
 void rebuild_window(void *screen, int cursor_slot) {
+    void *top = field<void *>(screen, 0x38);
+    int view = top ? static_cast<int>(GetWidgetIndex(screen, top)) - 1 : 0;  // the first widget in view, 0-based
+    const int shown = field<int>(screen, 0x10C);
     game::ClearWidgets(screen);
     const bool bars = layout_has_sliders(field<const char *>(screen, kScreenPackage));
     for (int k = 0; k < g_window_slots; ++k) add_page_row(screen, g_page, k, g_row_offset + k, bars);
     game::SetInitialOption(screen, cursor_slot + 1);
+    if (cursor_slot < view) view = cursor_slot;
+    else if (cursor_slot >= view + shown) view = cursor_slot - shown + 1;
+    view = std::min(std::max(view, 0), std::max(g_window_slots - shown, 0));
+    if (void *widget = GetWidget(screen, view + 1)) {
+        field<void *>(screen, 0x38) = widget;
+        Reposition(screen);
+    }
     game::RefreshWidgets(screen);
 }
 
-void redraw_window(void *screen, int cursor_slot) {
-    if (g_window_mixed) rebuild_window(screen, cursor_slot);
-    else game::RefreshWidgets(screen);
-}
-
-// Up / down in a windowed page. In the middle of the window the game moves the focus. At its ends it would leave the list or wrap
-// around inside the few widgets there are, so the window slides instead (the focus stays on the slot, which shows the next row),
-// and only at the ends of the page does the game's own wrap-around run: after the window was put at the other end.
-// Returns true when the message was handled here.
+// Up / down in a windowed page. The next row the cursor can go to is worked out here, with rows that are greyed out skipped and the ends of the
+// page wrapping around. The game moves the focus itself when that row is a widget further along in the window (it skips greyed out widgets
+// the same way). Otherwise the window slides to put the row in view (at the slot nearest to where the cursor was coming from), the widgets
+// are made again, and the cursor goes to the row. Returns true when the message was handled here.
 bool handle_window_scroll(void *screen, unsigned msg) {
     void *current = field<void *>(screen, 0x34);  // UIWidgetMenu::pCurrentOption
     if (!current || (field<void **>(current, 0) != g_row_vtbl && field<void **>(current, 0) != g_slider_vtbl)) return false;
-    const int slots = g_window_slots;
-    const int slot = field<int>(current, kRowIndex);
-    const int max_offset = g_window_rows - slots;
-    if (msg == kPadDown && slot == slots - 1) {
-        if (g_row_offset < max_offset) {
-            ++g_row_offset;
-            redraw_window(screen, slot);
-            update_scroll_bar(screen);
-            return true;
-        }
-        g_row_offset = 0;  // the game wraps to the first widget
-        redraw_window(screen, slot);
-    } else if (msg == kPadUp && slot == 0) {
-        if (g_row_offset > 0) {
-            --g_row_offset;
-            redraw_window(screen, slot);
-            update_scroll_bar(screen);
-            return true;
-        }
-        g_row_offset = max_offset;  // the game wraps to the last widget
-        redraw_window(screen, slot);
+    const int slots = g_window_slots, rows = g_window_rows, list = window_list_rows();
+    const int direction = msg == kPadDown ? 1 : -1;
+    const int row = field<int>(current, kRowIndex) + g_row_offset;
+    int target = row;
+    bool wrapped = false, found = false;
+    for (int step = 0; step < rows - 1 && !found; ++step) {
+        target += direction;
+        if (target >= rows) target = 0, wrapped = true;
+        if (target < 0) target = rows - 1, wrapped = true;
+        found = row_is_enabled(g_page, target);
     }
-    return false;
+    if (!found) return false;
+    const bool in_view = target >= g_row_offset && target < g_row_offset + slots;
+    if (in_view && !wrapped) return false;  // the game's own step lands on it
+    int offset = g_row_offset;
+    if (target < offset) offset = target;
+    else if (target >= offset + slots) offset = target - slots + 1;
+    offset = std::min(std::max(offset, 0), list - slots);
+    g_row_offset = offset;
+    rebuild_window(screen, target - offset);
+    update_scroll_bar(screen);
+    return true;
+}
+
+// Called every frame on a windowed page: the rows that can be reached may have become fewer (Vibration turned off greys out the rows below it), and
+// the window then goes back to where the last of them is in view. Not from the row's own change, which is running in a widget that is about to
+// be made again.
+void fit_window(void *screen) {
+    const int max_offset = window_list_rows() - g_window_slots;
+    if (g_row_offset <= max_offset) return;
+    void *current = field<void *>(screen, 0x34);
+    const int slot = current ? field<int>(current, kRowIndex) : 0;
+    const int row = slot + g_row_offset;
+    g_row_offset = max_offset;
+    rebuild_window(screen, std::min(std::max(row - g_row_offset, 0), g_window_slots - 1));
+    update_scroll_bar(screen);
 }
 
 bool g_redirect_switch = false;  // the screen switch the page's exit makes goes to g_exit_callback instead
@@ -1069,6 +1120,7 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
             return;
         }
         if (msg == kScreenTick) {
+            if (g_windowed && self == g_options_screen) fit_window(self);
             if (g_hint_pending_screen == self) {
                 g_hint_pending_screen = nullptr;
                 add_help_hint(self);
@@ -1081,6 +1133,7 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
             const DWORD now = GetTickCount();
             if (down && !was_down && !g_help_dialog_open && static_cast<LONG>(now - last_ms) > 400) {
                 last_ms = now;
+                log_line("Help requested (%s)", (GetAsyncKeyState('2') & 0x8000) || (GetAsyncKeyState(VK_NUMPAD2) & 0x8000) ? "key 2" : "controller X");
                 show_help_for_current_row(self);
             }
             was_down = down;

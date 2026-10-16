@@ -13,7 +13,7 @@ Look Left = Katso vasemmalle
 Look Right = Katso oikealle
 Look Up = Katso ylös
 Look Down = Katso alas
-Turns rumble on or off. This is the game's own Vibration setting, kept in your profile. = Kytkee tärinän päälle tai pois. Tämä on pelin oma värähtelytoiminto, joka tallentuu profiiliisi.
+Enable controller vibration. = Ota ohjaimen värinä käyttöön.
 
 Left Stick Dead Zone = Vasemman tikun kuollut alue
 Right Stick Dead Zone = Oikean tikun kuollut alue

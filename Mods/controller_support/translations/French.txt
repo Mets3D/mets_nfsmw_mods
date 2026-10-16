@@ -13,7 +13,7 @@ Look Left = Voir à gauche
 Look Right = Voir à droite
 Look Up = Voir en haut
 Look Down = Voir en bas
-Turns rumble on or off. This is the game's own Vibration setting, kept in your profile. = Active ou désactive la vibration. C'est le réglage Vibration du jeu, conservé dans votre profil.
+Enable controller vibration. = Activer la vibration de la manette.
 
 Left Stick Dead Zone = Zone morte stick gauche
 Right Stick Dead Zone = Zone morte stick droit

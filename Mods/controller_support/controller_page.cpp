@@ -8,7 +8,7 @@
 namespace pad {
 namespace opt = nfsmw::custom_menus;
 // ------------------------------------------------------------------------------------------------
-// Controller Options: a page of nfsmw_custom_menus (which builds the screen and asks for the page when the Options menu first opens),
+// Settings: a page of nfsmw_custom_menus (which builds the screen and asks for the page when the Options menu first opens),
 // reached from the Controls screen's hint (controls_options.cpp) for the selected controller. The style of the button prompts it
 // gets, three sliders for the dead zones of its sticks and triggers (device_settings.h), then, with rumble, the game's own Vibration setting and one slider per effect with
 // its level, 0-100. Changing a level plays a sample of the effect at the new level, through the same path the game uses.
@@ -18,15 +18,9 @@ namespace {
 constexpr unsigned kControlsIconTexture = 0xA04A7B26;  // OPTIONS_ICON_CONTROLS: until there is an OPTIONS_RUMBLE
 constexpr unsigned kVibrationText = 0xDDDC5E1B;            // "Vibration": the game's name for the Rumble option
 constexpr unsigned kOnText = 0x417B2604, kOffText = 0x70DFE5C2;
-constexpr uintptr_t kFEDatabase = 0x91CF90, kPlayerToEdit = 0x91CA24;
 
-// The edited player's PlayerSettings (cFrontendDatabase::GetPlayerSettings: 0x14 bytes each from the options settings
-// +0x80); +0x4 is Rumble, the Vibration option. The game's own Options screens compare and restore it with the rest.
-unsigned char *edited_player_settings() {
-    unsigned char *options = static_cast<unsigned char *>(field<void *>(*reinterpret_cast<void **>(kFEDatabase), 0x10));
-    return options + 0x80 + *reinterpret_cast<int *>(kPlayerToEdit) * 0x14;
-}
-bool vibration_option() { return edited_player_settings()[0x4] != 0; }
+// Vibration is the controller's own setting (rumble.h), not the game's player setting (which nothing in the PC menus changes).
+bool vibration_option() { return rumble::vibration(rumble::edit_slot()); }
 
 // The rows: the three dead zones, then (when rumble works) Vibration and the effects.
 enum FixedRow { kPrompts, kLeftStick, kRightStick, kTrigger, kFixedRows };
@@ -48,6 +42,7 @@ button_icons::Style &prompts_style() { return device_settings::prompts(rumble::e
 int g_opened_levels[rumble::E_COUNT];  // the values when the page opened: what was last accepted (and is in the ini)
 device_settings::Deadzones g_opened_deadzones;
 button_icons::Style g_opened_prompts;
+bool g_opened_vibration = true;
 
 bool page_available() { return true; }
 
@@ -55,6 +50,7 @@ void page_opened() {
     for (int e = 0; e < rumble::E_COUNT; ++e) g_opened_levels[e] = percent_of(e);
     g_opened_deadzones = device_settings::deadzones(rumble::edit_slot());
     g_opened_prompts = prompts_style();
+    g_opened_vibration = g_rumble_rows ? vibration_option() : true;
 }
 
 unsigned page_value(int row, char *out, unsigned out_size) {
@@ -88,7 +84,7 @@ void page_change(int row, int direction, bool fine) {
     if (row == vibration_row()) {
         const bool on = direction > 0;
         if (vibration_option() == on) return;
-        edited_player_settings()[0x4] = on;
+        rumble::set_vibration(rumble::edit_slot(), on);
         log_line("Vibration %s", on ? "on" : "off");
         if (on) rumble::play_preview(0);  // as the console version does when Vibration is turned on
         return;
@@ -110,7 +106,8 @@ float page_fill(int row) {
 bool page_changed() {
     const device_settings::Deadzones &now = device_settings::deadzones(rumble::edit_slot());
     if (now.left_stick != g_opened_deadzones.left_stick || now.right_stick != g_opened_deadzones.right_stick ||
-        now.trigger != g_opened_deadzones.trigger || prompts_style() != g_opened_prompts)
+        now.trigger != g_opened_deadzones.trigger || prompts_style() != g_opened_prompts ||
+        (g_rumble_rows && vibration_option() != g_opened_vibration))
         return true;
     for (int e = 0; e < rumble::E_COUNT; ++e)
         if (percent_of(e) != g_opened_levels[e]) return true;
@@ -126,6 +123,7 @@ void page_accept() {
 void page_discard() {
     device_settings::deadzones(rumble::edit_slot()) = g_opened_deadzones;
     prompts_style() = g_opened_prompts;
+    if (g_rumble_rows) rumble::set_vibration(rumble::edit_slot(), g_opened_vibration);
     for (int e = 0; e < rumble::E_COUNT; ++e) rumble::set_level(rumble::edit_slot(), e, g_opened_levels[e] / 100.0f);
 }
 
@@ -133,8 +131,11 @@ void page_defaults() {
     device_settings::deadzones(rumble::edit_slot()) = device_settings::Deadzones{};
     prompts_style() = button_icons::Style::kXbox;
     for (int e = 0; e < rumble::E_COUNT; ++e) rumble::set_level(rumble::edit_slot(), e, rumble::kEffects[e].def / 100.0f);
-    if (g_rumble_rows) edited_player_settings()[0x4] = 1;
+    if (g_rumble_rows) rumble::set_vibration(rumble::edit_slot(), true);
 }
+
+// The rumble levels mean nothing with Vibration off: greyed out.
+bool page_row_enabled(int row) { return effect_of_row(row) < 0 || vibration_option(); }
 
 opt::Row g_rows[kFixedRows + 1 + rumble::E_COUNT];
 char g_help[rumble::E_COUNT][400];
@@ -157,8 +158,7 @@ void pad::controller_page::provide(const nfsmw::custom_menus::Host *host) {
                         "Hold Shift or LB for finer steps."};
     int rows = kFixedRows;
     if (g_rumble_rows) {
-        g_rows[rows++] = {opt::kValueRow, "Vibration", kVibrationText, "Turns rumble on or off. This is the game's own "
-                          "Vibration setting, kept in your profile."};
+        g_rows[rows++] = {opt::kValueRow, "Vibration", kVibrationText, "Enable controller vibration."};
         for (int e = 0; e < rumble::E_COUNT; ++e) {
             snprintf(g_help[e], sizeof(g_help[e]), "%s Hold Shift or LB for finer steps.", rumble::kEffects[e].help);
             g_rows[rows++] = {opt::kSliderRow, rumble::kEffects[e].label, 0, g_help[e]};
@@ -168,6 +168,6 @@ void pad::controller_page::provide(const nfsmw::custom_menus::Host *host) {
     g_page = {"controller", "Controller", "CONTROLLER", "CONTROLLER INFO", nfsmw::texture_hash("OPTIONS_RUMBLE"),
               kControlsIconTexture,  // the Controller icon until there is an OPTIONS_RUMBLE
               g_pack_path, rows, g_rows, page_available, page_opened, page_value,
-              page_change, page_changed, page_accept, page_discard, page_defaults, opt::kHidden, page_fill};
+              page_change, page_changed, page_accept, page_discard, page_defaults, opt::kHidden, page_fill, page_row_enabled};
     host->register_page(&g_page);
 }

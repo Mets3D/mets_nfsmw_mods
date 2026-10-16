@@ -13,7 +13,7 @@ Look Left = Links kijken
 Look Right = Rechts kijken
 Look Up = Omhoog kijken
 Look Down = Omlaag kijken
-Turns rumble on or off. This is the game's own Vibration setting, kept in your profile. = Zet trilling aan of uit. Dit is de trilinstelling van het spel zelf, opgeslagen in je profiel.
+Enable controller vibration. = Controllertrilling inschakelen.
 
 Left Stick Dead Zone = Dode zone linkerstick
 Right Stick Dead Zone = Dode zone rechterstick

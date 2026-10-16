@@ -27,7 +27,7 @@ bool controller_selected(void *screen) { return field<int>(screen, kColumn) == 3
 
 // The page was left: back to the Controls screen. The controller is selected again on its first tick.
 void back_to_controls() {
-    log_line("Controls menu: leaving the Controller Options page, switching back to the Controls screen");
+    log_line("Controls menu: leaving the Settings page, switching back to the Controls screen");
     using SwitchFn = void(__attribute__((thiscall)) *)(void *feng, const char *pkg, int arg, unsigned msg, bool flag);
     reinterpret_cast<SwitchFn>(kQueuePackageSwitch)(*reinterpret_cast<void **>(kFEng),
                                                     g_in_game ? "Pause_PC_Controller.fng" : "Options_PC_Controller.fng",
@@ -48,7 +48,7 @@ unsigned filter_message(void *screen, unsigned message) {
         if (g_return_pad >= 0) {  // a new Controls screen: the controller we came from
             const int pad = g_return_pad;
             g_return_pad = -1;
-            log_line("Controls menu: back from the Controller Options page, selecting controller %d again", pad + 1);
+            log_line("Controls menu: back from the Settings page, selecting controller %d again", pad + 1);
             pad_sets::show_device(screen, 3, pad);
         }
         return message;
@@ -76,7 +76,7 @@ bool on_device_switch(void *screen) {
     g_pending = false;
     g_in_game = field<unsigned char>(screen, kInGame) != 0;
     g_return_pad = pad_sets::menu_pad();
-    log_line("Controls menu: opening the Controller Options page of controller %d (%s layout)", g_return_pad + 1, g_in_game ? "pause menu" : "main menu");
+    log_line("Controls menu: opening the Settings page of controller %d (%s layout)", g_return_pad + 1, g_in_game ? "pause menu" : "main menu");
     g_host->open_page("controller", g_in_game, &back_to_controls);
     return true;
 }

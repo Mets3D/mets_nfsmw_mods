@@ -252,22 +252,24 @@ int rumble_slot_of_joystick(int index) {
 // What tells the controller in an XInput slot from another of the same kind ("045E_02DD_<serial>"), or false when nothing does (the slot
 // is all there is: a controller that has no serial of its own, Steam's virtual controller, a slot with nothing in it).
 bool identity_of_slot(int slot, char *out, size_t size) {
-    const DeviceKind *only = nullptr;
+    const char *single = nullptr;  // the id of the only XInput controller, if there is one
     int xinput_devices = 0;
     for (int k = 0, n = pad_sets::joystick_count(); k < n; ++k) {
         void *device = pad_sets::joystick_di_device(k);
         if (!device || !is_xinput_device(device)) continue;
         ++xinput_devices;
+        const char *id = "";
         for (int i = 0; i < g_device_count; ++i)
-            if (g_devices[i].device == device) only = &g_devices[i];
-        if (own_slot_unlogged(device) == slot && only && only->id[0]) {
-            snprintf(out, size, "%s", only->id);
+            if (g_devices[i].device == device) id = g_devices[i].id;
+        single = id;
+        if (id[0] && own_slot_unlogged(device) == slot) {
+            snprintf(out, size, "%s", id);
             return true;
         }
     }
     // A single XInput controller: the game cannot tell which slot it is, it is the one in use.
-    if (xinput_devices == 1 && only && only->id[0] && slot == settings_slot(-1)) {
-        snprintf(out, size, "%s", only->id);
+    if (xinput_devices == 1 && single[0] && slot == settings_slot(-1)) {
+        snprintf(out, size, "%s", single);
         return true;
     }
     return false;
@@ -276,31 +278,9 @@ bool identity_of_slot(int slot, char *out, size_t size) {
 // All connected XInput controllers as one: any button, each stick axis and trigger from the pad pushing it furthest.
 // An empty slot is asked about again every 2 seconds at most (that is slow).
 bool read_merged(xinput::Gamepad *out) {
-    static bool connected[4];
-    static DWORD next_scan = 0;
-    const DWORD now = GetTickCount();
-    const bool scan = static_cast<LONG>(now - next_scan) >= 0;
-    if (scan) next_scan = now + 2000;
-    const auto furthest = [](SHORT a, SHORT b) { return std::abs(static_cast<int>(b)) > std::abs(static_cast<int>(a)) ? b : a; };
-    xinput::Gamepad merged = {};
-    bool any = false;
-    for (int i = 0; i < 4; ++i) {
-        if (!connected[i] && !scan) continue;
-        xinput::Gamepad p;
-        connected[i] = xinput::read_slot(i, &p);
-        if (!connected[i]) continue;
-        any = true;
-        if (in_use(p)) xinput::port = i;  // the controller in use is the one that rumbles
-        merged.buttons |= p.buttons;
-        merged.left_trigger = p.left_trigger > merged.left_trigger ? p.left_trigger : merged.left_trigger;
-        merged.right_trigger = p.right_trigger > merged.right_trigger ? p.right_trigger : merged.right_trigger;
-        merged.lx = furthest(merged.lx, p.lx);
-        merged.ly = furthest(merged.ly, p.ly);
-        merged.rx = furthest(merged.rx, p.rx);
-        merged.ry = furthest(merged.ry, p.ry);
-    }
-    *out = merged;
-    return any;
+    return xinput::read_any(out, [](int slot, const xinput::Gamepad &p) {
+        if (in_use(p)) xinput::port = slot;  // the controller in use is the one that rumbles
+    });
 }
 
 void report_at_rest(JoyState &s) {

@@ -10,9 +10,9 @@ namespace pad::rumble {
 
 // One level per effect, 0-100 (per controller: see below): how hard the motors run in an ordinary instance of the effect (a solid
 // hit, a normal drift, the moment NOS kicks in; bigger ones stay at that level). The same number means the same strength for
-// every effect, and the Controller Options page plays exactly that when a level changes; 0 is off. The last number of each line is the
+// every effect, and the Settings page plays exactly that when a level changes; 0 is off. The last number of each line is the
 // default, the one a controller starts with and Defaults restores. [rumble] enabled is read at start-up. The levels are edited in
-// the Controller Options page (controller_page.cpp) and reloaded whenever the ini changes.
+// the Settings page (controller_page.cpp) and reloaded whenever the ini changes.
 const EffectInfo kEffects[E_COUNT] = {
     {"collisions", "Collisions",
      "Hitting walls, cars and objects: a jolt, harder the more the hit slows your car down (small props barely "
@@ -36,7 +36,8 @@ const EffectInfo kEffects[E_COUNT] = {
 constexpr int kSlots = 4;
 bool g_rumble_enabled = true;
 float g_levels[kSlots][E_COUNT];  // 0..1
-int g_edit_slot = 0;              // the controller the Controller Options page edits
+bool g_vibration[kSlots] = {true, true, true, true};  // rumble on, per controller
+int g_edit_slot = 0;              // the controller the Settings page edits
 FILETIME g_ini_time{};
 
 void section_of(int slot, char *out, size_t n) { snprintf(out, n, "rumble_%s", device_settings::key_of(slot)); }
@@ -50,6 +51,7 @@ FILETIME ini_write_time() {
 void load_slot_levels(int slot) {
     char section[64];
     section_of(slot, section, sizeof(section));
+    g_vibration[slot] = GetPrivateProfileIntA(section, "vibration", 1, g_ini) != 0;
     for (int e = 0; e < E_COUNT; ++e)
         g_levels[slot][e] = clamp01(ini_float(kEffects[e].key, static_cast<float>(kEffects[e].def), section) / 100.0f);
 }
@@ -66,6 +68,7 @@ void load_rumble_levels() {
 void save_rumble_levels(int slot) {
     char section[64];
     section_of(slot, section, sizeof(section));
+    WritePrivateProfileStringA(section, "vibration", g_vibration[slot] ? "1" : "0", g_ini);
     for (int e = 0; e < E_COUNT; ++e) {
         char value[16];
         snprintf(value, sizeof(value), "%d", static_cast<int>(lroundf(g_levels[slot][e] * 100.0f)));
@@ -94,6 +97,8 @@ void load_settings() {
 int clamp_slot(int slot) { return slot >= 0 && slot < kSlots ? slot : 0; }
 float level(int slot, int effect) { return g_levels[clamp_slot(slot)][effect]; }
 void set_level(int slot, int effect, float value) { g_levels[clamp_slot(slot)][effect] = clamp01(value); }
+bool vibration(int slot) { return g_vibration[clamp_slot(slot)]; }
+void set_vibration(int slot, bool on) { g_vibration[clamp_slot(slot)] = on; }
 int edit_slot() { return g_edit_slot; }
 void set_edit_slot(int slot) { g_edit_slot = clamp_slot(slot); }
 void save_levels(int slot) { save_rumble_levels(clamp_slot(slot)); }
@@ -141,7 +146,7 @@ bool on_ground(const void *surface) {
 
 // Motors. Both run at the same level: an effect's level is simply how hard the controller shakes. Only the rumble
 // thread talks to the controller: in a race the game thread just sets the level it should play (each frame), and
-// the Controller Options page's previews are played by the thread itself, so a crash and its preview reach the controller the same
+// the Settings page's previews are played by the thread itself, so a crash and its preview reach the controller the same
 // way. The thread also stops the motors when the game stops updating (loading, a hang).
 // Two players can rumble (the second one reads the extra device, see extra_device.h); g_cur is the one the game thread is
 // working on, set at every entry from the game (the feedback objects know their player).
@@ -238,7 +243,7 @@ DWORD WINAPI rumble_thread(void *) {
         // to 0 every few frames, which made every effect in a race feel weak.)
         for (int player = 0; player < 2; ++player) {
             float level = 0.0f;
-            const LONG effect = player == 0 ? g_preview_effect : -1;  // the Controller Options page plays on player 1's controller
+            const LONG effect = player == 0 ? g_preview_effect : -1;  // the Settings page plays on player 1's controller
             const DWORD preview_start = g_preview_start, last_update = g_last_rumble_update[player];
             const LONG preview_age = static_cast<LONG>(GetTickCount() - preview_start);
             const LONG update_age = static_cast<LONG>(GetTickCount() - last_update);
@@ -332,7 +337,6 @@ void start_scrape(int effect, float strength) {
 }
 
 // The player's Vibration setting, read before each DoFFB (see hook_do_ffb).
-bool g_vibration_on[2] = {true, true};
 
 void update_rumble() {
     LARGE_INTEGER now, freq;
@@ -410,8 +414,8 @@ void update_rumble() {
         if (rs().scrape < 0.02f) rs().scrape = 0.0f;
     }
 
-    // The player's Vibration setting off, an idle controller or the game in the background: no rumble.
-    if (!g_vibration_on[g_cur] || (g_cur == 0 && !pad_in_use()) || !game_in_foreground()) out = 0.0f;
+    // The controller's Vibration setting off, an idle controller or the game in the background: no rumble.
+    if (!vibration(player_slot(g_cur)) || (g_cur == 0 && !pad_in_use()) || !game_in_foreground()) out = 0.0f;
     set_motors(out);
 }
 
@@ -557,14 +561,14 @@ int player_gear(void *player) {
     return transmission ? static_cast<int>(call_method(transmission, 1)) : -1;
 }
 
-// The player's Vibration setting: PlayerSettings (LocalPlayer::GetSettings 0x6E99A0, this = the view at +0x4C of
-// DoFFB's) +0x4. The PC build's CanDoFFB fetches the settings but never checks the flag (only OnCollision does), so
-// DoFFB keeps feeding the feedback object with Vibration off.
+// The game's own Vibration setting, the player's: PlayerSettings (LocalPlayer::GetSettings 0x6E99A0, this = SetControllerPort's view) +0x4.
+// Only LocalPlayer::OnCollision looks at it (the PC build's CanDoFFB fetches the settings but never checks the flag), and there is no way to
+// change it in the PC game's menus; the controller's own setting (device_settings, the Settings page) is what counts, so the game's is put on
+// whenever a player gets their controller (SetControllerPort: each race, after the profile's settings were loaded) to let the collisions through.
 constexpr uintptr_t kGetSettings = 0x6E99A0;
-bool vibration_setting(void *player) {
-    const auto get = reinterpret_cast<const unsigned char *(FASTCALL *)(void *, void *)>(kGetSettings);
-    const unsigned char *settings = get(static_cast<char *>(player) + 0x4C, nullptr);
-    return !settings || settings[0x4] != 0;
+void keep_game_vibration_on(void *view) {
+    const auto get = reinterpret_cast<unsigned char *(FASTCALL *)(void *, void *)>(kGetSettings);
+    if (unsigned char *settings = get(view, nullptr)) settings[0x4] = 1;
 }
 
 // Our feedback object in front of the player's (`ffb` is the player's field for it): the first for the player with a game
@@ -600,7 +604,6 @@ void FASTCALL hook_do_ffb(void *player, void *edx) {
     if (index >= 0) {
         g_cur = index;
         rs().gear = player_gear(player);
-        g_vibration_on[index] = vibration_setting(player);
     }
     void *&wheel = field<void *>(player, 0x5C);
     void *const saved = wheel;
@@ -622,6 +625,7 @@ SetPortFn g_orig_set_controller_port;
 void FASTCALL hook_set_controller_port(void *player, void *edx, int port) {
     port = extra_device::port_for_player(port);  // the second player reads the extra device
     g_orig_set_controller_port(player, edx, port);
+    keep_game_vibration_on(player);
     install_feedback(field<void *>(player, 0x0C), port);
 }
 
