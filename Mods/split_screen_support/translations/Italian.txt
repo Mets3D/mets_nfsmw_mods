@@ -1,0 +1,5 @@
+# Italian texts of nfsmw_split_screen_support. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Copy this folder to <game>/scripts/mets_mods/translations/split_screen_support/.
+
+Minimap = Minimappa
+Shows or hides your minimap while you drive. = Mostra o nasconde la minimappa durante la guida.

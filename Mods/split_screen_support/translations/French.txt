@@ -1,0 +1,5 @@
+# French texts of nfsmw_split_screen_support. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Copy this folder to <game>/scripts/mets_mods/translations/split_screen_support/.
+
+Minimap = Minicarte
+Shows or hides your minimap while you drive. = Affiche ou masque ta minicarte pendant la conduite.

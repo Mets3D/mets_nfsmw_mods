@@ -22,7 +22,7 @@ nfsmw_add_plugin(nfsmw_controller_support SOURCES controller_support/src/main.cp
 nfsmw_add_plugin(nfsmw_dev_tools SOURCES dev_tools/src/main.cpp dev_tools/src/diagnostics.cpp dev_tools/src/quick_start.cpp)  # for making mods: logs, quicker start-up
 target_link_libraries(nfsmw_dev_tools PRIVATE shell32)
 nfsmw_add_plugin(nfsmw_example_options_page SOURCES custom_menus/example_options_page/src/main.cpp)  # an example of a page for nfsmw_custom_menus (not part of set_mods.py)
-nfsmw_add_plugin(nfsmw_split_screen_support SOURCES split_screen_support/src/main.cpp split_screen_support/src/menu_entry.cpp split_screen_support/src/fixes.cpp split_screen_support/src/state_log.cpp split_screen_support/src/events.cpp split_screen_support/src/players.cpp split_screen_support/src/split_view.cpp split_screen_support/src/minimap.cpp)  # two player split screen: the Quick Race menu entry and the fixes it needs
+nfsmw_add_plugin(nfsmw_split_screen_support SOURCES split_screen_support/src/main.cpp split_screen_support/src/menu_entry.cpp split_screen_support/src/fixes.cpp split_screen_support/src/state_log.cpp split_screen_support/src/events.cpp split_screen_support/src/players.cpp split_screen_support/src/split_view.cpp split_screen_support/src/minimap.cpp split_screen_support/src/minimap_option.cpp)  # two player split screen: the Quick Race menu entry and the fixes it needs
 foreach(mod nfsmw_custom_menus nfsmw_camera_settings nfsmw_controller_support nfsmw_dev_tools nfsmw_example_options_page nfsmw_split_screen_support)
     target_include_directories(${mod} PRIVATE "${COMMON}")
 endforeach()

@@ -9,7 +9,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 3. Pick the cars, the track and the options, and race.
 
 ## Features
-- Each player gets their own minimap and minimap color, not present in the base game. Can be turned off in the [.ini](nfsmw_split_screen_support.ini) (`use_split_minimap`).
+- Each player gets their own minimap and minimap color, not present in the base game. With [Custom Menus](../custom_menus/ReadMe.md) installed, each player can hide their own minimap in **Options > Player > Minimap**. Can be turned off in the [.ini](nfsmw_split_screen_support.ini) (`use_split_minimap`).
 - Each player can fully control their own camera.
 - Either player can invoke the pause menu, and change their keybinds during a race.
 - Each player's screen renders with its own shadows, reflection cubemap, geometry culling.
@@ -27,7 +27,6 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - For supported controllers, see the [Controller Support](../controller_support/ReadMe.md) mod - The game natively supports Xbox controllers, and for everything else, Steam Input is tested and works as a translation layer.
 
 ## TODO
-- Each minimap should be toggle-able per player, Options -> Player.
 - CPU racers in split screen races?
 - Allow AI to control one of, or even both the players? Maybe an option that Dev Tools adds in the Player menu? I believe this is already implemented in some mod on an esoteric hotkey for singleplayer.
 

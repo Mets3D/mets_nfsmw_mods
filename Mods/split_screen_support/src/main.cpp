@@ -8,6 +8,7 @@
  *   fixes.cpp          the changes that let the race load and show
  *   split_view.cpp     the screen in two: the world drawn once per player, each player's shadow map
  *   minimap.cpp        a minimap for each player, a colour for each player's marker
+ *   minimap_option.cpp the Options > Player > Minimap row: each player can hide their own minimap
  *   players.cpp        which controller is whose (XInput), player 1's alone reaches the game
  *   state_log.cpp      a log of the player count, devices and view mode
  *   events.cpp         the game functions several parts need (world load, each frame)
@@ -21,6 +22,7 @@
 #include "fixes.h"
 #include "menu_entry.h"
 #include "minimap.h"
+#include "minimap_option.h"
 #include "players.h"
 #include "split_view.h"
 #include "state_log.h"
@@ -43,6 +45,7 @@ NFSMW_PLUGIN_MAIN() {
     fixes::install();
     split_view::install();
     if (ini_flag("options", "use_split_minimap")) minimap::install();
+    minimap_option::install();
     players::install();  // before state_log: the world load log shows its ports
     state_log::install();
     events::install();
