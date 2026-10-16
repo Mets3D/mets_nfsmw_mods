@@ -5,6 +5,15 @@
 
 namespace pad::input {
 
+struct DeviceInstance {  // DIDEVICEINSTANCEA
+    DWORD size;
+    GUID instance, product;
+    DWORD type;  // the low byte is the DirectInput 8 device type: 0x12 mouse, 0x13 keyboard, 0x14-0x18 game controllers
+    char instance_name[260], product_name[260];
+    GUID ff_driver;
+    WORD usage_page, usage;
+};
+
 // Hooks DirectInput's GetDeviceState. Done on the game's first input poll rather than at load time, so DirectInput is
 // never started from inside the loader.
 void hook_dinput();

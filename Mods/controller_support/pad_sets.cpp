@@ -32,6 +32,8 @@ int joystick_count() {
     return n;
 }
 
+void *joystick_object(int index) { return joystick(index); }
+
 void *joystick_di_device(int index) {
     void *object = joystick(index);
     return object ? field<void *>(object, 0x468) : nullptr;
@@ -147,9 +149,22 @@ bool actions_of_slot(int xinput_slot, float *values) {
     for (int k = 0; k < n && pad < 0; ++k)
         if (input::xinput_slot_of_joystick(k) == xinput_slot) pad = k;
     if (pad < 0 && n >= 1 && no_xinput_slot_resolved()) pad = 0;  // one game controller: all pads share it
-    if (pad < 0) return false;
+    // Said once per XInput controller and reason: a second player's controller that does nothing is easier to explain with this.
+    static bool said_no_pad[4], said_no_state[4];
+    const int said = xinput_slot >= 0 && xinput_slot < 4 ? xinput_slot : 0;
+    if (pad < 0) {
+        if (!said_no_pad[said]) log_line("XInput controller %d drives nothing of its own: no game controller reports it (%d game controller(s))", xinput_slot + 1, n);
+        said_no_pad[said] = true;
+        return false;
+    }
+    said_no_pad[said] = false;
     xinput::Gamepad state;
-    if (!xinput::read_slot(xinput_slot, &state)) return false;
+    if (!xinput::read_slot(xinput_slot, &state)) {
+        if (!said_no_state[said]) log_line("XInput controller %d cannot be read (disconnected?)", xinput_slot + 1);
+        said_no_state[said] = true;
+        return false;
+    }
+    said_no_state[said] = false;
     for (int e = 0; e < kBindingCount; ++e) {
         values[e] = 0.0f;
         for (int s = 0; s < 2; ++s) {
@@ -209,7 +224,9 @@ NameFn g_orig_name;
 int g_direction = 1;  // 1 next, -1 previous
 using MessageFn = void(FASTCALL *)(void *, void *, unsigned, void *, unsigned, unsigned);
 MessageFn g_orig_message;
+void *g_screen = nullptr;  // the Controls screen, while it is open
 void FASTCALL hook_message(void *screen, void *edx, unsigned message, void *object, unsigned a, unsigned b) {
+    g_screen = screen;
     message = controls_options::filter_message(screen, message);
     if (message == 0x5073EF13) g_direction = -1;      // PAD_LTRIGGER
     else if (message == 0xD9FEEC59) g_direction = 1;  // PAD_RTRIGGER
@@ -233,6 +250,30 @@ void show_device(void *screen, int new_column, int pad) {
     }
 }
 
+// A controller was added to the game's list: the open Controls screen shows it (the header names the controller by its number).
+// The screen hides its device elements (object 0x8A41F5B9: the shoulder button prompts and the Settings hint, with the script HIDE) when it is built
+// with no controller; they come back with the first one, by one of the object's own scripts.
+void controllers_changed() {
+    if (!g_screen) return;
+    const char *package = field<const char *>(g_screen, 0x10);
+    const auto find_object = reinterpret_cast<void *(*)(const char *, unsigned)>(0x524850);  // FEngFindObject
+    const auto find_script = reinterpret_cast<void *(FASTCALL *)(void *, void *, unsigned)>(0x5B1360);  // FEObject::FindScript
+    const auto set_script = reinterpret_cast<void (*)(void *, unsigned, bool)>(0x514D10);    // FEngSetScript
+    void *object = package ? find_object(package, 0x8A41F5B9) : nullptr;
+    if (object && joystick_count() > 0) {
+        for (const char *name : {"SHOW", "INIT", "ON", "NORMAL"}) {
+            const unsigned hash = nfsmw::bstring_hash(name);
+            if (!find_script(object, nullptr, hash)) continue;
+            set_script(object, hash, true);
+            log_line("Controls menu: the device elements are shown again (script %s)", name);
+            break;
+        }
+    } else {
+        log_line("Controls menu: device elements %s", object ? "not touched (no controller)" : "not found");
+    }
+    show_device(g_screen, field<int>(g_screen, 0xE4), g_menu_pad);
+}
+
 // The device switch: keyboard, controller 1, controller 2 ... in a circle, in the direction of the button.
 void FASTCALL hook_switch_device(void *screen, void *edx) {
     (void)edx;
@@ -250,6 +291,7 @@ void FASTCALL hook_switch_device(void *screen, void *edx) {
 
 // The screen closes: controller 0's set goes back in the live table (the profile saves that one).
 void *FASTCALL hook_delete_screen(void *screen, void *edx, int flags) {
+    if (screen == g_screen) g_screen = nullptr;
     select(0);
     g_menu_pad = 0;
     return g_orig_delete(screen, edx, flags);

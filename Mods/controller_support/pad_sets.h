@@ -13,6 +13,7 @@
 namespace pad::pad_sets {
 
 int joystick_count();                  // controllers in the game's joystick table
+void *joystick_object(int index);      // the game's object of one (null past the last)
 void *joystick_di_device(int index);   // the DirectInput device of one (the game's own object has it at +0x468)
 int joystick_of_device(void *di_device);  // its index in the table, or -1
 bool actions_of_slot(int xinput_slot, float *values);  // the entries' values a controller asks for through its set
@@ -20,6 +21,7 @@ bool actions_of_keyboard(float *values);  // the same for the keyboard (the keyb
 int menu_pad();                        // the controller the Controls screen shows (0 when it shows the keyboard)
 // Shows the keyboard (column 1) or controller `pad` (column 3) on the Controls screen: swaps its set in, redraws the rows and header.
 void show_device(void *screen, int column, int pad);
+void controllers_changed();            // the game's list of controllers grew: the open Controls screen is redrawn
 int live_pad();                        // whose set the live table holds (0 unless the Controls screen shows another)
 void restrict_vehicle_entries(float *entry_values);  // after add_values: the vehicle entries from player 1's device alone
 void add_values(float *entry_values);  // after the game polled: what the other controllers' sets say, per entry

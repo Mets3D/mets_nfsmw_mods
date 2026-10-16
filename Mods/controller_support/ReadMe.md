@@ -29,7 +29,8 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 ### Several controllers
 - With more than one controller connected, each controller can be customized separately. Each has their own dead zone, rumble, and button mapping stored separately.
 - In single-player, all input devices (keyboard and all controllers) can control the game at the same time.
-- Controller settings are stored per hardware serial number, as long as the device has one. Steam Input's virtual controller does not - instead, its data is stored per controller slot, 1 to 4.
+- Controller settings are stored per controller identity, as long as it has one. This ID is defined by the OS, and it can be defined by connecting USB port instead of actual device hardware ID. Steam Input's virtual controller has no ID. In such cases, its data is stored per controller slot, 1 to 4.
+- Controllers can be connected while the game is running, no need to restart like in vanilla.
 - This mod fully integrates with my [Split Screen Support](../split_screen_support/ReadMe.md) mod, so everything will work like you would expect from a video game that has split screen: Both players can pause the game, control the menus, control their own cameras, have their own controller customization as described above.
 
 ### Menu Navigation
@@ -65,7 +66,6 @@ Enable = 0
 - Incompatible: NFS-XtendedInput, potentially other similar mods that mess with controller functions.
 
 ## TODOs
-- When a new device is connected after the game is already launched, it does not get initialized - Game must be restarted. Would be nicer if this wasn't the case.
 - BUG: Map navigation isn't quite right: Cursor is not always snapping to events, and if it does, when moved away, it snaps back when letting go of the stick. Also, LB/RB don't zoom nicely like LT/RT does.
 - Could be cool to add a display of the current analogue activation levels under the deadzone sliders, like just a tiny 3px green bar or something.
 - I'd be curious about the throttle's activation curve, I think I'd like to change it, it feels like it activates a bit suddenly quite deep into the trigger pull right now.

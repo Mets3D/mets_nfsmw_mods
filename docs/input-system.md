@@ -11,6 +11,12 @@ Marks: [read] disassembly, [tested] confirmed in game or by a crash, [guess].
 - **GameDevice** (0x1858 bytes, vtable 0x8A7B9C) [read]: `+0x24` port, `+0x18` input records (256 × 16 bytes from `+0x34`; a record is
   `{1, name hash, index, float* into current}`), `+0x1C` previous / `+0x20` current values (0x400 bytes each), `+0x1838` record count, `+0x184C` a component.
   Only the **first** device gets its tables from the constructor, and `InitInputs` / `PollDevice` do nothing for port != 0.
+- **Joystick discovery** [read, tested: connecting controllers while the game runs works]: `GameDevice::GlobalInit` makes the DirectInput wrapper (`InputManager`, 0x9203B4; `+0xB4` the IDirectInput8) whose constructor enumerates every
+  attached device once with `0x7F1A6B`. For a device of type 0x14-0x18 that callback makes a 0x4A4-byte joystick object (ctor 0x7F2735: DirectInput device at `+0x468`, data format, registers itself with
+  the manager, which polls its devices every frame), numbers it, and passes it to the callback of GlobalInit (0x6283D0), which appends it to the joystick table (0x91F150, count 0x9203B8). Nothing
+  enumerates again, so a controller connected later is unknown. `new_controllers.cpp` runs `0x7F1A6B` itself for an attached game controller the table does not have. For the first controller
+  it also does what `GameDevice::InitInputs` does for joystick 0: its resting state into 0x91F1E8 (the Controls screen's rebinding compares with it), then `0x63CD80` (the defaults of its model); then the profile's
+  saved bindings (`UserProfile::BindingsIO_B` 0x56E200, copy kept by a hook on it) go over those again, as the profile load does at start-up. FEngine's pad count is a constant 1 (0x51692F). The Controls screen builds with its device elements (object 0x8A41F5B9) hidden (script HIDE 0x16A259) when there is no joystick; `controllers_changed` in `pad_sets.cpp` shows them again. DirectInput does not say which XInput slot a device is, and its list order is not the slot order (a slot is the first free one): `input.cpp` pairs them when a device's buttons match exactly one slot's (`learn_slot`).
 - **Extra device** [tested]: a second GameDevice from `GameDevice::Create`, tables and records set up by hand, appended to the IOModule, filled each frame in
   `PollDevice`'s hook (`Mods/controller_support/extra_device.cpp`). Gives a second player an input path of the game's own.
 

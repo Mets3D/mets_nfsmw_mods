@@ -35,13 +35,15 @@ const GUID kGUID_SysKeyboard = {0x6F1D2B61, 0xD5A0, 0x11CF, {0xBF, 0xC7, 0x44, 0
 using GetDeviceStateFn = HRESULT(WINAPI *)(void *, DWORD, void *);
 using GetPropertyFn = HRESULT(WINAPI *)(void *, const GUID *, void *);
 GetDeviceStateFn g_orig_get_device_state = nullptr;
+using PollFn = HRESULT(WINAPI *)(void *);
+PollFn g_orig_poll_device = nullptr;
 
 // Which DirectInput devices are XInput controllers: their device path contains "IG_". Steam Input's virtual controller
 // (vendor 28DE, product 11FF) is one too: it is the pad's XInput controller as DirectInput shows it.
 struct DeviceKind {
     void *device;
     bool xinput;
-    char id[40];  // what tells this controller from another of the same kind (see identity_of_path), or empty
+    GUID guid;  // the DirectInput instance (the same device keeps it when it is unplugged and connected again)
 };
 DeviceKind g_devices[16];
 int g_device_count = 0;
@@ -68,9 +70,15 @@ bool identity_of_path(const WCHAR *path, char *out, size_t size) {
     return true;
 }
 
-bool is_xinput_device(void *device) {
-    for (int i = 0; i < g_device_count; ++i)
-        if (g_devices[i].device == device) return g_devices[i].xinput;
+// What a DirectInput controller is: whether it is an XInput controller (Steam's virtual one counts), and for one that can be told
+// apart from others of its kind its identity (see identity_of_path; empty otherwise). Logs nothing and remembers nothing.
+bool describe_device(void *device, GUID *guid, char *id, size_t id_size, char *log_text, size_t log_size) {
+    id[0] = 0;
+    DeviceInstance info = {};
+    info.size = sizeof(info);
+    using GetInfoFn = HRESULT(WINAPI *)(void *, DeviceInstance *);
+    if (reinterpret_cast<GetInfoFn>((*static_cast<void ***>(device))[15])(device, &info) >= 0) *guid = info.instance;
+    else *guid = GUID{};
     struct {
         DWORD size, header_size, obj, how;  // DIPROPHEADER
         GUID guid_class;
@@ -96,13 +104,29 @@ bool is_xinput_device(void *device) {
     const bool have_ids = get_property(device, kVidPid, &vid_pid) >= 0;
     const bool steam_virtual = have_ids && vid_pid.data == 0x11FF28DE;
     xinput = xinput || steam_virtual;
-    log_line("DirectInput controller %p: %s (vendor %04lx product %04lx, path %ls)", device,
+    snprintf(log_text, log_size, "%s (vendor %04lx product %04lx, path %ls)",
              xinput ? (steam_virtual ? "XInput controller (Steam's virtual controller)" : "XInput controller") : "other controller",
              have_ids ? vid_pid.data & 0xFFFF : 0, have_ids ? vid_pid.data >> 16 : 0, hr >= 0 ? prop.path : L"?");
-    DeviceKind kind = {device, xinput, ""};
-    if (xinput && !steam_virtual && hr >= 0 && identity_of_path(prop.path, kind.id, sizeof(kind.id)))
-        log_line("DirectInput controller %p can be told apart: %s", device, kind.id);
-    if (g_device_count < 16) g_devices[g_device_count++] = kind;
+    if (xinput && !steam_virtual && hr >= 0) identity_of_path(prop.path, id, id_size);
+    return xinput;
+}
+
+// Whether a device has already been seen to be an XInput controller (it asks nothing of the device, so it is safe for a keyboard, a mouse or
+// a controller that is gone).
+bool known_xinput_device(void *device) {
+    for (int i = 0; i < g_device_count; ++i)
+        if (g_devices[i].device == device) return g_devices[i].xinput;
+    return false;
+}
+
+bool is_xinput_device(void *device) {
+    for (int i = 0; i < g_device_count; ++i)
+        if (g_devices[i].device == device) return g_devices[i].xinput;
+    char id[40], text[600];
+    GUID guid;
+    const bool xinput = describe_device(device, &guid, id, sizeof(id), text, sizeof(text));
+    log_line("DirectInput controller %p: %s", device, text);
+    if (g_device_count < 16) g_devices[g_device_count++] = {device, xinput, guid};
     return xinput;
 }
 
@@ -187,32 +211,136 @@ bool in_use(const xinput::Gamepad &p) {
            p.left_trigger > 40 || p.right_trigger > 40;
 }
 
-// The XInput slot of one of the game's XInput controllers: they are the connected slots in order. -1 when there is only
-// one such controller (or this is not one): they then share the merged state.
-int own_slot_unlogged(void *device) {
-    // Which XInput slots have a controller, looked at again every 2 seconds (asking about an empty slot is slow).
-    static bool connected[4];
-    static DWORD next_scan = 0;
-    const DWORD now = GetTickCount();
-    const bool scan = static_cast<LONG>(now - next_scan) >= 0;
-    if (scan) {
-        next_scan = now + 2000;
-        for (int slot = 0; slot < 4; ++slot) {
-            xinput::Gamepad p;
-            connected[slot] = xinput::read_slot(slot, &p);
+// The XInput controllers DirectInput shows right now (the game lists its controllers once, at start-up; this asks again whenever an XInput slot
+// fills or empties, so a controller connected later is known too), and which XInput slot each one is. DirectInput does not say, and the
+// order of its list is not the order of the slots (a slot is the first free one when the controller connects): so a controller is paired with a
+// slot when its buttons are seen to be pressed together (`learned`), and the controllers not seen yet take the slots left, in list order.
+struct XPad {
+    GUID guid;
+    char id[40];  // what tells it from another of its kind (see identity_of_path), or empty
+    int learned;  // the slot whose buttons were seen to match, or -1
+    int slot;     // the slot it is taken to be, or -1
+};
+struct XInputList {
+    XPad pads[8];
+    int count = 0;
+};
+XInputList g_xinput_list;
+bool g_slot_connected[4];
+int g_listed_joysticks = -1;  // how many game controllers there were when DirectInput was last asked
+bool g_list_stale = true;  // the slots changed, or a game controller is missing from the list: DirectInput is asked again (on the game's thread)
+
+void assign_slots() {
+    bool claimed[4] = {};
+    for (int i = 0; i < g_xinput_list.count; ++i) {
+        XPad &p = g_xinput_list.pads[i];
+        p.slot = -1;
+        if (p.learned >= 0 && g_slot_connected[p.learned] && !claimed[p.learned]) claimed[p.slot = p.learned] = true;
+    }
+    int next = 0;
+    for (int i = 0; i < g_xinput_list.count; ++i) {
+        XPad &p = g_xinput_list.pads[i];
+        if (p.slot >= 0) continue;
+        while (next < 4 && (!g_slot_connected[next] || claimed[next])) ++next;
+        if (next < 4) claimed[p.slot = next] = true;
+    }
+}
+
+BOOL WINAPI collect_instance(const DeviceInstance *d, void *context) {
+    struct Found { GUID guids[16]; int count; } &found = *static_cast<Found *>(context);
+    if (found.count < 16) found.guids[found.count++] = d->instance;
+    return 1;  // DIENUM_CONTINUE
+}
+
+void list_xinput_devices() {
+    HMODULE dinput = GetModuleHandleA("dinput8.dll");
+    using CreateFn = HRESULT(WINAPI *)(HINSTANCE, DWORD, const GUID *, void **, void *);
+    const auto create = dinput ? reinterpret_cast<CreateFn>(reinterpret_cast<void *>(GetProcAddress(dinput, "DirectInput8Create"))) : nullptr;
+    void *di = nullptr;
+    if (!create || create(GetModuleHandleA(nullptr), 0x0800, &kIID_IDirectInput8A, &di, nullptr) < 0 || !di) return;
+    void **di_vtbl = *static_cast<void ***>(di);
+    using EnumDevicesFn = HRESULT(WINAPI *)(void *, DWORD, BOOL(WINAPI *)(const DeviceInstance *, void *), void *, DWORD);
+    using CreateDeviceFn = HRESULT(WINAPI *)(void *, const GUID *, void **, void *);
+    using ReleaseFn = ULONG(WINAPI *)(void *);
+    constexpr DWORD kClassGameControllers = 4, kAttachedOnly = 1;
+    struct { GUID guids[16]; int count; } found = {};
+    reinterpret_cast<EnumDevicesFn>(di_vtbl[4])(di, kClassGameControllers, &collect_instance, &found, kAttachedOnly);
+    g_listed_joysticks = pad_sets::joystick_count();
+    XInputList list;
+    for (int i = 0; i < found.count && list.count < 8; ++i) {
+        void *device = nullptr;
+        if (reinterpret_cast<CreateDeviceFn>(di_vtbl[3])(di, &found.guids[i], &device, nullptr) < 0 || !device) continue;
+        XPad &pad = list.pads[list.count];
+        char text[600];
+        GUID guid;
+        if (describe_device(device, &guid, pad.id, sizeof(pad.id), text, sizeof(text))) {
+            pad.guid = found.guids[i];
+            pad.learned = -1;
+            for (int k = 0; k < g_xinput_list.count; ++k)  // what was learned about it stays
+                if (!memcmp(&g_xinput_list.pads[k].guid, &pad.guid, sizeof(GUID))) pad.learned = g_xinput_list.pads[k].learned;
+            log_line("XInput controller %d as DirectInput shows it: %s%s%s", list.count + 1, text, pad.id[0] ? ", identity " : "", pad.id);
+            ++list.count;
         }
+        reinterpret_cast<ReleaseFn>((*static_cast<void ***>(device))[2])(device);
     }
-    int rank = 0, mine = -1;
-    for (int k = 0, n = pad_sets::joystick_count(); k < n; ++k) {
-        void *other = pad_sets::joystick_di_device(k);
-        if (!other || !is_xinput_device(other)) continue;
-        if (other == device) mine = rank;
-        ++rank;
+    reinterpret_cast<ReleaseFn>(di_vtbl[2])(di);
+    g_xinput_list = list;
+    assign_slots();
+}
+
+// Looks at the XInput slots every 2 seconds (asking about an empty slot is slow); any thread may.
+void update_xinput_list() {
+    static DWORD next = 0;
+    const DWORD now = GetTickCount();
+    if (static_cast<LONG>(now - next) < 0) return;
+    next = now + 2000;
+    bool changed = false;
+    for (int slot = 0; slot < 4; ++slot) {
+        xinput::Gamepad p;
+        const bool connected = xinput::read_slot(slot, &p);
+        if (connected != g_slot_connected[slot]) changed = true;
+        g_slot_connected[slot] = connected;
     }
-    if (mine < 0 || rank < 2) return -1;
-    for (int slot = 0; slot < 4; ++slot)
-        if (connected[slot] && mine-- == 0) return slot;
-    return -1;
+    if (!changed) return;
+    g_list_stale = true;
+    for (int i = 0; i < g_xinput_list.count; ++i) {
+        XPad &p = g_xinput_list.pads[i];
+        if (p.learned >= 0 && !g_slot_connected[p.learned]) p.learned = -1;  // the controller was unplugged: it may come back in another slot
+    }
+    assign_slots();
+}
+
+// The game thread, every poll: DirectInput is asked again when something changed (at most twice a second).
+void refresh_xinput_list() {
+    update_xinput_list();
+    static DWORD next = 0;
+    const DWORD now = GetTickCount();
+    if (!g_list_stale || static_cast<LONG>(now - next) < 0) return;
+    next = now + 500;
+    g_list_stale = false;
+    list_xinput_devices();
+}
+
+const XPad *pad_of_device(void *device) {
+    for (int i = 0; i < g_device_count; ++i) {
+        if (g_devices[i].device != device) continue;
+        for (int k = 0; k < g_xinput_list.count; ++k)
+            if (!memcmp(&g_xinput_list.pads[k].guid, &g_devices[i].guid, sizeof(GUID))) return &g_xinput_list.pads[k];
+    }
+    return nullptr;
+}
+
+// The XInput slot of one of the game's XInput controllers; -1 when there is only one such controller (or this is not one): they then share
+// the merged state; -2 when DirectInput no longer shows it (unplugged): it has nothing to say.
+int own_slot_unlogged(void *device) {
+    update_xinput_list();
+    if (!is_xinput_device(device) || g_xinput_list.count == 0) return -1;
+    const XPad *pad = pad_of_device(device);
+    if (!pad) {
+        if (pad_sets::joystick_count() != g_listed_joysticks) g_list_stale = true;  // it has just been added to the game (an unplugged one stays missing)
+        return g_xinput_list.count > 0 ? -2 : -1;
+    }
+    return g_xinput_list.count < 2 ? -1 : pad->slot;
 }
 
 int own_slot(void *device) {
@@ -249,30 +377,65 @@ int rumble_slot_of_joystick(int index) {
     return xinput::port >= 0 ? xinput::port : 0;
 }
 
-// What tells the controller in an XInput slot from another of the same kind ("045E_02DD_<serial>"), or false when nothing does (the slot
+// What tells the controller in an XInput slot from another of its kind ("045E_02DD_<serial>"), or false when nothing does (the slot
 // is all there is: a controller that has no serial of its own, Steam's virtual controller, a slot with nothing in it).
 bool identity_of_slot(int slot, char *out, size_t size) {
-    const char *single = nullptr;  // the id of the only XInput controller, if there is one
-    int xinput_devices = 0;
-    for (int k = 0, n = pad_sets::joystick_count(); k < n; ++k) {
-        void *device = pad_sets::joystick_di_device(k);
-        if (!device || !is_xinput_device(device)) continue;
-        ++xinput_devices;
-        const char *id = "";
-        for (int i = 0; i < g_device_count; ++i)
-            if (g_devices[i].device == device) id = g_devices[i].id;
-        single = id;
-        if (id[0] && own_slot_unlogged(device) == slot) {
-            snprintf(out, size, "%s", id);
-            return true;
-        }
-    }
-    // A single XInput controller: the game cannot tell which slot it is, it is the one in use.
-    if (xinput_devices == 1 && single[0] && slot == settings_slot(-1)) {
-        snprintf(out, size, "%s", single);
+    refresh_xinput_list();
+    for (int i = 0; i < g_xinput_list.count; ++i) {
+        const XPad &p = g_xinput_list.pads[i];
+        if (p.slot != slot || !p.id[0]) continue;
+        snprintf(out, size, "%s", p.id);
         return true;
     }
     return false;
+}
+
+// Which buttons are down, the same way for what DirectInput shows (ten buttons and the first hat) and for XInput: bits 0-9 A B X Y LB RB Back Start LS RS,
+// 10-13 up right down left.
+unsigned state_mask(const JoyState &s) {
+    unsigned mask = 0;
+    for (int i = 0; i < 10; ++i)
+        if (s.buttons[i] & 0x80) mask |= 1u << i;
+    const DWORD pov = s.pov[0] & 0xFFFF;
+    if (pov != 0xFFFF) {
+        if (pov <= 4500 || pov >= 31500) mask |= 1u << 10;
+        if (pov >= 4500 && pov <= 13500) mask |= 1u << 11;
+        if (pov >= 13500 && pov <= 22500) mask |= 1u << 12;
+        if (pov >= 22500 && pov <= 31500) mask |= 1u << 13;
+    }
+    return mask;
+}
+
+unsigned pad_mask(const xinput::Gamepad &p) {
+    const WORD order[10] = {xinput::kButtonA, xinput::kButtonB, xinput::kButtonX, xinput::kButtonY, xinput::kLeftShoulder,
+                            xinput::kRightShoulder, xinput::kBack, xinput::kStart, xinput::kLeftThumb, xinput::kRightThumb};
+    unsigned mask = 0;
+    for (int i = 0; i < 10; ++i)
+        if (p.buttons & order[i]) mask |= 1u << i;
+    if (p.buttons & xinput::kDpadUp) mask |= 1u << 10;
+    if (p.buttons & xinput::kDpadRight) mask |= 1u << 11;
+    if (p.buttons & xinput::kDpadDown) mask |= 1u << 12;
+    if (p.buttons & xinput::kDpadLeft) mask |= 1u << 13;
+    return mask;
+}
+
+// A game controller shows buttons down that exactly one XInput slot has down too: that slot is its controller.
+void learn_slot(void *device, const JoyState &raw) {
+    if (g_xinput_list.count < 2) return;
+    const unsigned mask = state_mask(raw);
+    if (!mask) return;
+    XPad *pad = const_cast<XPad *>(pad_of_device(device));
+    if (!pad) return;
+    int found = -1;
+    for (int slot = 0; slot < 4; ++slot) {
+        xinput::Gamepad p;
+        if (!g_slot_connected[slot] || !xinput::read_slot(slot, &p) || pad_mask(p) != mask) continue;
+        if (found >= 0) return;  // two controllers with the same buttons down: no telling
+        found = slot;
+    }
+    if (found < 0 || found == pad->learned) return;
+    pad->learned = found;
+    assign_slots();
 }
 
 // All connected XInput controllers as one: any button, each stick axis and trigger from the pad pushing it furthest.
@@ -330,7 +493,10 @@ void process_pad_state(void *device, JoyState *state) {
     // can be told apart, gets the merged state.
     xinput::Gamepad chosen = {};
     const bool replaced = g_cfg.use_all_xinput_controllers;
+    refresh_xinput_list();
     const int own = own_slot(device);
+    if (own == -2) return report_at_rest(s);  // unplugged: the game still has its object, but nothing to read
+    if (g_cfg.use_all_xinput_controllers) learn_slot(device, s);
     int dead_slot = own;  // whose dead zones: the controller's own, or with a single one (whose slot the game cannot tell) the one in use
     if (replaced) {
         const int slot = own;
@@ -459,8 +625,22 @@ bool install_game_level_joystick_hook() {
     return true;
 }
 
+// A DirectInput controller whose device went away (unplugged) fails to poll and to give its state, and the game then reads nothing from
+// its object; plugged back in, the same object (the game never makes a second one for the same device) may not recover. An XInput
+// controller's state comes from XInput here, not from the device, so for those the failures are turned into success: the game goes on
+// reading the object, and process_pad_state fills in what the XInput controller says.
+HRESULT WINAPI hook_poll_device(void *device) {
+    const HRESULT hr = g_orig_poll_device(device);
+    return hr < 0 && known_xinput_device(device) ? 0 : hr;
+}
+
 HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
-    const HRESULT hr = g_orig_get_device_state(device, size, data);
+    HRESULT hr = g_orig_get_device_state(device, size, data);
+    if (hr < 0 && data && (size == kJoyStateSize || size == kJoyState2Size) && known_xinput_device(device)) {
+        memset(data, 0, size);
+        report_at_rest(*static_cast<JoyState *>(data));
+        hr = 0;
+    }
     if (hr >= 0 && data && (size == kMouseStateSize || size == kMouseState2Size)) {
         if (device != g_own_mouse) g_other_mouse_seen = true;
         const LONG *mouse = static_cast<const LONG *>(data);
@@ -481,15 +661,6 @@ HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
 }
 
 // What DirectInput and XInput have attached, for the log: when a controller is not recognised, this is where to look.
-struct DeviceInstance {  // DIDEVICEINSTANCEA
-    DWORD size;
-    GUID instance, product;
-    DWORD type;
-    char instance_name[260], product_name[260];
-    GUID ff_driver;
-    WORD usage_page, usage;
-};
-
 BOOL WINAPI log_device(const DeviceInstance *d, void *) {
     // guidProduct = PID << 16 | VID, then a fixed tail
     log_line("DirectInput game controller: \"%s\" / \"%s\", vendor %04lx product %04lx, type %#lx", d->instance_name,
@@ -529,6 +700,10 @@ void hook_dinput() {
                                     reinterpret_cast<void **>(&g_orig_get_device_state));
         if (s == MH_OK) s = MH_EnableHook(target);
         log_line("GetDeviceState at %p: %s", target, s == MH_OK ? "hooked" : MH_StatusToString(s));
+        void *poll_target = (*static_cast<void ***>(keyboard))[25];
+        MH_STATUS p = MH_CreateHook(poll_target, reinterpret_cast<void *>(&hook_poll_device), reinterpret_cast<void **>(&g_orig_poll_device));
+        if (p == MH_OK) p = MH_EnableHook(poll_target);
+        log_line("Poll at %p: %s", poll_target, p == MH_OK ? "hooked" : MH_StatusToString(p));
         reinterpret_cast<ReleaseFn>((*static_cast<void ***>(keyboard))[2])(keyboard);
     } else {
         log_line("CreateDevice(keyboard) failed");

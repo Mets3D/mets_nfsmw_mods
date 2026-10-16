@@ -122,8 +122,8 @@
   },
   "0x56E200": {
     "name": "UserProfile::BindingsIO_B",
-    "confidence": "guess",
-    "note": "the other of save / load"
+    "confidence": "read",
+    "note": "cdecl (buffer, end): dword controller type (hash of joystick 0's name), entries 0-18 x 0x30 bytes over the live table; 0x63CD80 again when the type differs"
   },
   "0x627BB0": {
     "name": "GameDevice::GetEntryNameHash",
@@ -289,5 +289,30 @@
     "name": "UITrackMapStreamer::SetZoom",
     "confidence": "read",
     "note": "thiscall (bVector2* visible fraction x, y), ret 4: sets the zoom cubic (streamer +0x1C) and snaps it; SetPan 0x510E60 does the same for the pan cubic (+0x74, centre 0..1)"
+  },
+  "0x7F1889": {
+    "name": "InputManager::Get",
+    "confidence": "read",
+    "note": "makes the DirectInput wrapper once (0x9bb410); GlobalInit keeps it at 0x9203B4"
+  },
+  "0x7F1B3F": {
+    "name": "InputManager::InputManager",
+    "confidence": "read",
+    "note": "DirectInput8Create into +0xB4, then sub_7F1B26 enumerates every attached device with 0x7F1A6B; up to 0x20 devices at +0x20"
+  },
+  "0x7F1A6B": {
+    "name": "InputManager::EnumDevicesCallback",
+    "confidence": "read",
+    "note": "stdcall (DIDEVICEINSTANCE*, manager): type 0x12 mouse, 0x13 keyboard, 0x14-0x18 joystick (object of 0x4A4 bytes, ctor 0x7F2735); then the callback of GlobalInit (0x6283D0) files it"
+  },
+  "0x7F2735": {
+    "name": "JoystickDevice::JoystickDevice",
+    "confidence": "read",
+    "note": "thiscall (manager, DIDEVICEINSTANCE*): creates and sets up the DirectInput device (+0x468), registers itself with the manager (0x7F1DAA); polled every frame by the manager from then on"
+  },
+  "0x7F28A4": {
+    "name": "JoystickDevice::Poll",
+    "confidence": "tested",
+    "note": "vtable slot 4; 0x7F2927 after its GetDeviceState is our hook site"
   }
 }

@@ -11,6 +11,7 @@
  *   button_icons.cpp   controller pictures in the button prompts of the menus, instead of keyboard keys
  *   menu_buttons.cpp   A accepts, B goes back in the menus; X, View and Menu press the hotkeys 2, 3, 4; B quits from the main menu
  *   world_map.cpp      the world map: the right stick moves its cursor, LT and RT zoom
+ *   new_controllers.cpp controllers connected after the game started are handed to it like the first ones
  *   extra_device.cpp   a second game input device, so that a second local player has an input path of the game's own
  *   rumble.cpp         rumble (the force feedback events, the controller's motors)
  *   device_settings.cpp  the dead zones of each XInput controller
@@ -26,6 +27,7 @@
 #include "input.h"
 #include "look.h"
 #include "menu_buttons.h"
+#include "new_controllers.h"
 #include "pad.h"
 #include "rumble.h"
 #include "world_map.h"
@@ -45,6 +47,7 @@ NFSMW_PLUGIN_MAIN() {
     default_layout::patch_default_table();
     input::install_hooks();
     bindings::install_hooks();
+    new_controllers::install_hooks();
     pad_sets::install_hooks();
     look::install_hooks();
     button_icons::install_hooks();
