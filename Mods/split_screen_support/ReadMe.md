@@ -28,6 +28,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 
 ## TODO
 - CPU racers in split screen races?
+    - Along with all the options they might get in a Custom Game.
 - Allow AI to control one of, or even both the players? Maybe an option that Dev Tools adds in the Player menu? I believe this is already implemented in some mod on an esoteric hotkey for singleplayer.
 
 ### AI Disclaimer

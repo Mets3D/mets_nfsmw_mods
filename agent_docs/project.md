@@ -47,6 +47,10 @@ loader fails with "Error 126" (missing `libgcc_s_dw2-1.dll`).
   "Dummy Output", no default sink (`pactl info`, `wpctl status`). Not the mods: it happens with none loaded. `systemctl --user restart wireplumber pipewire pipewire-pulse` brought the outputs back and the game booted every time.
   How to tell: the boot flow has no current screen (`*0x91CF48` null or its screen unset) and `eFrameCounter` (0x982B78) / `RealTimeFrames` (0x8F82F4) do not advance. The other start-up stalls are the save-directory check
   waiting on a message (MemoryCard +0x14, see `menus-and-camera.md`) or never finishing.
+  After a suspend/resume this is the usual cause (the audio stack comes back without outputs). `Tools/linux/restart-user-audio.sh` + `.service` fix it system-wide: a oneshot service ordered after the suspend/hibernate
+  targets that, for each user with no real default sink, restarts WirePlumber (then the whole PipeWire stack). Install (root, from the repo root): `sudo install -m 755 Tools/linux/restart-user-audio.sh /usr/local/bin/restart-user-audio &&
+  sudo install -m 644 Tools/linux/restart-user-audio.service /etc/systemd/system/ && sudo restorecon -v /usr/local/bin/restart-user-audio /etc/systemd/system/restart-user-audio.service && sudo systemctl daemon-reload &&
+  sudo systemctl enable restart-user-audio.service`; log: `journalctl -t restart-user-audio`.
 - On the copy with the widescreen fix and other mods (`AllMods/`), always keep those other mods on: without them the game renders no 3D and garbled text.
 - Direct3D 9: patching the device's vtable gets reverted within ~13 frames on this install; hook the `d3d9.dll` function bodies with MinHook. The device
   pointer is `[0x982BDC]`.

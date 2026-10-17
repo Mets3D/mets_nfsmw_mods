@@ -30,6 +30,7 @@ Style g_frame_style = Style::kXbox;
 // A prompt picture of the game and its controller versions (the texture hashes).
 struct Hashes {
     unsigned pc, xbox, playstation, nintendo;
+    std::string screen;  // only on the screens whose package file name has this in it ("L1@WorldMap" in prompts.ini); empty: everywhere
 };
 std::vector<Hashes> g_hashes;
 unsigned g_quit_key, g_back_key, g_back_key_french;  // the picture hashes of the "Quit" (Q) and "Back" (Esc) prompts
@@ -42,9 +43,12 @@ bool g_quit_available = false;  // what the last frame showed
 bool g_pack_tried = false;
 bool g_pack_loaded = false;  // the texture pack with the controller pictures is in the game
 
+const char *g_package_file = "";  // the package whose objects are being walked: its file name
+
 // An FEng object: type at +0x18, flags at +0x1C, the texture (for an image) at +0x24.
 constexpr unsigned kType = 0x18, kFlags = 0x1C, kTexture = 0x24;
 constexpr int kImage = 1;
+constexpr unsigned kPackageFile = 0x38;  // FEPackage: pointer to the file name (the decomp's +0x44)
 constexpr unsigned kTextureChanged = 0x2400000;  // flags the engine needs to pick up a new texture
 constexpr unsigned kInvisible = 1;               // the game's FEngSetInvisible sets this (and the changed flags) on an object
 
@@ -60,6 +64,7 @@ char __stdcall visit_object(void *object) {
     unsigned &texture = field<unsigned>(object, kTexture);
     const bool visible = (field<unsigned>(object, kFlags) & kInvisible) == 0;
     for (const Hashes &h : g_hashes) {
+        if (!h.screen.empty() && !strstr(g_package_file, h.screen.c_str())) continue;
         if (texture != h.pc && texture != h.xbox && texture != h.playstation && texture != h.nintendo) continue;
         if (visible) {
             if (h.pc == g_quit_key) g_quit_prompt_seen = true;
@@ -104,6 +109,8 @@ void FASTCALL hook_update(void *engine, void *edx, int ticks, unsigned lock) {
         const CallbackVtable *callback = &vtable;  // the callback object: its first member is the table
         g_quit_prompt_seen = g_back_prompt_seen = false;
         for (void *package = field<void *>(engine, 0xE0); package;) {
+            const char *file = field<const char *>(package, kPackageFile);
+            g_package_file = file && !IsBadReadPtr(file, 1) ? file : "";
             ForAllObjects(package, nullptr, &callback);
             void *next = field<void *>(package, 4);
             if (next == package) break;
@@ -153,10 +160,13 @@ void load_prompts() {
         return nfsmw::texture_hash((std::string(style_name(section)) + "_" + prompt).c_str());
     };
     for (const std::string &prompt : all) {
-        const unsigned pc = nfsmw::texture_hash(prompt.c_str());
+        const size_t at = prompt.find('@');
+        const unsigned pc = nfsmw::texture_hash(prompt.substr(0, at).c_str());
         g_hashes.push_back({pc, has(xbox, prompt) ? hash_in("xbox", prompt) : pc, has(playstation, prompt) ? hash_in("playstation", prompt) : pc,
-                            has(nintendo, prompt) ? hash_in("switch", prompt) : pc});
+                            has(nintendo, prompt) ? hash_in("switch", prompt) : pc, at == std::string::npos ? "" : prompt.substr(at + 1)});
     }
+    // The ones for a screen come first: they are tried before the same prompt's picture for every screen.
+    std::stable_partition(g_hashes.begin(), g_hashes.end(), [](const Hashes &h) { return !h.screen.empty(); });
     log_line("button icons: %u prompts from %s%s", static_cast<unsigned>(all.size()), path,
              all.empty() ? " (missing or empty: the pictures stay as the game has them)" : "");
 }

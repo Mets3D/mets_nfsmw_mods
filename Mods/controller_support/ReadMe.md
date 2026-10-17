@@ -36,7 +36,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 - Automatically switch to controller button prompts as soon as controller input is detected, and vice versa.
 - Button prompts show Xbox buttons by default. Each controller has its own prompt style: if [Custom Menus](../custom_menus/ReadMe.md) is installed, you can switch a controller to PlayStation or Nintendo Switch button prompts via **Options > Controls > the controller > Settings > Controller Prompts**, and the prompts follow whichever controller you touched last.
 - The world map can be panned with the right stick, and zoomed with the shoulder buttons/triggers.
-- In the showroom, the triggers zoom the car view by how far they are pulled, and the shoulder buttons zoom like a trigger pulled fully.
+- In the showroom, the triggers zoom the car view smoothly instead of stepped zoom levels.
 
 ### Translations
 - The texts this mod adds to the UI (via the [Custom Menus](../custom_menus/ReadMe.md) mod), such as the Settings page, the camera look input mappings, and the controller button names, are translated into the game's nine other PC languages.
@@ -63,9 +63,6 @@ RightStickDeadzone = 0
 Enable = 0
 ```
 - Incompatible: `NFS-XtendedInput`, potentially other similar mods that mess with controller functions.
-
-## TODOs
-- Add pictures and videos showcasing the mod to this ReadMe.
 
 ### AI Disclaimer
 

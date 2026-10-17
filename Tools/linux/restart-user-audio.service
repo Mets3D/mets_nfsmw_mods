@@ -1,0 +1,10 @@
+[Unit]
+Description=Restart user audio (PipeWire) after resume if it has no output
+After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/restart-user-audio
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
