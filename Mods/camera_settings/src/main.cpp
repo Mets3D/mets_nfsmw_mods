@@ -103,6 +103,7 @@ enum Param { P_ENABLED, P_MIRROR, P_FOV, P_SPEED, P_SMOOTH, P_ACCEL, P_HEIGHT, P
 constexpr bool is_toggle(int i) { return i == P_ENABLED || i == P_MIRROR; }
 constexpr int kNumPresets = 7;
 
+constexpr int kHoodPreset = 1;  // index in kPresetName
 const char *kPresetName[kNumPresets] = {"bumper", "hood", "close", "far", "super_far", "drift", "pursuit"};
 const char *kKey[NPARAM] = {"enabled", "mirror", "fov", "speed_fov", "smoothing", "acceleration", "height", "lag", "angle", "tilt"};
 const char *kLabel[NPARAM] = {"Enabled", "Mirror", "FOV", "Speed FoV", "Smoothing", "Acceleration", "Height", "Distance", "Pitch", "Tilt"};
@@ -132,8 +133,8 @@ struct Range {
 const Range kRange[NPARAM] = {
     {-1.0f, 1.0f, 2.0f, 2.0f},      // enabled
     {-1.0f, 1.0f, 2.0f, 2.0f},      // mirror
-    {20.0f, 140.0f, 5.0f, 1.0f},    // FOV
-    {0.0f, 50.0f, 5.0f, 1.0f},      // speed FoV, degrees at full speed (the game has no value of its own: base is 0)
+    {20.0f, 115.0f, 5.0f, 1.0f},    // FOV (with Speed FoV, 160 is the most: kMaxFov)
+    {0.0f, 45.0f, 5.0f, 1.0f},      // speed FoV, degrees at full speed (the game has no value of its own: base is 0)
     {10.0f, 400.0f, 10.0f, 1.0f},   // smoothing, percent of the game's (base 100)
     {0.0f, 300.0f, 10.0f, 1.0f},    // acceleration, percent of the game's (base 100)
     {0.0f, 8.0f, 0.25f, 0.05f},     // height
@@ -273,11 +274,13 @@ void ini_save() {
     }
 }
 
-// ---- Speed FoV: wider FoV and a camera dollied toward the car, growing with the car's speed ----
-constexpr unsigned kAnchorVelMag = 0x10;  // CameraAnchor: speed of the car in m/s (written by CameraAnchor::Update)
-constexpr float kFullSpeed = 300.0f / 3.6f; // m/s (300 km/h) where the effect reaches its full strength
-constexpr float kMaxFov = 140.0f;         // the FoV row's maximum
-constexpr float kSpeedFovEase = 0.04f;       // per GetPov call (~110/s): the effect eases in and out over ~0.2 s
+// ---- Speed FoV: a wider FoV with the car's speed, and the camera moved to suit it ----
+constexpr unsigned kAnchorVelMag = 0x10;      // CameraAnchor: speed of the car in m/s (written by CameraAnchor::Update)
+constexpr float kFullSpeed = 300.0f / 3.6f;   // m/s (300 km/h) where the effect reaches its full strength
+constexpr float kSpeedFovEase = 0.04f;        // per GetPov call (~110/s): the effect eases in and out over ~0.2 s
+constexpr float kMaxFov = 160.0f;             // the most the FoV row and Speed FoV add up to
+constexpr float kDollyShare = 0.48f;          // chase views: the share of the dolly zoom that is applied (0 = none, 1 = all)
+constexpr float kHalfRad = 3.14159265f / 360.0f;  // degrees to radians, halved (for tan(fov / 2))
 
 struct SpeedState {
     void *anchor;
@@ -285,6 +288,12 @@ struct SpeedState {
 };
 SpeedState g_speed[2];  // one per player's anchor
 
+// Widens the FoV by up to `max_gain_deg` with the car's speed. Chase views (Lag behind the car, negative) also move toward
+// the car: a dolly zoom keeps distance * tan(fov / 2) constant, so the car keeps its size on screen while the background
+// widens. All of it brings the camera too close, so a share of it is applied, as a blend of the old distance and the
+// dolly-zoomed one: distance * (1 - share * (1 - tan(old / 2) / tan(new / 2))). The share is a fit to distances picked by
+// eye for 80 to 160 degrees (5.0 m at 80, then 4.6, 4.2, 3.9, 3.7, 3.5, 3.3, 3.1 and 3.0 m every 10 degrees; the formula
+// is within 0.1 m of them). The bumper and hood views have no distance to the car to keep, so only their FoV changes.
 void apply_speed_fov(void *anchor, Pov *p, float max_gain_deg) {
     SpeedState *st = nullptr;
     for (SpeedState &s : g_speed)
@@ -296,15 +305,27 @@ void apply_speed_fov(void *anchor, Pov *p, float max_gain_deg) {
     float target = field<float>(anchor, kAnchorVelMag) / kFullSpeed;
     target = target < 0.0f ? 0.0f : (target > 1.0f ? 1.0f : target);
     st->t += (target - st->t) * kSpeedFovEase;
-    // Dolly zoom: distance * tan(fov / 2) stays constant, so the car keeps its size on screen while the
-    // background widens; the camera moves in by tan(old / 2) / tan(new / 2). Only the square root of that is
-    // used: the full amount left the camera so close that braking made it overshoot above the car.
+
     const float old_deg = ang_to_deg(p->fov);
     float new_deg = old_deg + max_gain_deg * st->t;
     if (new_deg > kMaxFov) new_deg = kMaxFov > old_deg ? kMaxFov : old_deg;
-    constexpr float kHalfRad = 3.14159265f / 360.0f;
-    if (old_deg > 1.0f) p->lag *= sqrtf(tanf(old_deg * kHalfRad) / tanf(new_deg * kHalfRad));
+    if (old_deg > 1.0f && p->lag < 0.0f)
+        p->lag *= 1.0f - kDollyShare * (1.0f - tanf(old_deg * kHalfRad) / tanf(new_deg * kHalfRad));
     p->fov = deg_to_ang(new_deg);
+}
+
+// The hood view clips into the car's bonnet as the FoV widens, so the eye rises and moves forward. These are fits to
+// values picked by eye on the Porsche Carrera (FoV: height and distance added to its 1.23 m and 0.2 m):
+// 100: +0, +0.2   115: +0.1, +0.3   125: +0.2, +0.3   135: +0.3, +0.4   145: +0.5, +0.4   160: +0.8, +0.4.
+// They follow the total FoV (the FoV row plus Speed FoV), so a high FoV setting raises the hood view even when standing
+// still. Height: nothing up to 105 degrees, then quadratic. Distance: levels off at 0.4 m, starting from 80 degrees.
+void adjust_hood(Pov *p) {
+    const float deg = ang_to_deg(p->fov);
+    if (deg > 105.0f) {
+        const float x = deg - 105.0f;
+        p->height += 0.00917f * x + 0.0000833f * x * x;
+    }
+    if (deg > 80.0f) p->lag += 0.4f * (1.0f - expf(-(deg - 80.0f) / 29.0f));
 }
 
 // ---- GetPov hook: apply the changes to the preset the game just built ----
@@ -329,6 +350,7 @@ Pov *FASTCALL hook_getpov(void *self, void *edx, int type) {
         for (int i = 0; i < NPARAM; ++i)
             if (g_ovr[type].set[i]) apply_field(p, i, resolved(g_ovr[type], i, now[i]));
         if (g_ovr[type].set[P_SPEED]) apply_speed_fov(self, p, resolved(g_ovr[type], P_SPEED, 0.0f));
+        if (type == kHoodPreset) adjust_hood(p);
     }
     return p;
 }
