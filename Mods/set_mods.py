@@ -5,6 +5,7 @@ usage: python set_mods.py --mode all|ours|none --game <dir> [--only mod ...]
   ours = original mod set + our mods: custom_menus (the Options menu framework), camera_settings and
          controller_support, with their texture packs
   none = no plugins at all
+Each mod's .ini is copied to scripts/mets_mods/ when the install has none yet (an existing one keeps the settings being tested).
 --game is the game install to act on (no default: always pass it); a game running from that install is closed first (its .asi
 files are loaded from disk while it runs, and a changed one crashes it), unless --keep-running is given. --only says which of our
 mods go there
@@ -138,6 +139,11 @@ def main():
                 copy_replace(MODS_DIR / 'build' / f'{name}.tpk', data / f'{name}.tpk')
             else:
                 (data / f'{name}.tpk').unlink(missing_ok=True)
+        for mod in args.only:  # a mod's settings file, only when the install has none yet (the ones there hold the settings being tested)
+            for ini in (MODS_DIR / mod).glob('*.ini'):
+                if not (data / ini.name).exists():
+                    shutil.copy2(ini, data / ini.name)
+                    print(f'copied {ini.name} to {data}')
         if 'controller_support' in args.only:
             run_last_line([sys.executable, str(MODS_DIR.parent / 'Tools' / 'button_pack.py'),
                             str(BUTTONS_DIR), str(MODS_DIR / 'build' / f'{BUTTONS_PACK}.tpk'), BUTTONS_PACK.upper()])
