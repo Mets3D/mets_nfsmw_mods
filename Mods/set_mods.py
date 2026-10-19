@@ -9,7 +9,7 @@ usage: python set_mods.py --mode all|ours|none --game <dir> [--only mod ...]
 files are loaded from disk while it runs, and a changed one crashes it), unless --keep-running is given. --only says which of our
 mods go there
 (folder names of Mods/, default the first three; dev_tools and split_screen_support are only added when asked for):
-  python set_mods.py --mode ours --game "../Game Versions/SomeMods" --only controller_support
+  python set_mods.py --mode ours --game "<path to the game install>" --only controller_support
 """
 import argparse
 import os
