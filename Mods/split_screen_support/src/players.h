@@ -1,6 +1,6 @@
 // Who plays with which device. The PC game reads every controller and the keyboard as one device for player 1, so it
 // cannot tell the players apart; this part can: XInput tells the controllers apart, and the keyboard is seen
-// through nfsmw_controller_support.
+// through mets_controller_support.
 #pragma once
 
 #include "xinput.h"

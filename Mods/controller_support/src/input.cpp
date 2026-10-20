@@ -200,7 +200,7 @@ int last_pad_slot() { return g_last_pad_slot; }
 // DirectInput device, and which DirectInput device is which XInput slot cannot be told; reporting the same state on all
 // of them makes that not matter.
 // ------------------------------------------------------------------------------------------------
-volatile LONG g_vehicle_source = nfsmw::controller_api::kDefault;  // see nfsmw_controller_support_vehicle_source
+volatile LONG g_vehicle_source = nfsmw::controller_api::kDefault;  // see mets_controller_support_vehicle_source
 
 // Whether the keyboard reaches the game, and the keyboard as DirectInput last showed it, wanted or not.
 BYTE g_real_keyboard[256];
@@ -857,7 +857,7 @@ void install_hooks() {
 // Which device drives player 1's vehicle: an XInput controller (0-3), kSourceKeyboard, or kDefault (every device). The other
 // devices still reach the game, and drive its menus; only the vehicle entries of the binding table (pad_sets.cpp) are
 // taken from this device alone.
-extern "C" __declspec(dllexport) void nfsmw_controller_support_vehicle_source(int source) {
+extern "C" __declspec(dllexport) void mets_controller_support_vehicle_source(int source) {
     using namespace pad;
     if (InterlockedExchange(&input::g_vehicle_source, source) == source) return;
     if (source >= 0) log_line("player 1's vehicle: XInput controller %d only (asked for by another mod)", source + 1);
@@ -865,7 +865,7 @@ extern "C" __declspec(dllexport) void nfsmw_controller_support_vehicle_source(in
     else log_line("player 1's vehicle: every device (asked for by another mod)");
 }
 
-extern "C" __declspec(dllexport) int nfsmw_controller_support_keyboard_state(unsigned char *out) {
+extern "C" __declspec(dllexport) int mets_controller_support_keyboard_state(unsigned char *out) {
     using namespace pad;
     if (!input::g_keyboard_seen || !out) return 0;
     memcpy(out, input::g_real_keyboard, 256);

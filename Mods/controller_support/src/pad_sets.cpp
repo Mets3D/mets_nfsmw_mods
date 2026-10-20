@@ -322,4 +322,4 @@ void install_hooks() {
 
 }  // namespace pad::pad_sets
 
-extern "C" __declspec(dllexport) int nfsmw_controller_support_live_pad() { return pad::pad_sets::live_pad(); }
+extern "C" __declspec(dllexport) int mets_controller_support_live_pad() { return pad::pad_sets::live_pad(); }

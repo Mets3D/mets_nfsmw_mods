@@ -23,12 +23,22 @@ from pathlib import Path
 
 MODS_DIR = Path(__file__).resolve().parent
 ALL_MODS = ['custom_menus', 'camera_settings', 'controller_support', 'dev_tools', 'split_screen_support']
-ALL_ASIS = [f'nfsmw_{m}.asi' for m in ALL_MODS]
+# The file name of a mod's plugin, when it is not nfsmw_<mod>.asi. The loader loads a folder's plugins alphabetically, and the
+# controller support must load before the widescreen fix ("NFSMostWanted...") to turn off one of its options before it is read.
+ASI_NAMES = {'controller_support': 'mets_controller_support.asi'}
+OLD_ASIS = ['nfsmw_controller_support.asi', '!nfsmw_controller_support_early.asi']  # names it had before: removed from the install
+
+
+def asi_name(mod):
+    return ASI_NAMES.get(mod, f'nfsmw_{mod}.asi')
+
+
+ALL_ASIS = [asi_name(m) for m in ALL_MODS]
 # Texture packs: <name>.tpk in the data folder, built from the PNGs of a folder in Mods/ (the texture's name is the file's)
 PACKS = [
     {'mod': 'custom_menus', 'name': 'nfsmw_custom_menus', 'pngs': 'custom_menus/NFSMW_*.png'},  # the live bar under a slider (a flat green)
     {'mod': 'camera_settings', 'name': 'nfsmw_camera_settings', 'pngs': 'camera_settings/OPTIONS_*.png'},  # the Options > Camera icon
-    {'mod': 'controller_support', 'name': 'nfsmw_controller_support', 'pngs': 'controller_support/OPTIONS_*.png'},  # the Options > Rumble icon
+    {'mod': 'controller_support', 'name': 'mets_controller_support', 'pngs': 'controller_support/OPTIONS_*.png'},  # the Options > Rumble icon
 ]
 BUTTONS_DIR = MODS_DIR / 'controller_support' / 'buttons'
 BUTTONS_PACK = 'nfsmw_controller_buttons'
@@ -117,9 +127,11 @@ def main():
     data.mkdir(parents=True, exist_ok=True)
     shutil.rmtree(game / 'nfsmw_mods', ignore_errors=True)  # where the previous layout kept them
 
-    ours = [n for n in ALL_ASIS if n[len('nfsmw_'):-len('.asi')] in args.only]
+    ours = [asi_name(m) for m in ALL_MODS if m in args.only]
 
     off.mkdir(parents=True, exist_ok=True)
+    for n in OLD_ASIS:
+        (on / n).unlink(missing_ok=True)
     for asi in on.glob('*.asi'):
         move_force(asi, off)
     if args.mode in ('all', 'ours'):
@@ -160,7 +172,7 @@ def main():
 
     for pack in PACKS:
         (on / f"{pack['name']}.tpk").unlink(missing_ok=True)  # where older versions put them
-    for n in ALL_ASIS:
+    for n in ALL_ASIS + OLD_ASIS:
         (off / n).unlink(missing_ok=True)
 
     active = sorted(p.name for p in on.glob('*.asi'))

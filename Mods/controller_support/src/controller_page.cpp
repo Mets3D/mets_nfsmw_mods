@@ -183,7 +183,7 @@ void pad::controller_page::provide(const nfsmw::custom_menus::Host *host) {
             g_rows[rows++] = {opt::kSliderRow, rumble::kEffects[e].label, 0, g_help[e]};
         }
     }
-    nfsmw::data_file("nfsmw_controller_support.tpk", g_pack_path, sizeof(g_pack_path));
+    nfsmw::data_file("mets_controller_support.tpk", g_pack_path, sizeof(g_pack_path));
     g_page = {"controller", "Controller", "CONTROLLER", "CONTROLLER INFO", nfsmw::texture_hash("OPTIONS_RUMBLE"),
               kControlsIconTexture,  // the Controller icon until there is an OPTIONS_RUMBLE
               g_pack_path, rows, g_rows, page_available, page_opened, page_value,

@@ -1,4 +1,4 @@
-# Italian texts of nfsmw_controller_support. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Italian texts of mets_controller_support. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
 # Copy this folder to <game>/scripts/mets_mods/translations/controller_support/.
 # "Settings" is the hint of the Controls screen: at most 14 characters fit.
 

@@ -56,7 +56,7 @@ void ensure_live() {
 nfsmw::controller_api::LivePadFn g_live_pad = nullptr;
 
 // The Controls screen refreshed (it opened, or a binding changed): save our entry's bindings if they differ. While the screen
-// shows another controller's bindings (nfsmw_controller_support keeps one set per controller) they are not ours to save.
+// shows another controller's bindings (mets_controller_support keeps one set per controller) they are not ours to save.
 void on_controls_refresh() {
     ensure_live();
     if (!g_live_ready) return;
@@ -153,7 +153,7 @@ void init(nfsmw::Logger &log, const char *ini) {
         return;
     }
     // The default table is what Defaults and the start-up copy: renamed, and no keyboard key (the entry had a numpad key). The
-    // controller slots are left to nfsmw_controller_support's default layout, if it is installed (nothing otherwise).
+    // controller slots are left to mets_controller_support's default layout, if it is installed (nothing otherwise).
     const bt::Slot none[4] = {};
     bt::set_name(bt::kDefault, kEntry, kName);
     bt::set_slots(bt::kDefault, kEntry, none, 0, 2);

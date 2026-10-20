@@ -1,4 +1,4 @@
-# Polish texts of nfsmw_controller_support. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
+# Polish texts of mets_controller_support. One line per text: English text = translation (UTF-8). Needs nfsmw_custom_menus.asi.
 # Copy this folder to <game>/scripts/mets_mods/translations/controller_support/. (The game's Polish font has its letters in other places than Windows-1252; the loader knows where.)
 # "Settings" is the hint of the Controls screen: at most 14 characters fit.
 

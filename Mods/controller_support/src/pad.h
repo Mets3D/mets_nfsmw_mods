@@ -1,4 +1,4 @@
-// Declarations shared by the parts of nfsmw_controller_support: the log, the settings and a few small helpers. Each part has its own
+// Declarations shared by the parts of mets_controller_support: the log, the settings and a few small helpers. Each part has its own
 // header (input.h, bindings.h, ...) and lives in its own namespace.
 #pragma once
 
@@ -23,7 +23,7 @@ void log_line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 inline float clamp01(float x) { return x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x; }
 inline float ramp(float x, float lo, float hi) { return clamp01((x - lo) / (hi - lo)); }
 
-// ---- settings: nfsmw_controller_support.ini ----------------------------------------------------------------------------------
+// ---- settings: mets_controller_support.ini ----------------------------------------------------------------------------------
 extern char g_ini[MAX_PATH];
 float ini_float(const char *key, float def, const char *section = "pad");
 

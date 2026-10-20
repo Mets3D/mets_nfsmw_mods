@@ -3,7 +3,7 @@
 // Camera look: four entries no input mapping in the game data refers to (checked against GLOBAL/attributes.bin), so
 // their values carry nothing else. They are bound to the right stick by default, in the default table (used by the
 // Controls menu's Defaults) and in the live one. The profile saves only entries 0-18, so these four are kept in
-// nfsmw_controller_support.ini [look_bindings].
+// mets_controller_support.ini [look_bindings].
 #pragma once
 
 #include "binding_table.h"

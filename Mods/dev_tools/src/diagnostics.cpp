@@ -73,7 +73,7 @@ void log_caller_trace(const char *what, unsigned code) {
 // lists. Several crashes in a row were that code (ntdll, call_tls_callbacks) reading a callbacks pointer that is text ("sect", "prot")
 // from the directory of one of our .asi files: something overwrote it. This thread checks the directories every 50 ms, and logs the
 // memory around the first one that stops pointing into its own module, which says when it happens and what the bytes look like.
-const char *const kWatched[] = {"nfsmw_custom_menus.asi", "nfsmw_camera_settings.asi", "nfsmw_controller_support.asi",
+const char *const kWatched[] = {"nfsmw_custom_menus.asi", "nfsmw_camera_settings.asi", "mets_controller_support.asi",
                                 "nfsmw_split_screen_support.asi", "nfsmw_dev_tools.asi"};
 struct Watched {
     const char *name;

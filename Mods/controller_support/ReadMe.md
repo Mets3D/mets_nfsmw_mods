@@ -53,15 +53,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 
 - See [General Compatibility](../../ReadMe.md#general-compatibility).
 - Recommended: [Custom Menus](../custom_menus/ReadMe.md) mod if you want to customize rumble, deadzones, button prompts, or camera look keybindings.
-- Recommended WideScreenFix .ini config:
-```
-ImproveGamepadSupport = 0
-LeftStickDeadzone = 0
-RightStickDeadzone = 0
-
-[CAMERA]
-Enable = 0
-```
+- WideScreenFix: `ImproveGamepadSupport = 0` will be forced by this mod for compatibility.
 - Incompatible: `NFS-XtendedInput`, potentially other similar mods that mess with controller functions.
 
 ### AI Disclaimer

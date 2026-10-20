@@ -3,7 +3,7 @@
 usage: python package_release.py [--version v1.0.0] [--out dist]     (after building: cmake --build Mods/build)
 
 The zip holds what a player needs, in the game's own layout:
-  scripts/nfsmw_<mod>.asi            the plugins
+  scripts/nfsmw_<mod>.asi            the plugins (mets_controller_support.asi for the controller support)
   scripts/mets_mods/<mod>.ini        each mod's settings (every option, with its default)
   scripts/mets_mods/*.tpk, *.ini     the texture packs (the Options icons, the controller button pictures)
   scripts/mets_mods/translations/    the texts of each mod in other languages
@@ -31,7 +31,7 @@ Install
   1. Needs NFS Most Wanted 2005, version 1.3, and the Ultimate ASI Loader (dinput8.dll; it comes with most widescreen fixes).
   2. Copy the "scripts" folder of this zip into the game's folder, the one with speed.exe. Say yes to merging folders.
      Installing over an older version replaces the .ini files with the defaults: your settings in them are lost.
-  3. To remove the mods: delete the nfsmw_*.asi files in scripts, and the scripts/mets_mods folder.
+  3. To remove the mods: delete the nfsmw_*.asi files and mets_controller_support.asi in scripts, and the scripts/mets_mods folder.
 
 What each mod does, what it needs and how to set it up: {REPO_URL}
 """
@@ -56,7 +56,7 @@ def main():
     data.mkdir(parents=True)
 
     for mod in RELEASE_MODS:
-        asi = BUILD / f'nfsmw_{mod}.asi'
+        asi = BUILD / set_mods.asi_name(mod)
         if not asi.is_file():
             sys.exit(f'{asi} is missing: build the mods first (cmake --build Mods/build)')
         shutil.copy2(asi, scripts / asi.name)

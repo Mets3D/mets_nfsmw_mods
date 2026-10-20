@@ -1,4 +1,4 @@
-// The PC binding table: the camera look entries (renamed, bound to the right stick, kept in nfsmw_controller_support.ini) and a log
+// The PC binding table: the camera look entries (renamed, bound to the right stick, kept in mets_controller_support.ini) and a log
 // of every change the Controls menu makes to the table.
 #include <cstdio>
 
@@ -26,7 +26,7 @@ const char *const kLookOldName[L_COUNT] = {"SC_A", "SC_D", "SC_W", "SC_S"};
 const char *const kLookName[L_COUNT] = {"CAM_ACTION_LOOK_LEFT", "CAM_ACTION_LOOK_RIGHT", "CAM_ACTION_LOOK_UP",
                                         "CAM_ACTION_LOOK_DOWN"};
 const char *const kLookText[L_COUNT] = {"Look Left", "Look Right", "Look Up", "Look Down"};
-const char *const kLookKey[L_COUNT] = {"left", "right", "up", "down"};  // nfsmw_controller_support.ini [look_bindings]
+const char *const kLookKey[L_COUNT] = {"left", "right", "up", "down"};  // mets_controller_support.ini [look_bindings]
 constexpr Slot kLookDefault[L_COUNT] = {{kRotLow, 0, 0}, {kRotHigh, 0, 0}, {kRotLow, 0, 1}, {kRotHigh, 0, 1}};
 
 bool look_entries_named(uintptr_t table, const char *which) {

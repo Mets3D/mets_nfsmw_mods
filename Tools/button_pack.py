@@ -1,4 +1,4 @@
-"""Build the controller button pictures into a texture pack (.tpk) for nfsmw_controller_support.
+"""Build the controller button pictures into a texture pack (.tpk) for mets_controller_support.
 
 usage: python button_pack.py <buttons folder> <out.tpk> <PACK_NAME>
 

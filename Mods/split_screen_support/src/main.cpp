@@ -1,7 +1,7 @@
 /*
  * nfsmw_split_screen_support: the PC version of the game has much of the console versions' two player split screen
  * ("Split Screen" in the Quick Race menu) but not the way in, a renderer for two views or an input device for a second player
- * (that comes from nfsmw_controller_support).
+ * (that comes from mets_controller_support).
  * Each part has its own file, header and namespace. Split screen needs all of them but the minimap, which has a switch in
  * nfsmw_split_screen_support.ini ([options] use_split_minimap), as has the scenery detail rule in fixes.cpp ([options] cull_small_objects):
  *   menu_entry.cpp     the "Split Screen" entry of the Quick Race menu

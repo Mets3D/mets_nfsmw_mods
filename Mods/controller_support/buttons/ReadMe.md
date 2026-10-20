@@ -1,6 +1,6 @@
 # Controller button pictures
 
-The pictures `nfsmw_controller_support` shows in the menus' button prompts while a controller is in use, one folder per
+The pictures `mets_controller_support` shows in the menus' button prompts while a controller is in use, one folder per
 style (`xbox/`, `playstation/`, `switch/`). [`prompts.ini`](prompts.ini) says which prompt of the game shows which picture, and how
 to rebuild the pack after changing something.
 

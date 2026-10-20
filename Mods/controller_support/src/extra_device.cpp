@@ -94,6 +94,6 @@ void poll(void *device) {
 
 }  // namespace pad::extra_device
 
-extern "C" __declspec(dllexport) int nfsmw_controller_support_extra_device(int source) {
+extern "C" __declspec(dllexport) int mets_controller_support_extra_device(int source) {
     return pad::extra_device::add(source);
 }

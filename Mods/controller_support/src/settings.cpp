@@ -1,4 +1,4 @@
-// nfsmw_controller_support.ini, the log, and the settings every part reads.
+// mets_controller_support.ini, the log, and the settings every part reads.
 #include "button_icons.h"
 #include "default_layout.h"
 #include "look_options.h"
@@ -29,7 +29,7 @@ float ini_float(const char *key, float def, const char *section) {
 }
 
 void load_settings() {
-    nfsmw::data_file("nfsmw_controller_support.ini", g_ini, sizeof(g_ini));
+    nfsmw::data_file("mets_controller_support.ini", g_ini, sizeof(g_ini));
     g_cfg.enabled = GetPrivateProfileIntA("pad", "enabled", 1, g_ini) != 0;
     g_cfg.analog_input = GetPrivateProfileIntA("pad", "analog_input", 1, g_ini) != 0;
     g_cfg.split_triggers = GetPrivateProfileIntA("pad", "split_triggers", 1, g_ini) != 0;

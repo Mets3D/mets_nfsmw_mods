@@ -4,19 +4,19 @@
  * The Press Start screen (uiQRPressStart) is shown once per player. The game itself cannot tell who pressed: the PC
  * version has one input device, port 0, for the keyboard and the controllers, and which of them ends in its Start
  * message depends on the bindings. So the game's own Start messages are ignored here, and the screen is told by this part:
- * every frame the four XInput slots and the keyboard (through nfsmw_controller_support, which sees it) are read, and when a
+ * every frame the four XInput slots and the keyboard (through mets_controller_support, which sees it) are read, and when a
  * controller lets go of Start, or Enter, numpad Enter or Space is let go, the screen gets the Start message (0xEBFCDA65)
  * and that device becomes that player's.
  *
  * Every device always reaches the game's menus (the Press Start screens, the car select, the pause menu with its Controls
- * screen). What is told to nfsmw_controller_support (common/controller_api.h) is only who drives the vehicles:
+ * screen). What is told to mets_controller_support (common/controller_api.h) is only who drives the vehicles:
  *  - when the race loads: player 1's vehicle (and its camera, HUD actions and pause request) takes its input from player 1's
  *    device alone. Player 2's joystick port is set to -1 and they read a game input device of their own, made by
- *    nfsmw_controller_support from the bindings of player 2's device (without it they have no input). A device that already
+ *    mets_controller_support from the bindings of player 2's device (without it they have no input). A device that already
  *    has a player does nothing on the other player's Press Start screen; a player who somehow did not press Start gets
  *    another device: a free controller, else the keyboard;
  *  - back in the menus (no longer a split screen game): every device drives the vehicle again.
- * Without nfsmw_controller_support every device drives player 1's vehicle, and player 2 has no input.
+ * Without mets_controller_support every device drives player 1's vehicle, and player 2 has no input.
  */
 #include "players.h"
 
@@ -46,7 +46,7 @@ bool g_connected[4];
 DWORD g_next_scan = 0;
 int g_chosen[2] = {kNotChosen, kNotChosen};  // at the Press Start screens
 int g_race[2] = {kKeyboard, kKeyboard};       // in the race
-bool g_controls_asked = false;                // nfsmw_controller_support was told what reaches the game
+bool g_controls_asked = false;                // mets_controller_support was told what reaches the game
 void *g_press_start_screen = nullptr;         // the Press Start screen showing, if any
 int g_pressed_by = kNotChosen;  // the device whose Start the screen is being told about (see press_start)
 enum class Phase { kMenus, kRace } g_phase = Phase::kMenus;  // kRace: the race of this split screen game is on
@@ -89,7 +89,7 @@ void poll() {
         static bool logged = false;
         if (!logged) {
             logged = true;
-            g_log.line("the keyboard can be seen (through nfsmw_controller_support)");
+            g_log.line("the keyboard can be seen (through mets_controller_support)");
         }
         bool down = false;
         for (const int key : kStartKeys) down |= (keys[key] & 0x80) != 0;
@@ -108,21 +108,21 @@ void give_controls(int device) {
     if (!vehicle) {
         if (!warned && g_controls_asked) {
             warned = true;
-            g_log.line("nfsmw_controller_support is not loaded: every device drives player 1's vehicle, and player 2 has no input");
+            g_log.line("mets_controller_support is not loaded: every device drives player 1's vehicle, and player 2 has no input");
         }
         return;
     }
     vehicle(device == kKeyboard ? api::kSourceKeyboard : device >= 0 ? device : api::kDefault);
 }
 
-// Player 2's input: a game input device of their own. nfsmw_controller_support makes it, fills it with what the Controls
+// Player 2's input: a game input device of their own. mets_controller_support makes it, fills it with what the Controls
 // menu bindings of player 2's device ask for, and gives it to the player whose joystick port is -1 (their database port
 // stays -1: the menus' input knows no other port and crashes on one), so the game's own input path serves them: steering,
-// camera change, pause, rumble, the mouse look of a keyboard player. Returns false without nfsmw_controller_support.
+// camera change, pause, rumble, the mouse look of a keyboard player. Returns false without mets_controller_support.
 bool start_second_player(int device) {
     static const api::ExtraDeviceFn extra_device = api::find_extra_device();
     if (!extra_device) {
-        g_log.line("nfsmw_controller_support is not loaded: player 2 has no input");
+        g_log.line("mets_controller_support is not loaded: player 2 has no input");
         return false;
     }
     const int port = extra_device(device == kKeyboard ? api::kSourceKeyboard : device);

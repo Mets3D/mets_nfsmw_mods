@@ -587,7 +587,7 @@ int install_feedback(void *&ffb, int port) {
     ffb = &feedback;
     g_cur = index;
     clear_rumble_effects();
-    log_line("rumble: the %s player (port %d) now rumbles through nfsmw_controller_support (the game's feedback object: %p)",
+    log_line("rumble: the %s player (port %d) now rumbles through mets_controller_support (the game's feedback object: %p)",
              index == 0 ? "first" : "second", port, feedback.inner);
     return index;
 }

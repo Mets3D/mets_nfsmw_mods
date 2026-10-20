@@ -30,7 +30,7 @@ inline const char *&name_of(uintptr_t table, int entry) {
     return *reinterpret_cast<const char **>(table + entry * kEntrySize);
 }
 
-// Entries taken over by mods. 26, 28, 25, 27 (SC_A, SC_D, SC_W, SC_S): the camera look of nfsmw_controller_support.
+// Entries taken over by mods. 26, 28, 25, 27 (SC_A, SC_D, SC_W, SC_S): the camera look of mets_controller_support.
 constexpr int kPreviousCameraEntry = 67;  // SC_NUMPAD5: Previous Camera View of nfsmw_camera_settings
 
 // Writes into the table's read-only-by-default memory.
