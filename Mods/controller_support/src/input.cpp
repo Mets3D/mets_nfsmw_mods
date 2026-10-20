@@ -175,17 +175,20 @@ bool any_pressed(const BYTE *states, int count) {
     return false;
 }
 
-// A button down, a stick away from the centre, or the hat pressed; for an XInput controller also a trigger (the
-// triggers of other controllers can be anywhere at rest).
+// A button down, a stick well away from the centre, or the hat pressed; for an XInput controller also a trigger (the
+// triggers of other controllers can be anywhere at rest). A stick counts from a quarter of its range on, whatever the dead zone
+// is set to: a stick that rests slightly off the centre (a few percent is common) with a dead zone of 0 would otherwise
+// make the controller the last input for ever, and the button prompts would never go back to the keyboard.
 bool pad_active(const JoyState &s, bool xinput) {
-    constexpr LONG kMargin = 1500;  // about 5% of the range
+    constexpr LONG kStickMargin = 8000;    // about 25% of the range
+    constexpr LONG kTriggerMargin = 1500;  // about 5%
     const LONG sticks[] = {s.x, s.y, s.rx, s.ry};
     for (const LONG stick : sticks)
-        if (std::labs(stick - kAxisCentre) > kMargin) return true;
+        if (std::labs(stick - kAxisCentre) > kStickMargin) return true;
     if (xinput) {
-        if (std::labs(s.z - kAxisCentre) > kMargin) return true;
+        if (std::labs(s.z - kAxisCentre) > kTriggerMargin) return true;
         for (const LONG slider : s.slider)
-            if (kAxisCentre - slider > kMargin) return true;  // triggers (split into the sliders) pull towards 0
+            if (kAxisCentre - slider > kTriggerMargin) return true;  // triggers (split into the sliders) pull towards 0
     }
     return any_pressed(s.buttons, 32) || (s.pov[0] & 0xFFFF) != 0xFFFF;
 }
