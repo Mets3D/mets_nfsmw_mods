@@ -12,7 +12,7 @@
  *  - Smoothing (smoothing.cpp): the durations of the chase camera's springs, scaled per view.
  *  - Acceleration (acceleration.cpp): how far the camera moves and leans with the car's acceleration, per view.
  *  - Tilt (tilt.cpp): how far the chase camera's horizon follows the car's own tilt, per view.
- *  - The Drift camera's name ("DRIFT", from NFSMWExtraOptions) is shown with the game's own "Drift" string.
+ *  - The Drift and Pursuit cameras get names in the Camera selector when another mod makes them selectable (the base game names none).
  *
  * Files in <game>/scripts/mets_mods/: nfsmw_camera_settings.ini (your changes and settings), nfsmw_camera_settings.log, nfsmw_camera_settings.tpk (the Options icon).
  * ini settings, all optional:
@@ -81,6 +81,8 @@ constexpr unsigned kLabelHash = 0x60;  // FEString: language hash of its text
 constexpr unsigned kCustomIconTexture = 0x12F6B313;  // OPTIONS_CAMERA, in our nfsmw_camera_settings.tpk
 constexpr unsigned kDriftUpper = 0xA1211428;         // "DRIFT", NFSMWExtraOptions' name for the Drift camera
 constexpr unsigned kDrift = 0x6AEB7EE6;              // "Drift", the game's own string
+constexpr unsigned kPursuit = 0x7448870B;            // "Pursuit"
+constexpr int kCamDrift = 5, kCamPursuit = 6;      // ePlayerSettingsCameras: the two cameras that are hidden in the base game
 
 // ------------------------------------------------------------------------------------------------
 // Camera presets
@@ -355,15 +357,46 @@ Pov *FASTCALL hook_getpov(void *self, void *edx, int type) {
     return p;
 }
 
-// NFSMWExtraOptions (EnableHiddenCameraModes) names the Drift camera with the language string "DRIFT", the only
-// all-caps name in the list. The game has its own "Drift" string, translated like the rest, so use that instead.
-// Hooked in the game's PODriveCam::Draw, so Options > Player shows it too.
+// The camera the selector row is on: PlayerSettings[player].CurCam (0x14 bytes each from the options settings +0x80).
+int current_camera_index() {
+    unsigned char *settings = static_cast<unsigned char *>(field<void *>(*reinterpret_cast<void **>(game::kFEDatabase), 0x10));
+    const int player = *reinterpret_cast<int *>(game::kPlayerToEdit);
+    return *reinterpret_cast<int *>(settings + 0x80 + player * 0x14 + 0x0C);
+}
+
+// Whether the game's language table (sorted {hash, text} pairs at *0x91CF80, count at *0x91CF78) has a text for `hash`.
+bool language_has(unsigned hash) {
+    struct Entry { unsigned hash; const char *text; };
+    const Entry *table = *reinterpret_cast<const Entry **>(0x91CF80);
+    int lo = 0, hi = *reinterpret_cast<int *>(0x91CF78) - 1;
+    while (table && lo <= hi) {
+        const int mid = (lo + hi) / 2;
+        if (table[mid].hash == hash) return true;
+        if (table[mid].hash < hash) lo = mid + 1; else hi = mid - 1;
+    }
+    return false;
+}
+
+// The names of the Drift and Pursuit cameras in the Camera selector (PODriveCam::Draw, so Options > Player shows them too).
+// The base game only names the five cameras it lets you pick and gives the others the hash 0, which shows the layout's
+// placeholder text ("option_data"). A mod that makes the two selectable has to name them: NFSMWExtraOptions
+// (EnableHiddenCameraModes) does, with the language string "DRIFT", the only all-caps name in the list; the game's own "Drift"
+// string (which some language files have, and which is translated like the rest) is used instead of it when there is one.
+// Other mods that make the cameras selectable (Redux v3 does) leave them without a name.
 using MethodFn = void(FASTCALL *)(void *, void *);
 MethodFn g_orig_drivecam_draw;
 void FASTCALL hook_drivecam_draw(void *self, void *edx) {
     g_orig_drivecam_draw(self, edx);
     void *value = field<void *>(self, kRowData);
-    if (value && field<unsigned>(value, kLabelHash) == kDriftUpper) game::FEngSetLanguageHash(value, kDrift);
+    if (!value) return;
+    const unsigned label = field<unsigned>(value, kLabelHash);
+    const int cam = current_camera_index();
+    if (label == kDriftUpper || (label == 0 && cam == kCamDrift)) {
+        if (language_has(kDrift)) game::FEngSetLanguageHash(value, kDrift);
+        else if (label == 0) game::FEngSetLanguageHash(value, kDriftUpper);
+    } else if (label == 0 && cam == kCamPursuit) {
+        game::FEngSetLanguageHash(value, kPursuit);
+    }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -371,11 +404,7 @@ void FASTCALL hook_drivecam_draw(void *self, void *edx) {
 // the camera view that selector currently points at.
 // ------------------------------------------------------------------------------------------------
 int camera_type_being_edited() {
-    // The selector row stores the chosen camera in PlayerSettings[player].CurCam (0x14 bytes each from the options
-    // settings +0x80); map it to a POV preset.
-    unsigned char *settings = static_cast<unsigned char *>(field<void *>(*reinterpret_cast<void **>(game::kFEDatabase), 0x10));
-    const int player = *reinterpret_cast<int *>(game::kPlayerToEdit);
-    const int cam = *reinterpret_cast<int *>(settings + 0x80 + player * 0x14 + 0x0C);
+    const int cam = current_camera_index();
     const int type = game::GetPOVTypeFromPlayerCamera(cam);
     return (type >= 0 && type < kNumPresets) ? type : g_cur_type;
 }

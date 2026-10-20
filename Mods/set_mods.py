@@ -87,7 +87,12 @@ def stop_game(game):
     while running_game_pids(game) and time.time() < deadline:
         time.sleep(0.2)
     for pid in running_game_pids(game):
-        os.kill(pid, signal.SIGKILL)
+        if sys.platform == 'win32':  # a hung game that taskkill cannot end
+            subprocess.run(['powershell', '-NoProfile', '-Command',
+                            f"Get-CimInstance Win32_Process -Filter \"ProcessId={pid}\" | Invoke-CimMethod -MethodName Terminate"],
+                           capture_output=True)
+        else:
+            os.kill(pid, signal.SIGKILL)
     time.sleep(1)  # the loader and the files let go
 
 

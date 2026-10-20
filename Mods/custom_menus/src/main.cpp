@@ -46,6 +46,7 @@
 #include "skip_movies.h"
 #include "translations.h"
 #include "texture_pack.h"
+#include "text_guard.h"
 #include "title_icon.h"
 #include "xinput.h"
 
@@ -1434,6 +1435,7 @@ void install_hooks() {
     nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), g_log, g_ini);
     g_video_hook = g_orig_setupvideo != nullptr;
     custom_menus::title_icon::install_hooks(g_log, g_ini);
+    custom_menus::text_guard::install_hooks(g_log, g_ini);
     custom_menus::skip_dialogs::install_hooks(g_log, g_ini);
     custom_menus::resume_career::install_hooks(g_log, g_ini);
     custom_menus::skip_movies::install_hooks(g_log, g_ini);
