@@ -6,7 +6,7 @@ This mod is currently WIP, and the ReadMe below is AI generated, so it's a bunch
 
 ## How to use
 
-1. Needs the [Split Screen Support](../split_screen_support/ReadMe.md) mod to be installed: it gives this mod its place in every frame and in each player's picture.
+1. Needs the [Split Screen Support](../split_screen_support/ReadMe.md) mod to be installed (it does not need a split screen race: a race with one local player should work the same, not tested yet): it gives this mod its place in every frame and in each player's picture.
 2. In a race, open the pause menu and choose **Options > AI Driving** (needs [Custom Menus](../custom_menus/ReadMe.md)). Each player has their own settings: **AI Control** (Off / Vanilla / Improved), **Skill Level** (0-100), **Nitro** (Disabled / Fair / Allowed), **Shortcuts** (Avoid / Allowed / Always), **Catch-Up** and **Debug Overlays**. In a split screen race, player 2 is AI driven from the start.
 3. For quick tests: **F7** hands player 1's car to the improved AI and back, **F9** makes the AIs plan their route again from where the car is, **F8** shows the road network around the car.
 4. The defaults and every setting are in the [.ini](nfsmw_improved_ai_opponents.ini).

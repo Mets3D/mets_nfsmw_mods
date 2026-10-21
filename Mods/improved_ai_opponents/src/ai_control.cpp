@@ -190,7 +190,8 @@ void on_frame() {
     static int last_state = 0;
     if (state == 6 && last_state != 6) on_world_load();  // a race has begun
     last_state = state;
-    const bool racing = state == 6 && *reinterpret_cast<int *>(kPlayerCount) >= 1;
+    const int players = *reinterpret_cast<int *>(kPlayerCount);  // 1 in a race with one local player, 2 in a split screen race
+    const bool racing = state == 6 && players >= 1;
     g_vehicle_ai[0] = g_vehicle_ai[1] = nullptr;
     g_human_ai[0] = g_human_ai[1] = nullptr;
     if (!racing) {
@@ -224,12 +225,13 @@ void on_frame() {
         g_replan[player] = false;
         g_log.line("ai control: player %d plans its route again", player + 1);
     }
-    const bool pending = (wants_control(0) && !g_done[0]) || (wants_control(1) && !g_done[1]);
+    const auto waiting = [&](int player) { return player < players && wants_control(player) && !g_done[player]; };
+    const bool pending = waiting(0) || waiting(1);
     if (!pending) return;
     if (++g_frames < kFramesBeforeStart) return;
     g_frames = 0;
     for (int player = 0; player < 2; ++player) {
-        if (!wants_control(player) || g_done[player]) continue;
+        if (!waiting(player)) continue;  // no such player in this race (player 2 when the game is not split), or nothing to do
         void *ai = g_human_ai[player];
         if (!ai) {
             if (++g_tries[player] <= 5) g_log.line("ai control: player %d has no IHumanAI yet (try %d)", player + 1, g_tries[player]);

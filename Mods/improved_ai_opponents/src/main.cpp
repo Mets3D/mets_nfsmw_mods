@@ -1,7 +1,7 @@
 /*
  * nfsmw_improved_ai_opponents: the game's racing AI for the players' cars (the "Drunk Driver" of Extra Options, for each player), an improved version of it,
- * and drawings of what the AI does in the 3D world. It needs nfsmw_split_screen_support for now: that mod gives it a place in every frame and a
- * hook into each player's picture (common/split_screen_api.h).
+ * and drawings of what the AI does in the 3D world. It needs the nfsmw_split_screen_support plugin for now (not a split screen race): that mod gives it a place
+ * in every frame and a hook into each player's picture, or into the one picture of a game that is not split (common/split_screen_api.h).
  *   ai_control.cpp  who is AI driven (per player, the ini and F7), the AI's nitrous and stuck-timer changes, F9: plan the route again
  *   path_cost.cpp   the improved AI's route search weighs road width and what the car can do, and may plan shortcuts
  *   overlay.cpp     lines in the picture showing what the AI does (the route, the corridor, the steering target) and the road network (F8)
