@@ -30,6 +30,7 @@
  * the rest of the session (the log says why) and the game draws player 1's view as before.
  */
 #include "split_view.h"
+#include "view_api.h"
 
 #include <d3d9.h>
 
@@ -313,11 +314,13 @@ void split_frame(IDirect3DDevice9 *device) {
     const unsigned pool_start = pool[0];
     g_orig_display_frame();  // player 1
     pool[0] = pool_start;
+    view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(d.Width), static_cast<float>(d.Height), 0);
     bool ok = copy(device, back_buffer, source, g_canvas, top, "player 1");
     clear_screen(device, back_buffer);
     trade_views();
     update_env_map_for_view1();  // reflections around player 2's car
     g_orig_display_frame();  // player 2
+    view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(d.Width), static_cast<float>(d.Height), 1);  // with player 2's view still in view 1's place
     trade_views();
     ok = ok && copy(device, back_buffer, source, g_canvas, bottom, "player 2");
     const RECT both = {0, 0, w, 2 * half};
@@ -330,13 +333,26 @@ void split_frame(IDirect3DDevice9 *device) {
     }
 }
 
+// The one picture of a game that is not split: what other mods asked to draw (view_api.h), as player 0.
+void draw_single_view(IDirect3DDevice9 *device) {
+    if (!device || !view_api::wanted()) return;
+    IDirect3DSurface9 *back_buffer = nullptr;
+    if (FAILED(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &back_buffer)) || !back_buffer) return;
+    D3DSURFACE_DESC d;
+    back_buffer->GetDesc(&d);
+    back_buffer->Release();
+    view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(d.Width), static_cast<float>(d.Height), 0);
+}
+
 void hook_display_frame() {
     auto *device = *reinterpret_cast<IDirect3DDevice9 **>(kDevice);
     const bool two_views = *reinterpret_cast<int *>(kViewMode) == kTwoViews;
     if (!two_views || g_failed || !device || !g_view2_on || !at<void *>(kView1, kViewCamera) ||
         !at<void *>(kView2, kViewCamera)) {
         if (!two_views && g_canvas) release_canvas();
-        return g_orig_display_frame();
+        g_orig_display_frame();
+        draw_single_view(device);
+        return;
     }
     if (!g_reset_hooked) hook_device_reset(device);
     split_frame(device);

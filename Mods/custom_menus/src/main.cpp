@@ -223,7 +223,6 @@ constexpr unsigned kScriptHighlight = 0x249DB7B7, kScriptUnhighlight = 0x7AB5521
 constexpr int kCategoryVideo = 1, kCategoryPlayer = 4;  // OptionsSettings::CurrentCategory
 // The Player screen's layout (Pause_Options.fng) has 10 row slots. The Video screen's (Pause_PCDisplayOptions.fng, the PC "Advanced Video"
 // one) has 15, and a scroll bar with chevrons, so pages with more rows than the first holds are built on the second.
-constexpr int kPlayerSlots = 10;
 
 constexpr unsigned kPcKey1Texture = 0x68A29A8A, kPcKey2Texture = 0x68A29A8B, kPcKey3Texture = 0x68A29A8C, kPcKey4Texture = 0x68A29A8D;
 constexpr unsigned kCircleTexture = 0x54A68051;  // drawn as the 1 key on PC
@@ -294,7 +293,9 @@ void register_page(const opt::Page *page) {
     PageInfo &p = g_pages.emplace_back();
     g_page_count = static_cast<int>(g_pages.size());
     p.page = page;
-    p.category = page->row_count > kPlayerSlots && g_video_hook ? kCategoryVideo : kCategoryPlayer;
+    // Every page with a screen of its own is on the Video layout (15 slots, the rows have the GREY script that greyed rows need; the Player layout's
+    // 10 slots and plain rows are only what the game's own Options > Player is, which the rows of kPlayerOptions pages are added to).
+    p.category = page->placement != opt::kPlayerOptions && g_video_hook ? kCategoryVideo : kCategoryPlayer;
     add_page_texts(p);
     log_line("page \"%s\": %d rows", page->id, page->row_count);
 }

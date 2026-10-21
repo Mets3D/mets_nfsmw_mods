@@ -32,6 +32,10 @@ class Stub {
     void emit(std::initializer_list<unsigned char> bytes) {
         for (const unsigned char b : bytes) put(b);
     }
+    // A 32 bit value (an address, a constant), little endian.
+    void emit_u32(uintptr_t value) {
+        for (int i = 0; i < 4; ++i) put(static_cast<unsigned char>(value >> (8 * i)));
+    }
     // `opcode` (E8 call, E9 jmp) followed by the distance to `target`.
     void emit_rel32(unsigned char opcode, uintptr_t target) {
         put(opcode);

@@ -16,6 +16,7 @@ The parts of the mod and their ini switches: the header comment of `Mods/split_s
   (`common/patch.h`), each with an ini switch, backing off when ExtraOptions' fix is on.
 
 ## Rendering
+- Other mods can draw into each player's picture: `view_api.cpp` keeps the callbacks registered through the export `nfsmw_split_screen_support_on_view_draw` (`common/split_screen_api.h`) and `split_view.cpp` calls them after each `___eDisplayFrame` (player 0, then player 1 with its view in view 1's place), or once per frame as player 0 when the screen is not split. `nfsmw_improved_ai_opponents` uses it for its overlay and as its per-frame tick.
 - **eViews** at 0x9195E0, 0x70 bytes each: `+0` PlatInfo, `+4` id, `+8` Active, `+0x40` camera, `+0x44` mover list, `+0x5C` lighting context (from `SetupWorldLightContext` 0x5029F0, needs only the
   camera), `+0x60` render target. EVIEWMODE (`[0x982B40]` current, `[0x982B44]` requested, `[0x982B3C]` wanted): 3 = two views. View 2 is never Active on PC (its render target is never set); we
   give it view 1's render target and set Active at world load of a split screen game, and off afterwards [tested]: the game then does the per-view setup (0x6CF400: projection from the camera

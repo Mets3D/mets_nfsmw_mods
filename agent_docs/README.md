@@ -12,6 +12,7 @@ Addresses are speed.exe 1.3 (image base 0x400000). Function names are the decomp
 | [input-system.md](input-system.md) | Devices, binding table, action queues, the Controls screen, the menus' joystick input |
 | [controller-support.md](controller-support.md) | Controller state, Steam Input, mouse, Controls menu rows, button prompts, rumble |
 | [split-screen.md](split-screen.md) | Quick Race entry, FEDatabase, views and rendering, streaming, Press Start |
+| [ai-driving.md](ai-driving.md) | The racing AI that drives a player's car (F6 of ExtraOptions; our `nfsmw_improved_ai_opponents`), its route search, road data, steering, nitrous and stuck logic |
 | [menus-and-camera.md](menus-and-camera.md) | Options pages, FEng cloning, textures and packs, camera presets, boot flow |
 
 How to add to this: put a finding in the page of its subject (create one if there is none), correct a line instead of adding

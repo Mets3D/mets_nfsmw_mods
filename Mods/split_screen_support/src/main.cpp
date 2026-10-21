@@ -11,6 +11,7 @@
  *   minimap_option.cpp the Options > Player > Minimap row: each player can hide their own minimap
  *   players.cpp        which controller is whose (XInput), player 1's alone reaches the game
  *   state_log.cpp      a log of the player count, devices and view mode
+ *   view_api.cpp       what other mods may draw into each player's picture (common/split_screen_api.h), e.g. nfsmw_improved_ai_opponents's overlay
  *   events.cpp         the game functions several parts need (world load, each frame)
  * What is known about the game's code these parts change: agent_docs/split-screen.md.
  *

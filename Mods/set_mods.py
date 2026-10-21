@@ -9,7 +9,7 @@ Each mod's .ini is copied to scripts/mets_mods/ when the install has none yet (a
 --game is the game install to act on (no default: always pass it); a game running from that install is closed first (its .asi
 files are loaded from disk while it runs, and a changed one crashes it), unless --keep-running is given. --only says which of our
 mods go there
-(folder names of Mods/, default the first three; dev_tools and split_screen_support are only added when asked for):
+(folder names of Mods/, default the first three; dev_tools, split_screen_support and improved_ai_opponents are only added when asked for):
   python set_mods.py --mode ours --game "<path to the game install>" --only controller_support
 """
 import argparse
@@ -22,11 +22,11 @@ import time
 from pathlib import Path
 
 MODS_DIR = Path(__file__).resolve().parent
-ALL_MODS = ['custom_menus', 'camera_settings', 'controller_support', 'dev_tools', 'split_screen_support']
+ALL_MODS = ['custom_menus', 'camera_settings', 'controller_support', 'dev_tools', 'split_screen_support', 'improved_ai_opponents']
 # The file name of a mod's plugin, when it is not nfsmw_<mod>.asi. The loader loads a folder's plugins alphabetically, and the
 # controller support must load before the widescreen fix ("NFSMostWanted...") to turn off one of its options before it is read.
 ASI_NAMES = {'controller_support': 'mets_controller_support.asi'}
-OLD_ASIS = ['nfsmw_controller_support.asi', '!nfsmw_controller_support_early.asi']  # names it had before: removed from the install
+OLD_ASIS = ['nfsmw_controller_support.asi', '!nfsmw_controller_support_early.asi', 'nfsmw_ai_driving.asi']  # names it had before: removed from the install
 
 
 def asi_name(mod):

@@ -26,11 +26,6 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - Both players using a keyboard is not supported.
 - For supported controllers, see the [Controller Support](../controller_support/ReadMe.md) mod - The game natively supports Xbox controllers, and for everything else, Steam Input is tested and works as a translation layer.
 
-## TODO
-- CPU racers in split screen races?
-    - Along with all the options they might get in a Custom Game.
-- Allow AI to control one of, or even both the players? Maybe an option that Dev Tools adds in the Player menu? I believe this is already implemented in some mod on an esoteric hotkey for singleplayer.
-
 ### AI Disclaimer
 
 The code was written by Claude (Sonnet & Opus). Testing, design, and this page, were hand-made.
