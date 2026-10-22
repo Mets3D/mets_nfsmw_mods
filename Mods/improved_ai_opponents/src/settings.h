@@ -4,18 +4,19 @@
 namespace improved_ai_opponents::settings {
 
 enum Control { kOff, kVanilla, kImproved };  // who drives: a human, the game's AI as it is, the AI with our changes
-enum Nitro { kNitroDisabled, kNitroFair, kNitroAllowed };  // the improved AI: never, as much as the other players' nitrous allows (the game's rule), always
-enum Shortcuts { kAvoid, kAllowed, kAlways };  // the improved AI: the game's rule, plans them when they are the better route, prefers them
+enum Shortcuts { kAvoid, kAllowed, kAlways };
+enum Overlay { kOverlayOff, kOverlayAi, kOverlayRoads, kOverlayCost };  // what is drawn in the player's picture: nothing, what the AI calculates, the road network, a route's cost  // the improved AI: the game's rule, plans them when they are the better route, prefers them
 
 struct Player {
     int control = kOff;
     int skill = 100;  // 0..100 (the game's 0..1)
-    int nitro = kNitroFair;
+    bool fair_nitrous = true;      // the improved AI: uses nitrous as far as the human players have it (the game's rule); off: whatever its car has
+    bool fair_performance = true;  // the improved AI: does not go faster or hold more grip than the weakest player's car (the game's rule); off: as its own car can
     int shortcuts = kAllowed;
     bool follow_race_route = true;  // the improved AI: the nav of its car stays on the race's own route like the opponents' (the game's race filter), or may be on any road
     bool super_steer = true;  // the improved AI: arbitrary steering like the vanilla AI's; off = its steering is limited like a human player's (speed, rate)
     bool catch_up = false;
-    bool overlay = true;  // draws the AI's route for this player's car, also while a human drives it (the improved AI plans beside the car)
+    int overlay = kOverlayOff;  // F8 steps through them; the AI's calculations are drawn also while a human drives (the improved AI then plans beside the car)
 };
 
 Player &player(int who);  // 0 = player 1, 1 = player 2
@@ -25,7 +26,7 @@ void load();
 void save(int who);  // writes the player's settings to the ini
 
 const char *control_name(int control);
-const char *nitro_name(int nitro);
 const char *shortcuts_name(int shortcuts);
+const char *overlay_name(int overlay);
 
 }  // namespace improved_ai_opponents::settings

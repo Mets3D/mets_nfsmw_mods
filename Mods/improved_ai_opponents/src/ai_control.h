@@ -23,7 +23,7 @@ const float *car_position(void *vehicle_ai);
 // The player (0 or 1) whose car, when that car's AI is the improved one (as above), is within `radius` metres of `point` (x, y, z), -1 if none.
 int improved_player_near(const float point[3], float radius);
 
-// Player `player`'s IVehicleAI while there is an AI to draw for that player (the AI drives the car or plans beside it, and the overlay is on for the
+// Player `player`'s IVehicleAI while there is an AI to draw for that player (the AI drives the car or plans beside it, and the overlay is AI Logic for the
 // player), else null.
 void *driving_ai(int player);
 

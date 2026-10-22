@@ -6,10 +6,11 @@
 
 namespace improved_ai_opponents::road_inspector {
 
-void install();  // reads [road_inspector] in the ini
-bool enabled();  // the key toggles it (polled here: called once per player's picture, the key is seen once per press)
-// Adds the nodes and segments near the camera, the picked ones highlighted, to the batch.
-void add(canvas::Lines &lines);
+// The player's overlay mode (settings::Overlay), told for every picture: the selection starts again when it changes.
+void set_mode(int player, int mode);
+// Adds the nodes and segments near the camera to the batch, the picked ones highlighted: for the Roads mode (settings::kOverlayRoads) the segments of the
+// active node, for the Cost mode (settings::kOverlayCost) the route picked so far and the cost of it, for the car of `player`.
+void add(canvas::Lines &lines, int player, int mode);
 // Starts a picture: the labels placed so far are forgotten (so that none of the picture's labels covers another).
 void begin_picture();
 

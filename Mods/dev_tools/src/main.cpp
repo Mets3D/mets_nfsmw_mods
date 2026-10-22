@@ -4,6 +4,7 @@
  *   diagnostics.cpp         where the game ends itself and where it has an access violation
  *   quick_start.cpp         skips the boot flow (EA logo, intro movies, splash screen) straight to the main menu
  *   free_camera.cpp         a camera that flies around the track during a race (F1), moves the car to where it is (the speedbreaker key)
+ *   game_speed.cpp          two keys that slow the game down and speed it up
  *
  * Files in <game>/scripts/mets_mods/: nfsmw_dev_tools.log, nfsmw_dev_tools.ini (optional).
  */
@@ -11,6 +12,7 @@
 
 #include "diagnostics.h"
 #include "free_camera.h"
+#include "game_speed.h"
 #include "quick_start.h"
 #include "early_entry.h"
 
@@ -56,5 +58,6 @@ NFSMW_PLUGIN_MAIN() {
     if (ini_flag("diagnostics", "enabled")) diagnostics::install();
     if (ini_flag("quick_start", "enabled")) quick_start::install();
     if (ini_flag("free_camera", "enabled")) free_camera::install();
+    if (ini_flag("game_speed", "enabled")) game_speed::install();
     return NFSMW_OK;
 }

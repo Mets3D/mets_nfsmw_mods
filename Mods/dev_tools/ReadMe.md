@@ -32,6 +32,10 @@ The controls use your own keyboard bindings from the Controls menu:
 
 `[free_camera]` in `nfsmw_dev_tools.ini` sets the key, the speed and the mouse sensitivity.
 
+## Game speed
+
+Press **-** to slow the game down and **+** (the key with the equals sign) to speed it up, each press halving or doubling the speed (from 1/16 to 8 times). The whole simulation runs at the new speed: the cars, the AI, the traffic. Above about 2 times the physics steps get coarse and the cars behave less and less like themselves. The game's own slow motion (the speedbreaker) still works on top of it, and the speed is written to `nfsmw_dev_tools.log` when it changes. `[game_speed]` in `nfsmw_dev_tools.ini` sets the keys.
+
 ## Ideas / TODOs
 - An options menu to tweak the current race's settings, like difficulty level, rubber banding (Catch Up), number of opponents, number of laps, traffic, police presence, and maybe even hidden values like opponent car value, however that is determined? The race would have to be restarted for the changes to take effect.
 - Would be interesting to display the perspective of a CPU player in the corner of the screen - Or, maybe it would be much easier, to allow a CPU to take control of one of the split screen players - But how do CPU players work, do they give their cars inputs like a human player, or is it something else?

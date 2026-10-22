@@ -2,6 +2,8 @@
  * Inspecting the road network (agent_docs/ai-driving.md) from inside the game, seen from wherever the camera is (the free camera of nfsmw_dev_tools
  * included). Nothing here needs the car: the camera's position is found from the view matrix (Lines::eye).
  *
+ * The overlay modes Roads and Cost (settings::Overlay; F8 steps through the overlays). Roads:
+ *
  * What you see: a small diamond at every road node within kRadius of the camera and a straight line for every road segment between
  * its two nodes, coloured by how fast a car can follow the segment (geometry::corner_limit and the car, car_stats.cpp: red slow to green fast; dark: one that crosses a barrier), and a cross in the middle of the picture: what is "hovered" is
  * what is under it (the free camera takes the mouse for looking, so the middle of the picture is the pointer).
@@ -16,11 +18,15 @@
  *     width, curved where the road is, filled in strips) and a label: its number, length, the speed a car can follow it at and the radius of its tightest bend.
  *   - Clicking a hovered segment makes it the active segment (it stays drawn, with its label at its middle, while you look elsewhere), shown as the lanes of
  *     the road's profile coloured by type (segment_draw::add_lanes); clicking it again makes it inactive. A new active node, or none, ends the active segment too.
+ * Cost: only the nodes are drawn at first. Pick a node (left click), then the nodes joined to either end of what is picked (yellow; the segment that would be
+ * added is previewed while one is hovered): the segments between the picked nodes are drawn, and the route's total time and cost, as the improved AI's route search
+ * would cost it for the player's car, for a car that starts the route at 30 m/s and from a stand, are written beside each end of the route. A click on an end node takes it off again, a click on nothing does nothing, the right mouse button starts again.
  * Nothing is read while the road network is not loaded (it is freed when a race ends: road::loaded).
  */
 #include "road_inspector.h"
 
 #include <cstdio>
+#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,9 +34,11 @@
 #include "car_stats.h"
 #include "improved_ai_opponents.h"
 #include "keys.h"
+#include "path_cost.h"
 #include "race_area.h"
 #include "road_geometry.h"
 #include "segment_draw.h"
+#include "settings.h"
 
 namespace improved_ai_opponents::road_inspector {
 
@@ -49,8 +57,6 @@ constexpr float kRadius = 150.0f;  // nodes and segments farther than this (m) f
 constexpr float kPickMetres = 4.0f;  // a node is hovered when it is this near the line of sight (metres, at its depth)
 constexpr unsigned kNone = 0xFFFFFFFF;
 
-bool g_on = false;
-int g_key = VK_F11;
 unsigned g_active = kNone, g_active_segment = kNone;  // the active node and the active segment (one of that node's)
 
 struct Hovered {
@@ -85,6 +91,26 @@ void log_far_segments() {
                        road::segment_node(s, 1), pb[0], pb[1], pb[2], road::segment_flags(s));
     }
     g_log.line("road inspector: %d of %u segments are over %.0f m long or have a missing node (the first 20 are listed)", far_count, road::segment_count(), kFarSegment);
+
+    // The game stores each segment's length: the one of its curve. Ours should be the same when the curve is read right: the segments where it is not are listed.
+    std::vector<std::pair<float, unsigned>> off;  // (how many percent ours is off, segment)
+    for (unsigned i = 0; i < road::segment_count(); ++i) {
+        geometry::SegmentGeometry g;
+        const unsigned char *s = road::segment(i);
+        if (!s || !geometry::segment_geometry(i, &g)) continue;
+        const float stored = *reinterpret_cast<const unsigned short *>(s + 4) * (1000.0f / 65535.0f);
+        if (stored > 1.0f) off.push_back({100.0f * std::fabs(geometry::curve_length(g) - stored) / stored, i});
+    }
+    std::sort(off.begin(), off.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+    size_t over = 0;
+    while (over < off.size() && off[over].first > 3.0f) ++over;
+    g_log.line("road inspector: the curve we read is more than 3 %% off the segment's stored length for %zu of %u segments (the worst are listed)", over, road::segment_count());
+    for (size_t i = 0; i < std::min<size_t>(over, 15); ++i) {
+        geometry::SegmentGeometry g;
+        geometry::segment_geometry(off[i].second, &g);
+        const unsigned char *s = road::segment(off[i].second);
+        g_log.line("road inspector:   segment %u: our curve %.1f m, stored %.1f m (%.0f %% off)", off[i].second, geometry::curve_length(g), *reinterpret_cast<const unsigned short *>(s + 4) * (1000.0f / 65535.0f), off[i].first);
+    }
 }
 
 std::string limit_text(unsigned segment);
@@ -145,7 +171,18 @@ void draw_segment_label(Lines &lines, unsigned index, float x, float y, DWORD co
     snprintf(line, sizeof(line), "SEGMENT %u%s", index, race_area::contains_segment(index) ? "" : "  OUTSIDE THE RACE");
     const unsigned char *s = road::segment(index);
     snprintf(length, sizeof(length), "LENGTH %.0f M", s ? *reinterpret_cast<const unsigned short *>(s + 4) * (1000.0f / 65535.0f) : 0.0f);
-    draw_panel(lines, {{line, color}, {length, kLabelDim}, {limit_text(index), kLabelDim}}, x, y);
+    Text text = {{line, color}, {length, kLabelDim}, {limit_text(index), kLabelDim}};
+    geometry::SolverView view;
+    if (geometry::solver_view(index, &view)) {
+        char band[64];
+        if (view.has_band) snprintf(band, sizeof(band), "BAND %.1f M AT THE START, %.1f M AT THE END", view.band_start, view.band_end);
+        else snprintf(band, sizeof(band), "NO BAND: THE MIDDLE CURVE");
+        text.push_back({band, kLabelDim});
+        if (view.used_middle) text.push_back({"THE SOLVED LINE WAS TIGHTER: USING THE MIDDLE", kLabelDim});
+    } else {
+        text.push_back({"STRAIGHT (NOT FLAGGED CURVED)", kLabelDim});
+    }
+    draw_panel(lines, text, x, y);
 }
 
 std::string flag_names(unsigned flags) {
@@ -203,6 +240,21 @@ void log_segment(unsigned index) {
                *reinterpret_cast<const unsigned short *>(s + 4) * (1000.0f / 65535.0f), *reinterpret_cast<const short *>(s + 6), flags, flag_names(flags).c_str());
     if (!race_area::contains_segment(index)) g_log.line("road inspector:   this segment is outside the race (beyond the track barriers)");
     g_log.line("road inspector:   control points %.1f m from node %u, %.1f m from node %u; %s", handle_length(s, true), a, handle_length(s, false), b, limit_text(index).c_str());
+    geometry::SegmentGeometry g;
+    if (geometry::segment_geometry(index, &g)) {
+        const auto turn = [](const Vec3 &control, float dx, float dz) {  // degrees between the control vector and a direction, in the ground plane
+            const float lc = std::hypot(control.x, control.z), ld = std::hypot(dx, dz);
+            return lc > 1e-3f && ld > 1e-3f ? std::acos(std::clamp((control.x * dx + control.z * dz) / (lc * ld), -1.0f, 1.0f)) * 57.29578f : 0.0f;
+        };
+        const float cx = g.node_b.x - g.node_a.x, cz = g.node_b.z - g.node_a.z;
+        const geometry::CornerLimit corner = geometry::corner_limit(index);
+        Vec3 c[4];
+        geometry::side_curve(g, 0.0f, 0.0f, c);
+        const Vec3 tight = geometry::bezier_point(c, corner.tightest_t);
+        g_log.line("road inspector:   our curve %.1f m (stored %.1f m), %s; its start leaves %.0f deg and its end arrives %.0f deg off the straight line between the nodes; the best line is tightest %.0f %% of the way along, at %.0f %.0f %.0f",
+                   geometry::curve_length(g), *reinterpret_cast<const unsigned short *>(s + 4) * (1000.0f / 65535.0f), g.curved ? "curved" : "straight", turn(g.start_control, cx, cz), turn(g.end_control, -cx, -cz),
+                   100.0f * corner.tightest_t, tight.x, tight.y, tight.z);
+    }
     g_log.line("road inspector:   at node %u: %s", a, lanes_text(a, (flags & road::kFlagStartInverted) != 0).c_str());
     g_log.line("road inspector:   at node %u: %s", b, lanes_text(b, (flags & road::kFlagEndInverted) != 0).c_str());
 }
@@ -215,6 +267,50 @@ float pixel_distance(float px, float py, const float l[4], float *along) {
     t = std::max(0.0f, std::min(1.0f, t));
     *along = t;
     return hypotf(px - (l[0] + t * dx), py - (l[1] + t * dy));
+}
+
+DWORD speed_color(float speed);
+
+// What the best-line solver worked with, drawn over the segment: the Bezier control points of the middle curve with their handles (amber), the middle curve (white),
+// the 25 samples with the band across the road at each (grey ticks) and its two edges (cyan), and the best line (coloured by the speed its curvature allows, red slow
+// to green fast: the limit speed is that of its slowest stretch). Drawn at three heights (handles and band low, the middle curve and the best line above) so that they
+// do not hide each other.
+void add_solver_view(Lines &lines, unsigned segment) {
+    geometry::SolverView view;
+    if (!geometry::solver_view(segment, &view)) return;
+    constexpr DWORD kHandle = 0xFFFFC000, kTick = 0xFF708090, kBand = 0xFF40C0FF, kMiddle = 0xFFFFFFFF;
+    const auto up = [](Vec3 p, float height) {
+        p.y += height;
+        return p;
+    };
+    lines.add(up(view.control[0], 0.4f), up(view.control[1], 0.4f), kHandle);
+    lines.add(up(view.control[3], 0.4f), up(view.control[2], 0.4f), kHandle);
+    canvas::add_diamond(lines, up(view.control[1], 0.4f), 0.5f, kHandle);
+    canvas::add_diamond(lines, up(view.control[2], 0.4f), 0.5f, kHandle);
+    const car_stats::Stats &car = car_stats::of(-1);
+    for (int i = 0; i < geometry::SolverView::kCount; ++i) {
+        if (view.has_band) lines.add(up(view.left[i], 0.4f), up(view.right[i], 0.4f), kTick);
+        if (i == 0) continue;
+        if (view.has_band) {
+            lines.add(up(view.left[i - 1], 0.4f), up(view.left[i], 0.4f), kBand);
+            lines.add(up(view.right[i - 1], 0.4f), up(view.right[i], 0.4f), kBand);
+        }
+        lines.add(up(view.centre[i - 1], 0.6f), up(view.centre[i], 0.6f), kMiddle);
+        const float curvature = 0.5f * (view.best_curvature[i - 1] + view.best_curvature[i]);
+        lines.add(up(view.best[i - 1], 0.9f), up(view.best[i], 0.9f), speed_color(car_stats::cornering_speed(car, curvature < 1e-6f ? 1e9f : 1.0f / curvature)));
+    }
+}
+
+// A diamond where the best line through a segment is at its tightest (the bend that sets its limit speed).
+void add_tightest_marker(Lines &lines, unsigned segment) {
+    geometry::SegmentGeometry g;
+    if (!geometry::segment_geometry(segment, &g)) return;
+    Vec3 c[4];
+    geometry::side_curve(g, 0.0f, 0.0f, c);
+    Vec3 p = geometry::bezier_point(c, geometry::corner_limit(segment).tightest_t);
+    p.y += 0.3f;
+    canvas::add_diamond(lines, p, 1.2f, 0xFFFF00FF);
+    canvas::add_pole(lines, p, 4.0f, 0xFFFF00FF);
 }
 
 // How fast a car can follow a segment, as a colour: red at 8 m/s and below, yellow at about 25, green from 45 m/s on.
@@ -252,39 +348,72 @@ std::string limit_text(unsigned segment) {
     return text;
 }
 
-}  // namespace
 
-void install() {
-    char key[16];
-    GetPrivateProfileStringA("road_inspector", "toggle_key", "F11", key, sizeof(key), g_ini);
-    g_key = nfsmw::key_from_name(key);
-}
+constexpr DWORD kCandidate = 0xFFFFE000, kRouteFill = 0x40FFA030;
 
-bool enabled() {
-    static bool before = false;
-    if (nfsmw::key_pressed(nfsmw::game_has_focus() && nfsmw::key_down(g_key), before)) {
-        g_on = !g_on;
-        g_log.line("road inspector: %s", g_on ? "on" : "off");
-        if (g_on && road::loaded()) g_log.line("road inspector: %u nodes, %u segments, %u profiles", road::node_count(), road::segment_count(), *reinterpret_cast<const unsigned *>(road::kNumProfiles));
-        if (g_on) log_far_segments();
-        g_active = g_active_segment = kNone;
+// The camera and the picture, as the picking of nodes needs them.
+struct View {
+    Lines &lines;
+    float eye_at[3];
+    float centre_x, centre_y, focal, hover_pixels;
+};
+
+struct NodeLook {
+    float size;
+    DWORD color;
+};
+
+// Draws the nodes near the camera as `look(node)` says, and returns the hovered one: of the `allowed` nodes under the cross, the nearest to the camera (kNone if none).
+template <class Look, class Allowed> unsigned draw_nodes(const View &v, Look look, Allowed allowed) {
+    unsigned hovered = kNone;
+    float nearest = 1e30f;  // the rank (depth, more for what is further from the cross) of the hovered node
+    for (unsigned i = 0; i < road::node_count(); ++i) {
+        const float *at = road::node_position(i);
+        if (!at) break;
+        if (distance_between(at, v.eye_at) > kRadius) continue;
+        const Vec3 p = {at[0], at[1] + 0.3f, at[2]};
+        const Clip c = v.lines.project(p);
+        if (c.w < 0.5f) continue;  // behind the camera
+        const NodeLook style = look(i);
+        canvas::add_diamond(v.lines, p, style.size, style.color);
+        if (!allowed(i)) continue;
+        float sx, sy;
+        v.lines.to_pixels(c, &sx, &sy);
+        const float off_x = sx - v.centre_x, off_y = sy - v.centre_y;
+        const float from_cross = sqrtf(off_x * off_x + off_y * off_y);
+        const float lateral = from_cross / v.focal * c.w;  // metres off the line of sight, at the node's depth
+        if (lateral > kPickMetres || from_cross > v.hover_pixels) continue;
+        const float rank = c.w * (1.0f + kCrosshairWeight * from_cross / v.hover_pixels);
+        if (rank < nearest) {
+            nearest = rank;
+            hovered = i;
+        }
     }
-    static bool was_loaded = false;
-    const bool now_loaded = road::loaded();
-    if (was_loaded && !now_loaded) g_active = g_active_segment = kNone;  // the race is over: the next track has other nodes
-    was_loaded = now_loaded;
-    return g_on;
+    return hovered;
 }
 
-void begin_picture() { g_placed.clear(); }
-
-void add(Lines &lines) {
-    Vec3 eye;
-    if (!road::loaded() || !lines.eye(&eye)) return;
-    const float eye_at[3] = {eye.x, eye.y, eye.z};
+void draw_cross(Lines &lines) {
     const float centre_x = lines.width() * 0.5f, centre_y = lines.height() * 0.5f;
-    const float focal = 0.5f * lines.height() * lines.matrix()[5];  // pixels per unit of tan(angle)
-    const float hover_pixels = kHoverFraction * lines.height();
+    lines.add_screen(centre_x - 8.0f, centre_y, centre_x + 8.0f, centre_y, kHover);
+    lines.add_screen(centre_x, centre_y - 8.0f, centre_x, centre_y + 8.0f, kHover);
+}
+
+// The segment that joins two nodes, or kNone.
+unsigned segment_between(unsigned a, unsigned b) {
+    const unsigned char *node = road::node(a);
+    for (int i = 0; node && i < std::min(road::node_segment_count(node), 7); ++i) {
+        const unsigned segment = road::node_segment(node, i);
+        const unsigned char *s = road::segment(segment);
+        if (s && road::other_node(s, a) == b) return segment;
+    }
+    return kNone;
+}
+
+// ---- Roads: the road network; the segments of the active node.
+void add_roads(const View &v, int player) {
+    Lines &lines = v.lines;
+    const float *eye_at = v.eye_at;
+    const float centre_x = v.centre_x, centre_y = v.centre_y, hover_pixels = v.hover_pixels;
     if (g_active != kNone && !road::node(g_active)) g_active = kNone;
     if (g_active == kNone || !road::segment(g_active_segment)) g_active_segment = kNone;
 
@@ -299,28 +428,7 @@ void add(Lines &lines) {
 
     // The nodes near the camera, and the one hovered.
     Hovered hovered;
-    float nearest = 1e30f;  // the rank (depth, more for what is further from the cross) of the hovered node
-    for (unsigned i = 0; i < road::node_count(); ++i) {
-        const float *at = road::node_position(i);
-        if (!at) break;
-        const float distance = distance_between(at, eye_at);
-        if (distance > kRadius) continue;
-        const Vec3 p = {at[0], at[1] + 0.3f, at[2]};
-        const Clip c = lines.project(p);
-        if (c.w < 0.5f) continue;  // behind the camera
-        canvas::add_diamond(lines, p, 0.6f, race_area::contains_node(i) ? kNode : kOutside);
-        float sx, sy;
-        lines.to_pixels(c, &sx, &sy);
-        const float off_x = sx - centre_x, off_y = sy - centre_y;
-        const float from_cross = sqrtf(off_x * off_x + off_y * off_y);
-        const float lateral = from_cross / focal * c.w;  // metres off the line of sight, at the node's depth
-        if (lateral > kPickMetres || from_cross > hover_pixels) continue;
-        const float rank = c.w * (1.0f + kCrosshairWeight * from_cross / hover_pixels);
-        if (rank < nearest) {
-            nearest = rank;
-            hovered.node = i;
-        }
-    }
+    hovered.node = draw_nodes(v, [](unsigned i) { return NodeLook{0.6f, race_area::contains_node(i) ? kNode : kOutside}; }, [](unsigned) { return true; });
 
     // With a node active: its segments are orange, and the one nearest to the cross (when no other node is hovered) is hovered.
     if (g_active != kNone) {
@@ -365,6 +473,8 @@ void add(Lines &lines) {
     if (g_active_segment != kNone) {
         segment_draw::add_lanes(lines, g_active_segment);
         segment_draw::add_corridor(lines, g_active_segment, kActive, 0);
+        add_tightest_marker(lines, g_active_segment);
+        add_solver_view(lines, g_active_segment);
         const unsigned char *s = road::segment(g_active_segment);
         const float *pa = road::node_position(road::segment_node(s, 0)), *pb = road::node_position(road::segment_node(s, 1));
         if (pa && pb) {
@@ -378,6 +488,8 @@ void add(Lines &lines) {
     }
     if (hovered.segment != kNone && hovered.segment != g_active_segment) {
         segment_draw::add_corridor(lines, hovered.segment, kHover, kHoverFill);
+        add_tightest_marker(lines, hovered.segment);
+        add_solver_view(lines, hovered.segment);
         draw_segment_label(lines, hovered.segment, centre_x, centre_y, kHover);
     }
 
@@ -386,8 +498,10 @@ void add(Lines &lines) {
     lines.add_screen(centre_x, centre_y - 8.0f, centre_x, centre_y + 8.0f, kHover);
 
     // A click (once per press: the pictures of all players see the same state)
+    // (only the first player's picture handles clicks: the same click would otherwise be handled again in the second player's picture, with what is under the cross
+    // there)
     static bool before = false;
-    if (nfsmw::key_pressed(nfsmw::game_has_focus() && nfsmw::key_down(VK_LBUTTON), before)) {
+    if (player == 0 && nfsmw::key_clicked(VK_LBUTTON, before)) {
         const unsigned previous_node = g_active, previous_segment = g_active_segment;
         if (hovered.node != kNone && hovered.node != g_active) {
             g_active = hovered.node;
@@ -401,6 +515,130 @@ void add(Lines &lines) {
         if (g_active != previous_node && g_active != kNone) log_node(g_active);
         if (g_active_segment != previous_segment && g_active_segment != kNone) log_segment(g_active_segment);
     }
+}
+
+// ---- Cost: a route picked node by node, with what it costs.
+std::vector<unsigned> g_route;  // the nodes of the route in order, each joined to the next by a segment
+
+// The route's totals (for a car that starts the route at 30 m/s and for one that starts at a stand), in a label at each end of the route that is in view: where
+// you are looking at the route, and not at a fixed place in the picture (which the minimap and the other HUD would cover). With neither end in view, at the top.
+void draw_route_labels(const View &v, const std::vector<unsigned> &segments, int player) {
+    Lines &lines = v.lines;
+    Text summary;
+    char line[96];
+    for (const float start : {30.0f, 0.0f}) {
+        float speed = start, length = 0.0f, seconds = 0.0f, cost = 0.0f;
+        for (const unsigned segment : segments) {
+            const path_cost::StepCost step = path_cost::cost_of_step(segment, speed, player);
+            speed = step.exit;
+            length += step.length;
+            seconds += step.seconds;
+            cost += step.cost;
+        }
+        if (start > 1.0f) {
+            snprintf(line, sizeof(line), "ROUTE: %zu SEGMENTS, %.0f M", segments.size(), length);
+            summary.push_back({line, kActive});
+        }
+        snprintf(line, sizeof(line), "FROM %.0f M/S: %.1f S, COST %.0f M (+%.0f)", start, seconds, cost, cost - length);
+        summary.push_back({line, kLabelDim});
+    }
+    bool drawn = false;
+    for (const unsigned node : {g_route.front(), g_route.back()}) {
+        const float *at = road::node_position(node);
+        if (!at) continue;
+        const Clip c = lines.project({at[0], at[1] + 0.3f, at[2]});
+        if (c.w < 0.5f) continue;
+        float sx, sy;
+        lines.to_pixels(c, &sx, &sy);
+        draw_panel(lines, summary, sx, sy);
+        drawn = true;
+    }
+    if (!drawn) draw_panel(lines, summary, v.centre_x, 70.0f);
+}
+
+void add_cost(const View &v, int player) {
+    Lines &lines = v.lines;
+    for (const unsigned n : g_route)
+        if (!road::node(n)) {
+            g_route.clear();
+            break;
+        }
+    const bool empty = g_route.empty();
+    const unsigned front = empty ? kNone : g_route.front(), back = empty ? kNone : g_route.back();
+    const auto in_route = [&](unsigned n) { return std::find(g_route.begin(), g_route.end(), n) != g_route.end(); };
+    const auto is_end = [&](unsigned n) { return !empty && (n == front || n == back); };
+    const auto is_candidate = [&](unsigned n) { return !empty && !in_route(n) && (segment_between(back, n) != kNone || segment_between(front, n) != kNone); };
+
+    // Only the nodes that can be picked are hovered: any node to begin with, then the nodes joined to either end of the route, and the two ends (to take them off again).
+    const unsigned hovered = draw_nodes(
+        v,
+        [&](unsigned n) {
+            if (in_route(n)) return NodeLook{1.2f, kActive};
+            if (is_candidate(n)) return NodeLook{0.9f, kCandidate};
+            return NodeLook{0.5f, empty && race_area::contains_node(n) ? kNode : kOutside};
+        },
+        [&](unsigned n) { return empty || is_end(n) || is_candidate(n); });
+
+    std::vector<unsigned> segments;
+    for (size_t i = 0; i + 1 < g_route.size(); ++i) {
+        const unsigned segment = segment_between(g_route[i], g_route[i + 1]);
+        if (segment != kNone) segments.push_back(segment);
+    }
+    for (const unsigned segment : segments) segment_draw::add_corridor(lines, segment, kActive, kRouteFill);
+    if (hovered != kNone) {
+        const float *at = road::node_position(hovered);
+        canvas::add_diamond(lines, {at[0], at[1] + 0.3f, at[2]}, 1.4f, kHover);
+        if (is_candidate(hovered)) {  // the segment it would add
+            const unsigned toward_back = segment_between(back, hovered);
+            segment_draw::add_corridor(lines, toward_back != kNone ? toward_back : segment_between(front, hovered), kHover, kHoverFill);
+        }
+    }
+    if (!segments.empty()) draw_route_labels(v, segments, player);
+    draw_cross(lines);
+
+    // Left click: pick the hovered node (at the end of the route it is joined to), or take it off when it is an end of the route. Right click: start again.
+    static bool left_before = false, right_before = false;
+    // (only the first player's picture handles clicks, see add_roads)
+    if (player == 0 && nfsmw::key_clicked(VK_LBUTTON, left_before) && hovered != kNone) {
+        if (empty) g_route.push_back(hovered);
+        else if (is_end(hovered)) {
+            if (hovered == back) g_route.pop_back();
+            else g_route.erase(g_route.begin());
+        } else if (segment_between(back, hovered) != kNone) g_route.push_back(hovered);
+        else g_route.insert(g_route.begin(), hovered);
+    }
+    if (player == 0 && nfsmw::key_clicked(VK_RBUTTON, right_before)) g_route.clear();
+}
+
+}  // namespace
+
+void set_mode(int player, int mode) {
+    static int last[2] = {settings::kOverlayOff, settings::kOverlayOff};
+    int &was = last[player != 0 ? 1 : 0];
+    if (was == mode) return;
+    was = mode;
+    g_active = g_active_segment = kNone;  // a selection belongs to a mode
+    g_route.clear();
+    if ((mode == settings::kOverlayRoads || mode == settings::kOverlayCost) && road::loaded()) {
+        g_log.line("road inspector: %s mode: %u nodes, %u segments, %u profiles", mode == settings::kOverlayRoads ? "roads" : "cost", road::node_count(), road::segment_count(),
+                   *reinterpret_cast<const unsigned *>(road::kNumProfiles));
+        log_far_segments();
+    }
+}
+
+void begin_picture() { g_placed.clear(); }
+
+void add(Lines &lines, int player, int mode) {
+    Vec3 eye;
+    if (!road::loaded()) {  // the race is over: the next track has other nodes
+        g_active = g_active_segment = kNone;
+        g_route.clear();
+        return;
+    }
+    if (!lines.eye(&eye)) return;
+    const View v = {lines, {eye.x, eye.y, eye.z}, lines.width() * 0.5f, lines.height() * 0.5f, 0.5f * lines.height() * lines.matrix()[5], kHoverFraction * lines.height()};
+    if (mode == settings::kOverlayCost) add_cost(v, player);
+    else add_roads(v, player);
 }
 
 }  // namespace improved_ai_opponents::road_inspector

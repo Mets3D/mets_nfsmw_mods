@@ -1,8 +1,10 @@
-// What the AI of a player's car is calculating (F8), drawn over that player's picture. Nothing is drawn unless F8 (this) or F11 (the road inspector, road_inspector.cpp) is on.
-// F8 shows, for each player whose AI is driving the car or planning beside it:
+// What the AI of a player's car is calculating (the AI Logic overlay), drawn over that player's picture. F8 steps each player's overlay through Off, AI Logic,
+// Roads and Cost (settings.h; the last two are road_inspector.cpp's). AI Logic shows, for each player whose AI is driving the car or planning beside it:
 //   the route   the road segments of the route the A* search found to the next checkpoint, from the one the car is on to the goal, each drawn in full: the lanes
 //               of its profile and its orange outline (segment_draw). The car's own segment is drawn only from the car on. With [debug] log, every new route
 //               (from the segment the car's drive-to nav is on) is also written to the log.
+//   green       the cookie trail: the road's cross-sections between the car and the nav's head, as the two limits and a bar across every fourth one; red where the car is out
+//               of bounds by the game's measure (what throws the route away: AIActionRace::CheckOffPath)
 //   yellow      the steering target (IVehicleAI::GetDriveTarget: the point the car steers at) with a pole and a cross, and a line from the car
 //   white       the head of the nav (`fPosition`, the look-ahead point the corridor is built up to), a small square with a pole
 //   diamond     (the apex) the corner the view along the corridor is blocked by: orange-red when a car's cut is the cause, magenta when it is
@@ -24,6 +26,7 @@
 #include "lines.h"
 #include "road_geometry.h"
 #include "road_inspector.h"
+#include "settings.h"
 #include "hooks.h"
 #include "keys.h"
 #include "road_network.h"
@@ -43,7 +46,21 @@ constexpr int kMaxPathSegments = 80;
 constexpr DWORD kTarget = 0xFFFFE000, kApexCar = 0xFFFF6000, kApexRoad = 0xFFFF00FF, kNavHead = 0xFFFFFFFF;
 
 // WRoadNav, PC offsets.
-constexpr unsigned kNavRoadOcclusion = 0x58, kNavAvoidableOcclusion = 0x5C, kNavPosition = 0x98, kNavApex = 0x158;
+constexpr unsigned kNavTrail = 0x08, kNavHasTrail = 0x55, kNavRoadOcclusion = 0x58, kNavAvoidableOcclusion = 0x5C, kNavPosition = 0x98, kNavApex = 0x158;
+
+// A NavCookie (0x40 bytes, the decomp's layout is the PC's): a cross-section of the road the nav has walked along; the positions of its edges are (x, z).
+struct Cookie {
+    float left[2], right[2], forward[2];
+    float length, curvature, left_offset, right_offset;
+    unsigned flags;
+    float pad;
+    float centre[3];
+    short segment_parameter;
+    unsigned short segment;
+};
+static_assert(sizeof(Cookie) == 0x40, "NavCookie");
+constexpr int kTrailSize = 32;
+constexpr DWORD kCookieEdge = 0xFF30D030, kCookieBar = 0xFF1C7A1C, kCookieOut = 0xFFFF3030;
 
 // A segment of the route: the nodes it is driven from and to.
 struct RouteSegment {
@@ -121,9 +138,6 @@ void log_route(const std::vector<RouteSegment> &route) {
     }
 }
 
-// F8 turns the view of what the AI is calculating on and off (see the top of the file).
-bool g_ai_view = false;
-
 // Every new route is written to the log (what the route is, segment by segment, with the length, the speed a car can follow it at and the time that takes at that
 // speed: not a lap time, a way to compare routes). Every different route once; at most 400.
 void log_route_summary(const std::vector<RouteSegment> &route) {
@@ -137,7 +151,8 @@ void log_route_summary(const std::vector<RouteSegment> &route) {
     float length = 0.0f, seconds = 0.0f;
     std::string text;
     int on_line = 0;
-    g_log.line("route #%d: %zu segments from segment %u", logged, route.size(), route.front().index);
+    const float *goal = road::node_position(route.back().end_node);
+    g_log.line("route #%d: %zu segments from segment %u to segment %u, which ends at %.0f %.0f", logged, route.size(), route.front().index, route.back().index, goal ? goal[0] : 0.0f, goal ? goal[2] : 0.0f);
     for (const RouteSegment &r : route) {
         const float limit = car_stats::cornering_speed(car_stats::of(-1), geometry::corner_limit(r.index).radius);
         const float segment_length = node_distance(r.start_node, r.end_node);
@@ -154,6 +169,50 @@ void log_route_summary(const std::vector<RouteSegment> &route) {
     }
     if (!text.empty()) g_log.line("route #%d:%s", logged, text.c_str());
     g_log.line("route #%d: %.0f m between the nodes, %.1f s at the segments' limit speeds (segment(length, limit m/s))", logged, length, seconds);
+}
+
+// The cookie trail of the nav (agent_docs/ai-driving.md): the road's cross-sections between the car and the nav's head, one every 1 to 3 m, each with the left and
+// right limit of the road there. This is the corridor the car steers through (the farthest point it can see through it is its steering target) and what the game
+// holds the car against: the cookie nearest to the car gives the car's offset across it, and the game's out-of-bounds value (the car's half width of 1 m plus how far
+// the car is outside the limits) is over 2 m, the nav is thrown onto the car's road and the route is dropped (AIActionRace::CheckOffPath). Drawn as the two limits
+// (green) and a bar across every fourth cookie; the bar nearest to the car and a line to it are red when the car is out of bounds in that sense.
+void add_cookie_trail(Lines &lines, const unsigned char *nav, const float *car) {
+    const unsigned char *trail = *reinterpret_cast<unsigned char *const *>(nav + kNavTrail);
+    if (!nav[kNavHasTrail] || !readable(trail, 0x10 + kTrailSize * sizeof(Cookie))) return;
+    const int count = *reinterpret_cast<const int *>(trail), last = *reinterpret_cast<const int *>(trail + 4);
+    if (count < 2 || count > kTrailSize) return;
+    const auto cookie = [&](int n) {  // the n-th oldest
+        const int index = count < kTrailSize ? n % count : (last + 1 + n) % kTrailSize;
+        return reinterpret_cast<const Cookie *>(trail + 0x10) + index;
+    };
+    const auto left = [](const Cookie &c) { return Vec3{c.left[0], c.centre[1] + 0.4f, c.left[1]}; };
+    const auto right = [](const Cookie &c) { return Vec3{c.right[0], c.centre[1] + 0.4f, c.right[1]}; };
+    int nearest = 0;
+    float nearest_distance = 1e30f;
+    for (int n = 0; n < count; ++n) {
+        const Cookie &c = *cookie(n);
+        if (car) {
+            const float d = std::hypot(c.centre[0] - car[0], c.centre[2] - car[2]);
+            if (d < nearest_distance) {
+                nearest_distance = d;
+                nearest = n;
+            }
+        }
+        if (n + 1 < count) {
+            const Cookie &next = *cookie(n + 1);
+            lines.add(left(c), left(next), kCookieEdge);
+            lines.add(right(c), right(next), kCookieEdge);
+        }
+        if (n % 4 == 0) lines.add(left(c), right(c), kCookieBar);
+    }
+    if (!car) return;
+    const Cookie &c = *cookie(nearest);
+    const float to_car_x = car[0] - c.centre[0], to_car_z = car[2] - c.centre[2];
+    const float offset = to_car_x * c.forward[1] - to_car_z * c.forward[0];  // bCross(cookie_to_car, forward): across the road
+    const float out_of_bounds = 1.0f + std::max(offset - c.right_offset, c.left_offset - offset);
+    const DWORD color = out_of_bounds > 2.0f ? kCookieOut : kCookieEdge;
+    lines.add(left(c), right(c), color);
+    lines.add({car[0], car[1] + 0.6f, car[2]}, {c.centre[0], c.centre[1] + 0.6f, c.centre[2]}, color);
 }
 
 // The route from the segment the car is on: that segment is the one of the path (up to 12 before the nav's, which is the look-ahead target) whose road is nearest
@@ -199,16 +258,21 @@ void add_route_segments(Lines &lines, const unsigned char *nav, const float *car
 
 void draw(IDirect3DDevice9 *device, const void *view_plat_info, float width, float height, int player) {
     static bool f8_was_down = false;
-    if (nfsmw::key_pressed(nfsmw::game_has_focus() && nfsmw::key_down(VK_F8), f8_was_down)) g_ai_view = !g_ai_view;
-    const bool editing = road_inspector::enabled();
-    if (!view_plat_info || (!g_ai_view && !editing)) return;  // neither F8 nor F11: nothing is drawn
+    if (nfsmw::key_pressed(nfsmw::game_has_focus() && nfsmw::key_down(VK_F8), f8_was_down)) {  // Off, AI Logic, Roads, Cost, for both players
+        const int next = (settings::player(0).overlay + 1) % 4;
+        settings::player(0).overlay = settings::player(1).overlay = next;
+        g_log.line("overlay: %s", settings::overlay_name(next));
+    }
+    const int mode = settings::player(player).overlay;
+    road_inspector::set_mode(player, mode);
+    if (!view_plat_info || mode == settings::kOverlayOff) return;
     const float *world_clip = reinterpret_cast<const float *>(static_cast<const unsigned char *>(view_plat_info) + 0x80);
     if (!readable(world_clip, 64)) return;
 
     Lines lines(world_clip, width, height);
     road_inspector::begin_picture();
-    if (editing) road_inspector::add(lines);
-    void *ai = g_ai_view ? control::driving_ai(player) : nullptr;
+    if (mode == settings::kOverlayRoads || mode == settings::kOverlayCost) road_inspector::add(lines, player, mode);
+    void *ai = control::driving_ai(player);  // (null unless the mode is AI Logic)
     if (!ai) {
         if (!lines.empty()) draw_lines(device, lines);
         return;
@@ -223,6 +287,7 @@ void draw(IDirect3DDevice9 *device, const void *view_plat_info, float width, flo
 
     if (n) {
         add_route_segments(lines, n, have_car ? car : nullptr);
+        add_cookie_trail(lines, n, have_car ? car : nullptr);
 
         // The apex: the corner the view along the corridor is blocked by (when there is one), and why.
         const int by_road = *reinterpret_cast<const int *>(n + kNavRoadOcclusion), by_car = *reinterpret_cast<const int *>(n + kNavAvoidableOcclusion);

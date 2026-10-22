@@ -219,6 +219,22 @@ bool __fastcall hook_admissible(void *search, void *edx, const unsigned char *se
 
 }  // namespace
 
+StepCost cost_of_step(unsigned segment, float entry_speed, int player) {
+    StepCost result{};
+    const unsigned char *s = road::segment(segment);
+    if (!s) return result;
+    result.length = *reinterpret_cast<const unsigned short *>(s + 4) * (1000.0f / 65535.0f);
+    const car_stats::Stats &car = car_stats::of(player);
+    const float limit_speed = car_stats::cornering_speed(car, geometry::corner_limit(segment).radius);
+    const Drive drive = drive_segment(car, entry_speed, limit_speed, result.length);
+    result.limit = limit_speed;
+    result.entry = entry_speed;
+    result.exit = drive.exit_speed;
+    result.seconds = drive.seconds;
+    result.cost = drive.seconds * car.top_speed;
+    return result;
+}
+
 void install() {
     {
         const nfsmw::Hook hooks[] = {

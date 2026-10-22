@@ -12,8 +12,8 @@ namespace {
 Player g_players[2];
 
 const char *const kControls[] = {"off", "vanilla", "improved"};
-const char *const kNitros[] = {"disabled", "fair", "allowed"};
 const char *const kShortcuts[] = {"avoid", "allowed", "always"};
+const char *const kOverlays[] = {"off", "ai_logic", "roads", "cost"};
 
 const char *section_of(int who) { return who == 0 ? "player_1" : "player_2"; }
 
@@ -43,12 +43,13 @@ void load() {
         p.control = read_choice(section, "control", kControls, d.control);
         p.skill = GetPrivateProfileIntA(section, "skill", d.skill, g_ini);
         if (p.skill < 0 || p.skill > 100) p.skill = d.skill;
-        p.nitro = read_choice(section, "nitro", kNitros, d.nitro);
+        p.fair_nitrous = ini_flag(section, "fair_nitrous", d.fair_nitrous);
+        p.fair_performance = ini_flag(section, "fair_performance", d.fair_performance);
         p.shortcuts = read_choice(section, "shortcuts", kShortcuts, d.shortcuts);
         p.follow_race_route = ini_flag(section, "follow_race_route", d.follow_race_route);
         p.super_steer = ini_flag(section, "super_steer", d.super_steer);
         p.catch_up = ini_flag(section, "catch_up", d.catch_up);
-        p.overlay = ini_flag(section, "overlay", d.overlay);
+        p.overlay = read_choice(section, "overlay", kOverlays, d.overlay);
     }
 }
 
@@ -59,18 +60,19 @@ void save(int who) {
     snprintf(text, sizeof(text), "%d", p.skill);
     WritePrivateProfileStringA(section, "control", kControls[p.control], g_ini);
     WritePrivateProfileStringA(section, "skill", text, g_ini);
-    WritePrivateProfileStringA(section, "nitro", kNitros[p.nitro], g_ini);
+    WritePrivateProfileStringA(section, "fair_nitrous", p.fair_nitrous ? "1" : "0", g_ini);
+    WritePrivateProfileStringA(section, "fair_performance", p.fair_performance ? "1" : "0", g_ini);
     WritePrivateProfileStringA(section, "shortcuts", kShortcuts[p.shortcuts], g_ini);
     WritePrivateProfileStringA(section, "follow_race_route", p.follow_race_route ? "1" : "0", g_ini);
     WritePrivateProfileStringA(section, "super_steer", p.super_steer ? "1" : "0", g_ini);
     WritePrivateProfileStringA(section, "catch_up", p.catch_up ? "1" : "0", g_ini);
-    WritePrivateProfileStringA(section, "overlay", p.overlay ? "1" : "0", g_ini);
-    g_log.line("player %d's AI settings saved: control %s, skill %d, nitro %s, shortcuts %s, race route %s, super steer %s, catch-up %s, overlay %s", who + 1, kControls[p.control], p.skill,
-               kNitros[p.nitro], kShortcuts[p.shortcuts], p.follow_race_route ? "followed" : "free", p.super_steer ? "on" : "off", p.catch_up ? "on" : "off", p.overlay ? "on" : "off");
+    WritePrivateProfileStringA(section, "overlay", kOverlays[p.overlay], g_ini);
+    g_log.line("player %d's AI settings saved: control %s, skill %d, fair nitrous %s, fair performance %s, shortcuts %s, race route %s, super steer %s, catch-up %s, overlay %s", who + 1, kControls[p.control], p.skill,
+               p.fair_nitrous ? "on" : "off", p.fair_performance ? "on" : "off", kShortcuts[p.shortcuts], p.follow_race_route ? "followed" : "free", p.super_steer ? "on" : "off", p.catch_up ? "on" : "off", kOverlays[p.overlay]);
 }
 
 const char *control_name(int control) { return kControls[control]; }
-const char *nitro_name(int nitro) { return kNitros[nitro]; }
 const char *shortcuts_name(int shortcuts) { return kShortcuts[shortcuts]; }
+const char *overlay_name(int overlay) { return kOverlays[overlay]; }
 
 }  // namespace improved_ai_opponents::settings

@@ -10,18 +10,22 @@ This mod is currently WIP, so it can't be used in Career mode yet, only in Split
 
 ## AI
 - **Super Steering (TODO)**: The vanilla AI would ignore the handling capabilities of the controlled car, allowing it to take arbitrarily sharp turns at arbitrary speeds. The Improved AI uses the same steering code as the player.
-- **Friendly Nitrous (TODO)**: The vanilla AI would only use nitrous if the player also had nitrous available in their car, and it would only use the same quality nitrous. In the Improved AI, this behaviour can be toggled off, allowing the AI to use nitrous even if the player's car has none.
-- **Friendly Performance (TODO)**: The vanilla AI would limit its car's performance to not exceed the player's car's performance. In the Improved AI, this behaviour can be toggled off, allowing the AI to use whatever performance its car would normally have. Turning this option off may result in completely unfair races, this was not yet tested in career mode.
-- **Catch-Up**: Also known as rubber-banding, this well-known mechanic would cause the vanilla AI to gain additional performance when falling behind the player. This mod allows turning this mechanic off for both the Vanilla and the Improved AI. If this is turned off, it is recommended to also turn off Friendly Performance.
+- **Fair Nitrous**: The vanilla AI only uses nitrous if the player also has nitrous available in their car, and it only gets the same quality nitrous. In the Improved AI, this behaviour can be turned off (Fair Nitrous: Off), allowing the AI to use nitrous even if the player's car has none.
+- **Fair Performance (WIP)**: The vanilla AI limits its car's performance (top speed and grip) to that of the weakest player's car. In the Improved AI, this behaviour can be turned off (Fair Performance: Off), allowing the AI to use whatever performance its car would normally have. Turning this option off may result in completely unfair races, this was not yet tested in career mode.
+- **Catch-Up**: Also known as rubber-banding, this well-known mechanic would cause the vanilla AI to gain additional performance when falling behind the player. This mod allows turning this mechanic off for both the Vanilla and the Improved AI. If this is turned off, it is recommended to also turn off Fair Performance.
 - **Pathfinding (WIP)**: The vanilla AI would always pick the shortest path, which is often a sub-optimal path with unnecessary sharp turns in it. The vanilla AI would also make unwise decisions about taking shortcuts that came down to dice rolls involving a skill level value, with the assumption that all shortcuts are good, which is far from the truth in this game. The improved AI calculates a time cost for each road segment in the race based on that road segment's curvature, lane quality, and width, then picks the fastest route. It has no concept of shortcuts, and no dice rolls. It just takes the fastest route.
 - **Collision recovery (WIP)**: After a full on collision with a wall or traffic, the vanilla AI will throttle forward for 3 full seconds before deciding to enter its reversing routine to try to right itself. The Improved AI does this after 1.5 seconds instead.
 
 ## Debug tools
 While developing this mod, I implemented some tools to better understand the game's road and pathfinding systems. These systems are intended to be used in combination with the free fly mode found in [Dev Tools](../dev_tools/ReadMe.md).
 - Press F7 to toggle whether your car is controlled by AI or not. (TODO: Which AI? Vanilla or Improved?)
-- Press F8 to visualize the chosen path and steering target for the current AI. (TODO: This still works when AI control is turned off, what is it showing then?)
+- Press F8 to step through the debug overlays (the **Debug Overlay** option of the AI Driving options page sets the same): **Off**, **AI Logic**, **Roads**, **Cost**. Use them together with the free fly mode of Dev Tools.
+  - **AI Logic** visualizes the chosen path and steering target for the current AI, from the car on. The green lines are the Cookie Trail: the road's cross-sections between the car and the nav, which is the corridor the car steers through; they turn red where the car is out of bounds by the game's measure, which makes the game throw the route away. (TODO: This still works when AI control is turned off, what is it showing then?)
+  - **Roads** is described below.
+  - **Cost** is for checking what a route costs: see below.
 - Press F9 to force a recalculation of the planned route.
-- Press F11 to visualize the Road Nodes. Road Nodes are connected by colored lines which are Road Segments. The color of the line represents how fast that road segment can be taken (green=fast, red=slow). Click on a Node to make it active. Then you can see a detailed preview of Segments connected to this Road Node as you look around the Node. Click on a Segment to make it active. Then you can see its width and curvature, split up into Lanes, which are color-coded by type. Red for lanes that lead into obstacles, orange for rough terrain, green for road, blue for unidentified (TODO: Identify more lane types!). Labels show a Node's ID, and a Segment's ID, length, speed limit and turning radius.
+- **Roads** mode visualizes the Road Nodes. Road Nodes are connected by colored lines which are Road Segments. The color of the line represents how fast that road segment can be taken (green=fast, red=slow). Click on a Node to make it active. Then you can see a detailed preview of Segments connected to this Road Node as you look around the Node. Click on a Segment to make it active. Then you can see its width and curvature, split up into Lanes, which are color-coded by type. Red for lanes that lead into obstacles, orange for rough terrain, green for road, blue for unidentified (TODO: Identify more lane types!). Labels show a Node's ID, and a Segment's ID, length, speed limit and turning radius. A curved Segment also shows how its speed limit is worked out: the amber lines are the road's Bezier handles, the white line is the middle of the road, the grey ticks and cyan lines are the samples and the band across the road that the best line may use, and the best line itself is colored by the speed its curvature allows (red slow, green fast). The magenta diamond marks the tightest point of the best line.
+- **Cost** mode draws only the Road Nodes. Click a Node to start a route, then click the Nodes joined to either end of it (they are yellow; hovering one previews the Segment that would be added). The Segments between the picked Nodes are drawn, and the route's total length, time and cost are written beside each end of the route, calculated for your car as the Improved AI's pathfinding would, for a start at 30 m/s and from a standstill. Clicking an end Node takes it off again, clicking empty space does nothing, and right-click starts over.
 
 ## Mod Compatibility
 
@@ -31,10 +35,9 @@ While developing this mod, I implemented some tools to better understand the gam
 
 # TODO
 ### PATHFINDING COST CALCULATION: NOT GOOD ENOUGH!
-To improve this situation, we need a tool to run our time cost calculation on a whole segment. I think it should work by only allowing us to select nodes which are connected to the previously selected node, and then displaying a live time cost, possibly with a breakdown of the contributing segments.
 - Circuit #1: This was our main testing ground so far, we win by a mile by avoiding the ridiculous pillars.
-- Circuit #2: Improved AI is not taking the obvious shortcut reliably. Should do a cost check to see if something's wrong with our algos, if not, maybe hard-code some segments as preferred, but that would require going through the whole game world hunting for shortcuts, which would suck.
-- Circuit #3: Improved AI smashes itself into a wall sometimes trying to follow a path which is not a part of this race (is behind an arrow barrier).
+- Circuit #2: The BMW in Redux flies so hard on the first shortcut that it flips upside down every time, lmao. Not sure how to fix, silly edge case.
+- Circuit #3: Seems good now.
 - Circuit #4: Improved AI is not taking a shortcut that the vanilla AI does a crazy smooth job at taking towards the end of the lap.
 
 ### OBSTACLES
@@ -45,15 +48,12 @@ To improve this situation, we need a tool to run our time cost calculation on a 
 
 ### PERFORMANCE
 - Disabling of Super Steering is definitely not working, lmao.
-- AI cars seem to limit their own performance to that of their opponent, maybe the weakest car in the race or something. This is probably wise, but adding an option would be useful to allow players to race a better car using a weaker car, for what should be an impossible challenge.
-    - Make this an option called "Fair Performance: On/Off".
-- Rename Nitrous: "Allow/Fair/Disabled" to "Fair Nitrous: On/Off"
 - Would be nice to try to nail Perfect Launch every time.
 - Would be nice to improve nitro management. Right now it is used quite eagerly and arbitrarily. I'd aim to have a reserve to be used after losing a lot of speed and having a straight section ahead, but other than that, do avoid allowing nitrous to sit on full, since then regeneration potential would be wasted.
 - Would be nice if in squiggly roads (like in circuit 3) it would try to find a straight line through when it is possible, instead of following road curvature so religiously.
 
 ### UX
-- Change F8/F11 keybinds, look for something that doesn't conflict with ExtraOptions hotkeys, and hide them behind an .ini toggle by default.
+- Change the F8 keybind, look for something that doesn't conflict with ExtraOptions hotkeys, and hide them behind an .ini toggle by default.
 - Remove options like "Shortcuts", "Follow Race Route", etc, they're likely unnecessary with the new logic.
     - Well, I'm not so sure about this just yet... we may still need to improve our pathfinding logic.
 - Allow Split Screen race to be started with only 1 input device, where the 2nd player is AI-controlled.

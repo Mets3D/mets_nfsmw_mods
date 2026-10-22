@@ -7,8 +7,8 @@
  *   path_cost.cpp   the improved AI's route search costs the time a route takes for that car, and may plan shortcuts
  *   nav_landing.cpp, race_area.cpp   where the AI's nav may be put, and the area of the race
  *   road_geometry.cpp   the curves of the road segments and how fast a car can follow them
- *   overlay.cpp     lines in the picture showing what the AI does (the route, the steering target) (F8); lines.cpp and segment_draw.cpp draw them
- *   road_inspector.cpp the road network around the camera, node and segment by segment (F11)
+ *   overlay.cpp     lines in the picture showing what the AI does (the route, the steering target) (F8 steps through the overlays); lines.cpp and segment_draw.cpp draw them
+ *   road_inspector.cpp the road network around the camera, node and segment by segment; the cost of a route picked node by node (F8 modes Roads and Cost)
  * What is known about the game's code these parts use: agent_docs/ai-driving.md.
  *
  * Files in <game>/scripts/mets_mods/: nfsmw_improved_ai_opponents.log, nfsmw_improved_ai_opponents.ini.
@@ -17,7 +17,6 @@
 
 #include "ai_control.h"
 #include "car_stats.h"
-#include "road_inspector.h"
 #include "overlay.h"
 #include "nav_landing.h"
 #include "path_cost.h"
@@ -60,7 +59,6 @@ NFSMW_PLUGIN_MAIN() {
     control::install();
     path_cost::install();
     nav_landing::install();
-    road_inspector::install();
     on_view_draw_register(&on_view_draw);
     g_active = true;
     return NFSMW_OK;

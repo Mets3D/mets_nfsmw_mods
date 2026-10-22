@@ -83,6 +83,7 @@ void refresh(int player, void *vehicle_ai) {
     if (tires && !IsBadReadPtr(tires, kStaticGrip + 8)) {
         const float grip = std::min(tires[kStaticGrip / 4], tires[kStaticGrip / 4 + 1]);
         if (sane(grip, 0.3f, 4.0f)) {
+            s.grip = grip;
             s.lateral = grip * kGravity;
             s.brake = grip * kGravity;
         }

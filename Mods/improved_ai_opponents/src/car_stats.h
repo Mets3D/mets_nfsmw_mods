@@ -7,6 +7,7 @@ struct Stats {
     float top_speed;  // m/s
     float lateral;    // m/s^2: the sideways acceleration the tires hold
     float brake;      // m/s^2
+    float grip;       // the tires' static grip in g (0: not known)
     float accel[10];  // m/s^2 along the car's speed from 0 to top_speed in nine equal steps
     bool from_car;    // the numbers are the car's own (else those of a generic car)
 };
