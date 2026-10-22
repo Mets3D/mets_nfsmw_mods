@@ -335,18 +335,6 @@ void __fastcall hook_check_off_path(void *self, void *edx, float dt) {
     g_orig_check_off_path(self, edx, dt);
 }
 
-//  - Reset trace: AIVehicle::ResetDriveToNav 0x422610 puts the drive-to nav on the road nearest to the car and drops its route. The game calls it from
-//    AIActionRace::BeginAction (an action that starts again), CheckOffPath, the unstuck action and the start and end of a race: the log says which, for an improved
-//    AI's nav (the address the call came from; Tools/re/re.py name <address>), to find out what throws a route away. (A trace, to be taken out once that is known.)
-using ResetDriveToNavFn = void(__fastcall *)(void *, void *, int);
-ResetDriveToNavFn g_orig_reset_drive_to_nav = nullptr;
-
-void __fastcall hook_reset_drive_to_nav(void *self, void *edx, int lane_selection) {
-    const int player = player_of(self);
-    if (player >= 0 && variant_of(player) == Variant::kImproved) g_log.line("ai control: player %d's nav is reset (lane selection %d) by the code at %p", player + 1, lane_selection, __builtin_return_address(0));
-    g_orig_reset_drive_to_nav(self, edx, lane_selection);
-}
-
 //  - Super steer: the physics steers a car with SuspensionRacer::DoSteering, by DoHumanSteering (the wheel's range falls with speed, throttle and brake, and it turns
 //    at a limited rate) when IHumanAI::IsPlayerSteering (AIVehicleHuman, 0x435240: `!bAiControl && !IsDragSteering()`), else DoAISteering (the full angle of the
 //    tires at once). With Super Steer off, for an improved player's car, the IsPlayerSteering hook asks the game's own function with bAiControl (+8) cleared for the
@@ -542,8 +530,6 @@ void patch_ai() {
          nfsmw::orig(&g_orig_compute_potentials)},
         {"ai_off_path", "AIActionRace::CheckOffPath", 0x414780, {0x64, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x6A}, false, nfsmw::detour(&hook_check_off_path),
          nfsmw::orig(&g_orig_check_off_path)},
-        {"ai_reset_trace", "AIVehicle::ResetDriveToNav", 0x422610, {0x83, 0xEC, 0x0C, 0x53, 0x55, 0x56, 0x8B}, false, nfsmw::detour(&hook_reset_drive_to_nav),
-         nfsmw::orig(&g_orig_reset_drive_to_nav)},
         {"ai_steer_mode", "AIVehicleHuman::IsPlayerSteering", 0x435240, {0x8A, 0x41, 0x08, 0x84, 0xC0, 0x75, 0x15}, false, nfsmw::detour(&hook_is_player_steering),
          nfsmw::orig(&g_orig_is_player_steering)},
         {"ai_steer_range", "SuspensionRacer::DoSteering", 0x69E9E0, {0x83, 0xEC, 0x20, 0x56, 0x8B, 0xF1, 0x8B}, false, nfsmw::detour(&hook_do_steering),

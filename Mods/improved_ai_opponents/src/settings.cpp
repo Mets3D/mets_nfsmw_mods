@@ -48,6 +48,7 @@ void load() {
         p.shortcuts = read_choice(section, "shortcuts", kShortcuts, d.shortcuts);
         p.follow_race_route = ini_flag(section, "follow_race_route", d.follow_race_route);
         p.super_steer = ini_flag(section, "super_steer", d.super_steer);
+        p.avoid_props = ini_flag(section, "avoid_props", d.avoid_props);
         p.catch_up = ini_flag(section, "catch_up", d.catch_up);
         p.overlay = read_choice(section, "overlay", kOverlays, d.overlay);
     }
@@ -65,10 +66,11 @@ void save(int who) {
     WritePrivateProfileStringA(section, "shortcuts", kShortcuts[p.shortcuts], g_ini);
     WritePrivateProfileStringA(section, "follow_race_route", p.follow_race_route ? "1" : "0", g_ini);
     WritePrivateProfileStringA(section, "super_steer", p.super_steer ? "1" : "0", g_ini);
+    WritePrivateProfileStringA(section, "avoid_props", p.avoid_props ? "1" : "0", g_ini);
     WritePrivateProfileStringA(section, "catch_up", p.catch_up ? "1" : "0", g_ini);
     WritePrivateProfileStringA(section, "overlay", kOverlays[p.overlay], g_ini);
-    g_log.line("player %d's AI settings saved: control %s, skill %d, fair nitrous %s, fair performance %s, shortcuts %s, race route %s, super steer %s, catch-up %s, overlay %s", who + 1, kControls[p.control], p.skill,
-               p.fair_nitrous ? "on" : "off", p.fair_performance ? "on" : "off", kShortcuts[p.shortcuts], p.follow_race_route ? "followed" : "free", p.super_steer ? "on" : "off", p.catch_up ? "on" : "off", kOverlays[p.overlay]);
+    g_log.line("player %d's AI settings saved: control %s, skill %d, fair nitrous %s, fair performance %s, shortcuts %s, race route %s, super steer %s, avoid props %s, catch-up %s, overlay %s", who + 1, kControls[p.control], p.skill,
+               p.fair_nitrous ? "on" : "off", p.fair_performance ? "on" : "off", kShortcuts[p.shortcuts], p.follow_race_route ? "followed" : "free", p.super_steer ? "on" : "off", p.avoid_props ? "on" : "off", p.catch_up ? "on" : "off", kOverlays[p.overlay]);
 }
 
 const char *control_name(int control) { return kControls[control]; }

@@ -2,7 +2,7 @@
  * Options > AI Driving (through nfsmw_custom_menus, see custom_menus_api.h): the AI settings of the player whose options are open (a page of the
  * pause menu; PlayerToEdit says whose). The settings are the live ones (settings.h): a change takes effect at once, Accept saves it to the ini,
  * Back asks before it is thrown away. Rows that cannot matter for the current choice are greyed out: the skill and catch-up need an AI at
- * the wheel, fair nitrous and performance, shortcuts, the race route and super steer the improved AI.
+ * the wheel, fair nitrous and performance, shortcuts, the race route, super steer and avoiding props the improved AI.
  */
 #include <algorithm>
 #include <cstdio>
@@ -19,7 +19,7 @@ namespace {
 constexpr uintptr_t kPlayerToEdit = 0x91CA24;  // UIOptionsScreen::PlayerToEdit: whose options are open
 constexpr unsigned kOnText = 0x417B2604, kOffText = 0x70DFE5C2;  // the game's own "On" and "Off"
 
-enum Row { R_CONTROL, R_SKILL, R_FAIR_NITROUS, R_FAIR_PERFORMANCE, R_SHORTCUTS, R_RACE_ROUTE, R_SUPER_STEER, R_CATCHUP, R_OVERLAY };
+enum Row { R_CONTROL, R_SKILL, R_FAIR_NITROUS, R_FAIR_PERFORMANCE, R_SHORTCUTS, R_RACE_ROUTE, R_SUPER_STEER, R_AVOID_PROPS, R_CATCHUP, R_OVERLAY };
 
 constexpr opt::Row kRows[] = {
     {opt::kValueRow, "AI Control", 0,
@@ -39,6 +39,9 @@ constexpr opt::Row kRows[] = {
      "any road, starting from the road the car is on, and its route search chooses from there. Takes effect at the next route plan (F9 plans it again)."},
     {opt::kValueRow, "Super Steer", 0,
      "Improved AI only. Allow arbitrary steering, like the vanilla AI. Disable to make this AI's steering controls match a human player's."},
+    {opt::kValueRow, "Avoid Props", 0,
+     "Improved AI only. On: it steers around the heavy things beside and on the road that a car could knock over (barrels, posts, booths; not the light ones such as "
+     "bins, hydrants and chairs), and the AI Logic overlay draws their collision boxes. Off: it drives through them like the game's AI."},
     {opt::kValueRow, "Catch-Up", 0, "The game's own catch-up: when the AI is behind the other players it drives better and accelerates harder, as the opponents do."},
     {opt::kValueRow, "Debug Overlay", 0,
      "What is drawn in your picture (F8 steps through them). AI Logic: the route the AI has planned and its steering target (the improved AI plans beside "
@@ -63,6 +66,7 @@ unsigned value(int row, char *out, unsigned size) {
         case R_SHORTCUTS: snprintf(out, size, "%s", kShortcuts[p.shortcuts]); return 0;
         case R_RACE_ROUTE: return p.follow_race_route ? kOnText : kOffText;
         case R_SUPER_STEER: return p.super_steer ? kOnText : kOffText;
+        case R_AVOID_PROPS: return p.avoid_props ? kOnText : kOffText;
         case R_CATCHUP: return p.catch_up ? kOnText : kOffText;
         default: snprintf(out, size, "%s", kOverlays[p.overlay]); return 0;
     }
@@ -82,6 +86,7 @@ void change(int row, int direction, bool fine) {
         case R_SHORTCUTS: p.shortcuts = step(p.shortcuts, direction, 3); break;
         case R_RACE_ROUTE: p.follow_race_route = direction > 0; break;
         case R_SUPER_STEER: p.super_steer = direction > 0; break;
+        case R_AVOID_PROPS: p.avoid_props = direction > 0; break;
         case R_CATCHUP: p.catch_up = direction > 0; break;
         case R_OVERLAY: p.overlay = step(p.overlay, direction, 4); break;
     }
@@ -96,13 +101,14 @@ bool row_enabled(int row) {
         case R_FAIR_PERFORMANCE:
         case R_SHORTCUTS:
         case R_RACE_ROUTE:
-        case R_SUPER_STEER: return p.control == st::kImproved;
+        case R_SUPER_STEER:
+        case R_AVOID_PROPS: return p.control == st::kImproved;
         default: return true;
     }
 }
 
 bool same(const st::Player &a, const st::Player &b) {
-    return a.control == b.control && a.skill == b.skill && a.fair_nitrous == b.fair_nitrous && a.fair_performance == b.fair_performance && a.shortcuts == b.shortcuts && a.follow_race_route == b.follow_race_route && a.super_steer == b.super_steer && a.catch_up == b.catch_up && a.overlay == b.overlay;
+    return a.control == b.control && a.skill == b.skill && a.fair_nitrous == b.fair_nitrous && a.fair_performance == b.fair_performance && a.shortcuts == b.shortcuts && a.follow_race_route == b.follow_race_route && a.super_steer == b.super_steer && a.avoid_props == b.avoid_props && a.catch_up == b.catch_up && a.overlay == b.overlay;
 }
 
 void opened() {

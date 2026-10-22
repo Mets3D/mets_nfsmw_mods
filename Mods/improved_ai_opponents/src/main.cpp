@@ -19,6 +19,7 @@
 #include "car_stats.h"
 #include "overlay.h"
 #include "nav_landing.h"
+#include "obstacles.h"
 #include "path_cost.h"
 #include "settings.h"
 #include "split_screen_api.h"
@@ -57,6 +58,7 @@ NFSMW_PLUGIN_MAIN() {
     }
     settings::load();
     control::install();
+    obstacles::install();
     path_cost::install();
     nav_landing::install();
     on_view_draw_register(&on_view_draw);

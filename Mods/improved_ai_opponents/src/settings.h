@@ -15,6 +15,7 @@ struct Player {
     int shortcuts = kAllowed;
     bool follow_race_route = true;  // the improved AI: the nav of its car stays on the race's own route like the opponents' (the game's race filter), or may be on any road
     bool super_steer = true;  // the improved AI: arbitrary steering like the vanilla AI's; off = its steering is limited like a human player's (speed, rate)
+    bool avoid_props = false;  // the improved AI: steers around the heavy props (barrels, posts) near its way (obstacles.cpp), and the AI Logic overlay draws them
     bool catch_up = false;
     int overlay = kOverlayOff;  // F8 steps through them; the AI's calculations are drawn also while a human drives (the improved AI then plans beside the car)
 };

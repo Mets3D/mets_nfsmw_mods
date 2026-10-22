@@ -14,6 +14,7 @@ This mod is currently WIP, so it can't be used in Career mode yet, only in Split
 - **Fair Performance (WIP)**: The vanilla AI limits its car's performance (top speed and grip) to that of the weakest player's car. In the Improved AI, this behaviour can be turned off (Fair Performance: Off), allowing the AI to use whatever performance its car would normally have. Turning this option off may result in completely unfair races, this was not yet tested in career mode.
 - **Catch-Up**: Also known as rubber-banding, this well-known mechanic would cause the vanilla AI to gain additional performance when falling behind the player. This mod allows turning this mechanic off for both the Vanilla and the Improved AI. If this is turned off, it is recommended to also turn off Fair Performance.
 - **Pathfinding (WIP)**: The vanilla AI would always pick the shortest path, which is often a sub-optimal path with unnecessary sharp turns in it. The vanilla AI would also make unwise decisions about taking shortcuts that came down to dice rolls involving a skill level value, with the assumption that all shortcuts are good, which is far from the truth in this game. The improved AI calculates a time cost for each road segment in the race based on that road segment's curvature, lane quality, and width, then picks the fastest route. It has no concept of shortcuts, and no dice rolls. It just takes the fastest route.
+- **Avoid Props (WIP)**: The vanilla AI drives straight through barrels, posts and booths that stand on or beside the road, whatever they weigh. With this option on, the Improved AI steers around the heavy ones (200 kg and more) the way it steers around cars, using the collision boxes of the pieces the game would collide with; light props (bins, hydrants, chairs) are still driven through. Off by default, since it is not yet known to make the driving better. With the AI Logic overlay on, the boxes are drawn (orange-red: avoided, yellow: knocked down but heavy, grey-blue: too light) with their mass.
 - **Collision recovery (WIP)**: After a full on collision with a wall or traffic, the vanilla AI will throttle forward for 3 full seconds before deciding to enter its reversing routine to try to right itself. The Improved AI does this after 1.5 seconds instead.
 
 ## Debug tools
@@ -44,7 +45,6 @@ While developing this mod, I implemented some tools to better understand the gam
 - I wonder if we could do a better job at avoiding cars.
 - Collision recovery could trigger instantly, if we detect that our speed has gone from 100 to 0 in a 0.1s window.
     - Collision recovery should preferably not re-trigger if we are successfully accelerating.
-- Implement avoiding obstacles like barrels and other destructibles and physics objects, based on their weight. (really wanna avoid water barrels)
 
 ### PERFORMANCE
 - Disabling of Super Steering is definitely not working, lmao.
@@ -55,7 +55,6 @@ While developing this mod, I implemented some tools to better understand the gam
 ### UX
 - Change the F8 keybind, look for something that doesn't conflict with ExtraOptions hotkeys, and hide them behind an .ini toggle by default.
 - Remove options like "Shortcuts", "Follow Race Route", etc, they're likely unnecessary with the new logic.
-    - Well, I'm not so sure about this just yet... we may still need to improve our pathfinding logic.
 - Allow Split Screen race to be started with only 1 input device, where the 2nd player is AI-controlled.
 - Allow using the new AI for regular race opponents in single-player.
 - Look into whether the AI settings can become a sub-menu inside the Gameplay options, or, since the Gameplay menu is so empty anyways, maybe we can just add them flat out.

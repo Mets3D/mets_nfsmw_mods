@@ -54,18 +54,6 @@ int nearest_segment(const float point[3], float *distance) {
     return best;
 }
 
-int g_trace_lines = 0;  // (a trace for finding out how the nav leaves its route; to be taken out once it is known)
-
-// Two segments that share a node.
-bool joined(unsigned a, unsigned b) {
-    const unsigned char *sa = road::segment(a), *sb = road::segment(b);
-    if (!sa || !sb) return false;
-    for (int i = 0; i < 2; ++i)
-        for (int k = 0; k < 2; ++k)
-            if (road::segment_node(sa, i) == road::segment_node(sb, k)) return true;
-    return false;
-}
-
 int index_in(const std::vector<unsigned short> &path, unsigned segment) {
     const auto found = std::find(path.begin(), path.end(), segment);
     return found == path.end() ? -1 : static_cast<int>(found - path.begin());
@@ -95,28 +83,6 @@ void frame(int player, const void *nav, const float *car) {
             w.path.assign(path, path + count);
             w.path_pointer = path;
             w.path_count = count;
-            for (int i = 0; i + 1 < count; ++i)  // do the segments of the route join up?
-                if (!joined(path[i], path[i + 1]) && g_trace_lines++ < 60)
-                    g_log.line("route watch: player %d's new route has segments %u and %u (%d and %d of %d) that share no node", player + 1, path[i], path[i + 1], i, i + 1, count);
-        }
-        const unsigned now_segment = read<unsigned short>(nav, kNavSegment);
-        if (w.on_path && now_segment != w.segment && g_trace_lines < 60) {  // the nav stepped on: to the next segment of the route?
-            const int index = index_in(w.path, w.segment);
-            const int expected = index >= 0 && index + 1 < static_cast<int>(w.path.size()) ? w.path[index + 1] : -1;
-            if (static_cast<int>(now_segment) != expected) {
-                ++g_trace_lines;
-                const auto nodes = [](unsigned segment, char *out) {
-                    const unsigned char *s = road::segment(segment);
-                    snprintf(out, 32, "%u (nodes %u and %u)", segment, s ? road::segment_node(s, 0) : 0, s ? road::segment_node(s, 1) : 0);
-                };
-                char from[32], to[32], next[32] = "none";
-                nodes(w.segment, from);
-                nodes(now_segment, to);
-                if (expected >= 0) nodes(static_cast<unsigned>(expected), next);
-                const float *at_nav = reinterpret_cast<const float *>(static_cast<const unsigned char *>(nav) + kNavPosition);
-                g_log.line("route watch: player %d's nav stepped from segment %s (%d of the route) to segment %s, but the route's next is %s; the nav at %.0f %.0f, the car at %.0f %.0f", player + 1, from, index,
-                           to, next, at_nav[0], at_nav[2], car[0], car[2]);
-            }
         }
         w.on_path = true;
         w.goal = read<unsigned short>(nav, kNavGoal);

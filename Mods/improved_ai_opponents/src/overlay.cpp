@@ -5,6 +5,8 @@
 //               (from the segment the car's drive-to nav is on) is also written to the log.
 //   green       the cookie trail: the road's cross-sections between the car and the nav's head, as the two limits and a bar across every fourth one; red where the car is out
 //               of bounds by the game's measure (what throws the route away: AIActionRace::CheckOffPath)
+//   boxes       (with the Avoid Props option, improved AI) the props around the car (smackables): orange-red the ones the AI steers around, yellow the same knocked down, grey-blue the light ones it drives
+//               through, each with its mass in kg (obstacles.cpp)
 //   yellow      the steering target (IVehicleAI::GetDriveTarget: the point the car steers at) with a pole and a cross, and a line from the car
 //   white       the head of the nav (`fPosition`, the look-ahead point the corridor is built up to), a small square with a pole
 //   diamond     (the apex) the corner the view along the corridor is blocked by: orange-red when a car's cut is the cause, magenta when it is
@@ -24,6 +26,7 @@
 #include "ai_control.h"
 #include "car_stats.h"
 #include "lines.h"
+#include "obstacles.h"
 #include "road_geometry.h"
 #include "road_inspector.h"
 #include "settings.h"
@@ -284,6 +287,8 @@ void draw(IDirect3DDevice9 *device, const void *view_plat_info, float width, flo
     const float *target = reinterpret_cast<GetVecFn>((*static_cast<void ***>(ai))[0x44 / 4])(ai);  // IVehicleAI::GetDriveTarget
     const float *car = control::car_position(ai);
     const bool have_car = readable(car, 12);
+
+    if (have_car && settings::player(player).control == settings::kImproved && settings::player(player).avoid_props) obstacles::add_boxes(lines, car);
 
     if (n) {
         add_route_segments(lines, n, have_car ? car : nullptr);
