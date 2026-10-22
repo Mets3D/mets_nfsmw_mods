@@ -2,7 +2,7 @@
  * Options > AI Driving (through nfsmw_custom_menus, see custom_menus_api.h): the AI settings of the player whose options are open (a page of the
  * pause menu; PlayerToEdit says whose). The settings are the live ones (settings.h): a change takes effect at once, Accept saves it to the ini,
  * Back asks before it is thrown away. Rows that cannot matter for the current choice are greyed out: the skill and catch-up need an AI at
- * the wheel, fair and smarter nitrous, fair performance, shortcuts, the race route, super steer and avoiding props the improved AI.
+ * the wheel, fair and smarter nitrous, perfect launch, fair performance, shortcuts, the race route, super steer and avoiding props the improved AI.
  */
 #include <algorithm>
 #include <cstdio>
@@ -19,7 +19,7 @@ namespace {
 constexpr uintptr_t kPlayerToEdit = 0x91CA24;  // UIOptionsScreen::PlayerToEdit: whose options are open
 constexpr unsigned kOnText = 0x417B2604, kOffText = 0x70DFE5C2;  // the game's own "On" and "Off"
 
-enum Row { R_CONTROL, R_SKILL, R_FAIR_NITROUS, R_SMARTER_NITRO, R_FAIR_PERFORMANCE, R_SHORTCUTS, R_RACE_ROUTE, R_SUPER_STEER, R_AVOID_PROPS, R_CATCHUP, R_OVERLAY };
+enum Row { R_CONTROL, R_SKILL, R_FAIR_NITROUS, R_SMARTER_NITRO, R_PERFECT_LAUNCH, R_FAIR_PERFORMANCE, R_SHORTCUTS, R_RACE_ROUTE, R_SUPER_STEER, R_AVOID_PROPS, R_CATCHUP, R_OVERLAY };
 
 constexpr opt::Row kRows[] = {
     {opt::kValueRow, "AI Control", 0,
@@ -32,6 +32,9 @@ constexpr opt::Row kRows[] = {
     {opt::kValueRow, "Smarter Nitro", 0,
      "Improved AI only. On: it burns nitrous where its planned route lets the car use it: with a (nearly) full bottle, on open road, and not into a bend, instead of "
      "by the game's rule, which fires short bursts wherever the car is slow. Off: the game's rule."},
+    {opt::kValueRow, "Perfect Launch", 0,
+     "Improved AI only. On: at the starting line it holds the engine's revs in the range of the Perfect Launch (the rev counter's needle changes colour), so that it "
+     "gets the boost at the start every time. Off: the game's AI, which holds a constant throttle."},
     {opt::kValueRow, "Fair Performance", 0,
      "Improved AI only. On: like the game's AI, it holds back to the performance of the weakest player's car (top speed and grip). Off: it drives its own car to "
      "what it can do."},
@@ -66,6 +69,7 @@ unsigned value(int row, char *out, unsigned size) {
         case R_SKILL: snprintf(out, size, "%d", p.skill); return 0;
         case R_FAIR_NITROUS: return p.fair_nitrous ? kOnText : kOffText;
         case R_SMARTER_NITRO: return p.smarter_nitro ? kOnText : kOffText;
+        case R_PERFECT_LAUNCH: return p.perfect_launch ? kOnText : kOffText;
         case R_FAIR_PERFORMANCE: return p.fair_performance ? kOnText : kOffText;
         case R_SHORTCUTS: snprintf(out, size, "%s", kShortcuts[p.shortcuts]); return 0;
         case R_RACE_ROUTE: return p.follow_race_route ? kOnText : kOffText;
@@ -87,6 +91,7 @@ void change(int row, int direction, bool fine) {
         case R_SKILL: p.skill = std::clamp(p.skill + direction * (fine ? 1 : 5), 0, 100); break;
         case R_FAIR_NITROUS: p.fair_nitrous = direction > 0; break;
         case R_SMARTER_NITRO: p.smarter_nitro = direction > 0; break;
+        case R_PERFECT_LAUNCH: p.perfect_launch = direction > 0; break;
         case R_FAIR_PERFORMANCE: p.fair_performance = direction > 0; break;
         case R_SHORTCUTS: p.shortcuts = step(p.shortcuts, direction, 3); break;
         case R_RACE_ROUTE: p.follow_race_route = direction > 0; break;
@@ -104,6 +109,7 @@ bool row_enabled(int row) {
         case R_CATCHUP: return p.control != st::kOff;
         case R_FAIR_NITROUS:
         case R_SMARTER_NITRO:
+        case R_PERFECT_LAUNCH:
         case R_FAIR_PERFORMANCE:
         case R_SHORTCUTS:
         case R_RACE_ROUTE:
@@ -114,7 +120,7 @@ bool row_enabled(int row) {
 }
 
 bool same(const st::Player &a, const st::Player &b) {
-    return a.control == b.control && a.skill == b.skill && a.fair_nitrous == b.fair_nitrous && a.smarter_nitro == b.smarter_nitro && a.fair_performance == b.fair_performance && a.shortcuts == b.shortcuts && a.follow_race_route == b.follow_race_route && a.super_steer == b.super_steer && a.avoid_props == b.avoid_props && a.catch_up == b.catch_up && a.overlay == b.overlay;
+    return a.control == b.control && a.skill == b.skill && a.fair_nitrous == b.fair_nitrous && a.smarter_nitro == b.smarter_nitro && a.perfect_launch == b.perfect_launch && a.fair_performance == b.fair_performance && a.shortcuts == b.shortcuts && a.follow_race_route == b.follow_race_route && a.super_steer == b.super_steer && a.avoid_props == b.avoid_props && a.catch_up == b.catch_up && a.overlay == b.overlay;
 }
 
 void opened() {

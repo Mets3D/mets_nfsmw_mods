@@ -19,6 +19,7 @@
 #include "hooks.h"
 #include "improved_ai_opponents.h"
 #include "keys.h"
+#include "perfect_launch.h"
 #include "nitro.h"
 #include "patch.h"
 #include "road_geometry.h"
@@ -37,6 +38,7 @@ constexpr uintptr_t kPlayerList = 0x92D87C, kPlayerCount = 0x92D884;  // the loc
 constexpr uintptr_t kForceAIControl = 0x6123B0, kClearAIControl = 0x612420, kCancelPathFinding = 0x770060, kFind = 0x5D59F0;
 constexpr uintptr_t kRaceStatus = 0x91E000, kGetRacerInfo = 0x5E8B20;  // GRaceStatus::fObj; GRaceStatus::GetRacerInfo(ISimable *)
 constexpr unsigned kIHumanAIHandle = 0x403770, kIVehicleAIHandle = 0x403700;  // IHumanAI::_IHandle, IVehicleAI::_IHandle
+constexpr unsigned kIVehicleHandle = 0x4040E0, kIEngineHandle = 0x404020, kIRaceEngineHandle = 0x668390;  // the same of IVehicle, IEngine, IRaceEngine
 constexpr int kFramesBeforeStart = 120;
 constexpr int kHumanAIOffset = 8;  // the IHumanAI of an AIVehicleHuman is 8 bytes into the object (the game's own thunk subtracts 8)
 // AIPerpVehicle, seen from the IVehicleAI pointer (the object is 0x4C before it): the base skill and the glue skill (GetSkill 0x409340 adds them), the racer info
@@ -76,6 +78,29 @@ void *interface_of_player(int player, unsigned handle) {
     void *simable = reinterpret_cast<GetFn>((*static_cast<void ***>(p))[1])(p);
     if (!simable) return nullptr;
     return reinterpret_cast<FindFn>(kFind)(*reinterpret_cast<void **>(static_cast<char *>(simable) + 4), reinterpret_cast<void *>(handle));
+}
+
+// With [debug] log: what the start gave. For 2 s after a car stops staging the bonus of the perfect launch is asked for (IVehicle vtable +0x20 IsStaging, +0x28 GetPerfectLaunch).
+void log_perfect_launch(int player) {
+    static bool was_staging[2] = {false, false}, said[2] = {true, true};
+    static DWORD ended[2] = {0, 0};
+    void *vehicle = variant_of(player) != Variant::kOff ? interface_of_player(player, kIVehicleHandle) : nullptr;
+    if (!vehicle) return;
+    void **table = *static_cast<void ***>(vehicle);
+    const bool staging = reinterpret_cast<bool(__thiscall *)(void *)>(table[0x20 / 4])(vehicle);
+    const DWORD now = GetTickCount();
+    if (was_staging[player] && !staging) {
+        ended[player] = now;
+        said[player] = false;
+    }
+    was_staging[player] = staging;
+    if (staging || said[player]) return;
+    const float bonus = reinterpret_cast<float(__thiscall *)(void *)>(table[0x28 / 4])(vehicle);
+    if (bonus > 0.0f || now - ended[player] > 2000) {
+        said[player] = true;
+        if (bonus > 0.0f) g_log.line("perfect launch: player %d's car (%s AI) got a bonus of %.2f", player + 1, variant_of(player) == Variant::kImproved ? "improved" : "vanilla", bonus);
+        else g_log.line("perfect launch: player %d's car (%s AI) did not get one", player + 1, variant_of(player) == Variant::kImproved ? "improved" : "vanilla");
+    }
 }
 
 bool ai_controlled(void *human_ai) { return reinterpret_cast<GetAiControlFn>((*static_cast<void ***>(human_ai))[3])(human_ai); }
@@ -211,6 +236,8 @@ void on_frame() {
         g_human_ai[player] = interface_of_player(player, kIHumanAIHandle);
     }
     log_positions();
+    if (g_debug_log)
+        for (int player = 0; player < 2; ++player) log_perfect_launch(player);
     for (int player = 0; player < 2; ++player) car_stats::refresh(player, g_vehicle_ai[player]);
     // The corner limits of the roads are worked out ahead in the background (the first route search asks for thousands), as soon as an improved AI is there to ask
     if (variant_of(0) == Variant::kImproved || variant_of(1) == Variant::kImproved) geometry::precompute_limits();
@@ -281,6 +308,30 @@ unsigned __cdecl nitro_decision(const unsigned char *action, const unsigned char
     return nitro::decide(player, action, frame, game_wants) ? 1u : 0u;
 }
 char g_nitro_fpu_state[112];  // fnsave / frstor around the call: the game has the x87 stack in use
+
+//  - Perfect launch: AIVehiclePid::OnGasBrake 0x42A0B0 sets the throttle to a constant 0.8 (fAiStagingThrottle) while the car is staging (`mov [edi+750h], 0.8f` at
+//    0x42A110, mThrottleBrake); the stub there asks perfect_launch.cpp for it instead, with the revs of the engine (IEngine vtable +4 GetRPM) and the perfect launch window
+//    (IRaceEngine vtable +4 GetPerfectLaunchRange(float &range)). `this` is the AIVehicle, its IVehicleAI part 0x4C into it; the float argument dT of OnGasBrake is
+//    at [esp+1Ch] there (3 pushes and 0xC of locals in the prologue).
+unsigned __cdecl staging_throttle(const unsigned char *ai_vehicle, unsigned dt_bits) {
+    constexpr float kGameThrottle = 0.8f;
+    float result = kGameThrottle;
+    const int player = player_of(ai_vehicle + kPerpVehicleToVehicleAi);
+    if (player >= 0 && variant_of(player) == Variant::kImproved && settings::player(player).perfect_launch) {
+        void *engine = interface_of_player(player, kIEngineHandle), *race_engine = interface_of_player(player, kIRaceEngineHandle);
+        if (engine && race_engine) {
+            float dt, range = 0.0f;
+            memcpy(&dt, &dt_bits, 4);
+            const float rpm = reinterpret_cast<float(__thiscall *)(void *)>((*static_cast<void ***>(engine))[1])(engine);
+            const float start = reinterpret_cast<float(__thiscall *)(void *, float *)>((*static_cast<void ***>(race_engine))[1])(race_engine, &range);
+            result = perfect_launch::throttle(player, rpm, start, range, dt, kGameThrottle);
+        }
+    }
+    unsigned bits;
+    memcpy(&bits, &result, 4);
+    return bits;
+}
+char g_staging_fpu_state[112];
 
 using PotentialNosFn = float(__fastcall *)(void *, void *, float, bool, float);
 PotentialNosFn g_orig_potential_nos = nullptr;
@@ -508,6 +559,21 @@ void patch_ai() {
         stub.done();
         const unsigned char expected[6] = {0x0F, 0x85, 0x11, 0x01, 0x00, 0x00};
         g_log.line("ai control: nitrous for the improved AI of a player %s", nfsmw::jump_to_stub(0x42905E, expected, 6, stub) ? "enabled" : "NOT patched (the code differs)");
+    }
+    {
+        Stub stub(96);
+        const uintptr_t after = 0x42A11A;
+        stub.emit({0x60, 0xDD, 0x35});  // pushad; fnsave [state]
+        stub.emit_u32(reinterpret_cast<uintptr_t>(g_staging_fpu_state));
+        stub.emit({0xFF, 0x74, 0x24, 0x3C, 0x57, 0xB8});  // push [esp+3Ch] (dT); push edi (the AIVehicle); mov eax,
+        stub.emit_u32(reinterpret_cast<uintptr_t>(&staging_throttle));
+        stub.emit({0xFF, 0xD0, 0x83, 0xC4, 0x08, 0xDD, 0x25});  // call eax; add esp,8; frstor [state]
+        stub.emit_u32(reinterpret_cast<uintptr_t>(g_staging_fpu_state));
+        stub.emit({0x89, 0x44, 0x24, 0x1C, 0x61, 0x89, 0x87, 0x50, 0x07, 0x00, 0x00});  // mov [esp+1Ch],eax; popad; mov [edi+750h],eax (the throttle, as float bits)
+        stub.emit_rel32(0xE9, after);
+        stub.done();
+        const unsigned char expected[10] = {0xC7, 0x87, 0x50, 0x07, 0x00, 0x00, 0xCD, 0xCC, 0x4C, 0x3F};
+        g_log.line("ai control: the throttle of the improved AI at the starting line %s", nfsmw::jump_to_stub(0x42A110, expected, 10, stub) ? "can be held for a perfect launch" : "NOT patched (the code differs)");
     }
     {
         Stub stub(96);

@@ -45,6 +45,7 @@ void load() {
         if (p.skill < 0 || p.skill > 100) p.skill = d.skill;
         p.fair_nitrous = ini_flag(section, "fair_nitrous", d.fair_nitrous);
         p.smarter_nitro = ini_flag(section, "smarter_nitro", d.smarter_nitro);
+        p.perfect_launch = ini_flag(section, "perfect_launch", d.perfect_launch);
         p.fair_performance = ini_flag(section, "fair_performance", d.fair_performance);
         p.shortcuts = read_choice(section, "shortcuts", kShortcuts, d.shortcuts);
         p.follow_race_route = ini_flag(section, "follow_race_route", d.follow_race_route);
@@ -64,6 +65,7 @@ void save(int who) {
     WritePrivateProfileStringA(section, "skill", text, g_ini);
     WritePrivateProfileStringA(section, "fair_nitrous", p.fair_nitrous ? "1" : "0", g_ini);
     WritePrivateProfileStringA(section, "smarter_nitro", p.smarter_nitro ? "1" : "0", g_ini);
+    WritePrivateProfileStringA(section, "perfect_launch", p.perfect_launch ? "1" : "0", g_ini);
     WritePrivateProfileStringA(section, "fair_performance", p.fair_performance ? "1" : "0", g_ini);
     WritePrivateProfileStringA(section, "shortcuts", kShortcuts[p.shortcuts], g_ini);
     WritePrivateProfileStringA(section, "follow_race_route", p.follow_race_route ? "1" : "0", g_ini);
@@ -71,8 +73,8 @@ void save(int who) {
     WritePrivateProfileStringA(section, "avoid_props", p.avoid_props ? "1" : "0", g_ini);
     WritePrivateProfileStringA(section, "catch_up", p.catch_up ? "1" : "0", g_ini);
     WritePrivateProfileStringA(section, "overlay", kOverlays[p.overlay], g_ini);
-    g_log.line("player %d's AI settings saved: control %s, skill %d, fair nitrous %s, smarter nitro %s, fair performance %s, shortcuts %s, race route %s, super steer %s, avoid props %s, catch-up %s, overlay %s", who + 1, kControls[p.control], p.skill,
-               p.fair_nitrous ? "on" : "off", p.smarter_nitro ? "on" : "off", p.fair_performance ? "on" : "off", kShortcuts[p.shortcuts], p.follow_race_route ? "followed" : "free", p.super_steer ? "on" : "off", p.avoid_props ? "on" : "off", p.catch_up ? "on" : "off", kOverlays[p.overlay]);
+    g_log.line("player %d's AI settings saved: control %s, skill %d, fair nitrous %s, smarter nitro %s, perfect launch %s, fair performance %s, shortcuts %s, race route %s, super steer %s, avoid props %s, catch-up %s, overlay %s", who + 1, kControls[p.control], p.skill,
+               p.fair_nitrous ? "on" : "off", p.smarter_nitro ? "on" : "off", p.perfect_launch ? "on" : "off", p.fair_performance ? "on" : "off", kShortcuts[p.shortcuts], p.follow_race_route ? "followed" : "free", p.super_steer ? "on" : "off", p.avoid_props ? "on" : "off", p.catch_up ? "on" : "off", kOverlays[p.overlay]);
 }
 
 const char *control_name(int control) { return kControls[control]; }
