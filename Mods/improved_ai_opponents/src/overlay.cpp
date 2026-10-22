@@ -5,8 +5,8 @@
 //               (from the segment the car's drive-to nav is on) is also written to the log.
 //   green       the cookie trail: the road's cross-sections between the car and the nav's head, as the two limits and a bar across every fourth one; red where the car is out
 //               of bounds by the game's measure (what throws the route away: AIActionRace::CheckOffPath)
-//   boxes       (with the Avoid Props option, improved AI) the props around the car (smackables): orange-red the ones the AI steers around, yellow the same knocked down, grey-blue the light ones it drives
-//               through, each with its mass in kg (obstacles.cpp)
+//   boxes       (with the Avoid Props option, improved AI) the props around the car (smackables): orange-red the ones the AI steers around, yellow the same knocked down, purple the heavy ones it does not (it would not
+//               get round in time, or it would take a big swerve, or there is no room), grey-blue the light ones, each with its mass in kg (obstacles.cpp)
 //   yellow      the steering target (IVehicleAI::GetDriveTarget: the point the car steers at) with a pole and a cross, and a line from the car
 //   white       the head of the nav (`fPosition`, the look-ahead point the corridor is built up to), a small square with a pole
 //   diamond     (the apex) the corner the view along the corridor is blocked by: orange-red when a car's cut is the cause, magenta when it is
@@ -26,6 +26,7 @@
 #include "ai_control.h"
 #include "car_stats.h"
 #include "lines.h"
+#include "nav_cookie.h"
 #include "obstacles.h"
 #include "road_geometry.h"
 #include "road_inspector.h"
@@ -49,20 +50,8 @@ constexpr int kMaxPathSegments = 80;
 constexpr DWORD kTarget = 0xFFFFE000, kApexCar = 0xFFFF6000, kApexRoad = 0xFFFF00FF, kNavHead = 0xFFFFFFFF;
 
 // WRoadNav, PC offsets.
-constexpr unsigned kNavTrail = 0x08, kNavHasTrail = 0x55, kNavRoadOcclusion = 0x58, kNavAvoidableOcclusion = 0x5C, kNavPosition = 0x98, kNavApex = 0x158;
+constexpr unsigned kNavRoadOcclusion = 0x58, kNavAvoidableOcclusion = 0x5C, kNavPosition = 0x98, kNavApex = 0x158;
 
-// A NavCookie (0x40 bytes, the decomp's layout is the PC's): a cross-section of the road the nav has walked along; the positions of its edges are (x, z).
-struct Cookie {
-    float left[2], right[2], forward[2];
-    float length, curvature, left_offset, right_offset;
-    unsigned flags;
-    float pad;
-    float centre[3];
-    short segment_parameter;
-    unsigned short segment;
-};
-static_assert(sizeof(Cookie) == 0x40, "NavCookie");
-constexpr int kTrailSize = 32;
 constexpr DWORD kCookieEdge = 0xFF30D030, kCookieBar = 0xFF1C7A1C, kCookieOut = 0xFFFF3030;
 
 // A segment of the route: the nodes it is driven from and to.
@@ -180,38 +169,22 @@ void log_route_summary(const std::vector<RouteSegment> &route) {
 // the car is outside the limits) is over 2 m, the nav is thrown onto the car's road and the route is dropped (AIActionRace::CheckOffPath). Drawn as the two limits
 // (green) and a bar across every fourth cookie; the bar nearest to the car and a line to it are red when the car is out of bounds in that sense.
 void add_cookie_trail(Lines &lines, const unsigned char *nav, const float *car) {
-    const unsigned char *trail = *reinterpret_cast<unsigned char *const *>(nav + kNavTrail);
-    if (!nav[kNavHasTrail] || !readable(trail, 0x10 + kTrailSize * sizeof(Cookie))) return;
-    const int count = *reinterpret_cast<const int *>(trail), last = *reinterpret_cast<const int *>(trail + 4);
-    if (count < 2 || count > kTrailSize) return;
-    const auto cookie = [&](int n) {  // the n-th oldest
-        const int index = count < kTrailSize ? n % count : (last + 1 + n) % kTrailSize;
-        return reinterpret_cast<const Cookie *>(trail + 0x10) + index;
-    };
-    const auto left = [](const Cookie &c) { return Vec3{c.left[0], c.centre[1] + 0.4f, c.left[1]}; };
-    const auto right = [](const Cookie &c) { return Vec3{c.right[0], c.centre[1] + 0.4f, c.right[1]}; };
-    int nearest = 0;
-    float nearest_distance = 1e30f;
+    const nav_cookie::Trail trail(nav);
+    const int count = trail.size();
+    if (count < 2) return;
+    const auto left = [](const nav_cookie::Cookie &c) { return Vec3{c.left[0], c.centre[1] + 0.4f, c.left[1]}; };
+    const auto right = [](const nav_cookie::Cookie &c) { return Vec3{c.right[0], c.centre[1] + 0.4f, c.right[1]}; };
     for (int n = 0; n < count; ++n) {
-        const Cookie &c = *cookie(n);
-        if (car) {
-            const float d = std::hypot(c.centre[0] - car[0], c.centre[2] - car[2]);
-            if (d < nearest_distance) {
-                nearest_distance = d;
-                nearest = n;
-            }
-        }
+        const nav_cookie::Cookie &c = trail[n];
         if (n + 1 < count) {
-            const Cookie &next = *cookie(n + 1);
-            lines.add(left(c), left(next), kCookieEdge);
-            lines.add(right(c), right(next), kCookieEdge);
+            lines.add(left(c), left(trail[n + 1]), kCookieEdge);
+            lines.add(right(c), right(trail[n + 1]), kCookieEdge);
         }
         if (n % 4 == 0) lines.add(left(c), right(c), kCookieBar);
     }
     if (!car) return;
-    const Cookie &c = *cookie(nearest);
-    const float to_car_x = car[0] - c.centre[0], to_car_z = car[2] - c.centre[2];
-    const float offset = to_car_x * c.forward[1] - to_car_z * c.forward[0];  // bCross(cookie_to_car, forward): across the road
+    const nav_cookie::Cookie &c = trail[trail.nearest(car[0], car[2])];
+    const float offset = c.across(car[0], car[2]);
     const float out_of_bounds = 1.0f + std::max(offset - c.right_offset, c.left_offset - offset);
     const DWORD color = out_of_bounds > 2.0f ? kCookieOut : kCookieEdge;
     lines.add(left(c), right(c), color);
@@ -288,7 +261,7 @@ void draw(IDirect3DDevice9 *device, const void *view_plat_info, float width, flo
     const float *car = control::car_position(ai);
     const bool have_car = readable(car, 12);
 
-    if (have_car && settings::player(player).control == settings::kImproved && settings::player(player).avoid_props) obstacles::add_boxes(lines, car);
+    if (have_car && settings::player(player).control == settings::kImproved && settings::player(player).avoid_props) obstacles::add_boxes(lines, car, player, readable(nav, 0x300) ? nav : nullptr);
 
     if (n) {
         add_route_segments(lines, n, have_car ? car : nullptr);

@@ -18,7 +18,9 @@
 #include "ai_control.h"
 #include "hooks.h"
 #include "improved_ai_opponents.h"
+#include "car_stats.h"
 #include "lines.h"
+#include "nav_cookie.h"
 #include "settings.h"
 
 namespace improved_ai_opponents::obstacles {
@@ -32,6 +34,15 @@ constexpr unsigned kNavAiVehicle = 0x84, kAiVehicleInterface = 0x4C;  // WRoadNa
 constexpr float kRadius = 100.0f;  // how far around the car the props are looked for
 constexpr float kMinMass = 200.0f;  // kg: lighter props are driven through (chairs, bins, hydrants 50 to 100; the posts, booths and barrels 200 to 700)
 constexpr int kMaxStandIns = 40, kMaxBoxes = 8;  // (a prop has several collision boxes: a pole and a sign on it)
+
+// Whether steering around a prop is worth it (worth_avoiding): a swerve costs speed too, so one is only tried when it is likely to work.
+constexpr float kCarHalfWidth = 1.0f, kCarFront = 2.5f;  // m
+constexpr float kSideMargin = 0.4f, kWallMargin = 0.5f;  // m: left between the car and the prop, and between the car and the edge of the road
+constexpr float kReaction = 0.4f;                        // s before the steering takes effect
+constexpr float kLateralShare = 0.5f;                    // of the sideways acceleration the tires hold that a swerve uses
+constexpr float kShiftLight = 1.5f, kShiftHeavy = 3.0f;  // m: the most the car swerves for a prop of the lightest weight that is avoided, and for one of kHeavyMass or more
+constexpr float kHeavyMass = 700.0f;                     // kg
+constexpr float kCommittedShift = 1.5f;                  // a prop that is being steered around stays so up to this many times the shift
 
 // IModel vtable slots (the decomp's list, one later: the first slot is IUnknown's destructor).
 constexpr unsigned kModelIsHidden = 0x24, kModelGetLinearVelocity = 0x34, kModelGetTransform = 0x3C, kModelGetBounds = 0x40, kModelGetAttributes = 0x44;
@@ -190,6 +201,39 @@ WorldBox world_box(const float *m, const Box &b) {
     return w;
 }
 
+// Whether the car should try to steer around a box of a prop: only when it is in the car's way, there is road to go round it on (not into the edge), the swerve is a small
+// one (a heavier prop is worth a bigger one) and the car has the time for it, which its tires' grip allows. Otherwise the speed that the swerve costs is worse than what
+// the hit costs. `committed`: it is being steered around already, which goes on (a swerve that is stopped half way is the worst) while the shift stays small.
+bool worth_avoiding(const nav_cookie::Trail &trail, const float *car, const float *velocity, const WorldBox &w, const Box &b, float mass, const car_stats::Stats &stats, bool committed) {
+    const float speed = std::hypot(velocity[0], velocity[2]);
+    const int at = trail.nearest(w.centre[0], w.centre[2]), here = trail.nearest(car[0], car[2]);
+    if (speed < 1.0f || at < 0 || here < 0) return false;
+    const nav_cookie::Cookie &road_at = trail[at];
+    const float direction[2] = {velocity[0] / speed, velocity[2] / speed}, across[2] = {road_at.forward[1], -road_at.forward[0]};
+    float half_across = 0.0f, half_along = 0.0f;  // what the box covers across the road and along the car's way
+    for (int i = 0; i < 3; ++i) {
+        half_across += std::fabs(across[0] * w.axis[i][0] + across[1] * w.axis[i][2]) * b.half[i];
+        half_along += std::fabs(direction[0] * w.axis[i][0] + direction[1] * w.axis[i][2]) * b.half[i];
+    }
+    const float ahead = (w.centre[0] - car[0]) * direction[0] + (w.centre[2] - car[2]) * direction[1] - half_along - kCarFront;
+    if (ahead <= 0.0f) return false;
+    const float seconds = ahead / speed;
+    const float box_at = road_at.across(w.centre[0], w.centre[2]), car_at = trail[here].across(car[0], car[2]);
+    const float clearance = kCarHalfWidth + kSideMargin;
+    const float low = box_at - half_across - clearance, high = box_at + half_across + clearance;  // the car's centre has to be outside of these
+    if (car_at <= low || car_at >= high) return false;                                              // not in the way
+    float shift = 1.0e9f;
+    if (low >= road_at.left_offset + kCarHalfWidth + kWallMargin) shift = std::min(shift, car_at - low);
+    if (high <= road_at.right_offset - kCarHalfWidth - kWallMargin) shift = std::min(shift, high - car_at);
+    if (shift > 1.0e8f) return false;  // no road to go round it on
+    const float heaviness = std::clamp((mass - kMinMass) / (kHeavyMass - kMinMass), 0.0f, 1.0f);
+    const float most = kShiftLight + (kShiftHeavy - kShiftLight) * heaviness;
+    if (committed) return shift <= most * kCommittedShift;
+    const float lateral = kLateralShare * (stats.lateral > 0.0f ? stats.lateral : 8.0f);
+    const float time = std::max(seconds - kReaction, 0.0f);
+    return shift <= std::min(most, 0.5f * lateral * time * time);
+}
+
 void __fastcall stand_in_destructor(StandIn *, void *) {}
 // HolePunchAvoidables reads a body's position, its right and forward axes and its half sizes across and along them, in the ground plane. So the stand-in's axes are the
 // prop's heading (its forward axis on the ground) and what the box covers across and along them, whichever way the box is turned.
@@ -249,6 +293,7 @@ void *g_stand_in_vtable[7] = {reinterpret_cast<void *>(stand_in_destructor), rei
 StandIn g_stand_ins[2][kMaxStandIns];  // per player
 int g_stand_in_count[2];
 DWORD g_stand_in_frame[2] = {~0u, ~0u};
+std::vector<std::pair<void *, int>> g_steered_around[2];  // the (model, box) pairs of the last frame's stand-ins: those are being steered around
 
 using FetchFn = int(__fastcall *)(void *, void *, void **, int);
 FetchFn g_orig_fetch = nullptr;
@@ -259,16 +304,27 @@ int __fastcall hook_fetch_avoidables(void *nav, void *edx, void **avoidables, in
     unsigned char *vehicle = *reinterpret_cast<unsigned char **>(static_cast<unsigned char *>(nav) + kNavAiVehicle);
     void *ai = vehicle ? vehicle + kAiVehicleInterface : nullptr;
     const float *car = player >= 0 && ai && settings::player(player).avoid_props ? control::car_position(ai) : nullptr;
-    if (!car) return count;
+    float velocity[3];
+    if (!car || !control::car_velocity(player, velocity)) return count;
     const DWORD frame = GetTickCount() / 16;
     if (g_stand_in_frame[player] != frame) {  // the props are looked for once a frame
         g_stand_in_frame[player] = frame;
         g_stand_in_count[player] = 0;
+        const nav_cookie::Trail trail(nav);
+        const car_stats::Stats &stats = car_stats::of(player);
+        std::vector<std::pair<void *, int>> steered;
         for (const Prop &p : props_around(car, kRadius)) {
             if (!p.model || p.mass < kMinMass) continue;
-            for (const Box &b : p.boxes)
-                if (g_stand_in_count[player] < kMaxStandIns) g_stand_ins[player][g_stand_in_count[player]++] = {g_stand_in_vtable, g_no_interfaces, p.model, b, p.standing};
+            float m[16];
+            slot<void(__thiscall *)(void *, float *)>(p.model, kModelGetTransform)(p.model, m);
+            for (size_t i = 0; i < p.boxes.size(); ++i) {
+                const bool committed = std::find(g_steered_around[player].begin(), g_steered_around[player].end(), std::make_pair(p.model, static_cast<int>(i))) != g_steered_around[player].end();
+                if (g_stand_in_count[player] >= kMaxStandIns || !worth_avoiding(trail, car, velocity, world_box(m, p.boxes[i]), p.boxes[i], p.mass, stats, committed)) continue;
+                g_stand_ins[player][g_stand_in_count[player]++] = {g_stand_in_vtable, g_no_interfaces, p.model, p.boxes[i], p.standing};
+                steered.emplace_back(p.model, static_cast<int>(i));
+            }
         }
+        g_steered_around[player] = steered;
     }
     for (int i = 0; i < g_stand_in_count[player] && count < size; ++i) avoidables[count++] = reinterpret_cast<void *>(&g_stand_ins[player][i]);
     return count;
@@ -283,19 +339,26 @@ void install() {
     nfsmw::install_hooks(hooks, std::size(hooks), g_log, g_ini, "ai obstacles");
 }
 
-// The props' collision boxes (every piece the game's physics collides with, not the box around the whole prop), as the avoidance sees them. Orange-red: avoided
-// (standing, heavy). Yellow: heavy and knocked down (still avoided). Grey-blue: too light to avoid. Each prop with its mass in kg.
-void add_boxes(canvas::Lines &lines, const float *car) {
-    constexpr DWORD kAvoided = 0xFFFF5020, kKnocked = 0xFFFFD020, kLight = 0xFF6080A0;
+// The props' collision boxes (every piece the game's physics collides with, not the box around the whole prop), as the avoidance sees them. Orange-red: steered around
+// (standing, heavy). Yellow: the same, knocked down. Purple: heavy, but not steered around (not in the car's way, or no time or room to get round it). Grey-blue: too
+// light. Each prop with its mass in kg.
+void add_boxes(canvas::Lines &lines, const float *car, int player, const void *nav) {
+    constexpr DWORD kAvoided = 0xFFFF5020, kKnocked = 0xFFFFD020, kSkipped = 0xFFB050D0, kLight = 0xFF6080A0;
+    const nav_cookie::Trail trail(nav);
+    float velocity[3] = {0, 0, 0};
+    control::car_velocity(player, velocity);
+    const car_stats::Stats &stats = car_stats::of(player);
     for (const Prop &p : props_around(car, 80.0f)) {
         if (!p.model || !alive(p.model)) continue;
         float m[16];
         slot<void(__thiscall *)(void *, float *)>(p.model, kModelGetTransform)(p.model, m);
         const bool heavy = p.mass >= kMinMass;
-        const DWORD color = !heavy ? kLight : p.standing ? kAvoided : kKnocked;
         float top_y = m[13];
+        DWORD label_color = kLight;
         for (const Box &b : p.boxes) {
             const WorldBox w = world_box(m, b);
+            const DWORD color = !heavy ? kLight : !worth_avoiding(trail, car, velocity, w, b, p.mass, stats, false) ? kSkipped : p.standing ? kAvoided : kKnocked;
+            if (label_color != kAvoided) label_color = color;
             Vec3 corner[8];
             for (int i = 0; i < 8; ++i) {
                 float at[3] = {w.centre[0], w.centre[1], w.centre[2]};
@@ -317,7 +380,7 @@ void add_boxes(canvas::Lines &lines, const float *car) {
         lines.to_pixels(top, &x, &y);
         char text[16];
         snprintf(text, sizeof(text), "%.0f", p.mass);
-        lines.add_text(x - lines.text_width(text, 2) * 0.5f, y - 14.0f, text, 2, color);
+        lines.add_text(x - lines.text_width(text, 2) * 0.5f, y - 14.0f, text, 2, label_color);
     }
 }
 

@@ -11,6 +11,7 @@ This mod is currently WIP, so it can't be used in Career mode yet, only in Split
 ## AI
 - **Super Steering (TODO)**: The vanilla AI would ignore the handling capabilities of the controlled car, allowing it to take arbitrarily sharp turns at arbitrary speeds. The Improved AI uses the same steering code as the player.
 - **Fair Nitrous**: The vanilla AI only uses nitrous if the player also has nitrous available in their car, and it only gets the same quality nitrous. In the Improved AI, this behaviour can be turned off (Fair Nitrous: Off), allowing the AI to use nitrous even if the player's car has none.
+- **Smarter Nitro**: The vanilla AI fires nitrous by the state of the car (when it is slow and not accelerating well), which gives short bursts at arbitrary places. A nitrous bottle holds only 2.5 to 5 seconds and takes 30 to 50 seconds to fill again, so the Improved AI instead burns it where its planned route lets the car use it: it burns a (nearly) full bottle wherever the road ahead is open, so that none of the recharging is wasted (which also gives a burst at the start of a race), uses a part bottle on a long straight or when the car is slow out of a corner, and stops when a bend is near, a car is in the way or the car is at its top speed. A burn is never started for less than about a second of road, and once begun it lasts at least 0.6 seconds, since any burn stops the bottle recharging for two seconds. It also empties the bottle at the finish line, and burns for a speed trap in speed trap races. Can be turned off (Smarter Nitro: Off) to get the vanilla behaviour.
 - **Fair Performance (WIP)**: The vanilla AI limits its car's performance (top speed and grip) to that of the weakest player's car. In the Improved AI, this behaviour can be turned off (Fair Performance: Off), allowing the AI to use whatever performance its car would normally have. Turning this option off may result in completely unfair races, this was not yet tested in career mode.
 - **Catch-Up**: Also known as rubber-banding, this well-known mechanic would cause the vanilla AI to gain additional performance when falling behind the player. This mod allows turning this mechanic off for both the Vanilla and the Improved AI. If this is turned off, it is recommended to also turn off Fair Performance.
 - **Pathfinding (WIP)**: The vanilla AI would always pick the shortest path, which is often a sub-optimal path with unnecessary sharp turns in it. The vanilla AI would also make unwise decisions about taking shortcuts that came down to dice rolls involving a skill level value, with the assumption that all shortcuts are good, which is far from the truth in this game. The improved AI calculates a time cost for each road segment in the race based on that road segment's curvature, lane quality, and width, then picks the fastest route. It has no concept of shortcuts, and no dice rolls. It just takes the fastest route.
@@ -36,20 +37,18 @@ While developing this mod, I implemented some tools to better understand the gam
 
 # TODO
 ### PATHFINDING COST CALCULATION: NOT GOOD ENOUGH!
-- Circuit #1: This was our main testing ground so far, we win by a mile by avoiding the ridiculous pillars.
-- Circuit #2: The BMW in Redux flies so hard on the first shortcut that it flips upside down every time, lmao. Not sure how to fix, silly edge case.
-- Circuit #3: Seems good now.
-- Circuit #4: Improved AI is not taking a shortcut that the vanilla AI does a crazy smooth job at taking towards the end of the lap.
+- Circuit #2: The BMW in Redux flies so hard on the first shortcut that it flips upside down every time, lmao. Not sure how to fix, silly edge case, low prio.
 
 ### OBSTACLES
+- We're technically not avoiding solid walls. We do smash into a wall in one of the 1-4 circuits while trying to take a shortcut at too high a speed.
+- We're definitely not avoiding grass, and probably should.
 - I wonder if we could do a better job at avoiding cars.
 - Collision recovery could trigger instantly, if we detect that our speed has gone from 100 to 0 in a 0.1s window.
     - Collision recovery should preferably not re-trigger if we are successfully accelerating.
 
 ### PERFORMANCE
-- Disabling of Super Steering is definitely not working, lmao.
 - Would be nice to try to nail Perfect Launch every time.
-- Would be nice to improve nitro management. Right now it is used quite eagerly and arbitrarily. I'd aim to have a reserve to be used after losing a lot of speed and having a straight section ahead, but other than that, do avoid allowing nitrous to sit on full, since then regeneration potential would be wasted.
+- Disabling of Super Steering is definitely not working, lmao.
 - Would be nice if in squiggly roads (like in circuit 3) it would try to find a straight line through when it is possible, instead of following road curvature so religiously.
 
 ### UX

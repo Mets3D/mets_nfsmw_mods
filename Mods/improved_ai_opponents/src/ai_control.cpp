@@ -19,6 +19,7 @@
 #include "hooks.h"
 #include "improved_ai_opponents.h"
 #include "keys.h"
+#include "nitro.h"
 #include "patch.h"
 #include "road_geometry.h"
 #include "route_extend.h"
@@ -270,20 +271,49 @@ unsigned __cdecl nitrous_allowed(const void *vehicle_ai) {
     return player >= 0 && wants_control(player) ? 1u : 0u;
 }
 
+//  - Smarter nitro: where AIActionRace::Update hands its decision to the car's input (0x4291A0: `mov eax, [esp+24h]` = want_nos; `mov edx, [ecx]` before
+//    `push eax; call [edx+20h]`, IInput::SetControlNOS), nitro.cpp may decide instead. It gets the action and the address of Update's frame: the locals the decision
+//    is made from are read from it (need_to_stop 0x12, is_staging 0x13, actual speed 0x14, was_nos 0x28, the nav 0x2C, potential_nos 0x30).
+unsigned __cdecl nitro_decision(const unsigned char *action, const unsigned char *frame) {
+    const bool game_wants = *reinterpret_cast<const unsigned *>(frame + 0x24) != 0;
+    const int player = player_of(*reinterpret_cast<void *const *>(action + 0x40));
+    if (player < 0 || variant_of(player) != Variant::kImproved || !settings::player(player).smarter_nitro) return game_wants ? 1u : 0u;
+    return nitro::decide(player, action, frame, game_wants) ? 1u : 0u;
+}
+char g_nitro_fpu_state[112];  // fnsave / frstor around the call: the game has the x87 stack in use
+
 using PotentialNosFn = float(__fastcall *)(void *, void *, float, bool, float);
 PotentialNosFn g_orig_potential_nos = nullptr;
 
 float __fastcall hook_potential_nos(void *self, void *edx, float speed, bool was_on, float skill) {
+    constexpr unsigned kSpeedLimit = 0x58;    // the action's fSpeedLimit
+    constexpr float kMinSpeedForNos = 10.0f;  // the game's own (fMinSpeedForNOS)
     const int player = player_of(*reinterpret_cast<void **>(static_cast<char *>(self) + 0x40));
-    if (player < 0 || variant_of(player) != Variant::kImproved || settings::player(player).fair_nitrous)
-        return g_orig_potential_nos(self, edx, speed, was_on, skill);
-    float *capability = reinterpret_cast<float *>(static_cast<char *>(self) + 0x8C), *usable = reinterpret_cast<float *>(static_cast<char *>(self) + 0x90);
-    const float old_capability = *capability, old_usable = *usable;
-    if (*capability <= 0.0f) *capability = 1.0f;
-    *usable = 1.0f;
-    const float result = g_orig_potential_nos(self, edx, speed, was_on, skill);
-    *capability = old_capability;
-    *usable = old_usable;
+    const bool improved = player >= 0 && variant_of(player) == Variant::kImproved;
+    // Smarter Nitro (nitro.cpp) decides by the road, the bottle, the finish and the speed traps, so the game's own reasons to refuse nitrous are lifted: the car does less than
+    // 10 m/s (the engine itself only engages it from 10 mph), the car does the speed that the AI's own model says it should (fSpeedLimit, which ended a burn for a frame at a
+    // time while the car outspeeded the model), and the bottle must be over 30% to start (as if the nitrous were on already, only what Fair Nitrous keeps back is).
+    const bool smarter = improved && settings::player(player).smarter_nitro;
+    float *speed_limit = reinterpret_cast<float *>(static_cast<char *>(self) + kSpeedLimit);
+    const float old_speed_limit = *speed_limit;
+    if (smarter) {
+        *speed_limit = 1.0e9f;
+        speed = std::max(speed, kMinSpeedForNos);
+        was_on = true;
+    }
+    float result;
+    if (!improved || settings::player(player).fair_nitrous) {
+        result = g_orig_potential_nos(self, edx, speed, was_on, skill);
+    } else {
+        float *capability = reinterpret_cast<float *>(static_cast<char *>(self) + 0x8C), *usable = reinterpret_cast<float *>(static_cast<char *>(self) + 0x90);
+        const float old_capability = *capability, old_usable = *usable;
+        if (*capability <= 0.0f) *capability = 1.0f;
+        *usable = 1.0f;
+        result = g_orig_potential_nos(self, edx, speed, was_on, skill);
+        *capability = old_capability;
+        *usable = old_usable;
+    }
+    if (smarter) *speed_limit = old_speed_limit;
     return result;
 }
 
@@ -481,6 +511,21 @@ void patch_ai() {
     }
     {
         Stub stub(96);
+        const uintptr_t after = 0x4291A6;
+        stub.emit({0x60, 0xDD, 0x35});  // pushad; fnsave [state]
+        stub.emit_u32(reinterpret_cast<uintptr_t>(g_nitro_fpu_state));
+        stub.emit({0x8D, 0x44, 0x24, 0x20, 0x50, 0x56, 0xB8});  // lea eax,[esp+20h] (Update's esp); push eax; push esi (the action); mov eax,
+        stub.emit_u32(reinterpret_cast<uintptr_t>(&nitro_decision));
+        stub.emit({0xFF, 0xD0, 0x83, 0xC4, 0x08, 0x89, 0x44, 0x24, 0x1C, 0xDD, 0x25});  // call eax; add esp,8; mov [esp+1Ch],eax; frstor [state]
+        stub.emit_u32(reinterpret_cast<uintptr_t>(g_nitro_fpu_state));
+        stub.emit({0x61, 0x8B, 0x11});  // popad; mov edx,[ecx]
+        stub.emit_rel32(0xE9, after);
+        stub.done();
+        const unsigned char expected[6] = {0x8B, 0x44, 0x24, 0x24, 0x8B, 0x11};
+        g_log.line("ai control: nitrous of the improved AI %s", nfsmw::jump_to_stub(0x4291A0, expected, 6, stub) ? "can be decided by the route (Options > AI Driving > Smarter Nitro)" : "NOT patched (the code differs)");
+    }
+    {
+        Stub stub(96);
         const uintptr_t after = 0x411682;
         stub.emit({0x60, 0xFF, 0x76, 0x40, 0xB8});  // pushad; push [esi+0x40]; mov eax,
         stub.emit_u32(reinterpret_cast<uintptr_t>(&unstick_seconds_bits));
@@ -546,6 +591,8 @@ const float *car_position(void *vehicle_ai) {
     void *body = body_of(vehicle_ai);
     return body ? reinterpret_cast<const float *(__thiscall *)(void *)>((*static_cast<void ***>(body))[0x20 / 4])(body) : nullptr;  // IRigidBody::GetPosition
 }
+
+void *racer_info(int player) { return player >= 0 && player < 2 ? racer_info_of(player) : nullptr; }
 
 int improved_player_near(const float point[3], float radius) {
     for (int player = 0; player < 2; ++player) {

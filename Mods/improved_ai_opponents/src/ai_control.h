@@ -20,6 +20,9 @@ bool car_velocity(int player, float velocity[3]);
 void *drive_to_nav(void *vehicle_ai);
 const float *car_position(void *vehicle_ai);
 
+// The game's racer info (a GRacerInfo) of that player's car; null when the game has none.
+void *racer_info(int player);
+
 // The player (0 or 1) whose car, when that car's AI is the improved one (as above), is within `radius` metres of `point` (x, y, z), -1 if none.
 int improved_player_near(const float point[3], float radius);
 

@@ -11,6 +11,7 @@ struct Player {
     int control = kOff;
     int skill = 100;  // 0..100 (the game's 0..1)
     bool fair_nitrous = true;      // the improved AI: uses nitrous as far as the human players have it (the game's rule); off: whatever its car has
+    bool smarter_nitro = true;     // the improved AI: burns nitrous where the planned route lets the car use it (nitro.cpp), not by the game's rule of the car's state
     bool fair_performance = true;  // the improved AI: does not go faster or hold more grip than the weakest player's car (the game's rule); off: as its own car can
     int shortcuts = kAllowed;
     bool follow_race_route = true;  // the improved AI: the nav of its car stays on the race's own route like the opponents' (the game's race filter), or may be on any road
