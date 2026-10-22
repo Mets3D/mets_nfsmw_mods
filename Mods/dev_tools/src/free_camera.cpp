@@ -27,6 +27,7 @@
 #include "binding_table.h"
 #include "dev_tools.h"
 #include "hooks.h"
+#include "keys.h"
 
 namespace dev_tools::free_camera {
 
@@ -68,25 +69,6 @@ struct Vec3 {
     float x, y, z;
 };
 
-int key_from_name(const char *name) {
-    if ((name[0] == 'F' || name[0] == 'f') && name[1] >= '1' && name[1] <= '9') {
-        const int n = atoi(name + 1);
-        if (n >= 1 && n <= 12) return VK_F1 + n - 1;
-    }
-    if (name[0] && !name[1]) return toupper(static_cast<unsigned char>(name[0]));  // a letter or digit
-    return atoi(name);
-}
-
-bool game_has_focus(HWND *window = nullptr) {
-    const HWND foreground = GetForegroundWindow();
-    DWORD pid = 0;
-    if (foreground) GetWindowThreadProcessId(foreground, &pid);
-    if (window) *window = foreground;
-    return foreground && pid == GetCurrentProcessId();
-}
-
-bool key_down(int vk) { return vk && (GetAsyncKeyState(vk) & 0x8000) != 0; }
-
 // The keyboard slots of one of the game's actions, as the player has bound them.
 bool action_down(int entry) {
     const nfsmw::binding_table::Slot *slots = nfsmw::binding_table::slots_of(nfsmw::binding_table::kLive, entry);
@@ -94,15 +76,9 @@ bool action_down(int entry) {
         if (slots[i].type != nfsmw::binding_table::kKey || slots[i].device <= 0) continue;
         const unsigned dik = static_cast<unsigned>(slots[i].device);
         const UINT scan = (dik & 0x7F) | ((dik & 0x80) ? 0xE000 : 0);
-        if (key_down(static_cast<int>(MapVirtualKeyA(scan, MAPVK_VSC_TO_VK_EX)))) return true;
+        if (nfsmw::key_down(static_cast<int>(MapVirtualKeyA(scan, MAPVK_VSC_TO_VK_EX)))) return true;
     }
     return false;
-}
-
-bool pressed(bool now, bool &before) {
-    const bool edge = now && !before;
-    before = now;
-    return edge;
 }
 
 void set_camera_action(const char *name) { reinterpret_cast<void(__cdecl *)(int, const char *)>(kSetAction)(kPlayerView, name); }
@@ -169,7 +145,7 @@ void teleport_car() {
 
 void look_with_mouse() {
     HWND window;
-    if (!game_has_focus(&window)) return;
+    if (!nfsmw::game_has_focus(&window)) return;
     RECT client;
     GetClientRect(window, &client);
     POINT centre = {client.right / 2, client.bottom / 2};
@@ -209,7 +185,7 @@ void fly(char *mover) {
     look_with_mouse();
     g_flying = true;
 
-    const bool focus = game_has_focus();
+    const bool focus = nfsmw::game_has_focus();
     const float ahead = focus ? (action_down(kGas) ? 1.0f : 0.0f) - (action_down(kBrake) ? 1.0f : 0.0f) : 0.0f;
     const float aside = focus ? (action_down(kSteerRight) ? 1.0f : 0.0f) - (action_down(kSteerLeft) ? 1.0f : 0.0f) : 0.0f;
     const float rise = focus ? (action_down(kShiftUp) ? 1.0f : 0.0f) - (action_down(kShiftDown) ? 1.0f : 0.0f) : 0.0f;
@@ -240,15 +216,15 @@ void __fastcall hook_joy_handler(void *self, void *edx) {
 void __cdecl hook_camera_ai_update(float dt) {
     static bool toggle_before = false, teleport_before = false;
     const bool in_race = *reinterpret_cast<int *>(kGameFlowState) == 6;
-    const bool focus = game_has_focus();
+    const bool focus = nfsmw::game_has_focus();
     if (g_active && !in_race) deactivate(false);
-    if (pressed(focus && key_down(g_toggle_vk), toggle_before) && in_race) {
+    if (nfsmw::key_pressed(focus && nfsmw::key_down(g_toggle_vk), toggle_before) && in_race) {
         if (g_active) deactivate(true);
         else activate();
     }
     if (g_active) {
         block_player_input(true);  // the input objects are made again by a restart
-        if (pressed(focus && action_down(kSpeedbreaker), teleport_before) && g_flying) teleport_car();
+        if (nfsmw::key_pressed(focus && action_down(kSpeedbreaker), teleport_before) && g_flying) teleport_car();
     }
     g_orig_camera_ai_update(dt);
 }
@@ -258,7 +234,7 @@ void __cdecl hook_camera_ai_update(float dt) {
 void install() {
     char key[16];
     GetPrivateProfileStringA("free_camera", "toggle_key", "F1", key, sizeof(key), g_ini);
-    g_toggle_vk = key_from_name(key);
+    g_toggle_vk = nfsmw::key_from_name(key);
     char text[32];
     GetPrivateProfileStringA("free_camera", "speed", "20", text, sizeof(text), g_ini);
     g_speed = static_cast<float>(atof(text));

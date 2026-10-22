@@ -12,8 +12,10 @@ struct Player {
     int skill = 100;  // 0..100 (the game's 0..1)
     int nitro = kNitroFair;
     int shortcuts = kAllowed;
+    bool follow_race_route = true;  // the improved AI: the nav of its car stays on the race's own route like the opponents' (the game's race filter), or may be on any road
+    bool super_steer = true;  // the improved AI: arbitrary steering like the vanilla AI's; off = its steering is limited like a human player's (speed, rate)
     bool catch_up = false;
-    bool overlay = true;  // draws the AI's route and corridor for this player's car, also while a human drives it (the improved AI plans beside the car)
+    bool overlay = true;  // draws the AI's route for this player's car, also while a human drives it (the improved AI plans beside the car)
 };
 
 Player &player(int who);  // 0 = player 1, 1 = player 2

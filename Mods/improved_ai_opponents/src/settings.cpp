@@ -45,8 +45,10 @@ void load() {
         if (p.skill < 0 || p.skill > 100) p.skill = d.skill;
         p.nitro = read_choice(section, "nitro", kNitros, d.nitro);
         p.shortcuts = read_choice(section, "shortcuts", kShortcuts, d.shortcuts);
-        p.catch_up = GetPrivateProfileIntA(section, "catch_up", d.catch_up ? 1 : 0, g_ini) != 0;
-        p.overlay = GetPrivateProfileIntA(section, "overlay", d.overlay ? 1 : 0, g_ini) != 0;
+        p.follow_race_route = ini_flag(section, "follow_race_route", d.follow_race_route);
+        p.super_steer = ini_flag(section, "super_steer", d.super_steer);
+        p.catch_up = ini_flag(section, "catch_up", d.catch_up);
+        p.overlay = ini_flag(section, "overlay", d.overlay);
     }
 }
 
@@ -59,10 +61,12 @@ void save(int who) {
     WritePrivateProfileStringA(section, "skill", text, g_ini);
     WritePrivateProfileStringA(section, "nitro", kNitros[p.nitro], g_ini);
     WritePrivateProfileStringA(section, "shortcuts", kShortcuts[p.shortcuts], g_ini);
+    WritePrivateProfileStringA(section, "follow_race_route", p.follow_race_route ? "1" : "0", g_ini);
+    WritePrivateProfileStringA(section, "super_steer", p.super_steer ? "1" : "0", g_ini);
     WritePrivateProfileStringA(section, "catch_up", p.catch_up ? "1" : "0", g_ini);
     WritePrivateProfileStringA(section, "overlay", p.overlay ? "1" : "0", g_ini);
-    g_log.line("player %d's AI settings saved: control %s, skill %d, nitro %s, shortcuts %s, catch-up %s, overlay %s", who + 1, kControls[p.control], p.skill, kNitros[p.nitro],
-               kShortcuts[p.shortcuts], p.catch_up ? "on" : "off", p.overlay ? "on" : "off");
+    g_log.line("player %d's AI settings saved: control %s, skill %d, nitro %s, shortcuts %s, race route %s, super steer %s, catch-up %s, overlay %s", who + 1, kControls[p.control], p.skill,
+               kNitros[p.nitro], kShortcuts[p.shortcuts], p.follow_race_route ? "followed" : "free", p.super_steer ? "on" : "off", p.catch_up ? "on" : "off", p.overlay ? "on" : "off");
 }
 
 const char *control_name(int control) { return kControls[control]; }

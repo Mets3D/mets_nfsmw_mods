@@ -3,7 +3,7 @@
 // SetAiControl(true) (AIVehicleHuman::SetAiControl 0x4291C0: goal "AIGoalRacer", AI physics on); Game_ClearAIControl 0x612420 gives the car back.
 // Each player has settings of their own (settings.h: the ini and the Options > AI Driving page): who drives (a human, the game's AI "vanilla",
 // or the AI with our changes "improved", below, which apply to the cars set to improved only, so that the two can be compared), the AI's skill,
-// nitrous, shortcuts and catch-up. A human driven car whose overlay is on has the improved AI plan its route beside it ("observe"), so that the
+// nitrous, shortcuts, the race route, steering (super steer) and catch-up. A human driven car whose overlay is on has the improved AI plan its route beside it ("observe"), so that the
 // overlay can show what the AI would do. The settings take effect at once: every frame of a race compares them with what was applied.
 // F7 hands player 1's car to the improved AI and back, F9 makes the AIs plan their route again.
 // What the AI is: the game's racing AI is made for the opponents (a DRIVER_RACER car, AIPerpVehicle's skill and catch-up). A player's car under AI
@@ -13,9 +13,14 @@
 // the catch-up setting runs the game's own catch-up code (AIPerpVehicle::Update skips it for a player's car).
 #include "ai_control.h"
 
+#include <iterator>
+
+#include "car_stats.h"
 #include "hooks.h"
 #include "improved_ai_opponents.h"
+#include "keys.h"
 #include "patch.h"
+#include "road_geometry.h"
 #include "settings.h"
 
 namespace improved_ai_opponents::control {
@@ -35,7 +40,6 @@ constexpr int kHumanAIOffset = 8;  // the IHumanAI of an AIVehicleHuman is 8 byt
 // (IPerpetrator is 0x758 further on, SetRacerInfo stores it at +0x4C); and the nav's path type (WRoadNav +0x7C: 2 racer, 4 player).
 constexpr int kBaseSkill = 0x75C, kGlueSkill = 0x760, kRacerInfo = 0x758, kNavPathType = 0x7C, kPerpVehicleToVehicleAi = 0x4C;
 constexpr uintptr_t kPerpGetSkill = 0x409340, kPerpGetCatchupCheat = 0x409390;
-constexpr int kPathRacer = 2, kPathPlayer = 4;
 
 using ForceFn = void(__cdecl *)(int);
 using GetFn = void *(__thiscall *)(void *);
@@ -89,16 +93,16 @@ int player_of_self(const void *self) {
     return -1;
 }
 
-const float *position_of(void *vehicle_ai) {
-    void *simable = vehicle_ai ? reinterpret_cast<GetFn>((*static_cast<void ***>(vehicle_ai))[1])(vehicle_ai) : nullptr;
-    void *body = simable ? reinterpret_cast<GetFn>((*static_cast<void ***>(simable))[0x54 / 4])(simable) : nullptr;
-    return body ? reinterpret_cast<const float *(__thiscall *)(void *)>((*static_cast<void ***>(body))[0x20 / 4])(body) : nullptr;
+// The ISimable of an IVehicleAI, and its IRigidBody.
+void *simable_of(void *vehicle_ai) { return vehicle_ai ? reinterpret_cast<GetFn>((*static_cast<void ***>(vehicle_ai))[1])(vehicle_ai) : nullptr; }
+void *body_of(void *vehicle_ai) {
+    void *simable = simable_of(vehicle_ai);
+    return simable ? reinterpret_cast<GetFn>((*static_cast<void ***>(simable))[0x54 / 4])(simable) : nullptr;
 }
 
 // The game's racer info of a player's car (what an opponent's AI keeps as pRacerInfo), null when the game has none.
 void *racer_info_of(int player) {
-    void *vehicle_ai = g_vehicle_ai[player];
-    void *simable = vehicle_ai ? reinterpret_cast<GetFn>((*static_cast<void ***>(vehicle_ai))[1])(vehicle_ai) : nullptr;
+    void *simable = simable_of(g_vehicle_ai[player]);
     void *status = *reinterpret_cast<void **>(kRaceStatus);
     return simable && status ? reinterpret_cast<void *(__thiscall *)(void *, void *)>(kGetRacerInfo)(status, simable) : nullptr;
 }
@@ -109,7 +113,7 @@ void feed_racer(int player) {
     char *ai = static_cast<char *>(g_vehicle_ai[player]);
     if (!ai) return;
     const settings::Player &s = settings::player(player);
-    void *nav = reinterpret_cast<GetFn>((*static_cast<void ***>(g_vehicle_ai[player]))[0x48 / 4])(g_vehicle_ai[player]);
+    void *nav = drive_to_nav(g_vehicle_ai[player]);
     int *path_type = nav ? reinterpret_cast<int *>(static_cast<char *>(nav) + kNavPathType) : nullptr;
     if (s.control == settings::kOff || !g_done[player]) {
         if (path_type && g_path_type_set[player]) {
@@ -143,7 +147,7 @@ void log_positions() {
     float p[2][3] = {};
     bool have[2] = {false, false};
     for (int player = 0; player < 2; ++player) {
-        const float *v = position_of(g_vehicle_ai[player]);
+        const float *v = car_position(g_vehicle_ai[player]);
         if (v) {
             memcpy(p[player], v, 12);
             have[player] = true;
@@ -196,6 +200,7 @@ void on_frame() {
     g_human_ai[0] = g_human_ai[1] = nullptr;
     if (!racing) {
         g_frames = 0;
+        for (int player = 0; player < 2; ++player) car_stats::refresh(player, nullptr);
         return;
     }
     for (int player = 0; player < 2; ++player) {
@@ -203,24 +208,23 @@ void on_frame() {
         g_human_ai[player] = interface_of_player(player, kIHumanAIHandle);
     }
     log_positions();
+    for (int player = 0; player < 2; ++player) car_stats::refresh(player, g_vehicle_ai[player]);
+    // The corner limits of the roads are worked out ahead in the background (the first route search asks for thousands), as soon as an improved AI is there to ask
+    if (variant_of(0) == Variant::kImproved || variant_of(1) == Variant::kImproved) geometry::precompute_limits();
     // F7 hands player 1's car to the improved AI and back (to try the AI from wherever the car is), like ExtraOptions' F6 does for the one player.
     // It changes the setting for this run only; the page's Accept saves it.
     static bool f7_was_down = false;
-    const bool f7_down = (GetAsyncKeyState(VK_F7) & 0x8000) != 0;
-    if (f7_down && !f7_was_down) settings::player(0).control = settings::player(0).control == settings::kOff ? settings::kImproved : settings::kOff;
-    f7_was_down = f7_down;
+    if (nfsmw::key_pressed(nfsmw::key_down(VK_F7), f7_was_down)) settings::player(0).control = settings::player(0).control == settings::kOff ? settings::kImproved : settings::kOff;
     // F9: the AIs plan their route again, from where they are. The game plans it once and then follows it (AIActionRace asks for a new path
     // only while the drive-to nav is not on one); WRoadNav::CancelPathFinding drops the path, so the next frame asks again.
     static bool f9_was_down = false;
-    const bool f9_down = (GetAsyncKeyState(VK_F9) & 0x8000) != 0;
-    if (f9_down && !f9_was_down) g_replan[0] = g_replan[1] = true;
-    f9_was_down = f9_down;
+    if (nfsmw::key_pressed(nfsmw::key_down(VK_F9), f9_was_down)) g_replan[0] = g_replan[1] = true;
     for (int player = 0; player < 2; ++player)
         if (g_human_ai[player]) apply_control(player);
     for (int player = 0; player < 2; ++player) feed_racer(player);
     for (int player = 0; player < 2; ++player) {
         if (!g_replan[player] || !g_vehicle_ai[player] || variant_of(player) == Variant::kOff) continue;
-        void *nav = reinterpret_cast<GetFn>((*static_cast<void ***>(g_vehicle_ai[player]))[0x48 / 4])(g_vehicle_ai[player]);
+        void *nav = drive_to_nav(g_vehicle_ai[player]);
         if (nav) reinterpret_cast<void(__thiscall *)(void *)>(kCancelPathFinding)(nav);
         g_replan[player] = false;
         g_log.line("ai control: player %d plans its route again", player + 1);
@@ -275,6 +279,46 @@ float __fastcall hook_potential_nos(void *self, void *edx, float speed, bool was
     return result;
 }
 
+//  - Super steer: the physics steers a car with SuspensionRacer::DoSteering, by DoHumanSteering (the wheel's range falls with speed, throttle and brake, and it turns
+//    at a limited rate) when IHumanAI::IsPlayerSteering (AIVehicleHuman, 0x435240: not under AI control and not drag steering), else DoAISteering (the full angle
+//    of the tires at once). With Super Steer off, the DoSteering hook makes IsPlayerSteering say yes for an improved player's car under AI control, and then
+//    sets the wheel's range that the AI divides its steering angle by (ISuspension::GetMaxSteering, `mSteering.Maximum`, which only DoAISteering writes) to
+//    the range a human has at that moment (`LastMaximum` times the tires' steering), so that the AI asks for the angle it can have.
+bool g_force_human_steering = false;
+
+using IsPlayerSteeringFn = bool(__fastcall *)(void *, void *);
+IsPlayerSteeringFn g_orig_is_player_steering = nullptr;
+
+bool __fastcall hook_is_player_steering(void *self, void *edx) { return g_force_human_steering || g_orig_is_player_steering(self, edx); }
+
+using DoSteeringFn = void(__fastcall *)(void *, void *, void *, void *, void *);  // SuspensionRacer::DoSteering(state, right, left) 0x69E9E0
+DoSteeringFn g_orig_do_steering = nullptr;
+
+void __fastcall hook_do_steering(void *self, void *edx, void *state, void *right, void *left) {
+    constexpr unsigned kHumanAi = 0xF4, kTires = 0xA0, kTireSteering = 0x48, kMaximum = 0x128, kLastMaximum = 0x12C, kDriverStyle = 0xC8;
+    constexpr unsigned short kStyleDrag = 1;
+    constexpr float kAbsoluteMaxSteering = 45.0f;
+    char *racer = static_cast<char *>(self);
+    void *human_ai = *reinterpret_cast<void **>(racer + kHumanAi);
+    int player = -1;
+    for (int p = 0; human_ai && p < 2; ++p)
+        if (g_human_ai[p] == human_ai) player = p;
+    if (player >= 0) car_stats::note_tires(player, *reinterpret_cast<void **>(racer + kTires));
+    const bool force = player >= 0 && variant_of(player) == Variant::kImproved && !settings::player(player).super_steer && ai_controlled(human_ai) &&
+                       *reinterpret_cast<unsigned short *>(static_cast<char *>(state) + kDriverStyle) != kStyleDrag;
+    g_force_human_steering = force;
+    g_orig_do_steering(self, edx, state, right, left);
+    g_force_human_steering = false;
+    if (!force) return;
+    const float tires = *reinterpret_cast<float *>(*reinterpret_cast<char **>(racer + kTires) + kTireSteering);
+    *reinterpret_cast<float *>(racer + kMaximum) = std::min(*reinterpret_cast<float *>(racer + kLastMaximum) * tires, kAbsoluteMaxSteering);
+    static bool logged[2] = {false, false};
+    if (!logged[player]) {
+        logged[player] = true;
+        g_log.line("ai control: player %d's AI steers like a human player (Super Steer off)", player + 1);
+    }
+}
+
 //  - Stuck: a car that is stuck against something drove into it for 3 s (plus the restart of the window) before reversing:
 //    AIActionGetUnstuck::CanBeAttempted compares its timer with the constant 3.0 at 0x890604 (shared with its 3 m distance); for an improved
 //    car the timer's comparison (0x41167C) is with 1.5.
@@ -316,6 +360,21 @@ unsigned __cdecl glue_allowed(const void *perp_vehicle) {
     const bool allowed = player >= 0 && wants_control(player) && settings::player(player).catch_up;
     if (allowed && logged < 2) g_log.line("ai control: the catch-up code runs for player %d's AI", player + 1), ++logged;
     return allowed ? 1u : 0u;
+}
+
+// The race filter the game gives a car's drive-to nav (AIPerpVehicle::Update: `mDriveToNav->SetRaceFilter(IsRacing())`, the byte at nav + 0x51): with it on, the nav
+// can only be put on (WRoadNav::InitAtPoint, so wherever the car is) and walk the segments the race's own route is made of, the ones flagged in race. For the
+// improved AI of a player that can be switched off (settings: follow_race_route).
+unsigned __cdecl race_filter_of(const void *nav, unsigned wanted) {
+    if (!wanted) return 0;
+    const int player = improved_player(nav);
+    if (player < 0 || settings::player(player).follow_race_route) return wanted;
+    static bool logged[2] = {false, false};
+    if (!logged[player]) {
+        logged[player] = true;
+        g_log.line("ai control: player %d's nav does not follow the race route (it may be on any road segment)", player + 1);
+    }
+    return 0;
 }
 
 // Replaces a method that is `fld dword ptr [constant]; ret` with a call of `fn(this)`, which returns the float.
@@ -380,34 +439,67 @@ void patch_ai() {
         const unsigned char expected[6] = {0x0F, 0x85, 0xD8, 0x01, 0x00, 0x00};
         g_log.line("ai control: the game's catch-up code for a player's AI %s", nfsmw::jump_to_stub(0x429501, expected, 6, stub) ? "enabled" : "NOT patched (the code differs)");
     }
+    {
+        Stub stub(64);
+        stub.emit({0x60, 0x0F, 0xB6, 0xD0, 0x52, 0x51, 0xB8});  // pushad; movzx edx,al; push edx (wanted); push ecx (the nav); mov eax,
+        stub.emit_u32(reinterpret_cast<uintptr_t>(&race_filter_of));
+        stub.emit({0xFF, 0xD0, 0x83, 0xC4, 0x08, 0x89, 0x44, 0x24, 0x1C, 0x61});  // call eax; add esp,8; mov [esp+1C],eax; popad
+        stub.emit({0x88, 0x41, 0x51, 0x8B, 0x07});                                // what the patched bytes did: mov [ecx+0x51],al; mov eax,[edi]
+        stub.emit_rel32(0xE9, 0x42949B);
+        stub.done();
+        const unsigned char expected[5] = {0x88, 0x41, 0x51, 0x8B, 0x07};
+        g_log.line("ai control: the race route filter of the improved AI's nav %s", nfsmw::jump_to_stub(0x429496, expected, 5, stub) ? "can be switched off (Options > AI Driving > Follow Race Route)" : "NOT patched (the code differs)");
+    }
     const nfsmw::Hook hooks[] = {
         {"ai_nitro", "AIActionRace::GetPotentialNOS", 0x407BE0, {0xD9, 0x44, 0x24, 0x04, 0x56, 0xD8, 0x1D}, false, nfsmw::detour(&hook_potential_nos),
          nfsmw::orig(&g_orig_potential_nos)},
+        {"ai_steer_mode", "AIVehicleHuman::IsPlayerSteering", 0x435240, {0x8A, 0x41, 0x08, 0x84, 0xC0, 0x75, 0x15}, false, nfsmw::detour(&hook_is_player_steering),
+         nfsmw::orig(&g_orig_is_player_steering)},
+        {"ai_steer_range", "SuspensionRacer::DoSteering", 0x69E9E0, {0x83, 0xEC, 0x20, 0x56, 0x8B, 0xF1, 0x8B}, false, nfsmw::detour(&hook_do_steering),
+         nfsmw::orig(&g_orig_do_steering)},
     };
-    nfsmw::install_hooks(hooks, 1, g_log, nullptr, "ai nitrous");
+    nfsmw::install_hooks(hooks, std::size(hooks), g_log, nullptr, "ai nitrous and steering");
 }
 
 }  // namespace
 
-int improved_player(const void *nav, float velocity[3]) {
+void *drive_to_nav(void *vehicle_ai) { return vehicle_ai ? reinterpret_cast<GetFn>((*static_cast<void ***>(vehicle_ai))[0x48 / 4])(vehicle_ai) : nullptr; }
+
+const float *car_position(void *vehicle_ai) {
+    void *body = body_of(vehicle_ai);
+    return body ? reinterpret_cast<const float *(__thiscall *)(void *)>((*static_cast<void ***>(body))[0x20 / 4])(body) : nullptr;  // IRigidBody::GetPosition
+}
+
+int improved_player_near(const float point[3], float radius) {
     for (int player = 0; player < 2; ++player) {
         void *ai = g_vehicle_ai[player];
         if (!ai || variant_of(player) != Variant::kImproved) continue;
-        if (reinterpret_cast<GetFn>((*static_cast<void ***>(ai))[0x48 / 4])(ai) != nav) continue;
-        void *simable = reinterpret_cast<GetFn>((*static_cast<void ***>(ai))[1])(ai);
-        void *body = simable ? reinterpret_cast<GetFn>((*static_cast<void ***>(simable))[0x54 / 4])(simable) : nullptr;
-        if (!body) return -1;
-        const float *v = reinterpret_cast<const float *(__thiscall *)(void *)>((*static_cast<void ***>(body))[0x24 / 4])(body);  // IRigidBody::GetLinearVelocity
-        if (!v) return -1;
-        velocity[0] = v[0];
-        velocity[1] = v[1];
-        velocity[2] = v[2];
-        return player;
+        const float *at = car_position(ai);
+        if (!at) continue;
+        const float dx = at[0] - point[0], dy = at[1] - point[1], dz = at[2] - point[2];
+        if (dx * dx + dy * dy + dz * dz <= radius * radius) return player;
     }
     return -1;
 }
 
-void *vehicle_ai(int player) { return player < 0 || player > 1 || *reinterpret_cast<int *>(kGameFlowState) != 6 ? nullptr : g_vehicle_ai[player]; }
+int improved_player(const void *nav) {
+    for (int player = 0; player < 2; ++player) {
+        void *ai = g_vehicle_ai[player];
+        if (!ai || variant_of(player) != Variant::kImproved || drive_to_nav(ai) != nav) continue;
+        return body_of(ai) ? player : -1;
+    }
+    return -1;
+}
+
+bool car_velocity(int player, float velocity[3]) {
+    void *body = player >= 0 && player < 2 ? body_of(g_vehicle_ai[player]) : nullptr;
+    const float *v = body ? reinterpret_cast<const float *(__thiscall *)(void *)>((*static_cast<void ***>(body))[0x24 / 4])(body) : nullptr;  // IRigidBody::GetLinearVelocity
+    if (!v) return false;
+    velocity[0] = v[0];
+    velocity[1] = v[1];
+    velocity[2] = v[2];
+    return true;
+}
 
 void *driving_ai(int player) {
     if (player < 0 || player > 1 || variant_of(player) == Variant::kOff || !settings::player(player).overlay || *reinterpret_cast<int *>(kGameFlowState) != 6) return nullptr;

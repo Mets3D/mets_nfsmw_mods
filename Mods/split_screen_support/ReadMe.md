@@ -26,6 +26,9 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - Both players using a keyboard is not supported.
 - For supported controllers, see the [Controller Support](../controller_support/ReadMe.md) mod - The game natively supports Xbox controllers, and for everything else, Steam Input is tested and works as a translation layer.
 
+## TODO
+- The sun seems to be drawn for player 2 depending on player 1's perspective? Specifically, when player 1 has the sun in their view, player 2 might also get a sun rendered kinda arbitrarily in their view.
+
 ### AI Disclaimer
 
 The code was written by Claude (Sonnet & Opus). Testing, design, and this page, were hand-made.
