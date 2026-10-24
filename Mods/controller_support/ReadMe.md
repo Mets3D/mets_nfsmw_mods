@@ -17,6 +17,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 - Free look also works in the Look Behind view.
 
 ### Customizable Rumble
+Note that any controller with a low battery will fail to rumble due to the physics of motors and batteries. If you're not getting rumble, always check battery first.
 - Various events in-game will create controller rumble, such as gear shifts, collisions, driving on grass, nitrous, and more.
 - The rumble strength of each type of event can be cutomized per controller in **Options > Controls > a controller > Settings**, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
 

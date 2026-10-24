@@ -17,9 +17,11 @@
  *                  after the loading screen (mode 0, every view off) the views stay off, a black screen. Mode 3 is set up
  *                  as mode 1, player 1's view on the whole screen, and split_view.cpp draws the two halves from it. (The
  *                  ExtraOptions patch instead kept mode 0 from switching the views off, in every game.)
+ *  missing_wheel   eModel::ReplaceLightMaterial (0x501640): see below.
  */
 #include "fixes.h"
 
+#include "hooks.h"
 #include "patch.h"
 #include "split_screen_support.h"
 
@@ -75,9 +77,34 @@ void scenery_detail() {
     report("scenery_detail", nfsmw::patch_bytes(0x729283, kExpected, kPatched, sizeof(kExpected)));
 }
 
+// CarRenderInfo::Render puts the car's rim material on the wheel models of the tire level of detail with
+// `GetModel()->ReplaceLightMaterial(...)`, and only tests the address of the CarPartModel (never null), not the model: a
+// wheel (or spinner) model that is not there at that level crashes it with `this` null (seen 2026-10-23 in a split screen race,
+// access violation reading 0xC at 0x501640, from the shadow map pass). The same function (RenderPart) draws a stand-in for a missing level,
+// so a missing model is an expected state; the call is simply skipped for it.
+using ReplaceLightMaterialFn = void(FASTCALL *)(void *, void *, unsigned, void *);
+ReplaceLightMaterialFn g_orig_replace_light_material;
+void FASTCALL hook_replace_light_material(void *model, void *edx, unsigned name_hash, void *light_material) {
+    static int skipped = 0;
+    if (!model) {
+        if (skipped++ == 0) g_log.line("fix missing_wheel: ReplaceLightMaterial was called without a model (a wheel model that is not loaded); skipping it");
+        return;
+    }
+    g_orig_replace_light_material(model, edx, name_hash, light_material);
+}
+
+void missing_wheel() {
+    const nfsmw::Hook hooks[] = {
+        {"missing_wheel", "eModel::ReplaceLightMaterial", 0x501640, {0x8B, 0x49, 0x0C, 0x85, 0xC9, 0x74, 0x27}, false,
+         nfsmw::detour(&hook_replace_light_material), nfsmw::orig(&g_orig_replace_light_material)},
+    };
+    nfsmw::install_hooks(hooks, 1, g_log, g_ini, "missing wheel");
+}
+
 }  // namespace
 
 void install() {
+    missing_wheel();
     scenery_detail();
     shared_device();
     loading_screen();

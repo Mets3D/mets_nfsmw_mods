@@ -38,11 +38,14 @@ While developing this mod, I implemented some tools to better understand the gam
 
 # TODO
 ### PATHFINDING COST CALCULATION: NOT GOOD ENOUGH!
+- I think at this point the best thing we can do to improve the AI is to modify the road network, mainly by adding new segments, and adding info to certain segments, eg. the ones before dangerous ramps, adding a "max safe speed" value in a specified direction. Sure, this would require going through every race, but at this point I think that might be reasonable.
+- Could still look into improving the steering as well though, to find more and longer straight lines on the segments we're already choosing.
 - Circuit #2: The BMW in Redux flies so hard on the first shortcut that it flips upside down every time, lmao. Not sure how to fix, silly edge case, low prio.
 
 ### OBSTACLES
-- We're technically not avoiding solid walls. We do smash into a wall in one of the 1-4 circuits while trying to take a shortcut at too high a speed.
+- We're technically not avoiding solid walls. We do smash into a wall in Circuit 1 while trying to take a dirt road shortcut.
 - We're definitely not avoiding grass, and probably should.
+  - Tried implementing but meh, doesn't seem to be working, and even if it did, it's too small an issue to really bother.
 - I wonder if we could do a better job at avoiding cars.
 - Collision recovery could trigger instantly, if we detect that our speed has gone from 100 to 0 in a 0.1s window.
     - Collision recovery should preferably not re-trigger if we are successfully accelerating.
