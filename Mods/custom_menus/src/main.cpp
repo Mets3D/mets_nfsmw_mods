@@ -18,7 +18,7 @@
  *
  * Files in <game>/scripts/mets_mods/: nfsmw_custom_menus.ini (settings), nfsmw_custom_menus.log, translations/custom_menus/.
  * ini settings, all optional:
- *   [features] fewer_popups=0, simplify_confirmations=0, skip_career_menu=0, skippable_cutscenes=0  turn those parts off
+ *   [features] fewer_popups=0, simplify_confirmations=0, cycling_strip_menus=0, skip_career_menu=0, skippable_cutscenes=0  turn those parts off
  *   [hooks]    <name>=0  skips one hook (names in install_hooks)
  *
  * Offsets come from the PC disassembly; the decomp's struct offsets are from the console builds and differ.
@@ -39,6 +39,7 @@
 #include "nfsmw_util.h"
 #include "custom_menus_api.h"
 #include "controls_rows.h"
+#include "cycle_strips.h"
 #include "language.h"
 #include "resume_career.h"
 #include "slider_meter.h"
@@ -1438,6 +1439,7 @@ void install_hooks() {
     g_video_hook = g_orig_setupvideo != nullptr;
     custom_menus::title_icon::install_hooks(g_log, g_ini);
     custom_menus::text_guard::install_hooks(g_log, g_ini);
+    custom_menus::cycle_strips::install_hooks(g_log, g_ini);
     custom_menus::simplify_confirmations::install_hooks(g_log, g_ini);
     custom_menus::skip_dialogs::install_hooks(g_log, g_ini);
     custom_menus::resume_career::install_hooks(g_log, g_ini);

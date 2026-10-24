@@ -28,6 +28,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
 - **Skippable cutscenes.** All pre-rendered cutscenes can be skipped with Enter / A.
 - **Fewer pop-ups.** Many superfluous menu pop-ups are removed.
 - **Simpler leaving questions.** "Are you sure you want to exit without accepting changes? All changes will be lost." (where Yes lost your changes) and the Controls menu's "Do you wish to keep the modified settings?" both ask "Save changes?" now: Yes keeps the changes and leaves, No loses them and leaves, Back/B stays in the menu.
+- **Cycling strip menus.** Strip menus like the pause menu now loop, eg. pressing left on the left-most icon jumps to the right-most icon, and vice versa.
 - **Skip Career Menu.** You can go straight from the main menu into your career, without having an in-between menu which has the same functionality as the "Alias Manager".
 
 ## Mod Compatibility
@@ -37,7 +38,6 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
   - `NFS-XtendedInput` due to touching `UIOptionsMain::Setup`.
 
 ## TODO
-- Would be cool if strip menus would cycle, so pressing left on the left-most element would jump to the right-most element. Would make it faster to access the Options in the pause menu, and the controller options especially.
 - We now have the ability to add entries in the Player Options, but what about to the other menus? Should probably support all of them.
 - Multi-page menus? There's no solid precedent for this in the game, so this is quite a stretch goal, but it could be nice to put the Rumble options on a different page from the rest of the controller options, switchable with the shoulder buttons.
 - Ability to add not just sub-menus under "Options", but also in the pause menu, eg. to customize the current race, or other dev tools.
