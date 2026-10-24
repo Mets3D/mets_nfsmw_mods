@@ -141,6 +141,8 @@ const auto ToggleWidgetCtor = at<void *(THISCALL *)(void *widget, int enabled)>(
 const auto DriveCamCtor = at<void *(THISCALL *)(void *widget, int enabled)>(0x51AA90);  // PODriveCam, 0x5C bytes
 const auto DriveCamAct = at<void(THISCALL *)(void *widget, const char *pkg, unsigned data)>(0x51C870);
 const auto IconOptionCtor = at<void(THISCALL *)(void *option, unsigned tex, unsigned name, unsigned desc)>(0x586FA0);
+constexpr uintptr_t kSliderHide = 0x574AE0;        // FESliderWidget::Hide: tells a slider by its vtable
+const auto FindScript = at<void *(THISCALL *)(void *object, unsigned script_hash)>(0x5B1360);  // FEObject::FindScript
 constexpr uintptr_t kToggleDelDtor = 0x589370;      // FEToggleWidget scalar deleting destructor
 constexpr uintptr_t kIconOptionDelDtor = 0x51A500;  // IconOption scalar deleting destructor
 constexpr uintptr_t kDriveCamVtable = 0x89C048;     // 15 slots: [0] dtor [1] Act [3] Draw [14] BlinkArrows
@@ -222,7 +224,7 @@ constexpr unsigned kDialogOkText = 0x417B2601;
 constexpr int kDialogInfo = 2;                    // eDialogTitle dialog_info
 constexpr unsigned kEventSetButton = 0x1B3909AA;  // script event that moves the menu cursor
 constexpr unsigned kScriptHighlight = 0x249DB7B7, kScriptUnhighlight = 0x7AB5521A;
-constexpr int kCategoryVideo = 1, kCategoryPlayer = 4;  // OptionsSettings::CurrentCategory
+constexpr int kCategoryAudio = 0, kCategoryVideo = 1, kCategoryGameplay = 3, kCategoryPlayer = 4;  // OptionsSettings::CurrentCategory
 // The Player screen's layout (Pause_Options.fng) has 10 row slots. The Video screen's (Pause_PCDisplayOptions.fng, the PC "Advanced Video"
 // one) has 15, and a scroll bar with chevrons, so pages with more rows than the first holds are built on the second.
 
@@ -287,6 +289,19 @@ void add_page_texts(PageInfo &p) {
     }
 }
 
+// The category of the game's own Options screen the rows of such a page are added to, else -1.
+int category_of(opt::Placement placement) {
+    switch (placement) {
+        case opt::kAudioOptions: return kCategoryAudio;
+        case opt::kVideoOptions:
+        case opt::kAdvancedVideoOptions: return kCategoryVideo;
+        case opt::kGameplayOptions: return kCategoryGameplay;
+        case opt::kPlayerOptions: return kCategoryPlayer;
+        default: return -1;
+    }
+}
+bool is_added_to_game_screen(opt::Placement placement) { return category_of(placement) >= 0; }
+
 void register_page(const opt::Page *page) {
     if (!page || !page->id || !page->rows || page->row_count <= 0) {
         log_line("register_page: page \"%s\" rejected (no id or rows)", page && page->id ? page->id : "?");
@@ -296,8 +311,8 @@ void register_page(const opt::Page *page) {
     g_page_count = static_cast<int>(g_pages.size());
     p.page = page;
     // Every page with a screen of its own is on the Video layout (15 slots, the rows have the GREY script that greyed rows need; the Player layout's
-    // 10 slots and plain rows are only what the game's own Options > Player is, which the rows of kPlayerOptions pages are added to).
-    p.category = page->placement != opt::kPlayerOptions && g_video_hook ? kCategoryVideo : kCategoryPlayer;
+    // 10 slots and plain rows are only what the game's own Options screens are, which the rows of the k...Options pages are added to).
+    p.category = !is_added_to_game_screen(page->placement) && g_video_hook ? kCategoryVideo : kCategoryPlayer;
     add_page_texts(p);
     log_line("page \"%s\": %d rows", page->id, page->row_count);
 }
@@ -359,6 +374,10 @@ void set_wide_text(void *fe_string, const char *ascii) {
         buf[n] = c == 1 ? 0x00B0 : c;
     }
     buf[n] = 0;
+    // FEWideString (+0x64: buffer, +0x68: length) copies into its buffer without making one while the text fits the length, so a value object
+    // that the layout left with a length and no buffer (the Video layouts' second value, OPTION_DATA_2, whose game row is drawn by language hash)
+    // took no text: with the length 0 it makes the buffer.
+    if (fe_string && !field<void *>(fe_string, 0x64)) field<unsigned>(fe_string, 0x68) = 0;
     game::FESetString(fe_string, buf);
 }
 
@@ -377,13 +396,19 @@ using DrawFn = void(THISCALL *)(void *);            // vtable slot 3
 PageInfo *g_page_next = nullptr;  // one of our Options entries was pressed
 PageInfo *g_page = nullptr;       // the open Options screen is this page
 void *g_options_screen = nullptr;
+void *g_extra_screen = nullptr;         // the game's own Options screen that rows were added to (see add_extra_rows), while it is open
+// The pages whose rows were told the screen opened (opened()), once per screen: the Video screen is built again when it switches between its
+// two modes, and what was changed in the first must stay changed.
+void *g_opened_screen = nullptr;
+std::vector<PageInfo *> g_opened_pages;
 void *g_pending_optmain = nullptr;      // the Options menu being set up, which gets our entries
 void *g_hint_pending_screen = nullptr;  // the Help hint is added on this screen's first tick
 
-void *g_row_vtbl[15];       // our value rows (FEToggleWidget behaviour with our Act/Draw)
+void *g_row_vtbl[16];       // our value rows (FEToggleWidget behaviour with our Act/Draw; 15 slots, the last one unused)
 void *g_slider_vtbl[16];    // our slider rows (FESliderWidget behaviour with our Act/Draw/SetInitialValues)
-void *g_selector_vtbl[15];  // PODriveCam with Act wrapped so the other rows refresh when the view changes
+void *g_selector_vtbl[16];  // PODriveCam with Act wrapped so the other rows refresh when the view changes
 void *g_entry_vtbl[2];      // Options menu entries
+void **own_vtbl(void *widget);  // the widget's vtable, or the one it had before it shared its objects (see share_objects)
 
 int &options_category() { return field<int>(field<void *>(*reinterpret_cast<void **>(game::kFEDatabase), 0x10), 0x24); }
 
@@ -453,7 +478,7 @@ void apply_row_enabled(void *self, const PageInfo *page, int row) {
     if (!page->page->row_enabled) return;
     const bool want = page->page->row_enabled(row);
     if (want == (field<unsigned char>(self, kRowEnabled) != 0)) return;
-    void **vtbl = field<void **>(self, 0);
+    void **vtbl = own_vtbl(self);
     const bool slider = vtbl == g_slider_vtbl;
     reinterpret_cast<DrawFn>((slider && want ? g_row_vtbl : vtbl)[want ? 7 : 8])(self);
     if (want) game::FEngSetScriptOn(field<void *>(self, kRowData), nfsmw::bstring_hash("INIT"), true);
@@ -478,7 +503,10 @@ void THISCALL value_row_act(void *self, const char *pkg, unsigned data) {
     if (page->page->change) page->page->change(row, data == kPadRight ? 1 : -1, (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0 || pad_button_down(nfsmw::xinput::kLeftShoulder));
     field<unsigned char>(self, kRowChanged) = 1;  // as PODriveCam::Act does
     // Other rows may be greyed out or not now.
-    if (page->page->row_enabled && g_options_screen && field<PageInfo *>(self, kRowPage) == g_page) game::RefreshWidgets(g_options_screen);
+    if (page->page->row_enabled) {
+        void *screen = page == g_page ? g_options_screen : g_extra_screen;
+        if (screen) game::RefreshWidgets(screen);
+    }
     void **vtbl = field<void **>(self, 0);
     reinterpret_cast<BlinkFn>(vtbl[14])(self, data);  // arrow blink
     reinterpret_cast<DrawFn>(vtbl[3])(self);
@@ -629,38 +657,203 @@ void update_meters(void *screen) {
     }
 }
 
-// Rows that mods add to the game's own Player options (Placement kPlayerOptions): after the game's rows, in the pages
-// that were available when the screen was built. Back, Defaults and Accept ask these pages as well as the game.
-std::vector<PageInfo *> g_player_pages;
-int g_player_page_count = 0;
-bool g_player_rows_open = false;  // the open Player screen has such rows
+// Rows that mods add to the game's own Audio, Video, Gameplay and Player options (Placement k...Options): after the game's rows, in the
+// pages that were available when the screen was built. Back, Defaults and Accept ask these pages as well as the game.
+std::vector<PageInfo *> g_extra_pages;
+int g_extra_category = -1;  // the category of the open screen when it has such rows, else -1
 
-void add_player_rows(void *screen) {
-    g_player_pages.clear();
-    g_player_page_count = 0;
-    g_player_rows_open = false;
+struct ExtraRow {
+    PageInfo *info;
+    int row;
+};
+std::vector<ExtraRow> g_extra_rows;  // all the rows added to the open screen, in order
+int g_shared_slots = 0;              // the layout's slots, when rows past them share the slots (see add_shared_row), else 0
+
+void clear_extra() {
+    g_extra_category = -1;
+    g_extra_screen = nullptr;
+    g_shared_slots = 0;
+    g_extra_pages.clear();
+    g_extra_rows.clear();
+}
+
+// The screen is left (or is a page): its pages are told again that it opened, next time.
+void reset_extra() {
+    clear_extra();
+    g_opened_screen = nullptr;
+    g_opened_pages.clear();
+}
+
+// Whether widget `index` (1-based) of `total` has objects that another widget takes as well.
+bool shares_objects(int index, int total) { return g_shared_slots > 0 && (index > g_shared_slots || index + g_shared_slots <= total); }
+
+const char *category_name(int category) {
+    switch (category) {
+        case kCategoryAudio: return "Audio";
+        case kCategoryVideo: return "Video";
+        case kCategoryGameplay: return "Gameplay";
+        default: return "Player";
+    }
+}
+
+// A row past the layout's last slot has no objects to draw into, and the game crashes when it is focused. Such a widget takes the objects of
+// slot ((index - 1) mod slots) + 1 instead, those of a widget `slots` places earlier, and the game's own scrolling does the rest: it shows
+// `shown` widgets from the view top and hides the others, so two widgets that share their objects are never both in view as long as the
+// layout has at least as many slots as the screen shows. What is left is to keep the one that is out of view from showing, moving or
+// drawing into the objects while the other is in view: every widget that shares (the game's and ours) gets a copy of its vtable with those
+// methods guarded (share_objects).
+void add_shared_row(void *screen, const ExtraRow &er, int slots, bool bars) {
+    int &next = field<int>(screen, 0x104);  // UIWidgetMenu::iIndexToAdd: the index the widget gets, which also names the objects it takes
+    const int index = next;
+    const bool slider = bars && er.info->page->rows[er.row].kind == opt::kSliderRow && er.info->page->fill;
+    void *w = game::Alloc(kRowSize);
+    if (!w) return;
+    if (slider) game::SliderCtor(w, 1);
+    else game::ToggleWidgetCtor(w, 1);
+    field<void **>(w, 0) = slider ? g_slider_vtbl : g_row_vtbl;
+    field<int>(w, kRowIndex) = er.row;
+    field<PageInfo *>(w, kRowPage) = er.info;
+    if (index > slots) next = (index - 1) % slots + 1;
+    (slider ? game::AddSliderOption : game::AddToggleOption)(screen, w, 1);
+    next = index + 1;
+}
+
+struct SharedVtbl {
+    void **original;
+    void *table[16];
+};
+SharedVtbl g_shared[16];
+int g_shared_count = 0;
+
+void **own_vtbl(void *widget) {
+    void **vtbl = field<void **>(widget, 0);
+    for (int i = 0; i < g_shared_count; ++i)
+        if (g_shared[i].table == vtbl) return g_shared[i].original;
+    return vtbl;
+}
+
+// The widget whose objects are the same as this one's, while it is in view; null when there is none.
+void *sharer_in_view(void *self) {
+    void *screen = g_extra_screen;
+    if (!screen || g_shared_slots <= 0) return nullptr;
+    const int index = static_cast<int>(GetWidgetIndex(screen, self)), total = field<int>(screen, 0x104) - 1;
+    void *top = field<void *>(screen, 0x38);
+    const int view = top ? static_cast<int>(GetWidgetIndex(screen, top)) : 1, shown = field<int>(screen, 0x10C);
+    if (index < 1) return nullptr;
+    for (int k = (index - 1) % g_shared_slots + 1; k <= total; k += g_shared_slots)
+        if (k != index && k >= view && k < view + shown) return GetWidget(screen, k);
+    return nullptr;
+}
+
+void call_own(void *widget, int slot) { reinterpret_cast<DrawFn>(own_vtbl(widget)[slot])(widget); }
+
+void THISCALL shared_draw(void *self) {
+    if (!sharer_in_view(self)) call_own(self, 3);
+}
+void THISCALL shared_position(void *self) {
+    if (!sharer_in_view(self)) call_own(self, 4);
+}
+void THISCALL shared_show(void *self) {
+    if (!sharer_in_view(self)) call_own(self, 5);
+}
+// The objects are hidden anyway, which also takes away what this widget showed that the other does not use (the value of a row over the
+// slider of another), and the other is shown again.
+void THISCALL shared_hide(void *self) {
+    call_own(self, 6);
+    if (void *other = sharer_in_view(self)) {
+        void **vtbl = field<void **>(other, 0);
+        reinterpret_cast<DrawFn>(vtbl[5])(other);  // Show
+        reinterpret_cast<DrawFn>(vtbl[3])(other);  // Draw
+        reinterpret_cast<DrawFn>(vtbl[4])(other);  // Position
+    }
+}
+void THISCALL shared_set_pos_y(void *self, float y) {
+    if (!sharer_in_view(self)) reinterpret_cast<void(THISCALL *)(void *, float)>(own_vtbl(self)[13])(self, y);
+}
+
+// After the rows were added (g_shared_slots set): every widget whose objects another one takes as well.
+void share_objects(void *screen) {
+    const int total = field<int>(screen, 0x104) - 1;
+    for (int index = 1; index <= total; ++index) {
+        if (!shares_objects(index, total)) continue;
+        void *w = GetWidget(screen, index);
+        if (!w) continue;
+        void **vtbl = own_vtbl(w);
+        SharedVtbl *shared = nullptr;
+        for (int i = 0; i < g_shared_count && !shared; ++i)
+            if (g_shared[i].original == vtbl) shared = &g_shared[i];
+        if (!shared && g_shared_count < 16) {
+            shared = &g_shared[g_shared_count++];
+            shared->original = vtbl;
+            for (int i = 0; i < 16; ++i) shared->table[i] = vtbl[i];
+            shared->table[3] = reinterpret_cast<void *>(&shared_draw);
+            shared->table[4] = reinterpret_cast<void *>(&shared_position);
+            shared->table[5] = reinterpret_cast<void *>(&shared_show);
+            shared->table[6] = reinterpret_cast<void *>(&shared_hide);
+            shared->table[13] = reinterpret_cast<void *>(&shared_set_pos_y);
+        }
+        if (shared) field<void **>(w, 0) = shared->table;
+    }
+}
+
+void add_extra_rows(void *screen, opt::Placement placement) {
+    const int category = category_of(placement);
+    clear_extra();
+    if (screen != g_opened_screen) {
+        g_opened_screen = screen;
+        g_opened_pages.clear();
+    }
     for (int i = 0; i < g_page_count; ++i) {
         PageInfo &info = g_pages[i];
         const opt::Page &page = *info.page;
-        if (page.placement != opt::kPlayerOptions || (page.available && !page.available())) continue;
-        if (page.opened) page.opened();
-        const int room = free_row_slots(screen);
-        if (page.row_count > room)
-            log_line("Options > Player: \"%s\" has %d rows but the screen has room for %d: the rest are left out", page.id, page.row_count, room);
-        const bool bars = layout_has_sliders(field<const char *>(screen, kScreenPackage));
-        for (int r = 0; r < page.row_count && r < room; ++r) add_page_row(screen, &info, r, r, bars);
-        g_player_pages.push_back(&info);
-        g_player_page_count = static_cast<int>(g_player_pages.size());
-        log_line("Options > Player: %d row(s) from \"%s\"", page.row_count, page.id);
+        if (category_of(page.placement) != category || (page.available && !page.available())) continue;
+        if (std::find(g_opened_pages.begin(), g_opened_pages.end(), &info) == g_opened_pages.end()) {
+            if (page.opened) page.opened();
+            g_opened_pages.push_back(&info);
+        }
+        g_extra_pages.push_back(&info);  // all of the screen's category: Back, Defaults and Accept ask them whichever mode the screen shows
+        if (page.placement != placement) continue;
+        for (int r = 0; r < page.row_count; ++r) g_extra_rows.push_back({&info, r});
     }
-    g_player_rows_open = g_player_page_count > 0;
-    if (g_player_rows_open) game::RefreshWidgets(screen);
+    if (g_extra_pages.empty()) return;
+    g_extra_category = category;
+    g_extra_screen = screen;
+    const char *pkg = field<const char *>(screen, kScreenPackage);
+    const int room = free_row_slots(screen), rows = static_cast<int>(g_extra_rows.size());
+    const int slots = layout_slots(pkg), shown = field<int>(screen, 0x10C);
+    const bool bars = layout_has_sliders(pkg);
+    if (rows == 0) return;
+    char ids[200] = {};
+    for (PageInfo *info : g_extra_pages)
+        if (info->page->placement == placement)
+            snprintf(ids + strlen(ids), sizeof(ids) - strlen(ids), "%s%s", ids[0] ? ", " : "", info->page->id);
+    if (rows <= room) {
+        for (const ExtraRow &er : g_extra_rows) add_page_row(screen, er.info, er.row, er.row, bars);
+        log_line("Options > %s: %d added row(s) (%s)", category_name(category), rows, ids);
+    } else if (slots >= shown && shown > 0) {
+        // The Camera selector is the game's own widget and cannot take part.
+        for (const ExtraRow &er : g_extra_rows)
+            if (er.info->page->rows[er.row].kind != opt::kCameraSelectorRow) add_shared_row(screen, er, slots, bars);
+        g_shared_slots = slots;
+        share_objects(screen);
+        // The widgets past the ones in view must not stay where they were added.
+        if (void *first = GetWidget(screen, 1)) {
+            if (!field<void *>(screen, 0x38)) field<void *>(screen, 0x38) = first;
+            Reposition(screen);
+        }
+        log_line("Options > %s: %d added rows (%s), more than the %d free slots: the list scrolls", category_name(category), rows, ids, room);
+    } else {
+        log_line("Options > %s: the screen has room for %d of the %d added rows (%s; %d slots, %d shown): the rest are left out", category_name(category), room,
+                 rows, ids, slots, shown);
+        for (int k = 0; k < room; ++k) add_page_row(screen, g_extra_rows[k].info, g_extra_rows[k].row, g_extra_rows[k].row, bars);
+    }
+    game::RefreshWidgets(screen);
 }
 
-bool player_rows_changed() {
-    if (!g_player_rows_open || options_category() != kCategoryPlayer) return false;
-    for (int i = 0; i < g_player_page_count; ++i)
-        if (g_player_pages[i]->page->changed && g_player_pages[i]->page->changed()) return true;
+bool extra_rows_changed() {
+    if (g_extra_category < 0 || options_category() != g_extra_category) return false;
+    for (PageInfo *info : g_extra_pages)
+        if (info->page->changed && info->page->changed()) return true;
     return false;
 }
 
@@ -672,31 +865,60 @@ void FASTCALL hook_setupplayer(void *self, void *edx) {
     g_page_next = nullptr;
     ensure_language_entries();
     if (!g_page) {
-        add_player_rows(self);  // the game's own Player options
+        add_extra_rows(self, opt::kPlayerOptions);  // the game's own Player options
         return;
     }
-    g_player_rows_open = false;
+    reset_extra();
     build_page_screen(self);
 }
 
+// The game's own Audio and Gameplay screens (only reached from the Options menu, which has reset g_page): its options, then the added rows.
+MethodFn g_orig_setupaudio;
+void FASTCALL hook_setupaudio(void *self, void *edx) {
+    g_orig_setupaudio(self, edx);
+    ensure_language_entries();
+    add_extra_rows(self, opt::kAudioOptions);
+}
+
+MethodFn g_orig_setupgameplay;
+void FASTCALL hook_setupgameplay(void *self, void *edx) {
+    g_orig_setupgameplay(self, edx);
+    ensure_language_entries();
+    add_extra_rows(self, opt::kGameplayOptions);
+}
+
+// The Video layouts' brightness text and its pictures: the group 0xAD6B204F (SetupVideo plays its APPEAR script), the text 0x545570C6 and the
+// pictures 0xE54C30BE, 0x8E1BEA84, 0x608BB8C8.
+void hide_brightness_block(void *screen, bool empty_text) {
+    const char *pkg = field<const char *>(screen, kScreenPackage);
+    for (unsigned hash : {0xAD6B204Fu, 0x545570C6u, 0xE54C30BEu, 0x8E1BEA84u, 0x608BB8C8u}) game::FEngSetInvisiblePkg(pkg, hash);
+    if (empty_text) game::FEPrintfPkg(pkg, static_cast<int>(0x545570C6), "%s", "");
+}
+
 // The Video screen with a page's rows instead of the game's (SetupVideo is what adds the video options; the screen is the one Options > Video
-// opens, so only the pages that were opened for it take it over).
+// opens, so only the pages that were opened for it take it over), or the game's options and the rows added to them.
 MethodFn g_orig_setupvideo;
 void FASTCALL hook_setupvideo(void *self, void *edx) {
     g_orig_setupvideo(self, edx);
-    if (!g_page_next || options_category() != kCategoryVideo) return;
+    if (!g_page_next || options_category() != kCategoryVideo) {  // the game's own Video options, then the added rows
+        ensure_language_entries();
+        // The screen has two modes (+0x154): the brightness with a couple of rows, and the long list of the PC's display options.
+        add_extra_rows(self, field<unsigned char>(self, 0x154) ? opt::kAdvancedVideoOptions : opt::kVideoOptions);
+        // The brightness text and its reference pictures sit under the first rows and do not scroll with them: with more than a few rows
+        // in the list they are in the way, so they are hidden.
+        if (g_extra_category == kCategoryVideo && field<int>(self, 0x104) - 1 > 3) hide_brightness_block(self, false);
+        return;
+    }
     g_windowed = false;
     g_page = g_page_next;
     g_page_next = nullptr;
     ensure_language_entries();
-    g_player_rows_open = false;
+    reset_extra();
     build_page_screen(self);
     // The Video layout's brightness text ("Adjust your display brightness control until you can clearly see two logos...", language string
     // 0xAFA456AC): the string 0x545570C6 in the group 0xAD6B204F, whose appear script SetupVideo plays. Hidden, and emptied in case a script shows it.
     const char *pkg = field<const char *>(self, kScreenPackage);
-    game::FEngSetInvisiblePkg(pkg, 0xAD6B204F);
-    game::FEngSetInvisiblePkg(pkg, 0x545570C6);
-    game::FEPrintfPkg(pkg, static_cast<int>(0x545570C6), "%s", "");
+    hide_brightness_block(self, true);
     // Its "Basic" hint (X), which switches between the advanced and the basic video options (message kVideoBasicMsg, also refused in hook_notify):
     // the hint group 0x72958E0E and its hit-box 0x56E65DA8. Our Help hint takes its place.
     game::FEngSetInvisiblePkg(pkg, 0x72958E0E);
@@ -716,24 +938,32 @@ bool FASTCALL hook_didnotchange(void *self, void *edx) {
         if (caller == 0x545831 || caller == 0x545B47) return true;
     }
     if (g_page && self == g_options_screen && page_changed()) return false;
-    if (!g_page && player_rows_changed()) return false;
+    if (!g_page && extra_rows_changed()) {
+        // Added rows on the Video screen are not display settings: the game must not apply them (and ask to keep them).
+        if (g_extra_category == kCategoryVideo) {
+            const uintptr_t caller = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
+            if (caller == 0x545831 || caller == 0x545B47) return unchanged;
+        }
+        return false;
+    }
     return unchanged;
 }
 
 // The discard was confirmed: the game puts its own values back; put the page's back too.
 MethodFn g_orig_restoreoriginals;
 void FASTCALL hook_restoreoriginals(void *self, void *edx) {
-    const bool player_rows = !g_page && player_rows_changed();
+    const bool extra_rows = !g_page && extra_rows_changed();
     // The Video screen would put its display settings back (and reset the renderer); a page has none.
     if (!(g_page && self == g_options_screen && g_page_category == kCategoryVideo)) g_orig_restoreoriginals(self, edx);
     if (g_page && self == g_options_screen && page_changed() && g_page->page->discard) {
         g_page->page->discard();
         log_line("%s: changes discarded", g_page->page->id);
     }
-    if (player_rows)
-        for (int i = 0; i < g_player_page_count; ++i)
-            if (g_player_pages[i]->page->discard) g_player_pages[i]->page->discard();
-    if (player_rows) log_line("Options > Player: changes to the added rows discarded");
+    if (extra_rows) {
+        for (PageInfo *info : g_extra_pages)
+            if (info->page->discard) info->page->discard();
+        log_line("Options > %s: changes to the added rows discarded", category_name(g_extra_category));
+    }
 }
 
 // Defaults was confirmed: reset the page instead of the Player settings.
@@ -746,10 +976,10 @@ void FASTCALL hook_restoredefaults(void *self, void *edx) {
         return;
     }
     g_orig_restoredefaults(self, edx);
-    if (!g_page && g_player_rows_open && options_category() == kCategoryPlayer) {
-        for (int i = 0; i < g_player_page_count; ++i)
-            if (g_player_pages[i]->page->defaults) g_player_pages[i]->page->defaults();
-        log_line("Options > Player: defaults for the added rows");
+    if (!g_page && g_extra_category >= 0 && options_category() == g_extra_category) {
+        for (PageInfo *info : g_extra_pages)
+            if (info->page->defaults) info->page->defaults();
+        log_line("Options > %s: defaults for the added rows", category_name(g_extra_category));
         game::RefreshWidgets(self);
     }
 }
@@ -1148,6 +1378,56 @@ void FASTCALL hook_queue_switch(void *feng, void *edx, const char *pkg, int arg,
     }
     g_orig_queue_switch(feng, edx, pkg, arg, msg, flag);
 }
+// The bracket around the selected row (UIWidgetMenu::pCursor, +0x50) goes to its place by the scripts POS1 .. POSn, which UpdateCursorPos plays
+// for the row's place in view. The Options layouts also move it when a row's title becomes the current button, to that slot's place: right
+// for the game's rows, which are where their slot is, but not for a row past the layout's slots, which shares a slot. So on screens with such
+// rows the place is checked every frame, and the script played again when it is not the one for the row's place in view.
+void keep_bracket_on_row(void *screen) {
+    void *cursor = field<void *>(screen, 0x50), *current = field<void *>(screen, 0x34), *top = field<void *>(screen, 0x38);
+    if (!cursor || !current || !top) return;
+    const int pos = static_cast<int>(GetWidgetIndex(screen, current)) - static_cast<int>(GetWidgetIndex(screen, top)) + 1;
+    if (pos < 1 || pos > field<int>(screen, 0x10C)) return;
+    static unsigned places[13];  // POS1 .. POS12
+    if (!places[1])
+        for (int n = 1; n <= 12; ++n) {
+            char name[16];
+            snprintf(name, sizeof(name), "POS%d", n);
+            places[n] = game::FEHashUpper(name);
+        }
+    if (pos > 12) return;
+    // Only a place script that is not the row's is replaced (the bracket's other scripts, a flash say, are left alone).
+    const unsigned id = script_id(cursor);
+    if (id == places[pos] || std::find(places + 1, places + 13, id) == places + 13) return;
+    game::FEngSetScriptOn(cursor, places[pos], true);
+}
+
+// Rows that share their objects (see add_shared_row) also share the look the objects were last given (the scripts GREY, HIGHLIGHT,
+// UNHIGHLIGHT): a greyed out row left its grey on the row that showed in its slot next, and the layout's own response to a row losing the
+// focus, a frame later, takes the grey off a greyed out row that shares that row's objects. So every frame each row in view that shares
+// its objects is given its own look again where it shows another: greyed out (Disable plays GREY), or normal (UnsetFocus plays UNHIGHLIGHT;
+// a value has only INIT and GREY). The selected row keeps what its focus gave it.
+void keep_shared_looks(void *screen) {
+    void *top = field<void *>(screen, 0x38), *current = field<void *>(screen, 0x34);
+    if (!top) return;
+    const int view = static_cast<int>(GetWidgetIndex(screen, top)), shown = field<int>(screen, 0x10C), total = field<int>(screen, 0x104) - 1;
+    static const unsigned grey = game::FEHashUpper("GREY"), init = nfsmw::bstring_hash("INIT");
+    for (int i = view; i < view + shown && i <= total; ++i) {
+        if (!shares_objects(i, total)) continue;
+        void *w = GetWidget(screen, i);
+        if (!w || w == current) continue;
+        void **vtbl = own_vtbl(w);
+        const bool slider = vtbl == g_slider_vtbl || vtbl[6] == reinterpret_cast<void *>(game::kSliderHide);
+        void *title = field<void *>(w, kRowTitle), *data = slider ? nullptr : field<void *>(w, kRowData);
+        const unsigned title_look = title ? script_id(title) : 0, data_look = data ? script_id(data) : 0;
+        if (!field<unsigned char>(w, kRowEnabled)) {
+            if ((title && title_look != grey) || (data && data_look != grey)) call_own(w, 8);  // Disable
+        } else if (title_look == grey || title_look == kScriptHighlight || data_look == grey) {
+            call_own(w, 10);  // UnsetFocus
+            if (data && game::FindScript(data, init)) game::FEngSetScriptOn(data, init, true);
+        }
+    }
+}
+
 void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsigned p1, unsigned p2) {
     // The Video screen's switch to its basic options (its hidden "Basic" hint, the X key) does nothing on a page.
     if (g_page && self == g_options_screen && g_page_category == kCategoryVideo && msg == kVideoBasicMsg) return;
@@ -1197,18 +1477,26 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
             g_redirect_switch = g_exit_callback != nullptr;
         }
     }
-    if (!g_page && msg == kExitComplete && g_player_rows_open && options_category() == kCategoryPlayer) {
-        // Left the Player screen: a discard has already put the values back, so what differs now was accepted.
-        for (int i = 0; i < g_player_page_count; ++i) {
-            const opt::Page &page = *g_player_pages[i]->page;
+    if (!g_page && msg == kExitComplete && g_extra_category >= 0 && options_category() == g_extra_category) {
+        // Left the screen: a discard has already put the values back, so what differs now was accepted.
+        bool applied = false;
+        for (PageInfo *info : g_extra_pages) {
+            const opt::Page &page = *info->page;
             if (page.changed && page.changed() && page.accept) {
                 page.accept();
-                log_line("Options > Player: changes to the rows of \"%s\" applied", page.id);
+                applied = true;
+                log_line("Options > %s: changes to the rows of \"%s\" applied", category_name(g_extra_category), page.id);
             }
         }
-        g_player_rows_open = false;
+        // The game marks the profile's options as changed when it leaves (so that it is saved); on the Video screen it does not.
+        if (applied && g_extra_category == kCategoryVideo) field<unsigned char>(*reinterpret_cast<void **>(game::kFEDatabase), 4) = 1;
+        reset_extra();
     }
     g_orig_notify(self, edx, msg, obj, p1, p2);
+    if (g_shared_slots > 0 && self == g_extra_screen && msg == kScreenTick) {
+        keep_bracket_on_row(self);
+        keep_shared_looks(self);
+    }
     g_redirect_switch = false;
     // The game's own scrolling tells the scroll bar about its widgets only (hiding it, there being no more than fit).
     if (g_page && g_windowed && self == g_options_screen && (msg == kPadUp || msg == kPadDown || msg == kScreenTick)) update_scroll_bar(self);
@@ -1371,6 +1659,7 @@ void FASTCALL hook_optmain_setup(void *self, void *edx) {
     g_page_next = nullptr;
     g_page = nullptr;
     g_pending_optmain = nullptr;
+    reset_extra();
     g_hint_pending_screen = nullptr;
     g_hint.screen = nullptr;
     g_hint.clone = nullptr;
@@ -1418,6 +1707,10 @@ void install_hooks() {
          nfsmw::detour(&hook_addoption), nfsmw::orig(&g_orig_addoption)},
         {"optmain_notify", "UIOptionsMain::NotificationMessage", 0x545310, {0x64, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x6A}, false,
          nfsmw::detour(&hook_optmain_notify), nfsmw::orig(&g_orig_optmain_notify)},
+        {"setupaudio", "UIOptionsScreen::SetupAudio", 0x529310, {0x6A, 0xFF, 0x68, 0xE4, 0xEB, 0x86, 0x00}, false,
+         nfsmw::detour(&hook_setupaudio), nfsmw::orig(&g_orig_setupaudio)},
+        {"setupgameplay", "UIOptionsScreen::SetupGameplay", 0x529C10, {0x6A, 0xFF, 0x68, 0xD0, 0xED, 0x86, 0x00}, false,
+         nfsmw::detour(&hook_setupgameplay), nfsmw::orig(&g_orig_setupgameplay)},
         {"setupplayer", "UIOptionsScreen::SetupPlayer", 0x529F10, {0x6A, 0xFF, 0x68, 0x80, 0xEE, 0x86, 0x00}, true,
          nfsmw::detour(&hook_setupplayer), nfsmw::orig(&g_orig_setupplayer)},
         {"setupvideo", "UIOptionsScreen::SetupVideo", 0x5295F0, {0x6A, 0xFF, 0x64, 0xA1, 0x00, 0x00, 0x00}, false,

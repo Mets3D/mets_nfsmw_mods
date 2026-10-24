@@ -36,6 +36,17 @@ enum Placement {
                      // not asked); otherwise as kNewEntry
     kNewEntryEverywhere,  // as kNewEntry, and also an entry in the main menu's Options (before EA Trax and Credits). `available`
                           // is asked there too, so the page must work with no race loaded
+    // Rows added to the end of another of the game's own Options screens (pause menu and main menu), as for kPlayerOptions: the same
+    // fields are unused and the callbacks work the same. The screens have a limited number of row slots (the game's own rows use most of
+    // them): when the added rows of all mods do not fit, the screen scrolls as a whole (the game's own rows leave at the top), and the added
+    // rows keep their kind, except that a kCameraSelectorRow is left out. The Video screen has two modes, the
+    // brightness one (kVideoOptions) and the PC's long list of display options (kAdvancedVideoOptions); rows added to it do not trigger the
+    // game's "keep these display settings?" question, and with more than 3 rows in all, the brightness text and pictures (which do not
+    // scroll) are hidden.
+    kAudioOptions,
+    kVideoOptions,         // the Video screen as it opens: the brightness and a few rows (the "Advanced" hint leads to the next)
+    kGameplayOptions,
+    kAdvancedVideoOptions,  // the Advanced Video screen: the long list of the PC's display options (the Video screen's other mode)
 };
 
 struct Page {

@@ -26,7 +26,6 @@ void ask_before_leaving(void *screen) {
     const char *dialog = reinterpret_cast<const char *>(field<unsigned char>(screen, kInGame) ? kPauseDialog : kMenuDialog);
     reinterpret_cast<AskFn>(kShowTwoButtons)(field<const char *>(screen, 0x10), dialog, 1, kYesLabel, kNoLabel, g_leave_yes, g_leave_no,
                                               kDialogClosed, 1, kQuestionText);
-    log_line("Controls menu: asking about changed bindings before leaving");
 }
 
 }  // namespace

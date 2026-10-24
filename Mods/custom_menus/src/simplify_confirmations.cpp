@@ -39,7 +39,6 @@ void FASTCALL hook_queue_game_message(void *feng, void *edx, unsigned msg, const
         g_orig_queue_game_message(feng, edx, msg, pkg, port);
         return;
     }
-    g_log->line("Save changes: Yes, leaving");
     QueueMessage(feng, kExitAnimation, pkg, -4, 0xFF);
 }
 

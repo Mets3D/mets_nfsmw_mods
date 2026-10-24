@@ -318,7 +318,6 @@ void show_device(void *screen, int new_column, int pad) {
         char label[300];
         label_of_pad(pad, "?", label, sizeof(label));
         log_line("Controls menu: controller %d of %d: %s (XInput controller %d)", pad + 1, joystick_count(), label, slot + 1);
-        bindings::log_live_bindings("the Controls menu shows it");
     } else {
         log_line("Controls menu: keyboard");
     }

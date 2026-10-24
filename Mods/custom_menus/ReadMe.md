@@ -19,7 +19,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
   - **Help**: Shows a description of the currently selected value. The help text is provided by the mod that is creating the menu.
 - **Localization**: Mods can provide translations for the game's 9 supported additional languages for all labels, values, Help texts, keybindings that they're adding.
 - **Add button mappings**: Mods can add new key and button bindings to Options > Controls, and rename the game's texts.
-- **Expand existing menus**: Mods can also add options to the game's pre-existing options screens. Currently only the Player menu is supported, supporting all menus is a TODO.
+- **Expand existing menus**: Mods can also add options to the end of the game's menu screens.
 - **Sub-menus**: Mods can also define options menus that are accessed in some other way rather than through the regular Options menu list. For example, the Controller Settings page of the Controller Support mod.
 
 ## Other fixes & tweaks
@@ -38,8 +38,6 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
   - `NFS-XtendedInput` due to touching `UIOptionsMain::Setup`.
 
 ## TODO
-- We now have the ability to add entries in the Player Options, but what about to the other menus? Should probably support all of them.
-- Multi-page menus? There's no solid precedent for this in the game, so this is quite a stretch goal, but it could be nice to put the Rumble options on a different page from the rest of the controller options, switchable with the shoulder buttons.
 - Ability to add not just sub-menus under "Options", but also in the pause menu, eg. to customize the current race, or other dev tools.
 
 ## Using it from your own mod
