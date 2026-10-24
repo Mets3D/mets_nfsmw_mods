@@ -5,6 +5,8 @@
 #include "hooks.h"
 #include "input.h"
 #include "controls_options.h"
+#include "device_settings.h"
+#include "profile.h"
 #include "rumble.h"
 
 namespace pad::pad_sets {
@@ -23,6 +25,8 @@ struct Set {
 Set g_sets[kMaxPads];  // each controller's set, except the one in the live table (index 0 holds controller 0's meanwhile)
 int g_live = 0;        // whose set the live table holds
 int g_menu_pad = 0;    // the controller the Controls screen shows
+char g_profile[MAX_PATH] = "?";   // the profile file the sets were read from ("": none, "?": not yet)
+char g_keys[kMaxPads][48] = {};   // the controller each set belongs to (see controller_key); empty: no controller there
 
 void *joystick(int index) { return index >= 0 && index < kMaxPads ? *reinterpret_cast<void **>(kJoysticks + index * 4) : nullptr; }
 
@@ -61,33 +65,71 @@ void copy_in(const Set &set) {
         for (int s = 0; s < 2; ++s) slots_of(kBindingTable, e)[kControllerSlot + s] = set.slots[e][s];
 }
 
-void save_ini(int pad) {
-    for (int e = 0; e < kBindingCount; ++e) {
-        char key[16], text[64];
-        snprintf(key, sizeof(key), "%d_%d", pad, e);
-        const Slot *s = g_sets[pad].slots[e];
-        snprintf(text, sizeof(text), "%d %d %d %d", s[0].type, s[0].object, s[1].type, s[1].object);
-        WritePrivateProfileStringA("pad_bindings", key, text, g_ini);
-    }
-    log_line("controller %d: bindings saved", pad + 1);
+// ---- the profile's controller_settings.ini ---------------------------------------------------------------------------------
+// Controller 0's set is the profile's (the game saves the live table with it). The others are kept in [pad_bindings] of the profile's
+// controller_settings.ini (profile.h), under keys <controller>_<binding>: the controller is named as in device_settings.cpp (its vendor,
+// product and serial when those tell it from others, else its XInput slot), so a set follows its controller, not its place in the
+// game's list. A set that was never edited is not written (the controller then uses controller 0's).
+void controller_key(int pad, char *out, size_t size) {
+    const int slot = input::xinput_slot_of_joystick(pad);
+    if (slot >= 0) snprintf(out, size, "%s", device_settings::key_of(slot));
+    else snprintf(out, size, "joystick%d", pad + 1);
 }
 
-void load_settings() {
-    for (int pad = 1; pad < kMaxPads; ++pad)
-        for (int e = 0; e < kBindingCount; ++e) {
-            char key[16], text[64];
-            snprintf(key, sizeof(key), "%d_%d", pad, e);
-            GetPrivateProfileStringA("pad_bindings", key, "", text, sizeof(text), g_ini);
-            int t0, o0, t1, o1;
-            if (sscanf(text, "%d %d %d %d", &t0, &o0, &t1, &o1) != 4) continue;
-            g_sets[pad].slots[e][0] = {t0, pad, o0};
-            g_sets[pad].slots[e][1] = {t1, pad, o1};
-            g_sets[pad].valid = true;
-        }
+void save_ini(int pad) {
+    for (int e = 0; e < kBindingCount; ++e) {
+        char key[64], text[64];
+        snprintf(key, sizeof(key), "%s_%d", g_keys[pad], e);
+        const Slot *s = g_sets[pad].slots[e];
+        snprintf(text, sizeof(text), "%d %d %d %d", s[0].type, s[0].object, s[1].type, s[1].object);
+        profile::set("pad_bindings", key, text);
+    }
+    log_line("controller %d (%s): bindings saved to %s", pad + 1, g_keys[pad], profile::file()[0] ? profile::file() : "the mod's ini");
+}
+
+void load_pad(int pad) {
+    g_sets[pad] = Set();
+    if (pad == 0 || !g_keys[pad][0]) return;
+    for (int e = 0; e < kBindingCount; ++e) {
+        char key[64], text[64] = "";
+        snprintf(key, sizeof(key), "%s_%d", g_keys[pad], e);
+        profile::get_string("pad_bindings", key, text, sizeof(text));
+        int t0, o0, t1, o1;
+        if (sscanf(text, "%d %d %d %d", &t0, &o0, &t1, &o1) != 4) continue;
+        g_sets[pad].slots[e][0] = {t0, pad, o0};
+        g_sets[pad].slots[e][1] = {t1, pad, o1};
+        g_sets[pad].valid = true;
+    }
+}
+
+// Reads the sets of the controllers again when the profile or the controller of a place has changed (the game's list can grow, shrink or
+// come in another order, and another profile can be loaded). Not while the Controls screen has another controller's set in the live
+// table: that one may hold changes not written yet. At most every half second, unless `force`.
+void refresh_sets(bool force = false) {
+    if (g_live != 0) return;
+    static DWORD next = 0;
+    const DWORD now = GetTickCount();
+    if (!force && static_cast<LONG>(now - next) < 0) return;
+    next = now + 500;
+    const bool new_profile = strcmp(profile::file(), g_profile) != 0;
+    if (new_profile) {
+        snprintf(g_profile, sizeof(g_profile), "%s", profile::file());
+        log_line("the bindings of the extra controllers are read from %s", g_profile[0] ? g_profile : "the mod's ini (the profile has no folder yet)");
+    }
+    const int n = joystick_count();
+    for (int pad = 1; pad < kMaxPads; ++pad) {
+        char key[sizeof(g_keys[0])] = "";
+        if (pad < n) controller_key(pad, key, sizeof(key));
+        if (!new_profile && !strcmp(key, g_keys[pad])) continue;
+        snprintf(g_keys[pad], sizeof(g_keys[pad]), "%s", key);
+        load_pad(pad);
+        if (key[0]) log_line("controller %d (%s): %s", pad + 1, key, g_sets[pad].valid ? "its own bindings" : "no bindings of its own (controller 1's)");
+    }
 }
 
 // Puts a controller's set in the live table (the one shown by the Controls screen), keeping the one that was there.
 void select(int pad) {
+    refresh_sets(true);
     if (pad == g_live) return;
     Set before = g_sets[g_live];
     copy_out(g_sets[g_live], g_live);
@@ -144,6 +186,7 @@ bool no_xinput_slot_resolved() {
 }
 
 bool actions_of_slot(int xinput_slot, float *values) {
+    refresh_sets();
     const int n = joystick_count();
     int pad = -1;
     for (int k = 0; k < n && pad < 0; ++k)
@@ -185,6 +228,7 @@ bool actions_of_slot(int xinput_slot, float *values) {
 // The game polled the live set (against the controllers it names); every other controller's set is read the same way, by
 // putting its two slots in the entry for a moment, and the strongest value of an entry wins.
 void add_values(float *values) {
+    refresh_sets();
     const int n = joystick_count();
     if (n >= 2) {
     using ValueFn = float(__stdcall *)(int, int);

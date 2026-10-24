@@ -10,6 +10,9 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) gives full controller suppor
 - Better default controller bindings. They can also be fully remapped in the game's controls menu, which will show accurate and precise button names.
 - **Independent Triggers**: In the vanilla game, both triggers share one axis, so gas and brake on the triggers cancel each other. With this mod, you can hold gas and brake at the same time, just like you can on keyboard, causing a burnout.
 
+### Better Defaults
+The vanilla game's default keybindings don't use the analogue triggers for throttle and braking, and the Nitro button is the Start button, which is a bit ridiculous. I decided to completely ignore the game's default controller keybindings and completely overhaul them. Of course, they are still fully remappable. The better defaults can be disabled in the .ini.
+
 ### Camera look
 - All 3rd-person car cameras can be controlled with either the mouse, or the right stick
 - The latter is remappable in the Controls menu, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
@@ -26,7 +29,7 @@ Note that any controller with a low battery will fail to rumble due to the physi
 - The green bar under each dead zone slider shows the current activation value of the given stick/trigger. I recommend calibrating the deadzone by gently nudging the stick in all directions, letting go, and taking note of the highest value that the green bar can reach while not being touched.
 
 ### Several controllers
-- With more than one controller connected, each controller can be customized separately. Each has their own dead zone, rumble, and button mapping stored separately.
+- With more than one controller connected, each controller can be customized. Their dead zones, rumble, and button mappings are stored per savefile.
 - In single-player, all input devices (keyboard and all controllers) can control the game at the same time.
 - Controller settings are stored per controller identity, as long as it has one. This ID is defined by the OS, and it can be defined by connecting USB port instead of actual device hardware ID. Steam Input's virtual controller has no ID. In such cases, its data is stored per controller slot, 1 to 4.
 - Controllers can be connected while the game is running, no need to restart like in vanilla.
@@ -46,9 +49,9 @@ Note that any controller with a low battery will fail to rumble due to the physi
 
 - Xbox 1 Controller: Tested both raw and via SteamInput, both work.
 - Xbox 360 Controller: Not tested, expected to work.
-- PS5 DualSense Controller: Tested with Steam Input, works, including rumble.
+- PS5 DualSense Controller: Tested with Steam Input, works, including rumble and deadzone customization.
 - Other controllers: Not tested, expected to work with Steam Input. Just add `speed.exe` to Steam as a non-steam game.
-- Gyro controls: Not tested, not sure what you would use it for, but Steam Input can do it for you without a doubt.
+- Gyro controls: Not tested, but Steam Input can probably do it. Should you though?
 
 ## Mod Compatibility
 

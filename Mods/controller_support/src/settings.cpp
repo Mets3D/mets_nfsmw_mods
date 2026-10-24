@@ -31,9 +31,6 @@ float ini_float(const char *key, float def, const char *section) {
 void load_settings() {
     nfsmw::data_file("mets_controller_support.ini", g_ini, sizeof(g_ini));
     g_cfg.enabled = GetPrivateProfileIntA("pad", "enabled", 1, g_ini) != 0;
-    g_cfg.analog_input = GetPrivateProfileIntA("pad", "analog_input", 1, g_ini) != 0;
-    g_cfg.split_triggers = GetPrivateProfileIntA("pad", "split_triggers", 1, g_ini) != 0;
-    g_cfg.use_all_xinput_controllers = GetPrivateProfileIntA("pad", "use_all_xinput_controllers", 1, g_ini) != 0;
     LookSettings &l = g_look_cfg;
     l.enabled = GetPrivateProfileIntA("look", "enabled", 1, g_ini) != 0;
     l.stick_speed = ini_float("stick_speed", l.stick_speed, "look");
@@ -51,8 +48,7 @@ void load_settings() {
     default_layout::load_settings();
     rumble::load_settings();
     device_settings::load();
-    log_line("settings: enabled=%d analog_input=%d split_triggers=%d use_all_xinput_controllers=%d", g_cfg.enabled,
-             g_cfg.analog_input, g_cfg.split_triggers, g_cfg.use_all_xinput_controllers);
+    log_line("settings: enabled=%d", g_cfg.enabled);
 }
 
 }  // namespace pad

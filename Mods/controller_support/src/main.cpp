@@ -67,7 +67,6 @@ NFSMW_PLUGIN_MAIN() {
     load_settings();
     if (!g_cfg.enabled) return NFSMW_OK;
     xinput::load(&g_log);
-    pad_sets::load_settings();
     bindings::prepare_default_look_entries();
     menu_buttons::patch_default_table();
     default_layout::patch_default_table();

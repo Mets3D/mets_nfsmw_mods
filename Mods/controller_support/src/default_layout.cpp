@@ -12,31 +12,30 @@ bool g_enabled = true;
 
 // Slot 2 of each entry (slot 3 is cleared), in the numbering the game gets from our XInput state: buttons 0 A, 1 B, 2 X, 3 Y,
 // 4 LB, 5 RB, 6 View, 7 Menu, 8 left stick press, 9 right stick press; the D-pad is a hat (0 up, 1 right, 2 down, 3 left);
-// the triggers are the two sliders that split_triggers makes of them (0 LT, 1 RT), pulling towards 0.
+// the triggers are the two sliders we make of them (0 LT, 1 RT), pulling towards 0.
 struct Binding {
     int entry;
     const char *names[2];  // what the entry may be called (a mod can have renamed it)
     Slot slot;
-    bool trigger;          // only with split_triggers
 };
 const Binding kLayout[] = {
-    {0, {"GAME_ACTION_GAS"}, {kSliderLow, 0, 1}, true},                  // Accelerate: RT
-    {1, {"GAME_ACTION_BRAKE"}, {kSliderLow, 0, 0}, true},                // Brake / Reverse: LT
-    {4, {"GAME_ACTION_HANDBRAKE"}, {kButton, 0, 4}, false},              // Handbrake: LB
-    {5, {"GAME_ACTION_GAMEBREAKER"}, {kButton, 0, 2}, false},            // Speedbreaker: X
-    {6, {"GAME_ACTION_NOS"}, {kButton, 0, 0}, false},                    // N2O: A
-    {7, {"GAME_ACTION_SHIFTDOWN"}, {kPov, 0, 2}, false},                 // Shift Down: D-pad Down
-    {8, {"GAME_ACTION_SHIFTUP"}, {kButton, 0, 5}, false},                // Shift Up: RB
-    {9, {"GAME_ACTION_RESET"}, {kButton, 0, 9}, false},                  // Reset Car Position: right stick press
-    {10, {"HUDACTION_ENGAGE_EVENT"}, {kButton, 0, 8}, false},            // Engage Event: left stick press
-    {11, {"HUDACTION_PAD_DOWN"}, {kButton, 0, 3}, false},                // View Blacklist: Y
-    {12, {"HUDACTION_PAD_LEFT"}, {kButton, 0, 6}, false},                // View World Map: View
-    {13, {"HUDACTION_PAD_RIGHT"}, {}, false},                            // View SMS Messages: unbound
-    {15, {"CAM_ACTION_CHANGE"}, {kPov, 0, 1}, false},                    // Next Camera View: D-pad Right
-    {16, {"CAM_ACTION_LOOKBACK"}, {kButton, 0, 1}, false},               // Look Behind: B
+    {0, {"GAME_ACTION_GAS"}, {kSliderLow, 0, 1}},      // Accelerate: RT
+    {1, {"GAME_ACTION_BRAKE"}, {kSliderLow, 0, 0}},    // Brake / Reverse: LT
+    {4, {"GAME_ACTION_HANDBRAKE"}, {kButton, 0, 4}},   // Handbrake: LB
+    {5, {"GAME_ACTION_GAMEBREAKER"}, {kButton, 0, 2}}, // Speedbreaker: X
+    {6, {"GAME_ACTION_NOS"}, {kButton, 0, 0}},         // N2O: A
+    {7, {"GAME_ACTION_SHIFTDOWN"}, {kPov, 0, 2}},      // Shift Down: D-pad Down
+    {8, {"GAME_ACTION_SHIFTUP"}, {kButton, 0, 5}},     // Shift Up: RB
+    {9, {"GAME_ACTION_RESET"}, {kButton, 0, 9}},       // Reset Car Position: right stick press
+    {10, {"HUDACTION_ENGAGE_EVENT"}, {kButton, 0, 8}}, // Engage Event: left stick press
+    {11, {"HUDACTION_PAD_DOWN"}, {kButton, 0, 3}},     // View Blacklist: Y
+    {12, {"HUDACTION_PAD_LEFT"}, {kButton, 0, 6}},     // View World Map: View
+    {13, {"HUDACTION_PAD_RIGHT"}, {}},                 // View SMS Messages: unbound
+    {15, {"CAM_ACTION_CHANGE"}, {kPov, 0, 1}},         // Next Camera View: D-pad Right
+    {16, {"CAM_ACTION_LOOKBACK"}, {kButton, 0, 1}},    // Look Behind: B
     // Previous Camera View belongs to nfsmw_camera_settings, which leaves its controller binding to this layout (the D-pad is
     // free here; in the game's own layout D-pad Left is View World Map).
-    {nfsmw::binding_table::kPreviousCameraEntry, {"SC_NUMPAD5", "CAM_ACTION_PREVIOUS"}, {kPov, 0, 3}, false},
+    {nfsmw::binding_table::kPreviousCameraEntry, {"SC_NUMPAD5", "CAM_ACTION_PREVIOUS"}, {kPov, 0, 3}},
 };
 
 bool expected(uintptr_t table, const Binding &b) {
@@ -49,7 +48,6 @@ bool expected(uintptr_t table, const Binding &b) {
 int apply_to(uintptr_t table) {
     int changed = 0;
     for (const Binding &b : kLayout) {
-        if (b.trigger && !g_cfg.split_triggers) continue;
         if (!expected(table, b)) {
             log_line("default layout: binding entry %d is \"%s\", not %s; left alone", b.entry,
                      name_of(table, b.entry) ? name_of(table, b.entry) : "?", b.names[0]);

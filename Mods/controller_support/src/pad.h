@@ -29,9 +29,6 @@ float ini_float(const char *key, float def, const char *section = "pad");
 
 struct Settings {  // [pad]
     bool enabled = true;
-    bool analog_input = true;  // steering, gas and brake are analog
-    bool split_triggers = true;  // LT and RT as two axes
-    bool use_all_xinput_controllers = true;  // every XInput controller drives the game, not just the first one DirectInput gave it
 };
 extern Settings g_cfg;
 

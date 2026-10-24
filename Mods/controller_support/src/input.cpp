@@ -495,36 +495,23 @@ void process_pad_state(void *device, JoyState *state) {
     // Each XInput controller reports its own state (every controller has bindings of its own); a single one, or none that
     // can be told apart, gets the merged state.
     xinput::Gamepad chosen = {};
-    const bool replaced = g_cfg.use_all_xinput_controllers;
     refresh_xinput_list();
     const int own = own_slot(device);
     if (own == -2) return report_at_rest(s);  // unplugged: the game still has its object, but nothing to read
-    if (g_cfg.use_all_xinput_controllers) learn_slot(device, s);
-    int dead_slot = own;  // whose dead zones: the controller's own, or with a single one (whose slot the game cannot tell) the one in use
-    if (replaced) {
-        const int slot = own;
-        if (!(slot >= 0 ? xinput::read_slot(slot, &chosen) : read_merged(&chosen))) return report_at_rest(s);
-        if (slot >= 0 && in_use(chosen)) xinput::port = slot;  // the controller in use is the one that rumbles
-        dead_slot = settings_slot(slot);
-        apply_trigger_deadzone(&chosen, device_settings::deadzones(dead_slot).trigger);
-        report_xinput(s, chosen);
-    } else {
-        dead_slot = settings_slot(own);
-    }
+    learn_slot(device, s);
+    if (!(own >= 0 ? xinput::read_slot(own, &chosen) : read_merged(&chosen))) return report_at_rest(s);
+    if (own >= 0 && in_use(chosen)) xinput::port = own;  // the controller in use is the one that rumbles
+    const int dead_slot = settings_slot(own);  // whose dead zones: the controller's own, or with a single one (whose slot the game cannot tell) the one in use
+    apply_trigger_deadzone(&chosen, device_settings::deadzones(dead_slot).trigger);
+    report_xinput(s, chosen);
 
     const device_settings::Deadzones &dead = device_settings::deadzones(dead_slot);
     apply_deadzone(&s.x, &s.y, dead.left_stick);
     apply_deadzone(&s.rx, &s.ry, dead.right_stick);
-    if (g_cfg.split_triggers) {
-        // The triggers are the device's own controller's (not the one in use: with several, each reports its own).
-        xinput::Gamepad pad = chosen;
-        if (replaced || (own >= 0 ? xinput::read_slot(own, &pad) : xinput::read(&pad))) {
-            if (!replaced) apply_trigger_deadzone(&pad, dead.trigger);
-            s.z = kAxisCentre;
-            s.slider[0] = kAxisCentre - pad.left_trigger * kAxisCentre / 255;
-            s.slider[1] = kAxisCentre - pad.right_trigger * kAxisCentre / 255;
-        }
-    }
+    // The triggers are the device's own controller's (not the one in use: with several, each reports its own), as two axes.
+    s.z = kAxisCentre;
+    s.slider[0] = kAxisCentre - chosen.left_trigger * kAxisCentre / 255;
+    s.slider[1] = kAxisCentre - chosen.right_trigger * kAxisCentre / 255;
     device_settings::refresh();
     if (pad_active(s, true)) {
         g_last_input_pad = true;
@@ -542,11 +529,9 @@ JoyState state_of_pad(xinput::Gamepad p, int slot) {
     report_xinput(s, p);
     apply_deadzone(&s.x, &s.y, dead.left_stick);
     apply_deadzone(&s.rx, &s.ry, dead.right_stick);
-    if (g_cfg.split_triggers) {
-        s.z = kAxisCentre;
-        s.slider[0] = kAxisCentre - p.left_trigger * kAxisCentre / 255;
-        s.slider[1] = kAxisCentre - p.right_trigger * kAxisCentre / 255;
-    }
+    s.z = kAxisCentre;
+    s.slider[0] = kAxisCentre - p.left_trigger * kAxisCentre / 255;
+    s.slider[1] = kAxisCentre - p.right_trigger * kAxisCentre / 255;
     return s;
 }
 
@@ -728,7 +713,6 @@ MappingCtorFn g_orig_mapping_ctor;
 
 void *FASTCALL hook_mapping_ctor(void *self, void *edx, void *device, void *spec) {
     void *result = g_orig_mapping_ctor(self, edx, device, spec);
-    if (!g_cfg.analog_input) return result;
     void *head = field<void *>(self, 4);
     int seen = 0;
     for (void *node = head ? field<void *>(head, 0) : nullptr; node && node != head && seen < 512;

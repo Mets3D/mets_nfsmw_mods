@@ -28,6 +28,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 
 ## TODO
 - The sun seems to be drawn for player 2 depending on player 1's perspective? Specifically, when player 1 has the sun in their view, player 2 might also get a sun rendered kinda arbitrarily in their view.
+- The player 1 and player 2 devices are locked in for the entire playsession after first starting a split screen race. This should not be the case, they should reset whenever we enter the split screen menu where it says "Player 1 press start" or so. Currently after 2 devices do a split-screen race, a 3rd device can't participate until the game is restarted (afaik).
 
 ### AI Disclaimer
 

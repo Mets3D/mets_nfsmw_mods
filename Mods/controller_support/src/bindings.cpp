@@ -7,6 +7,7 @@
 #include "default_layout.h"
 #include "extra_device.h"
 #include "pad_sets.h"
+#include "profile.h"
 #include "hooks.h"
 #include "input.h"
 #include "menu_buttons.h"
@@ -64,8 +65,14 @@ void prepare_default_look_entries() {
     log_line("look: default table entries renamed and bound to the right stick");
 }
 
+// The look bindings are kept per profile ([look_bindings] of its controller_settings.ini), then the mod's ini (the user's own defaults), then ours.
+char g_look_profile[MAX_PATH] = "";  // the profile file the live table's look entries were read from
+bool g_look_profile_known = false;
+
 // The live table at the first input poll: renamed, then the bindings saved in the ini (or the defaults).
 void load_live_look_entries() {
+    snprintf(g_look_profile, sizeof(g_look_profile), "%s", profile::file());
+    g_look_profile_known = true;
     if (!look_entries_named(kBindingTable, "live")) {
         g_look_entries_ok = false;
         return;
@@ -73,7 +80,7 @@ void load_live_look_entries() {
     for (int l = 0; l < L_COUNT; ++l) {
         set_name(kBindingTable, kLookEntry[l], kLookName[l]);
         char text[128] = {};
-        GetPrivateProfileStringA("look_bindings", kLookKey[l], "", text, sizeof(text), g_ini);
+        profile::get_string("look_bindings", kLookKey[l], text, sizeof(text));
         Slot slots[4];
         const bool saved = text[0] && parse_slots(text, slots);
         if (!saved) look_default_slots(l, slots);
@@ -87,7 +94,7 @@ void save_look_bindings() {
     for (int l = 0; l < L_COUNT; ++l) {
         char text[128];
         format_slots(slots_of(kBindingTable, kLookEntry[l]), text, sizeof(text));
-        WritePrivateProfileStringA("look_bindings", kLookKey[l], text, g_ini);
+        profile::set("look_bindings", kLookKey[l], text);
     }
 }
 
@@ -128,6 +135,11 @@ void resync_changes() {
 void log_binding_changes() {
     if (GetTickCount() < g_next_binding_check) return;
     g_next_binding_check = GetTickCount() + 1000;
+    // Another profile was loaded: its look bindings go in the live table (not while the Controls screen shows another controller's set).
+    if (g_look_entries_ok && g_look_profile_known && strcmp(profile::file(), g_look_profile) && pad_sets::live_pad() == 0) {
+        load_live_look_entries();
+        resync_changes();
+    }
     bool look_changed = false;
     for (int e = 0; e < kBindingCount; ++e) {
         const unsigned char *entry = reinterpret_cast<const unsigned char *>(kBindingTable + e * kEntrySize);

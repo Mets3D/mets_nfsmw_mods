@@ -4,6 +4,7 @@
 #include "hooks.h"
 #include "input.h"
 #include "extra_device.h"
+#include "profile.h"
 #include "rumble.h"
 
 namespace pad::rumble {
@@ -38,22 +39,18 @@ bool g_rumble_enabled = true;
 float g_levels[kSlots][E_COUNT];  // 0..1
 bool g_vibration[kSlots] = {true, true, true, true};  // rumble on, per controller
 int g_edit_slot = 0;              // the controller the Settings page edits
-FILETIME g_ini_time{};
+unsigned long long g_ini_stamp = 0;  // profile::stamp() when the levels were read or written
 
+// A controller's levels are in [rumble_<id>] of the profile's controller_settings.ini; a key missing there takes the same section of the
+// mod's ini, then the default.
 void section_of(int slot, char *out, size_t n) { snprintf(out, n, "rumble_%s", device_settings::key_of(slot)); }
-
-FILETIME ini_write_time() {
-    WIN32_FILE_ATTRIBUTE_DATA a{};
-    GetFileAttributesExA(g_ini, GetFileExInfoStandard, &a);
-    return a.ftLastWriteTime;
-}
 
 void load_slot_levels(int slot) {
     char section[64];
     section_of(slot, section, sizeof(section));
-    g_vibration[slot] = GetPrivateProfileIntA(section, "vibration", 1, g_ini) != 0;
+    g_vibration[slot] = profile::get_int(section, "vibration", 1) != 0;
     for (int e = 0; e < E_COUNT; ++e)
-        g_levels[slot][e] = clamp01(ini_float(kEffects[e].key, static_cast<float>(kEffects[e].def), section) / 100.0f);
+        g_levels[slot][e] = clamp01(profile::get_float(section, kEffects[e].key, static_cast<float>(kEffects[e].def)) / 100.0f);
 }
 
 void load_rumble_levels() {
@@ -61,20 +58,20 @@ void load_rumble_levels() {
     int n = snprintf(text, sizeof(text), "rumble: enabled=%d, controller 1:", g_rumble_enabled);
     for (int slot = 0; slot < kSlots; ++slot) load_slot_levels(slot);
     for (int e = 0; e < E_COUNT; ++e) n += snprintf(text + n, sizeof(text) - n, " %s=%.0f", kEffects[e].key, g_levels[0][e] * 100.0f);
-    g_ini_time = ini_write_time();
+    g_ini_stamp = profile::stamp();
     log_line("%s", text);
 }
 
 void save_rumble_levels(int slot) {
     char section[64];
     section_of(slot, section, sizeof(section));
-    WritePrivateProfileStringA(section, "vibration", g_vibration[slot] ? "1" : "0", g_ini);
+    profile::set(section, "vibration", g_vibration[slot] ? "1" : "0");
     for (int e = 0; e < E_COUNT; ++e) {
         char value[16];
         snprintf(value, sizeof(value), "%d", static_cast<int>(lroundf(g_levels[slot][e] * 100.0f)));
-        WritePrivateProfileStringA(section, kEffects[e].key, value, g_ini);
+        profile::set(section, kEffects[e].key, value);
     }
-    g_ini_time = ini_write_time();
+    g_ini_stamp = profile::stamp();
     log_line("rumble: levels saved");
 }
 
@@ -83,8 +80,7 @@ void reload_rumble_levels_if_changed() {
     static DWORD next_check = 0;
     if (GetTickCount() < next_check) return;
     next_check = GetTickCount() + 500;
-    const FILETIME t = ini_write_time();
-    if (CompareFileTime(&t, &g_ini_time) != 0) load_rumble_levels();
+    if (profile::stamp() != g_ini_stamp) load_rumble_levels();
 }
 
 bool enabled() { return g_rumble_enabled && xinput::can_vibrate(); }

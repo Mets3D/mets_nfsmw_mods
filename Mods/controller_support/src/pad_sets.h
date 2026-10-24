@@ -3,8 +3,8 @@
 // The game's binding table has one set of controller slots (2 and 3 of each entry) and every rebind writes controller
 // number 0, whichever controller was pressed; its Controls screen can only switch between the keyboard and controller 0.
 // Here every controller the game has (its joystick table, 0x91F150) gets a set of its own: controller 0's is the game's
-// (the live table, which the profile saves), the others are kept here and in the ini ([pad_bindings]). A controller whose
-// set was never edited uses controller 0's. The Controls screen cycles through the keyboard and all controllers; while one
+// (the live table, which the profile saves), the others are kept here and in the ini, per profile
+// ([pad_bindings:<profile name>], keyed by controller). A controller whose set was never edited uses controller 0's. The Controls screen cycles through the keyboard and all controllers; while one
 // of them is shown its set is swapped into the live table, and swapped back when the screen closes.
 #pragma once
 
@@ -25,7 +25,6 @@ void controllers_changed();            // the game's list of controllers grew: t
 int live_pad();                        // whose set the live table holds (0 unless the Controls screen shows another)
 void restrict_vehicle_entries(float *entry_values);  // after add_values: the vehicle entries from player 1's device alone
 void add_values(float *entry_values);  // after the game polled: what the other controllers' sets say, per entry
-void load_settings();
 void install_hooks();
 
 }  // namespace pad::pad_sets
