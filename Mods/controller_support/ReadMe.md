@@ -31,14 +31,15 @@ Note that any controller with a low battery will fail to rumble due to the physi
 ### Several controllers
 - With more than one controller connected, each controller can be customized. Their dead zones, rumble, and button mappings are stored per savefile.
 - In single-player, all input devices (keyboard and all controllers) can control the game at the same time.
-- Controller settings are stored per controller identity, as long as it has one. This ID is defined by the OS, and it can be defined by connecting USB port instead of actual device hardware ID. Steam Input's virtual controller has no ID. In such cases, its data is stored per controller slot, 1 to 4.
+- Controller settings are stored per controller identity, as long as it has one. This ID is defined by the OS, and it can be defined by connecting USB port instead of actual device hardware ID. Through Steam Input every controller looks the same to the game, but Steam tells us which real controller is behind each one, so such a controller is identified by its model (Xbox One S, DualSense, ...); two of the same model are told apart by their order. A controller that can't be identified at all is stored per controller slot, 1 to 4.
 - Controllers can be connected while the game is running, no need to restart like in vanilla.
 - This mod fully integrates with my [Split Screen Support](../split_screen_support/ReadMe.md) mod, so everything will work like you would expect from a video game that has split screen: Both players can pause the game, control the menus, control their own cameras, have their own controller customization as described above.
 
 ### Menu Navigation
 - Menu navigation tested in all menus I could think of, including obscure menus like Showroom, Blacklist bio screen, Advanced Video Settings.
 - Automatically switch to controller button prompts as soon as controller input is detected, and vice versa.
-- Button prompts show Xbox buttons by default. Each controller has its own prompt style: if [Custom Menus](../custom_menus/ReadMe.md) is installed, you can switch a controller to PlayStation or Nintendo Switch button prompts via **Options > Controls > the controller > Settings > Controller Prompts**, and the prompts follow whichever controller you touched last.
+- The Controls menu shows each controller's real name when it is known ("DualSense Wireless Controller"), and a controller starts with the button prompts of its kind (PlayStation prompts for a DualSense) until you choose otherwise.
+- Button prompts show Xbox buttons for a controller of unknown kind. Each controller has its own prompt style: if [Custom Menus](../custom_menus/ReadMe.md) is installed, you can switch a controller to PlayStation or Nintendo Switch button prompts via **Options > Controls > the controller > Settings > Controller Prompts**, and the prompts follow whichever controller you touched last.
 - The world map can be panned with the right stick, and zoomed with the shoulder buttons/triggers.
 - In the showroom, the triggers zoom the car view smoothly instead of stepped zoom levels.
 

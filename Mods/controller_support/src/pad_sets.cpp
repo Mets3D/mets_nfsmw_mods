@@ -8,6 +8,7 @@
 #include "device_settings.h"
 #include "profile.h"
 #include "rumble.h"
+#include "steam_pads.h"
 
 namespace pad::pad_sets {
 
@@ -279,6 +280,29 @@ void FASTCALL hook_message(void *screen, void *edx, unsigned message, void *obje
 
 int menu_pad() { return g_menu_pad; }
 
+// What the Controls screen calls a controller: its real name when Steam tells it ("Xbox One S Controller"; "#2" for a second of the same
+// name), else the game's name, with its number when there are several.
+void label_of_pad(int pad, const char *game_name, char *out, size_t size) {
+    const int n = joystick_count();
+    char name[64];
+    steam_pads::name_of_slot(input::xinput_slot_of_joystick(pad), name, sizeof(name));
+    if (!name[0]) {
+        if (n < 2) snprintf(out, size, "%.250s", game_name);
+        else snprintf(out, size, "%.250s #%d", game_name, pad + 1);
+        return;
+    }
+    int same = 0, ordinal = 0;
+    for (int k = 0; k < n; ++k) {
+        char other[64];
+        steam_pads::name_of_slot(input::xinput_slot_of_joystick(k), other, sizeof(other));
+        if (strcmp(other, name)) continue;
+        ++same;
+        if (k <= pad) ++ordinal;
+    }
+    if (same > 1) snprintf(out, size, "%s #%d", name, ordinal);
+    else snprintf(out, size, "%s", name);
+}
+
 void show_device(void *screen, int new_column, int pad) {
     select(new_column == 3 ? pad : 0);
     g_menu_pad = new_column == 3 ? pad : 0;
@@ -288,7 +312,9 @@ void show_device(void *screen, int new_column, int pad) {
     reinterpret_cast<RefreshFn>(table[2])(static_cast<char *>(screen) + 0x2C, nullptr);
     if (new_column == 3) {
         const int slot = input::xinput_slot_of_joystick(pad);
-        log_line("Controls menu: controller %d of %d (XInput controller %d)", pad + 1, joystick_count(), slot + 1);
+        char label[300];
+        label_of_pad(pad, "?", label, sizeof(label));
+        log_line("Controls menu: controller %d of %d: %s (XInput controller %d)", pad + 1, joystick_count(), label, slot + 1);
     } else {
         log_line("Controls menu: keyboard");
     }
@@ -344,9 +370,9 @@ void *FASTCALL hook_delete_screen(void *screen, void *edx, int flags) {
 // The header's device name: tells the controllers apart.
 const char *__stdcall hook_device_name(int column) {
     const char *name = g_orig_name(column);
-    if (column != 3 || joystick_count() < 2) return name;
+    if (column != 3) return name;
     static char text[0x140];
-    snprintf(text, sizeof(text), "%.250s #%d", name, g_menu_pad + 1);
+    label_of_pad(g_menu_pad, name, text, sizeof(text));
     return text;
 }
 

@@ -3,6 +3,7 @@
 #include "input.h"
 #include "profile.h"
 #include "rumble.h"
+#include "steam_pads.h"
 
 namespace pad::device_settings {
 
@@ -16,6 +17,17 @@ char g_profile[MAX_PATH];                          // the profile file the slots
 // A controller's values are in [controller_<id>] of the profile's controller_settings.ini; a key missing there takes the same section of
 // the mod's ini, then [pad] / [buttons].
 void section_of(int slot, char *out, size_t n) { snprintf(out, n, "controller_%s", g_keys[slot]); }
+
+// The prompts a controller starts with when none were chosen for it: those of its kind (Steam's word for it, or the vendor), else [buttons].
+button_icons::Style suggested_style(int slot) {
+    steam_pads::RealDevice device;
+    if (!steam_pads::device_of_slot(slot, &device)) return button_icons::default_style();
+    const char *type = device.type;
+    if (!_strnicmp(type, "ps", 2)) return button_icons::Style::kPlayStation;
+    if (!_strnicmp(type, "switch", 6) || !_strnicmp(type, "joycon", 6)) return button_icons::Style::kSwitch;
+    if (!_strnicmp(type, "xbox", 4)) return button_icons::Style::kXbox;
+    return button_icons::default_style();
+}
 
 float clamp_deadzone(float x) { return x < 0.0f ? 0.0f : x > kMaxDeadzone ? kMaxDeadzone : x; }
 
@@ -38,7 +50,7 @@ void load_slot(int slot) {
     d.trigger = clamp_deadzone(profile::get_float(section, "trigger_deadzone", g_base.trigger));
     char text[32] = {};
     profile::get_string(section, "button_prompts", text, sizeof(text));
-    g_prompts[slot] = button_icons::parse_style(text, button_icons::default_style());
+    g_prompts[slot] = button_icons::parse_style(text, suggested_style(slot));
 }
 
 }  // namespace
@@ -59,7 +71,11 @@ void refresh() {
         char key[48];
         if (!input::identity_of_slot(slot, key, sizeof(key))) snprintf(key, sizeof(key), "%d", slot + 1);
         if (!new_profile && !strcmp(key, g_keys[slot])) continue;
-        if (strcmp(key, g_keys[slot])) log_line("XInput slot %d: the controller is now %s (was %s)", slot + 1, key, g_keys[slot]);
+        if (strcmp(key, g_keys[slot])) {
+            char what[200];
+            steam_pads::describe(slot, what, sizeof(what));
+            log_line("XInput slot %d: the controller is now %s (was %s): %s", slot + 1, key, g_keys[slot], what);
+        }
         snprintf(g_keys[slot], sizeof(g_keys[slot]), "%s", key);
         load_slot(slot);
         rumble::reload_slot(slot);

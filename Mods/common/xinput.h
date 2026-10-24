@@ -18,6 +18,19 @@ struct State {
 struct Vibration {
     WORD left, right;  // the heavy (low frequency) and the light (high frequency) motor
 };
+struct Capabilities {  // XINPUT_CAPABILITIES
+    BYTE type, sub_type;
+    WORD flags;
+    Gamepad gamepad;
+    Vibration vibration;
+};
+// The undocumented XInputGetCapabilitiesEx (ordinal 108 of xinput1_4.dll): the capabilities and the controller's vendor and product. For
+// Steam's virtual controller (28DE:11FF) `steam_slot` is its slot among Steam's virtual controllers (as SDL reads it).
+struct CapabilitiesEx {
+    Capabilities capabilities;
+    WORD vendor_id, product_id, version, unknown;
+    DWORD steam_slot;
+};
 // Gamepad::buttons
 constexpr WORD kDpadUp = 0x0001, kDpadDown = 0x0002, kDpadLeft = 0x0004, kDpadRight = 0x0008, kStart = 0x0010,
                kBack = 0x0020, kLeftThumb = 0x0040, kRightThumb = 0x0080, kLeftShoulder = 0x0100,
@@ -26,7 +39,9 @@ constexpr WORD kDpadUp = 0x0001, kDpadDown = 0x0002, kDpadLeft = 0x0004, kDpadRi
 using GetStateFn = DWORD(WINAPI *)(DWORD, State *);
 using SetStateFn = DWORD(WINAPI *)(DWORD, Vibration *);
 inline GetStateFn get_state = nullptr;
+using GetCapabilitiesExFn = DWORD(WINAPI *)(DWORD, DWORD, DWORD, CapabilitiesEx *);
 inline SetStateFn set_state = nullptr;
+inline GetCapabilitiesExFn get_capabilities_ex = nullptr;
 inline int port = -1;        // the controller in use, or -1
 inline DWORD next_scan = 0;  // polling an empty port is slow: look for a controller at most every 2 seconds
 inline Logger *log = nullptr;
@@ -46,6 +61,7 @@ inline bool load(Logger *logger) {
         if (HMODULE h = LoadLibraryA(dll)) {
             get_state = reinterpret_cast<GetStateFn>(reinterpret_cast<void *>(GetProcAddress(h, "XInputGetState")));
             set_state = reinterpret_cast<SetStateFn>(reinterpret_cast<void *>(GetProcAddress(h, "XInputSetState")));
+            get_capabilities_ex = reinterpret_cast<GetCapabilitiesExFn>(reinterpret_cast<void *>(GetProcAddress(h, reinterpret_cast<LPCSTR>(108))));
             if (get_state) {
                 logf("XInput: %s", dll);
                 return true;
@@ -57,6 +73,12 @@ inline bool load(Logger *logger) {
 }
 
 inline bool can_vibrate() { return get_state && set_state; }
+
+// False when the slot is empty or the call does not exist (an older xinput).
+inline bool capabilities_ex(int slot, CapabilitiesEx *out) {
+    *out = {};
+    return get_capabilities_ex && slot >= 0 && slot < 4 && get_capabilities_ex(1, slot, 0, out) == ERROR_SUCCESS;
+}
 
 // The first connected controller's state. False when there is none (an empty port is only looked at every 2 seconds).
 inline bool read(Gamepad *out) {

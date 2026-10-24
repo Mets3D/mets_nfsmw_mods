@@ -12,6 +12,7 @@
 #include "input.h"
 #include "menu_buttons.h"
 #include "pad_sets.h"
+#include "steam_pads.h"
 
 namespace pad::input {
 
@@ -72,8 +73,9 @@ bool identity_of_path(const WCHAR *path, char *out, size_t size) {
 
 // What a DirectInput controller is: whether it is an XInput controller (Steam's virtual one counts), and for one that can be told
 // apart from others of its kind its identity (see identity_of_path; empty otherwise). Logs nothing and remembers nothing.
-bool describe_device(void *device, GUID *guid, char *id, size_t id_size, char *log_text, size_t log_size) {
+bool describe_device(void *device, GUID *guid, char *id, size_t id_size, char *log_text, size_t log_size, int *steam_slot = nullptr) {
     id[0] = 0;
+    if (steam_slot) *steam_slot = -1;
     DeviceInstance info = {};
     info.size = sizeof(info);
     using GetInfoFn = HRESULT(WINAPI *)(void *, DeviceInstance *);
@@ -108,6 +110,7 @@ bool describe_device(void *device, GUID *guid, char *id, size_t id_size, char *l
              xinput ? (steam_virtual ? "XInput controller (Steam's virtual controller)" : "XInput controller") : "other controller",
              have_ids ? vid_pid.data & 0xFFFF : 0, have_ids ? vid_pid.data >> 16 : 0, hr >= 0 ? prop.path : L"?");
     if (xinput && !steam_virtual && hr >= 0) identity_of_path(prop.path, id, id_size);
+    if (steam_slot && steam_virtual && hr >= 0) *steam_slot = steam_pads::steam_slot_of_path(prop.path);
     return xinput;
 }
 
@@ -223,6 +226,7 @@ struct XPad {
     char id[40];  // what tells it from another of its kind (see identity_of_path), or empty
     int learned;  // the slot whose buttons were seen to match, or -1
     int slot;     // the slot it is taken to be, or -1
+    int steam;    // its slot among Steam's virtual controllers (the path ends in IG_0<slot>), or -1
 };
 struct XInputList {
     XPad pads[8];
@@ -234,6 +238,13 @@ int g_listed_joysticks = -1;  // how many game controllers there were when Direc
 bool g_list_stale = true;  // the slots changed, or a game controller is missing from the list: DirectInput is asked again (on the game's thread)
 
 void assign_slots() {
+    // A Steam virtual controller says which XInput slot it is: no need to wait for its buttons to be pressed.
+    for (int i = 0; i < g_xinput_list.count; ++i) {
+        XPad &p = g_xinput_list.pads[i];
+        if (p.steam < 0) continue;
+        for (int s = 0; s < 4; ++s)
+            if (g_slot_connected[s] && steam_pads::steam_slot_of_xinput(s) == p.steam) p.learned = s;
+    }
     bool claimed[4] = {};
     for (int i = 0; i < g_xinput_list.count; ++i) {
         XPad &p = g_xinput_list.pads[i];
@@ -276,7 +287,7 @@ void list_xinput_devices() {
         XPad &pad = list.pads[list.count];
         char text[600];
         GUID guid;
-        if (describe_device(device, &guid, pad.id, sizeof(pad.id), text, sizeof(text))) {
+        if (describe_device(device, &guid, pad.id, sizeof(pad.id), text, sizeof(text), &pad.steam)) {
             pad.guid = found.guids[i];
             pad.learned = -1;
             for (int k = 0; k < g_xinput_list.count; ++k)  // what was learned about it stays
@@ -383,6 +394,7 @@ int rumble_slot_of_joystick(int index) {
 // What tells the controller in an XInput slot from another of its kind ("045E_02DD_<serial>"), or false when nothing does (the slot
 // is all there is: a controller that has no serial of its own, Steam's virtual controller, a slot with nothing in it).
 bool identity_of_slot(int slot, char *out, size_t size) {
+    if (steam_pads::key_of_slot(slot, out, size)) return true;  // behind Steam Input: the real controller's vendor and product
     refresh_xinput_list();
     for (int i = 0; i < g_xinput_list.count; ++i) {
         const XPad &p = g_xinput_list.pads[i];
