@@ -1,5 +1,6 @@
 // mets_controller_support.ini, the log, and the settings every part reads.
 #include "button_icons.h"
+#include "confirm_changes.h"
 #include "default_layout.h"
 #include "look_options.h"
 #include "device_settings.h"
@@ -48,6 +49,7 @@ void load_settings() {
     default_layout::load_settings();
     rumble::load_settings();
     device_settings::load();
+    confirm_changes::load_settings();
     log_line("settings: enabled=%d", g_cfg.enabled);
 }
 

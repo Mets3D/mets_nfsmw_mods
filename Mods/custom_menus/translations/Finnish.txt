@@ -3,3 +3,4 @@
 
 Language = Kieli
 Changes the language of the menus and texts. The game's speech stays as it is. It changes when you accept the changes. = Vaihtaa valikoiden ja tekstien kielen. Pelin puhe pysyy ennallaan. Kieli vaihtuu, kun hyväksyt muutokset.
+Save changes? = Tallennetaanko muutokset?

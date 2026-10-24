@@ -3,3 +3,4 @@
 
 Language = Lingua
 Changes the language of the menus and texts. The game's speech stays as it is. It changes when you accept the changes. = Cambia la lingua dei menu e dei testi. Il parlato del gioco non cambia. La lingua cambia quando si accettano le modifiche.
+Save changes? = Salvare le modifiche?

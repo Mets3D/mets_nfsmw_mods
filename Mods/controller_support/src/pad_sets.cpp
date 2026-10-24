@@ -4,6 +4,7 @@
 #include "controller_api.h"
 #include "hooks.h"
 #include "input.h"
+#include "confirm_changes.h"
 #include "controls_options.h"
 #include "device_settings.h"
 #include "profile.h"
@@ -275,6 +276,8 @@ void FASTCALL hook_message(void *screen, void *edx, unsigned message, void *obje
     message = controls_options::filter_message(screen, message);
     if (message == 0x5073EF13) g_direction = -1;      // PAD_LTRIGGER
     else if (message == 0xD9FEEC59) g_direction = 1;  // PAD_RTRIGGER
+    message = confirm_changes::filter_message(screen, message);
+    if (!message) return;
     g_orig_message(screen, edx, message, object, a, b);
 }
 

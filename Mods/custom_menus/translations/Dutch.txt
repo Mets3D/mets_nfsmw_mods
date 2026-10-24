@@ -3,3 +3,4 @@
 
 Language = Taal
 Changes the language of the menus and texts. The game's speech stays as it is. It changes when you accept the changes. = Verandert de taal van de menu's en teksten. De spraak in het spel blijft hetzelfde. De taal verandert zodra je de wijzigingen accepteert.
+Save changes? = Wijzigingen opslaan?

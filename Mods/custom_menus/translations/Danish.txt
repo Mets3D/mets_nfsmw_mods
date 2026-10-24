@@ -3,3 +3,4 @@
 
 Language = Sprog
 Changes the language of the menus and texts. The game's speech stays as it is. It changes when you accept the changes. = Ændrer sproget i menuer og tekster. Spillets tale ændres ikke. Sproget skifter, når du accepterer ændringerne.
+Save changes? = Gem ændringer?

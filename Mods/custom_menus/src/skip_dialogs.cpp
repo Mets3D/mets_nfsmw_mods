@@ -14,6 +14,7 @@
 #include <algorithm>
 
 #include "hooks.h"
+#include "simplify_confirmations.h"
 
 #define THISCALL __attribute__((thiscall))
 
@@ -22,6 +23,7 @@ namespace custom_menus::skip_dialogs {
 namespace {
 
 nfsmw::Logger *g_log = nullptr;
+bool g_fewer_popups = false;
 
 template <typename Fn>
 Fn at(uintptr_t addr) { return reinterpret_cast<Fn>(addr); }
@@ -47,6 +49,7 @@ ShowDialogFn g_orig_show_dialog;
 int hook_show_dialog(void *config) {
     const char *blurb = static_cast<const char *>(config);
     for (unsigned hash : kFeDialogs) {
+        if (!g_fewer_popups) break;
         const char *text = GetLocalizedString(hash);
         if (!text || strcmp(blurb, text) != 0) continue;
         const int buttons = std::min(nfsmw::field<int>(config, kButtonCount), 3);
@@ -59,6 +62,7 @@ int hook_show_dialog(void *config) {
             return 0;  // the handle; none of these callers keep it
         }
     }
+    simplify_confirmations::rewrite(config);
     return g_orig_show_dialog(config);
 }
 
@@ -220,11 +224,18 @@ void FASTCALL hook_car_select_message(void *screen, void *edx, unsigned msg, voi
 }  // namespace
 
 void install_hooks(nfsmw::Logger &log, const char *ini) {
-    if (!GetPrivateProfileIntA("features", "fewer_popups", 1, ini)) return;
+    g_fewer_popups = GetPrivateProfileIntA("features", "fewer_popups", 1, ini) != 0;
     g_log = &log;
+    // The message box hook also carries the simplified confirmations (simplify_confirmations.cpp).
+    if (g_fewer_popups || simplify_confirmations::enabled()) {
+        const nfsmw::Hook hooks[] = {
+            {"showdialog", "DialogInterface::ShowDialog", 0x5983C0, {0x56, 0x8B, 0x74, 0x24, 0x08, 0x57, 0x8B}, false,
+             nfsmw::detour(&hook_show_dialog), nfsmw::orig(&g_orig_show_dialog)},
+        };
+        nfsmw::install_hooks(hooks, 1, log, ini, "dialogs");
+    }
+    if (!g_fewer_popups) return;
     const nfsmw::Hook hooks[] = {
-        {"showdialog", "DialogInterface::ShowDialog", 0x5983C0, {0x56, 0x8B, 0x74, 0x24, 0x08, 0x57, 0x8B}, false,
-         nfsmw::detour(&hook_show_dialog), nfsmw::orig(&g_orig_show_dialog)},
         {"memcardmessage", "MemcardCallbacks::ShowMessage", 0x560980, {0x64, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x6A}, false,
          nfsmw::detour(&hook_memcard_message), nfsmw::orig(&g_orig_memcard_message)},
         {"showyesno", "UIMemcardBase::ShowYesNo", 0x543CC0, {0x8B, 0x44, 0x24, 0x04, 0x53, 0x56, 0x50}, false,

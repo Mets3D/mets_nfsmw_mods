@@ -40,6 +40,7 @@ Note that any controller with a low battery will fail to rumble due to the physi
 - Automatically switch to controller button prompts as soon as controller input is detected, and vice versa.
 - The Controls menu shows each controller's real name when it is known ("DualSense Wireless Controller"), and a controller starts with the button prompts of its kind (PlayStation prompts for a DualSense) until you choose otherwise.
 - Button prompts show Xbox buttons for a controller of unknown kind. Each controller has its own prompt style: if [Custom Menus](../custom_menus/ReadMe.md) is installed, you can switch a controller to PlayStation or Nintendo Switch button prompts via **Options > Controls > the controller > Settings > Controller Prompts**, and the prompts follow whichever controller you touched last.
+- The Controls menu keeps your changed bindings without asking, both when you leave it and when you switch controller (the game only asked in the second case). `confirm_keybinds=1` in the .ini asks in both cases instead (Yes keeps the changes, No puts the old bindings back).
 - The world map can be panned with the right stick, and zoomed with the shoulder buttons/triggers.
 - In the showroom, the triggers zoom the car view smoothly instead of stepped zoom levels.
 

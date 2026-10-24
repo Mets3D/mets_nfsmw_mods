@@ -3,3 +3,4 @@
 
 Language = Språk
 Changes the language of the menus and texts. The game's speech stays as it is. It changes when you accept the changes. = Ändrar språket för menyer och texter. Spelets tal ändras inte. Språket ändras när du godkänner ändringarna.
+Save changes? = Spara ändringar?
