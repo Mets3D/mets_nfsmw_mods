@@ -48,10 +48,9 @@ Note that any controller with a low battery will fail to rumble due to the physi
 
 ## Controller Compatibility
 
-- Xbox 1 Controller: Tested both raw and via SteamInput, both work.
-- Xbox 360 Controller: Not tested, expected to work.
-- PS5 DualSense Controller: Tested with Steam Input, works, including rumble and deadzone customization.
-- Other controllers: Not tested, expected to work with Steam Input. Just add `speed.exe` to Steam as a non-steam game.
+- XInput controllers (xbox controllers and many 3rd-party controllers) are supported with or without SteamInput.
+- Other controllers like PS5 and Switch are supported via Steam Input. To use Steam Input, add `speed.exe` to your Steam Library as a non-Steam game, and then **right click->Properties->Controller->Set "Enable Steam Input" instead of "Use default Settings"**. This is not Steam's default as of 2026 October, you have to do this yourself.
+- PS5 controller was tested fully working, including rumble, deadzone customization, and automatically using PS5 button prompts.
 - Gyro controls: Not tested, but Steam Input can probably do it. Should you though?
 
 ## Mod Compatibility

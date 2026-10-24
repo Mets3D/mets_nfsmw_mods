@@ -26,6 +26,7 @@ void prepare_default_look_entries();                      // the default table, 
 void set_look_slots(uintptr_t table, int look, const Slot *slots, int first, int count);
 void look_default_slots(int look, Slot out[4]);
 void provide_controls_rows(const nfsmw::custom_menus::Host *host);  // our rows, their names and the label hook, for nfsmw_custom_menus
+void log_live_bindings(const char *when);  // one line: the controller slots (2 and 3) of the vehicle entries in the live table, type.object
 void resync_changes();        // takes the table as it is now as the one to compare with (after a swap)
 void install_hooks();         // GameDevice::PollDevice
 

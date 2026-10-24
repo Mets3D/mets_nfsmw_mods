@@ -132,6 +132,20 @@ void resync_changes() {
         memcpy(g_last_slots[e], reinterpret_cast<const unsigned char *>(kBindingTable + e * kEntrySize) + 4, sizeof(g_last_slots[e]));
 }
 
+void log_live_bindings(const char *when) {
+    char text[600];
+    int n = snprintf(text, sizeof(text), "controller bindings in the live table (%s):", when);
+    for (int e = 0; e <= 16 && n < static_cast<int>(sizeof(text)) - 60; ++e) {
+        const unsigned char *entry = reinterpret_cast<const unsigned char *>(kBindingTable + e * kEntrySize);
+        const char *name = *reinterpret_cast<const char *const *>(entry);
+        const Slot *slots = reinterpret_cast<const Slot *>(entry + 4);
+        if (!name || (!slots[2].type && !slots[3].type)) continue;
+        n += snprintf(text + n, sizeof(text) - n, " %s=%d.%d", strncmp(name, "GAME_ACTION_", 12) ? name : name + 12, slots[2].type, slots[2].object);
+        if (slots[3].type) n += snprintf(text + n, sizeof(text) - n, "+%d.%d", slots[3].type, slots[3].object);
+    }
+    log_line("%s", text);
+}
+
 void log_binding_changes() {
     if (GetTickCount() < g_next_binding_check) return;
     g_next_binding_check = GetTickCount() + 1000;
@@ -158,6 +172,7 @@ void log_binding_changes() {
             for (int l = 0; l < L_COUNT; ++l) look_changed |= kLookEntry[l] == e;
         memcpy(g_last_slots[e], slots, sizeof(g_last_slots[e]));
     }
+    if (!g_have_slots) log_live_bindings("first poll");
     g_have_slots = true;
     if (look_changed && g_look_entries_ok && pad_sets::live_pad() == 0) save_look_bindings();
 }

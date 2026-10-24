@@ -18,14 +18,21 @@ char g_profile[MAX_PATH];                          // the profile file the slots
 // the mod's ini, then [pad] / [buttons].
 void section_of(int slot, char *out, size_t n) { snprintf(out, n, "controller_%s", g_keys[slot]); }
 
-// The prompts a controller starts with when none were chosen for it: those of its kind (Steam's word for it, or the vendor), else [buttons].
+// The prompts a controller starts with when none were chosen for it: those of its kind, else [buttons]. Steam's file uses SDL's words for the
+// type: unknown, standard, xbox360, xboxone, ps3, ps4, ps5, switchpro, joyconleft, joyconright, joyconpair, gamecube, steam (Steam Controller,
+// Deck: Xbox letters). Without Steam the vendor says (steam_pads.cpp). "standard" and "unknown" take [buttons].
 button_icons::Style suggested_style(int slot) {
     steam_pads::RealDevice device;
     if (!steam_pads::device_of_slot(slot, &device)) return button_icons::default_style();
     const char *type = device.type;
     if (!_strnicmp(type, "ps", 2)) return button_icons::Style::kPlayStation;
-    if (!_strnicmp(type, "switch", 6) || !_strnicmp(type, "joycon", 6)) return button_icons::Style::kSwitch;
-    if (!_strnicmp(type, "xbox", 4)) return button_icons::Style::kXbox;
+    if (!_strnicmp(type, "switch", 6) || !_strnicmp(type, "joycon", 6) || !_stricmp(type, "gamecube")) return button_icons::Style::kSwitch;
+    if (!_strnicmp(type, "xbox", 4) || !_stricmp(type, "steam")) return button_icons::Style::kXbox;
+    static char said[16];
+    if (type[0] && _stricmp(type, "standard") && _stricmp(type, "unknown") && strcmp(said, type)) {
+        snprintf(said, sizeof(said), "%s", type);
+        log_line("controller type \"%s\" (%s) is not one the button prompts know: using the [buttons] default", type, device.name);
+    }
     return button_icons::default_style();
 }
 

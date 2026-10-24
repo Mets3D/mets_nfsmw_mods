@@ -280,12 +280,12 @@ void FASTCALL hook_message(void *screen, void *edx, unsigned message, void *obje
 
 int menu_pad() { return g_menu_pad; }
 
-// What the Controls screen calls a controller: its real name when Steam tells it ("Xbox One S Controller"; "#2" for a second of the same
-// name), else the game's name, with its number when there are several.
+// What the Controls screen calls a controller: its real model ("Xbox One S Controller"; "#2" for a second of the same name) or
+// DirectInput's name for it, else the game's name, with its number when there are several.
 void label_of_pad(int pad, const char *game_name, char *out, size_t size) {
     const int n = joystick_count();
-    char name[64];
-    steam_pads::name_of_slot(input::xinput_slot_of_joystick(pad), name, sizeof(name));
+    char name[128];
+    input::joystick_name(pad, name, sizeof(name));
     if (!name[0]) {
         if (n < 2) snprintf(out, size, "%.250s", game_name);
         else snprintf(out, size, "%.250s #%d", game_name, pad + 1);
@@ -293,8 +293,8 @@ void label_of_pad(int pad, const char *game_name, char *out, size_t size) {
     }
     int same = 0, ordinal = 0;
     for (int k = 0; k < n; ++k) {
-        char other[64];
-        steam_pads::name_of_slot(input::xinput_slot_of_joystick(k), other, sizeof(other));
+        char other[128];
+        input::joystick_name(k, other, sizeof(other));
         if (strcmp(other, name)) continue;
         ++same;
         if (k <= pad) ++ordinal;
@@ -315,6 +315,7 @@ void show_device(void *screen, int new_column, int pad) {
         char label[300];
         label_of_pad(pad, "?", label, sizeof(label));
         log_line("Controls menu: controller %d of %d: %s (XInput controller %d)", pad + 1, joystick_count(), label, slot + 1);
+        bindings::log_live_bindings("the Controls menu shows it");
     } else {
         log_line("Controls menu: keyboard");
     }
@@ -356,7 +357,7 @@ void FASTCALL hook_switch_device(void *screen, void *edx) {
     const int new_column = next == 0 ? 1 : 3, pad = next == 0 ? 0 : next - 1;
     if (new_column == column && pad == g_menu_pad) return;
     show_device(screen, new_column, pad);
-    if (new_column == 3 && n > 1) rumble::pulse(input::xinput_slot_of_joystick(pad));
+    if (new_column == 3 && n > 1) rumble::pulse(input::rumble_slot_of_joystick(pad));
 }
 
 // The screen closes: controller 0's set goes back in the live table (the profile saves that one).

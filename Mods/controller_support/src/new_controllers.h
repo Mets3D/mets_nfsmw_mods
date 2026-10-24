@@ -10,6 +10,7 @@
 namespace pad::new_controllers {
 
 void check();          // every 2 seconds: asks DirectInput for controllers the game does not have, and gives them to it (game thread)
+void install_early();  // from the plugin's early entry, before the game lists its controllers: the ones that are not XInput are left out
 void install_hooks();  // remembers the profile's saved bindings, for a controller that arrives after the profile was loaded
 
 }  // namespace pad::new_controllers

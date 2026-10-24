@@ -391,6 +391,56 @@ int rumble_slot_of_joystick(int index) {
     return xinput::port >= 0 ? xinput::port : 0;
 }
 
+void joystick_name(int index, char *out, size_t size) {
+    out[0] = 0;
+    void *device = pad_sets::joystick_di_device(index);
+    if (!device) return;
+    const int slot = is_xinput_device(device) ? rumble_slot_of_joystick(index) : -1;
+    if (slot >= 0) steam_pads::name_of_slot(slot, out, size);  // Steam's name for it, or the model of its vendor and product
+    if (out[0]) return;
+    DeviceInstance info = {};
+    info.size = sizeof(info);
+    using GetInfoFn = HRESULT(WINAPI *)(void *, DeviceInstance *);
+    if (reinterpret_cast<GetInfoFn>((*static_cast<void ***>(device))[15])(device, &info) < 0) return;
+    struct {
+        DWORD size, header_size, obj, how;  // DIPROPHEADER
+        DWORD data;
+    } vid_pid = {};
+    vid_pid.size = sizeof(vid_pid);
+    vid_pid.header_size = 16;
+    const GUID *kVidPid = reinterpret_cast<const GUID *>(24);  // DIPROP_VIDPID: product << 16 | vendor
+    const auto get_property = reinterpret_cast<GetPropertyFn>((*static_cast<void ***>(device))[5]);
+    const char *model = get_property(device, kVidPid, &vid_pid) >= 0 ? steam_pads::model_name(vid_pid.data & 0xFFFF, vid_pid.data >> 16) : "";
+    snprintf(out, size, "%s", model[0] ? model : info.product_name);
+}
+
+// A controller is an XInput one when Windows names its HID device with "IG_" (the documented way to tell; DirectInput lists it as well).
+// The device is found by the vendor and product in DirectInput's product GUID (product << 16 | vendor).
+bool is_xinput_instance(const DeviceInstance &instance) {
+    const unsigned vid = instance.product.Data1 & 0xFFFF, pid = instance.product.Data1 >> 16;
+    if (vid == 0x28DE && pid == 0x11FF) return true;  // Steam's virtual controller
+    UINT count = 0;
+    if (GetRawInputDeviceList(nullptr, &count, sizeof(RAWINPUTDEVICELIST)) != 0 || !count) return true;
+    RAWINPUTDEVICELIST list[64];
+    if (count > 64) count = 64;
+    if (GetRawInputDeviceList(list, &count, sizeof(RAWINPUTDEVICELIST)) == static_cast<UINT>(-1)) return true;
+    char ids[2][8];
+    snprintf(ids[0], sizeof(ids[0]), "%04X", vid);
+    snprintf(ids[1], sizeof(ids[1]), "%04X", pid);
+    bool found = false;
+    for (UINT i = 0; i < count; ++i) {
+        if (list[i].dwType != RIM_TYPEHID) continue;
+        char name[512] = {};
+        UINT size = sizeof(name) - 1;
+        if (GetRawInputDeviceInfoA(list[i].hDevice, RIDI_DEVICENAME, name, &size) == static_cast<UINT>(-1)) continue;
+        for (char *c = name; *c; ++c) *c = static_cast<char>(toupper(static_cast<unsigned char>(*c)));
+        if (!strstr(name, ids[0]) || !strstr(name, ids[1])) continue;
+        if (strstr(name, "IG_")) return true;
+        found = true;
+    }
+    return !found;  // seen, but never as an XInput device; not seen at all: no telling, so supported
+}
+
 // What tells the controller in an XInput slot from another of its kind ("045E_02DD_<serial>"), or false when nothing does (the slot
 // is all there is: a controller that has no serial of its own, Steam's virtual controller, a slot with nothing in it).
 bool identity_of_slot(int slot, char *out, size_t size) {

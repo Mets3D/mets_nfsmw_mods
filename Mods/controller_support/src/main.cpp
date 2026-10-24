@@ -50,6 +50,7 @@ NFSMW_PLUGIN_EARLY() {
     char own_ini[MAX_PATH];
     nfsmw::data_file("mets_controller_support.ini", own_ini, sizeof(own_ini));
     if (GetPrivateProfileIntA("pad", "enabled", 1, own_ini) == 0) return NFSMW_OK;
+    pad::new_controllers::install_early();
     if (nfsmw::widescreen_ini::find_path(g_widescreen_ini, sizeof(g_widescreen_ini)))
         g_widescreen_change = nfsmw::widescreen_ini::turn_off_gamepad_support(g_widescreen_ini);
     return NFSMW_OK;

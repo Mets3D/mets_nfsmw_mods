@@ -17,12 +17,16 @@ struct DeviceInstance {  // DIDEVICEINSTANCEA
 // Hooks DirectInput's GetDeviceState. Done on the game's first input poll rather than at load time, so DirectInput is
 // never started from inside the loader.
 void hook_dinput();
+// Whether a game controller DirectInput lists is an XInput controller (Steam's virtual one counts): the only kind this mod supports. Asked
+// of the list's entry, before the game makes anything of it; true too when Windows does not tell.
+bool is_xinput_instance(const DeviceInstance &instance);
 bool any_xinput_device();        // an XInput controller has been seen
 bool only_xinput_controllers();  // every DirectInput joystick seen is an XInput controller
 int vehicle_source();            // the device that drives player 1's vehicle: an XInput slot, kSourceKeyboard or kDefault (all)
 int player_one_rumble_slot();    // the XInput controller player 1 rumbles on, or -1
 bool identity_of_slot(int slot, char *out, size_t size);  // what tells the controller in an XInput slot from others of its kind, if anything
 int xinput_slot_of_joystick(int index);  // the XInput controller a game controller reports, or -1
+void joystick_name(int index, char *out, size_t size);  // a game controller's name for the Controls screen: its real model when known, else DirectInput's name for it
 int rumble_slot_of_joystick(int index);  // the XInput controller it rumbles through (the one in use when it is the only one), or -1
 bool key_down(int dik);  // a key of the real keyboard (whether or not it reaches the game)
 float binding_value(int type, int object, const xinput::Gamepad &pad, int slot);  // a controller binding, read from XInput controller `slot`

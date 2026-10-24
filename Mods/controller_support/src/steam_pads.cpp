@@ -108,7 +108,31 @@ const char *type_of_vendor(unsigned short vid) {
     return vid == 0x045E ? "xbox" : vid == 0x054C ? "ps" : vid == 0x057E ? "switch" : "";
 }
 
+struct Model {
+    unsigned short vid, pid;
+    const char *name;
+};
+// Names for the controllers most players have (Steam's own names for the ones it lists, so the two agree).
+constexpr Model kModels[] = {
+    {0x045E, 0x028E, "Xbox 360 Controller"},          {0x045E, 0x028F, "Xbox 360 Wireless Controller"},
+    {0x045E, 0x0719, "Xbox 360 Wireless Controller"}, {0x045E, 0x02D1, "Xbox One Controller"},
+    {0x045E, 0x02DD, "Xbox One Controller"},          {0x045E, 0x02E3, "Xbox One Elite Controller"},
+    {0x045E, 0x02EA, "Xbox One S Controller"},        {0x045E, 0x02FD, "Xbox One S Controller"},
+    {0x045E, 0x0B00, "Xbox Elite Series 2 Controller"}, {0x045E, 0x0B05, "Xbox Elite Series 2 Controller"},
+    {0x045E, 0x0B12, "Xbox Series X|S Controller"},   {0x045E, 0x0B13, "Xbox Series X|S Controller"},
+    {0x045E, 0x0B20, "Xbox One S Controller"},        {0x045E, 0x0B21, "Xbox Adaptive Controller"},
+    {0x054C, 0x0268, "DualShock 3 Controller"},       {0x054C, 0x05C4, "DualShock 4 Controller"},
+    {0x054C, 0x09CC, "DualShock 4 Controller"},       {0x054C, 0x0CE6, "DualSense Wireless Controller"},
+    {0x054C, 0x0DF2, "DualSense Edge Wireless Controller"}, {0x057E, 0x2009, "Switch Pro Controller"},
+};
+
 }  // namespace
+
+const char *model_name(unsigned short vid, unsigned short pid) {
+    for (const Model &m : kModels)
+        if (m.vid == vid && m.pid == pid) return m.name;
+    return "";
+}
 
 int steam_slot_of_xinput(int xinput_slot) {
     xinput::CapabilitiesEx caps;
@@ -141,6 +165,7 @@ bool device_of_slot(int xinput_slot, RealDevice *out) {
     } else {
         out->vid = caps.vendor_id;
         out->pid = caps.product_id;
+        snprintf(out->name, sizeof(out->name), "%s", model_name(caps.vendor_id, caps.product_id));
         snprintf(out->type, sizeof(out->type), "%s", type_of_vendor(caps.vendor_id));
     }
     return true;
@@ -170,7 +195,7 @@ void describe(int xinput_slot, char *out, size_t size) {
     if (xinput_slot < 0 || !device_of_slot(xinput_slot, &d)) snprintf(out, size, "nothing");
     else if (d.steam_slot >= 0 && !d.name[0]) snprintf(out, size, "Steam virtual controller %d, not in Steam's file", d.steam_slot);
     else if (d.steam_slot >= 0) snprintf(out, size, "%s, %04X:%04X, %s, Steam virtual controller %d, handle %#llx", d.name, d.vid, d.pid, d.type, d.steam_slot, d.handle);
-    else snprintf(out, size, "%04X:%04X%s%s, not behind Steam", d.vid, d.pid, d.type[0] ? ", " : "", d.type);
+    else snprintf(out, size, "%s%s%04X:%04X%s%s, not behind Steam", d.name, d.name[0] ? ", " : "", d.vid, d.pid, d.type[0] ? ", " : "", d.type);
 }
 
 }  // namespace pad::steam_pads

@@ -27,6 +27,8 @@ bool key_of_slot(int xinput_slot, char *out, size_t size);
 void name_of_slot(int xinput_slot, char *out, size_t size);
 // One line for the log.
 void describe(int xinput_slot, char *out, size_t size);
+// The model a vendor and product are ("Xbox One S Controller", "DualSense Wireless Controller"), or "" when the table does not have it.
+const char *model_name(unsigned short vid, unsigned short pid);
 // The XInput slot's Steam virtual slot, or -1 (not a Steam virtual controller).
 int steam_slot_of_xinput(int xinput_slot);
 // The Steam virtual slot in a DirectInput device path (upper case, "...&IG_01#..."), or -1.

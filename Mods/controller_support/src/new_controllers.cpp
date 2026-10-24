@@ -1,9 +1,11 @@
 #include "new_controllers.h"
 
 #include "bindings.h"
+#include "default_layout.h"
 #include "hooks.h"
 #include "input.h"
 #include "pad_sets.h"
+#include "patch.h"
 
 namespace pad::new_controllers {
 
@@ -27,6 +29,36 @@ bool g_have_profile = false;
 using BindingsIoFn = unsigned char *(__cdecl *)(unsigned char *, unsigned char *);
 BindingsIoFn g_orig_bindings_io;
 
+void *game_device();
+
+// A profile saved with the game's own default controller bindings (every profile that was saved before this mod, or never got ours) keeps
+// them for ever: the bindings a profile saved win over the defaults. What the game's defaults give for the controller is known (they can be
+// asked for, with our layout left out), so bindings that equal them were never chosen by the player: ours take their place. Bindings that
+// differ in any entry are the player's, and stay.
+void replace_vanilla_bindings() {
+    using MethodFn0 = void *(FASTCALL *)(void *, void *);
+    void *device = pad_sets::joystick_count() > 0 ? game_device() : nullptr;
+    if (!device || !default_layout::enabled()) return;
+    static Slot saved[kBindingCount][4], vanilla[kBindingCount][4];
+    for (int e = 0; e < kBindingCount; ++e) memcpy(saved[e], slots_of(kBindingTable, e), sizeof(saved[e]));
+    default_layout::suppress(true);
+    reinterpret_cast<MethodFn0>(kControllerDefaults)(device, nullptr);
+    default_layout::suppress(false);
+    for (int e = 0; e < kBindingCount; ++e) {
+        memcpy(vanilla[e], slots_of(kBindingTable, e), sizeof(vanilla[e]));
+        memcpy(slots_of(kBindingTable, e), saved[e], sizeof(saved[e]));  // the profile's, as they were
+    }
+    for (int e = 0; e < kProfileEntries; ++e)
+        for (int s = 2; s < 4; ++s)
+            if (saved[e][s].type != vanilla[e][s].type || saved[e][s].object != vanilla[e][s].object) {
+                bindings::resync_changes();
+                return;
+            }
+    const int changed = default_layout::apply_to_live();
+    bindings::resync_changes();
+    log_line("the profile's controller bindings are the game's own defaults: our default layout replaces them (%d entries)", changed);
+}
+
 // UserProfile::BindingsIO_B(buffer, end): the profile's saved controller type and entries 0-18, copied over the table. Run again when
 // the first controller arrives (it is what a start with that controller would have done).
 unsigned char *__cdecl hook_bindings_io(unsigned char *buffer, unsigned char *end) {
@@ -34,7 +66,9 @@ unsigned char *__cdecl hook_bindings_io(unsigned char *buffer, unsigned char *en
         memcpy(g_profile, buffer, kProfileBytes);
         g_have_profile = true;
     }
-    return g_orig_bindings_io(buffer, end);
+    unsigned char *result = g_orig_bindings_io(buffer, end);
+    replace_vanilla_bindings();
+    return result;
 }
 
 void *game_device() { return *reinterpret_cast<void **>(reinterpret_cast<uintptr_t (*)()>(kIoModule)() + 8); }
@@ -60,7 +94,10 @@ void first_controller_arrived() {
         for (int s = 0; s < 2; ++s) keyboard[e][s] = slots_of(kBindingTable, e)[s];
     void *device = game_device();
     reinterpret_cast<MethodFn0>(kControllerDefaults)(device, nullptr);
-    if (g_have_profile) g_orig_bindings_io(g_profile, g_profile + kProfileBytes);
+    if (g_have_profile) {
+        g_orig_bindings_io(g_profile, g_profile + kProfileBytes);
+        replace_vanilla_bindings();
+    }
     for (int e = 0; e < kProfileEntries; ++e)
         for (int s = 0; s < 2; ++s) slots_of(kBindingTable, e)[s] = keyboard[e][s];
     resync_changes();
@@ -82,10 +119,54 @@ struct Scan {
 };
 Scan g_scan;
 
+// Only XInput controllers (Steam Input's virtual ones included) are supported: the bindings, the extra controllers' sets, the Settings page and
+// the rumble all go by XInput. A controller of any other kind (a DualSense on Bluetooth, say) would be listed in the Controls menu and do
+// nothing, so the game is not told about it; Steam Input turns such a controller into an XInput one.
+struct Ignored {
+    GUID guid;
+    char name[80];
+    bool logged;
+};
+Ignored g_ignored[16];
+int g_ignored_count = 0;
+bool g_log_open = false;  // the log is opened when the mod's main runs; the start-up list of controllers is asked about before that
+
+void log_ignored() {
+    for (int i = 0; i < g_ignored_count; ++i)
+        if (!g_ignored[i].logged) {
+            g_ignored[i].logged = true;
+            log_line("controller \"%s\" is not an XInput controller: not supported, so the game is not given it (Steam Input makes any controller an XInput one)", g_ignored[i].name);
+        }
+}
+
+bool supported(const input::DeviceInstance *d) {
+    for (int i = 0; i < g_ignored_count; ++i)
+        if (!memcmp(&g_ignored[i].guid, &d->instance, sizeof(GUID))) return false;
+    if (input::is_xinput_instance(*d)) return true;
+    if (g_ignored_count < 16) {
+        Ignored &ignored = g_ignored[g_ignored_count++];
+        ignored.guid = d->instance;
+        snprintf(ignored.name, sizeof(ignored.name), "%s", d->instance_name);
+        ignored.logged = false;
+    }
+    if (g_log_open) log_ignored();
+    return false;
+}
+
+// The game lists its controllers once, at start-up, before this mod's main runs, so this runs from NFSMW_PLUGIN_EARLY: the start of the
+// callback that makes the game's object for a device (0x7F1A6B, stdcall (DIDEVICEINSTANCE*, manager)) jumps to a stub that first asks
+// skip_unsupported and, for a controller that is not supported, returns TRUE (go on with the next device) without making anything.
+int __cdecl skip_unsupported(const input::DeviceInstance *d) {
+    const unsigned type = d->type & 0xFF;
+    return type >= 0x14 && type <= 0x18 && !supported(d);
+}
+bool g_filter_installed = false;
+
 BOOL WINAPI add_if_new(const input::DeviceInstance *d, void *context) {
     Scan &scan = *static_cast<Scan *>(context);
     const unsigned type = d->type & 0xFF;
     if (type < 0x14 || type > 0x18) return 1;  // the game's own test: the types it makes controllers of
+    if (!supported(d)) return 1;
     for (int i = 0; i < scan.known_count; ++i)
         if (memcmp(&scan.known[i], &d->instance, sizeof(GUID)) == 0) return 1;
     if (pad_sets::joystick_count() >= kMaxJoysticks) return 0;
@@ -125,7 +206,25 @@ void check() {
     pad_sets::controllers_changed();
 }
 
+void install_early() {
+    static const unsigned char kExpected[7] = {0x55, 0x8B, 0xEC, 0x56, 0x8B, 0x75, 0x08};  // push ebp; mov ebp,esp; push esi; mov esi,[ebp+8]
+    nfsmw::Stub stub;
+    stub.emit({0xFF, 0x74, 0x24, 0x04});                                        // push dword ptr [esp+4]   the device
+    stub.emit_rel32(0xE8, reinterpret_cast<uintptr_t>(&skip_unsupported));      // call
+    stub.emit({0x83, 0xC4, 0x04, 0x85, 0xC0});                                  // add esp,4; test eax,eax
+    const size_t run = stub.jump_short(0x74);                                   // jz: the game makes its object
+    stub.emit({0xB8, 0x01, 0x00, 0x00, 0x00, 0xC2, 0x08, 0x00});                // mov eax,1; ret 8
+    stub.resolve_short(run);
+    stub.emit({0x55, 0x8B, 0xEC, 0x56, 0x8B, 0x75, 0x08});                      // what the patched bytes did
+    stub.emit_rel32(0xE9, kAddDevice + sizeof(kExpected));
+    stub.done();
+    g_filter_installed = nfsmw::jump_to_stub(kAddDevice, kExpected, sizeof(kExpected), stub);
+}
+
 void install_hooks() {
+    g_log_open = true;
+    log_line("controllers that are not XInput: %s", g_filter_installed ? "left out of the game's list" : "not left out (the game's code at 0x7F1A6B is not as expected)");
+    log_ignored();
     const nfsmw::Hook hooks[] = {
         {"bindings_io", "UserProfile::BindingsIO_B", 0x56E200, {0x51, 0x55, 0x56, 0xE8, 0x68, 0x61, 0x0C}, false,
          nfsmw::detour(&hook_bindings_io), nfsmw::orig(&g_orig_bindings_io)},

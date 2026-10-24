@@ -60,9 +60,11 @@ int apply_to(uintptr_t table) {
     return changed;
 }
 
+bool g_suppressed = false;
+
 // The game reset the controller bindings: the layout is the default again.
 void on_controller_defaults() {
-    if (g_enabled) log_line("default layout: %d binding(s) set after the game's defaults", apply_to(kBindingTable));
+    if (g_enabled && !g_suppressed) log_line("default layout: %d binding(s) set after the game's defaults", apply_to(kBindingTable));
 }
 
 }  // namespace
@@ -71,6 +73,10 @@ void load_settings() {
     g_enabled = GetPrivateProfileIntA("buttons", "better_default_controller_bindings", 1, g_ini) != 0;
     log_line("default layout: %s", g_enabled ? "ours (RT / LT drive, ...)" : "the game's own");
 }
+
+bool enabled() { return g_enabled; }
+void suppress(bool on) { g_suppressed = on; }
+int apply_to_live() { return apply_to(kBindingTable); }
 
 void patch_default_table() {
     if (g_enabled) log_line("default layout: default table, %d change(s)", apply_to(kDefault));
