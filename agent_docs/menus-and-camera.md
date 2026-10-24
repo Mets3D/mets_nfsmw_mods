@@ -41,7 +41,15 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
   `MemoryCard::GetLocaleString(id)` 0x518380. It asks through `MemcardCallbacks::ShowMessage(text, count, buttons)` 0x560980 (thiscall; sets `MemoryCard`(*0x91CB20)+0x14);
   the answer is `MemoryCard::MessageDone(button from 1)` 0x518410, which posts it to the save system's queue (handled on its next `Update`) [read].
 - The save screen (`UIMemcardBase`) has its own prompts: `ShowYesNo(text, prompt id)` 0x543CC0 keeps the id in the flags at 0x91CBAC (mask 0x0F000000); `HandleButtonPressed` 0x563380
-  moves it to 0x91CBCC and continues `DoSaveFlow(step)` 0x544370. "Save the alias named %s?" is prompt 4 from `SetupPromptSaveConfirm` 0x543EB0; Yes = `DoSaveFlow(12)` [read].
+  moves it to 0x91CBCC and continues `DoSaveFlow(step)` 0x544370. "Save the alias named %s?" is prompt 4 from `SetupPromptSaveConfirm` 0x543EB0 (after pressing Save); Yes = `DoSaveFlow(12)` [read].
+  The same prompt 4 comes from `SetupPromptForSave` 0x544210 ("Do you want to save the alias %s?", flow 4, after the keyboard of a new alias) [read].
+  `ShowYesNo` 0x543CC0 / `ShowOK` 0x543BE0 (thiscall, text hash + prompt id) write the id into the flags' top nibble; the button handler `HandleButtonPressed` 0x563380 (thiscall, 5 args, `ret 0x14`) takes
+  Yes when the object's name hash (+0x10) is 0xB8A7C6CD. Flows of a new alias: `DoSaveFlow(1)` "Creating a new alias ... lost" (ShowYesNo 0x7209349F, id 0x5000000; Yes: `AllocBackupDB`, `DefaultProfile`, flow 10) ->
+  flow 10 (ShowOK 0xB01BE5DD "uses an autosave feature", id 0x8000000, OK -> flow 11) -> flow 11 (ShowOK 0xB380362F "Do not reset/switch off", id 0x9000000, OK -> flow 3, the keyboard) -> flow 4 -> flow 12.
+  Loading: `InitComplete` shows ShowYesNo 0x87C7577E ("Loading a new alias ...", id 0x6000000, Yes -> `InitCompleteDoList` 0x559D60) [read; calling the handler with a stand-in Yes button for these: not run yet].
+- **Transmission question** [read; the skip not run yet]: `UIQRCarSelect::NotificationMessage` 0x7C1770 (thiscall, 4 args) calls `ChooseTransmission` 0x7A3D50 ("Select your transmission.") unless the player's prompt byte is 0
+  (`[[FEDatabase+0x10] + 0x80 + 20 * player + 6]`, the Options > Player "Prompt for Transmission"; read at 0x7C1BAD and 0x7C251A); the player is at `this+0x1A8`, the chosen transmission is the byte at +0x11 of the same record.
+  With it 0 the game takes the no-prompt path itself (in the split screen: the second player's screen, then the race). `cFrontendDatabase::IsSplitScreenMode` is 0x469120.
 
 ## Main menu (custom_menus `resume_career.cpp`)
 - `UIMain` (`MainMenu.fng`): `Setup` adds MainCareer (icon 0x03704F3D, name 0x5815A2B5 "Career"), Challenge, Quick Race, Customize, Alias Manager, Options with `AddOption`. `MainCareer::React` 0x51AC80 only sets a game mode

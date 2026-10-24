@@ -36,9 +36,6 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
   - `NFS-XtendedInput` due to touching `UIOptionsMain::Setup`.
 
 ## TODO
-- Really wanna skip transmission selection in split screen...
-- Also wanna skip some dialogues during creating a save file or loading a save file.
-- Might want to not skip the pop-up when pressing Save.
 - Some menu leaving prompts are "Unsaved changes will be lost, ok?" -> Yes loses changes, while other menu leaving prompts are "Save changes before leaving?" -> Yes saves changes. This is no good!! I think it should always be the latter.
 - Would be cool if strip menus would cycle, so pressing left on the left-most element would jump to the right-most element. Would make it faster to access the Options in the pause menu, and the controller options especially.
 - We now have the ability to add entries in the Player Options, but what about to the other menus? Should probably support all of them.

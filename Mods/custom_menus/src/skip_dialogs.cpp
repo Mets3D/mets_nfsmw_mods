@@ -5,8 +5,10 @@
 //    button labelled Yes, queued to the screen that asked (what feDialogScreen's destructor does).
 //  - The save system's messages (MemcardCallbacks::ShowMessage, texts from MEMCARD/LOCALE_<language>.loc): the
 //    answer goes to MemoryCard::MessageDone, which queues it for the save system's next update.
-//  - The save screen's "save the alias named ...?" (UIMemcardBase::SetupPromptSaveConfirm): the save flow goes on
-//    the way the screen's Yes button takes it.
+//  - The save screen's own prompts (UIMemcardBase::ShowYesNo / ShowOK): the screen goes on the way its Yes / OK
+//    button takes it. The two "save the alias" questions (SetupPromptForSave, SetupPromptSaveConfirm) are answered
+//    at their setup. "Save complete." is left to the player.
+//  - The transmission question of the split screen's car selection: the player's own setting is used.
 #include "skip_dialogs.h"
 
 #include <algorithm>
@@ -65,7 +67,6 @@ int hook_show_dialog(void *config) {
 constexpr int kLocaleYes = 3;
 constexpr int kLocaleMessages[] = {
     7,   // "Do you want to overwrite previously saved game?" (Yes / No)
-    8,   // "Save complete."
     10,  // "Load complete."
 };
 
@@ -116,25 +117,104 @@ void FASTCALL hook_memcard_message(void *callbacks, void *edx, Text text, unsign
     MessageDone(card, answer);
 }
 
-// ---- the save screen's alias prompt -----------------------------------------------------------------------------
-// The save screen's state is in global flags (0x91CBAC); these pick another text for the prompt (EA login, unsaved
-// changes, saving over an existing alias), which is left to the player.
+// ---- the save screen's own prompts ------------------------------------------------------------------------------
+// The save screen's state is in global flags (0x91CBAC); the prompt being shown is their top nibble. The Yes (and
+// the OK) button's handler is UIMemcardBase::HandleButtonPressed, which reads the prompt from the flags and the
+// button from the object's name hash (+0x10), so a stand-in object for the Yes button is enough.
 constexpr uintptr_t kMemcardFlags = 0x91CBAC, kAnsweredPrompt = 0x91CBCC;
+constexpr unsigned kPromptMask = 0x0F000000, kYesButton = 0xB8A7C6CD, kButtonName = 0x10;
+
+struct Prompt {
+    unsigned text;  // language hash of the blurb
+    unsigned id;    // the prompt id ShowYesNo / ShowOK is given
+};
+constexpr Prompt kPrompts[] = {
+    {0x7209349F, 0x5000000},  // "Creating a new alias will result in any unsaved changes ... being lost. Are you sure ...?"
+    {0x87C7577E, 0x6000000},  // "Loading a new alias will result in the loss of any unsaved changes ... Are you sure ...?"
+    {0xB01BE5DD, 0x8000000},  // "Need for Speed Most Wanted uses an autosave feature. ..." (OK)
+    {0xB380362F, 0x9000000},  // "Do not reset/switch off the computer while the autosave icon is displayed. ..." (OK)
+};
+
+using HandleButtonFn = void(THISCALL *)(void *screen, unsigned msg, void *button, unsigned param1, unsigned param2, bool pad_back);
+const auto HandleButtonPressed = at<HandleButtonFn>(0x563380);
+
+using PromptFn = void(FASTCALL *)(void *, void *, unsigned, unsigned);
+PromptFn g_orig_show_yes_no, g_orig_show_ok;
+
+// True when the prompt was answered; the screen then shows nothing of it.
+bool answer_prompt(void *screen, unsigned text, unsigned id) {
+    for (const Prompt &prompt : kPrompts) {
+        if (prompt.text != text || prompt.id != id) continue;
+        unsigned &flags = *reinterpret_cast<unsigned *>(kMemcardFlags);
+        flags = (flags & ~kPromptMask) | id;
+        alignas(8) unsigned char button[0x40] = {};
+        nfsmw::field<unsigned>(button, kButtonName) = kYesButton;
+        g_log->line("answered the save screen's prompt %#x", text);
+        HandleButtonPressed(screen, 0, button, 0, 0, false);
+        return true;
+    }
+    return false;
+}
+
+void FASTCALL hook_show_yes_no(void *screen, void *edx, unsigned text, unsigned id) {
+    if (!answer_prompt(screen, text, id)) g_orig_show_yes_no(screen, edx, text, id);
+}
+
+void FASTCALL hook_show_ok(void *screen, void *edx, unsigned text, unsigned id) {
+    if (!answer_prompt(screen, text, id)) g_orig_show_ok(screen, edx, text, id);
+}
+
+// "Do you want to save the alias <name>?" (asked after the name of a new alias is typed) and "Are you sure you want to
+// save the alias named <name>?" (after pressing Save). Only their plain texts are answered; the variants (EA login,
+// unsaved changes, saving over an existing alias) are left to the player.
 constexpr unsigned kOtherPrompts = 0x8000 | 0x40000 | 0x200000;
 constexpr unsigned kSaveConfirmPrompt = 0x4000000;  // ShowYesNo's prompt id, which the Yes handler records
 constexpr int kSaveFlowConfirmed = 12;              // where UIMemcardBase::HandleButtonPressed takes the flow on Yes
 const auto DoSaveFlow = at<void(THISCALL *)(void *screen, int step)>(0x544370);
 
 using MethodFn = void(FASTCALL *)(void *, void *);
-MethodFn g_orig_save_confirm;
-void FASTCALL hook_save_confirm(void *screen, void *edx) {
-    if (*reinterpret_cast<unsigned *>(kMemcardFlags) & kOtherPrompts) {
-        g_orig_save_confirm(screen, edx);
-        return;
-    }
+MethodFn g_orig_prompt_for_save, g_orig_save_confirm;
+
+bool answer_save_question(void *screen) {
+    if (*reinterpret_cast<unsigned *>(kMemcardFlags) & kOtherPrompts) return false;
     g_log->line("answered Yes to saving the alias");
     *reinterpret_cast<unsigned *>(kAnsweredPrompt) = kSaveConfirmPrompt;
     DoSaveFlow(screen, kSaveFlowConfirmed);
+    return true;
+}
+
+void FASTCALL hook_prompt_for_save(void *screen, void *edx) {
+    if (!answer_save_question(screen)) g_orig_prompt_for_save(screen, edx);
+}
+
+void FASTCALL hook_save_confirm(void *screen, void *edx) {
+    if (!answer_save_question(screen)) g_orig_save_confirm(screen, edx);
+}
+
+// ---- the transmission question of the split screen ---------------------------------------------------------------
+// The car selection asks "Select your transmission" when the player's "Prompt for Transmission" is on (a byte of the
+// player's settings in the profile). In the split screen the question is skipped: while the screen handles a message
+// the byte reads Off, so the game takes the way it has with the prompt off and the player's setting stays as it is.
+constexpr uintptr_t kFeDatabase = 0x91CF90;
+constexpr unsigned kDatabaseSettings = 0x10, kPlayerSettings = 0x80, kPlayerSettingsSize = 20, kTransmissionPrompt = 6;
+constexpr unsigned kCarSelectPlayer = 0x1A8;
+const auto IsSplitScreenMode = at<bool(THISCALL *)(void *database)>(0x469120);
+
+using CarSelectMessageFn = void(FASTCALL *)(void *, void *, unsigned, void *, unsigned, unsigned);
+CarSelectMessageFn g_orig_car_select_message;
+void FASTCALL hook_car_select_message(void *screen, void *edx, unsigned msg, void *object, unsigned param1, unsigned param2) {
+    void *database = *reinterpret_cast<void **>(kFeDatabase);
+    const int player = nfsmw::field<int>(screen, kCarSelectPlayer);
+    if (!database || (player != 0 && player != 1) || !IsSplitScreenMode(database)) {
+        g_orig_car_select_message(screen, edx, msg, object, param1, param2);
+        return;
+    }
+    bool &prompt = nfsmw::field<bool>(nfsmw::field<void *>(database, kDatabaseSettings),
+                                      kPlayerSettings + kPlayerSettingsSize * player + kTransmissionPrompt);
+    const bool asked = prompt;
+    prompt = false;
+    g_orig_car_select_message(screen, edx, msg, object, param1, param2);
+    prompt = asked;
 }
 
 }  // namespace
@@ -147,8 +227,16 @@ void install_hooks(nfsmw::Logger &log, const char *ini) {
          nfsmw::detour(&hook_show_dialog), nfsmw::orig(&g_orig_show_dialog)},
         {"memcardmessage", "MemcardCallbacks::ShowMessage", 0x560980, {0x64, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x6A}, false,
          nfsmw::detour(&hook_memcard_message), nfsmw::orig(&g_orig_memcard_message)},
+        {"showyesno", "UIMemcardBase::ShowYesNo", 0x543CC0, {0x8B, 0x44, 0x24, 0x04, 0x53, 0x56, 0x50}, false,
+         nfsmw::detour(&hook_show_yes_no), nfsmw::orig(&g_orig_show_yes_no)},
+        {"showok", "UIMemcardBase::ShowOK", 0x543BE0, {0x8B, 0x44, 0x24, 0x04, 0x53, 0x56, 0x50}, false,
+         nfsmw::detour(&hook_show_ok), nfsmw::orig(&g_orig_show_ok)},
+        {"promptforsave", "UIMemcardBase::SetupPromptForSave", 0x544210, {0x81, 0xEC, 0x00, 0x02, 0x00, 0x00, 0x56}, false,
+         nfsmw::detour(&hook_prompt_for_save), nfsmw::orig(&g_orig_prompt_for_save)},
         {"saveconfirm", "UIMemcardBase::SetupPromptSaveConfirm", 0x543EB0, {0xA1, 0xAC, 0xCB, 0x91, 0x00, 0x81, 0xEC},
          false, nfsmw::detour(&hook_save_confirm), nfsmw::orig(&g_orig_save_confirm)},
+        {"carselect", "UIQRCarSelect::NotificationMessage", 0x7C1770, {0x81, 0xEC, 0x24, 0x03, 0x00, 0x00, 0x53}, false,
+         nfsmw::detour(&hook_car_select_message), nfsmw::orig(&g_orig_car_select_message)},
     };
     nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), log, ini, "skipped dialogs");
 }
