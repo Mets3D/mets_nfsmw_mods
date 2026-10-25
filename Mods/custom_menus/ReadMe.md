@@ -39,6 +39,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
 
 ## TODO
 - Ability to add not just sub-menus under "Options", but also in the pause menu, eg. to customize the current race, or other dev tools.
+- Option to skip Reduxv3's language selection screen.
 
 ## Using it from your own mod
 

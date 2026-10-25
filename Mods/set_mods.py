@@ -6,6 +6,7 @@ usage: python set_mods.py --mode all|ours|none --game <dir> [--only mod ...]
          controller_support, with their texture packs
   none = no plugins at all
 Each mod's .ini is copied to scripts/mets_mods/ when the install has none yet (an existing one keeps the settings being tested).
+Each mod's translations/ folder is copied to scripts/mets_mods/translations/<mod> every time (as in a release).
 --game is the game install to act on (no default: always pass it); a game running from that install is closed first (its .asi
 files are loaded from disk while it runs, and a changed one crashes it), unless --keep-running is given. --only says which of our
 mods go there
@@ -133,6 +134,13 @@ def main():
     shutil.rmtree(game / 'nfsmw_mods', ignore_errors=True)  # where the previous layout kept them
 
     ours = [asi_name(m) for m in ALL_MODS if m in args.only]
+
+    shutil.rmtree(data / 'translations', ignore_errors=True)  # always re-copied, so an edited text shows up in the next start
+    if args.mode == 'ours':
+        for mod in args.only:
+            translations = MODS_DIR / mod / 'translations'
+            if translations.is_dir():
+                shutil.copytree(translations, data / 'translations' / mod)
 
     off.mkdir(parents=True, exist_ok=True)
     for n in OLD_ASIS:

@@ -1,5 +1,17 @@
 # Project: layout, build, test setup
 
+## Setting up a fresh checkout
+Clone with `--recurse-submodules` (or `git submodule update --init --recursive`): `Tools/nfsmw-2005-sdk` is a submodule and the mods do not build without it. Then run `Tools/setup_references.sh` (git bash on Windows; needs Python 3 + pip): it clones the .gitignore'd reference repos with `--depth 1` and installs the Python libs, skipping what exists. What it creates, with sources:
+- `Tools/nfsmw-decomp` = [dbalatoni13/nfsmw](https://github.com/dbalatoni13/nfsmw). `Tools/re/re.py` reads `config/SPEED_EXE_1_3/symbols.json` from it.
+- `Tools/nfsmw-2005-re` = [s-b-repo/nfsmw-2005-re](https://github.com/s-b-repo/nfsmw-2005-re) (the AI-assisted Ghidra reverse-engineering write-up; `docs/renames.csv` is read by `Tools/compare_names.py`; same author as the SDK submodule).
+- `Tools/OtherMods/nfsmw-extra-options` = [ExOptsTeam/NFSMWExOpts](https://github.com/ExOptsTeam/NFSMWExOpts) (GPL-3.0; reference only, do not copy), `widescreenfixespack` = [ThirteenAG/WidescreenFixesPack](https://github.com/ThirteenAG/WidescreenFixesPack), `nfsmw-xenon-effects-torufox` / `-xan1242` = the two XenonEffects repos (see Reference sources).
+- `Tools/re/pylib` (capstone) and `Tools/vlt-tools/pylib` (PyYAML): `pip install <pkg> --target <dir>`.
+- Not created: Attribulator (build steps in `Mods/overhaul_for_redux_v3/ReadMe.md`; only the Redux/Overhaul merge needs it) and `Game Versions/` (the user's own copies of NFS: MW 1.3: ask them; never download game files).
+
+Setting up a test install (the user supplies the game: a Redux v3 copy of NFS: MW 1.3 in `Game Versions/<name>/`): (1) build; (2) for the Overhaul, unzip `Mods/overhaul_for_redux_v3/NFSMW Overhaul for Redux v3.zip` over the install (its four `GLOBAL/*.bin|lzc` replace Redux's, and `NFSMW_NOAIRSTABILIZER.asi` goes to `scripts/`); (3) `python Mods/set_mods.py --mode ours --game "Game Versions/<name>" --only custom_menus camera_settings controller_support split_screen_support`. It leaves the pack's own plugins on and ours next to them; Add `dev_tools improved_ai_opponents` to `--only` for the dev tools and the AI mod. `translations/` are copied every run.
+
+Then build as below (Windows: MSYS2 mingw32 first on PATH). A successful build leaves `Mods/build/*.asi`. Deploying and testing need a game install, so ask the user for the `--game` directory.
+
 ## Game installs
 Mods and scripts never hard-code an install location: always pass the game directory as an argument. The hooks check the first 7 bytes of each function before patching it, so the same addresses install on every speed.exe 1.3 build, whatever its size or hash.
 - `python Mods/set_mods.py --mode all|ours|none --game <dir> [--only <mods>]` picks which `.asi` load (the rest wait in `scripts_disabled/`) and builds the texture packs. It first closes a game running from that install (`--keep-running` skips that): overwriting a loaded `.asi` crashes the game.
