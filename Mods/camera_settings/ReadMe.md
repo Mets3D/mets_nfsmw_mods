@@ -1,25 +1,28 @@
 # Camera Settings
 
-This mod for Need for Speed: Most Wanted 2005 (1.3) lets you tune camera views in the pause/main menu. See mod requirements below.
+This mod for Need for Speed: Most Wanted 2005 (1.3) lets you tune camera views in the pause/main menu.
+
+![The Options > Camera page in the pause menu](docs/camera-options-menu.jpg)
+
+[YouTube link.](https://www.youtube.com/watch?v=G5I_quac7Gc)
+
+This mod is now considered finished.
+
+## Download
+Download from the [Releases](../../../../releases) page.
 
 ## Mod Compatibility
 
 - See [General Compatibility](../../ReadMe.md#general-compatibility).
 - Required: [Custom Menus](../custom_menus/ReadMe.md). Otherwise all the customization options won't appear.
-- Incompatible: Other mods that change `CameraAnchor::GetPov`
 - Confirmed compatible:
   - "DRIFT" and "Pursuit" camera modes added by [`NFSMWExtraOptions`](https://github.com/ExOptsTeam/NFSMWExOpts).
+- This mod will force `ForceEnableMirror = 0` in the [NFSMWHDReflections](https://github.com/sniten/NFSMWHDReflections) mod, since the mirror can now be toggled per-camera instead.
 
-## What it does
 
-[YouTube link.](https://www.youtube.com/watch?v=G5I_quac7Gc)
-![The Options > Camera page in the pause menu](docs/camera-options-menu.png)
+## Camera Settings
 
-**Pause > Options > Camera** (and the main menu's Options > Camera) edits the settings of the currently active camera view, which can also be changed as the first option.
-
-## Features
-
-It was my goal to integrate this mod into the original game's design as if it was a native feature that shipped with the game. Here's what you can expect:
+It was my goal to integrate this mod into the original game's design as if it was a native feature that shipped with the game:
 
 - Separate customization for each camera type, including additional cameras added by other mods. Each camera view has the following options:
   - FoV, Height, Forward/Backward Distance.
@@ -41,9 +44,6 @@ It was my goal to integrate this mod into the original game's design as if it wa
   - A button to reset to defaults.
   - A help button that explains what each setting does.
   - Controller input tested and fully supported.
-
-## TODO
-- In Reduxv3, mirror is force-enabled?
 
 ### AI Disclaimer
 

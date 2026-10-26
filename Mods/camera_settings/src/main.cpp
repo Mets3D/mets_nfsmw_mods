@@ -17,6 +17,7 @@
  * Files in <game>/scripts/mets_mods/: nfsmw_camera_settings.ini (your changes and settings), nfsmw_camera_settings.log, nfsmw_camera_settings.tpk (the Options icon).
  * ini settings, all optional:
  *   [hooks]    <name>=0  skips one hook (names in install_hooks)
+ * NFSMWHDReflections' ForceEnableMirror is turned off in its ini (it would show the mirror in every view), unless mirrorvisible=0.
  *
  * Offsets come from the PC disassembly; the decomp's struct offsets are from the console builds and differ.
  */
@@ -28,7 +29,9 @@
 #include <cmath>
 #include <cstdlib>
 
+#include "early_entry.h"
 #include "hooks.h"
+#include "ini_switch.h"
 #include "nfsmw_util.h"
 #include "custom_menus_api.h"
 #include "acceleration.h"
@@ -609,9 +612,31 @@ void install_hooks() {
 
 }  // namespace
 
+namespace {
+nfsmw::ini_switch::Change g_force_mirror_change = nfsmw::ini_switch::Change::kNone;
+char g_hd_reflections_ini[MAX_PATH];
+}  // namespace
+
+// NFSMWHDReflections (in Redux v3) has `ForceEnableMirror = 1`, which patches the game to show the rear view mirror in every view, so the
+// Mirror setting of a view could not turn it off. It reads its ini as soon as its .asi is loaded, so this has to run when ours is
+// loaded, which is before it (the loader loads a folder's plugins alphabetically). The option is turned off (see common/ini_switch.h).
+NFSMW_PLUGIN_EARLY() {
+    char own_ini[MAX_PATH];
+    nfsmw::data_file("nfsmw_camera_settings.ini", own_ini, sizeof(own_ini));
+    if (GetPrivateProfileIntA("hooks", "mirrorvisible", 1, own_ini) == 0) return NFSMW_OK;  // the Mirror setting is off
+    if (nfsmw::ini_switch::find_path("NFSMWHDReflections.ini", g_hd_reflections_ini, sizeof(g_hd_reflections_ini)))
+        g_force_mirror_change = nfsmw::ini_switch::turn_off(g_hd_reflections_ini, "ForceEnableMirror");
+    return NFSMW_OK;
+}
+
 NFSMW_PLUGIN_MAIN() {
     g_log.open_in_data_folder("nfsmw_camera_settings.log");
     log_line("nfsmw_camera_settings 1.1.0 starting");
+    if (g_force_mirror_change == nfsmw::ini_switch::Change::kTurnedOff)
+        log_line("NFSMWHDReflections: ForceEnableMirror set to 0 in %s (it shows the mirror in every view, whatever the Mirror setting says)",
+                 g_hd_reflections_ini);
+    else if (g_force_mirror_change == nfsmw::ini_switch::Change::kFailed)
+        log_line("NFSMWHDReflections: ForceEnableMirror is on in %s and could not be changed; set it to 0 by hand", g_hd_reflections_ini);
     ini_path_init();
     ini_load();
     install_hooks();

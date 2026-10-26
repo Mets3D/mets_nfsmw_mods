@@ -1,6 +1,7 @@
 #include "mirror.h"
 
 #include "hooks.h"
+#include "patch.h"
 #include "view_flags.h"
 
 namespace camera_settings::mirror {
@@ -98,8 +99,19 @@ unsigned FASTCALL hook_add_toggle(void *screen, void *edx, void *widget, int ena
 
 }  // namespace
 
+// NFSMWHDReflections' ForceEnableMirror replaces the `je` at 0x595DDD (the first of the compares of CurCam 2-6 in ShouldRearViewMirrorBeVisible,
+// which hide the mirror in the outside views) by `jmp +0x14`, over all of them. main.cpp's early entry turns the option off in its ini, which
+// works when our plugin is loaded first; if that patch is there anyway, the original bytes are put back (the game's behaviour, which
+// the Mirror settings are relative to).
+void undo_force_enable_mirror(nfsmw::Logger &log) {
+    constexpr uintptr_t kCompares = 0x595DDD;
+    const unsigned char forced[2] = {0xEB, 0x14}, original[2] = {0x74, 0x2D};
+    if (nfsmw::patch_bytes(kCompares, forced, original, 2)) log.line("mirror: the forced mirror of NFSMWHDReflections was undone");
+}
+
 void install_hooks(nfsmw::Logger &log, const char *ini) {
     g_log = &log;
+    if (GetPrivateProfileIntA("hooks", "mirrorvisible", 1, ini)) undo_force_enable_mirror(log);
     const nfsmw::Hook hooks[] = {
         {"mirrorvisible", "FEngHud::ShouldRearViewMirrorBeVisible", 0x595D40, {0xA1, 0x84, 0xD8, 0x92, 0x00, 0x53, 0x8B}, false,
          nfsmw::detour(&hook_visible), nfsmw::orig(&g_orig_visible)},
