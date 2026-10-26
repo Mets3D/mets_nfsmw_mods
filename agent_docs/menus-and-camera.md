@@ -31,6 +31,18 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
 
 - **Live bar under a slider** [built in `custom_menus/src/slider_meter.cpp` (`Page::live`), used for the dead zone sliders; not run yet]: `cSlider::Draw` (decomp `Slider.cpp`) sets the fill bar's `SizeX` to 160 px * the fraction, its top-left to the base's + (2, -12) and `BottomRightU` to the size. The meter is a clone of `FILLBAR_SLIDER_n` (image; `FEObject::Clone` leaves the data zeroed, so it is copied over, the name hash set to `NFSMW_METER_n`, and `FEPackage::AddObject` 0x50DB90 puts it in the layout's package), placed under the larger of base and fill, 3 px high, green (`FEngSetColor` 0x5157E0), set every `kScreenTick`; the layout's package may stay loaded, so the bars are hidden when the page is left. The first meter of each slot logs the geometry of base and fill, to adjust the place.
 
+## Entries in the pause menu and the main menu (custom_menus `main.cpp`, Placement kPauseMenuEntry / kMainMenuEntry / kPauseAndMainMenuEntry) [read; not run in the game yet]
+- Both are `IconScrollerMenu`s with the same strip (`OPTION_n` images, so `ensure_icon_slots` applies) and their `Setup` ends with the Options entry (`pm_SwitchToOptions`, icon 0x520DE4E3 / `MainOptions`, 0x3058FE37), so
+  hooks on `PauseMenu::Setup` 0x546360 / `UIMain::Setup` 0x544E50 (ask the mods for pages, make slots) and the existing `IconScrollerMenu::AddOption` hook (our entries go in right before that icon) are enough. The screen after a race
+  (`PauseMenu` byte +0x148, PC; the decomp has it at 0x16C) has no Options entry and gets none of ours.
+- **Pause menu**: `Pause_Main.fng` is `PauseMenu` unless the game mode has the OPTIONS bit (0x10), then `UIOptionsMain` (`CreateCommonPauseMenu` 0x570860); the arg is "after a race". The entries react at once (`bReactImmediately`, +0x45 PC), like
+  `pm_SwitchToOptions::React` 0x52B2A0: write `PauseMenu::mSelectionHash` (0x91CA2C) and run script 0xDE6EFF34 of object 0x47FF4E7C (`FEngSetScript(pkg, ...)` 0x524920, cdecl). When the menu has slid out
+  `PauseMenu::NotificationMessage` 0x54FF10 switches on the hash and ignores a value it does not know; `hook_pause_notify` then opens the page (`open_page`, pause layout) if the hash is ours, and Back (PAD_BACK 0x911AB364) pressed
+  while it slides out, or Start (a different hash), cancel it. The page's exit goes to `Pause_Main.fng` arg 0 (the game's Options screens use arg 1 with the OPTIONS bit set, to get back to `UIOptionsMain`; arg 1 without the bit would be the after-race screen).
+- **Main menu**: `UIMain` entries do not react immediately: the base class's EXITCOMPLETE handling calls `React` after the slide-out, and `MainOptions::React` 0x51AEF0 only ORs OPTIONS into `FEDatabase+0x12C` (`SetGameMode` 0x50E4C0), after which
+  `UIMain::NotificationMessage` 0x559FC0 switches to `MainMenu_Sub.fng`. Ours sets the same bit (the garage camera is chosen by game mode and screen name) and `take_main_menu_entry_switch` in the `QueuePackageSwitch` hook replaces that one switch by the page's
+  (`Options.fng` / `OptionsPCDisplay.fng`); the exit goes to `MainMenu.fng` arg 0, whose `UIMain::Setup` resets the game mode. The options-dirty save (`UIOptionsMain::ExitOptions`) is skipped.
+
 ## Dialogs (custom_menus `skip_dialogs.cpp`)
 - Message boxes: every `DialogInterface::Show*` ends in `ShowDialog(feDialogConfig*)` 0x5983C0 (cdecl) [read]. Config (PC = decomp layout): formatted blurb +0 (512 chars), then
   {text hash, message} per button at +0x204 / +0x20C / +0x214, parent package +0x224, dialog package +0x228, button count +0x22C. A pressed button's message reaches the parent from

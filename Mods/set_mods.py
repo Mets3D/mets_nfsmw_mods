@@ -10,7 +10,8 @@ Each mod's translations/ folder is copied to scripts/mets_mods/translations/<mod
 --game is the game install to act on (no default: always pass it); a game running from that install is closed first (its .asi
 files are loaded from disk while it runs, and a changed one crashes it), unless --keep-running is given. --only says which of our
 mods go there
-(folder names of Mods/, default the first three; dev_tools, split_screen_support and improved_ai_opponents are only added when asked for):
+(folder names of Mods/, default the first three; dev_tools, split_screen_support, improved_ai_opponents and example_options_page (the
+example for mod makers, in custom_menus/; needs custom_menus) are only added when asked for):
   python set_mods.py --mode ours --game "<path to the game install>" --only controller_support
 """
 import argparse
@@ -23,7 +24,13 @@ import time
 from pathlib import Path
 
 MODS_DIR = Path(__file__).resolve().parent
-ALL_MODS = ['custom_menus', 'camera_settings', 'controller_support', 'dev_tools', 'split_screen_support', 'improved_ai_opponents']
+ALL_MODS = ['custom_menus', 'camera_settings', 'controller_support', 'dev_tools', 'split_screen_support', 'improved_ai_opponents',
+            'example_options_page']
+MOD_DIRS = {'example_options_page': MODS_DIR / 'custom_menus' / 'example_options_page'}  # where a mod's folder is, when it is not Mods/<mod>
+
+
+def mod_dir(mod):
+    return MOD_DIRS.get(mod, MODS_DIR / mod)
 # The file name of a mod's plugin, when it is not nfsmw_<mod>.asi. The loader loads a folder's plugins alphabetically, and the
 # controller support must load before the widescreen fix ("NFSMostWanted...") to turn off one of its options before it is read.
 ASI_NAMES = {'controller_support': 'mets_controller_support.asi'}
@@ -138,7 +145,7 @@ def main():
     shutil.rmtree(data / 'translations', ignore_errors=True)  # always re-copied, so an edited text shows up in the next start
     if args.mode == 'ours':
         for mod in args.only:
-            translations = MODS_DIR / mod / 'translations'
+            translations = mod_dir(mod) / 'translations'
             if translations.is_dir():
                 shutil.copytree(translations, data / 'translations' / mod)
 
@@ -165,7 +172,7 @@ def main():
             else:
                 (data / f'{name}.tpk').unlink(missing_ok=True)
         for mod in args.only:  # a mod's settings file, only when the install has none yet (the ones there hold the settings being tested)
-            for ini in (MODS_DIR / mod).glob('*.ini'):
+            for ini in mod_dir(mod).glob('*.ini'):
                 if not (data / ini.name).exists():
                     shutil.copy2(ini, data / ini.name)
                     print(f'copied {ini.name} to {data}')

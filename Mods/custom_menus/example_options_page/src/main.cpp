@@ -1,8 +1,9 @@
 /*
  * nfsmw_example_options_page: an example for mod makers, not for players. It adds a page of dummy settings to the Options menu
  * with nfsmw_custom_menus (the Options menu framework), and is the place to copy from when a mod wants a page of its own. It is
- * built with the others but not part of set_mods.py; copy nfsmw_example_options_page.asi into <game>/scripts/ next to
- * nfsmw_custom_menus.asi to see it (Pause > Options > Example Page, and the main menu's Options).
+ * built with the others, and put in a game with `set_mods.py --mode ours --only custom_menus example_options_page` (or copy
+ * nfsmw_example_options_page.asi into <game>/scripts/ next to nfsmw_custom_menus.asi) to see it (Pause > Options > Example Page, and the
+ * main menu's Options).
  *
  * How it works:
  *  - Copy common/custom_menus_api.h (it has no dependencies) and export `nfsmw_custom_menus_provide`.
@@ -46,6 +47,12 @@
  * Other places for rows (Page::placement): the end of the game's own Options > Audio, Video, Advanced Video, Gameplay or Player
  * (kAudioOptions, kVideoOptions, kAdvancedVideoOptions, kGameplayOptions, kPlayerOptions), a page that only the mod opens (kHidden), an
  * entry in the main menu's Options as well (kNewEntryEverywhere). The Controls screen takes binding rows (Host::register_controls_rows).
+ *
+ * Entries in the pause menu and the main menu themselves: kPauseMenuEntry, kMainMenuEntry and kPauseAndMainMenuEntry put an icon before the
+ * menu's own Options entry, which opens the page (for things that are not settings, say tools for the current race). Three extra pages here
+ * with the same rows test them: "Pause Menu Test" must only be in the pause menu, "Main Menu Test" only in the main menu, "Both Menus Test"
+ * in both. Pressing one opens the page, and Back / Accept come back to the menu. `available` is asked each time the menu is built; the pause
+ * menu's page is hidden by `[example] hide_pause_entry=1` in scripts/mets_mods/nfsmw_example_options_page.ini, to test that.
  */
 
 #include <nfsmw_sdk/nfsmw_sdk.h>
@@ -142,6 +149,21 @@ void defaults() { g_now = Settings(); }
 
 opt::Page g_page;
 
+// ---- entries in the pause menu and the main menu (kPauseMenuEntry...): the same rows, one page per placement ----
+bool pause_entry_available() { return GetPrivateProfileIntA("example", "hide_pause_entry", 0, g_ini) == 0; }
+
+struct MenuTest {
+    const char *id, *entry, *title, *help_title;
+    opt::Placement placement;
+    bool (*available)();
+};
+constexpr MenuTest kMenuTests[] = {
+    {"example_pause", "Pause Menu Test", "PAUSE MENU TEST", "PAUSE MENU TEST INFO", opt::kPauseMenuEntry, pause_entry_available},
+    {"example_main", "Main Menu Test", "MAIN MENU TEST", "MAIN MENU TEST INFO", opt::kMainMenuEntry, nullptr},
+    {"example_both", "Both Menus Test", "BOTH MENUS TEST", "BOTH MENUS TEST INFO", opt::kPauseAndMainMenuEntry, nullptr},
+};
+opt::Page g_menu_pages[sizeof(kMenuTests) / sizeof(kMenuTests[0])];
+
 }  // namespace
 
 extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const opt::Host *host) {
@@ -155,6 +177,14 @@ extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const opt::Host
               /* available */ nullptr, opened, value, change, changed, accept, discard, defaults,
               opt::kNewEntryEverywhere, fill};
     host->register_page(&g_page);
+    for (size_t i = 0; i < sizeof(kMenuTests) / sizeof(kMenuTests[0]); ++i) {
+        const MenuTest &t = kMenuTests[i];
+        g_menu_pages[i] = {t.id, t.entry, t.title, t.help_title, 0, 0, nullptr,
+                           static_cast<int>(sizeof(kRows) / sizeof(kRows[0])), kRows,
+                           t.available, opened, value, change, changed, accept, discard, defaults,
+                           t.placement, fill};
+        host->register_page(&g_menu_pages[i]);
+    }
 }
 
 NFSMW_PLUGIN_MAIN() { return NFSMW_OK; }

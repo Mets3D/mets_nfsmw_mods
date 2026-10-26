@@ -3,7 +3,7 @@
 //     extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const nfsmw::custom_menus::Host *host);
 //
 // and calls host->register_page() from it. The framework calls that export, once, in every loaded plugin the first
-// time the Options menu opens, so load order does not matter, and a mod still works (without its page) when the
+// time the Options menu, the pause menu or the main menu is built, so load order does not matter, and a mod still works (without its page) when the
 // framework is missing. A page is a title, an icon and a list of rows. The framework builds the screen from the game's
 // own Options layout (so it looks and feels native), with the Help hint and message box and Accept / Back / Defaults,
 // and calls back here for everything about the values.
@@ -47,6 +47,14 @@ enum Placement {
     kVideoOptions,         // the Video screen as it opens: the brightness and a few rows (the "Advanced" hint leads to the next)
     kGameplayOptions,
     kAdvancedVideoOptions,  // the Advanced Video screen: the long list of the PC's display options (the Video screen's other mode)
+    // An entry in the icon strip of the pause menu itself (Resume, Restart, ..., Options) or of the main menu (Career, Quick Race, ..., Options),
+    // before that menu's Options, which opens the page: a screen of its own, as for kNewEntry, and Back / Accept return to the menu that was left.
+    // For things that are not settings, say tools for the current race. `entry_text` is the name shown above the strip, `icon` / `fallback_icon` /
+    // `texture_pack` the picture (the Options icon by default), `available` is asked each time the menu is built. The pause menu's entries are
+    // not in the screen after a race, nor in online races. The entries need free slots in the layout's icon strip: the framework adds them.
+    kPauseMenuEntry,
+    kMainMenuEntry,
+    kPauseAndMainMenuEntry,
 };
 
 struct Page {
@@ -59,7 +67,8 @@ struct Page {
     const char *texture_pack;  // full path of a .tpk that holds `icon`, or null (loaded when the menu first opens)
     int row_count;
     const Row *rows;  // static
-    // Each time the Options menu opens (the pause menu's; the main menu's too, for kNewEntryEverywhere): does the page apply (a race is running, a controller is present...)?
+    // Each time the menu with the page's entry is built (the pause menu's Options; the main menu's too, for kNewEntryEverywhere; the pause
+    // menu or main menu itself, for kPauseMenuEntry...): does the page apply (a race is running, a controller is present...)?
     bool (*available)();
     // The page was opened: remember the current values (what was last accepted).
     void (*opened)();

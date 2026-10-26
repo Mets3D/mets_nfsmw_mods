@@ -1,13 +1,13 @@
 # Custom Menus
 
-This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the ability to add their own controls and menus in the game's main menu and pause menu easily, without conflicts, and in a way that feels like a native part of the game.
+This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the ability to add their own controls and menus in the game's main menu and pause menu easily, without conflicts, and in a way that feels like a native part of the game. This mod is now considered complete, but PRs welcome.
 
 ## Example Mods
 - [Camera Settings](../camera_settings/ReadMe.md): Adds the Options > Camera page.
 - [Controller Support](../controller_support/ReadMe.md): Adds the Settings page with dead zones and rumble (opened from the Controls screen), and the Look and Previous Camera View rows on the Controls screen.
 
 ## Features
-- Mods can add their own Options pages, which can be visible in the pause menu and main menu's Options menus.
+- Mods can add their own pages to the Pause Menu, Main Menu, and the Options Menu.
   - An options menu consists of rows, which contain a label and a value.
   - The value can be displayed as text or numbers, or a slider.
   - Rows can be grayed out based on other values.
@@ -36,10 +36,6 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
 - See [General Compatibility](../../ReadMe.md#general-compatibility).
 - Incompatible:
   - `NFS-XtendedInput` due to touching `UIOptionsMain::Setup`.
-
-## TODO
-- Ability to add not just sub-menus under "Options", but also in the pause menu, eg. to customize the current race, or other dev tools.
-- Option to skip Reduxv3's language selection screen.
 
 ## Using it from your own mod
 

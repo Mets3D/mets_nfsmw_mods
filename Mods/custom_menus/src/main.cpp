@@ -5,13 +5,14 @@
  * common/custom_menus_api.h): a page is a title, an icon and a list of rows, and this mod builds the screen from the
  * game's own Options layout (Pause_Options.fng / Options.fng, via the
  * Player category's screen with its rows replaced), so it looks and feels native:
- *  - an entry per page in the Options menu, with its icon (from a texture pack of the mod, or a fallback);
+ *  - an entry per page in the Options menu, with its icon (from a texture pack of the mod, or a fallback), or in the pause menu or main menu
+ *    itself, before their Options (Placement kPauseMenuEntry / kMainMenuEntry / kPauseAndMainMenuEntry);
  *  - rows that change with left / right (Shift: finer steps), the game's Camera selector as a row kind;
  *  - like the game's own options, edits take effect at once and are kept on Accept; Back offers to discard them;
  *    Defaults (1) resets the page after the game's confirmation;
  *  - a "2 Help" hint (a clone of the layout's Defaults hint) and the 2 key (X on a controller) explain the
  *    highlighted row in the game's message box.
- * Every plugin that exports nfsmw_custom_menus_provide gets asked for its pages the first time the Options menu opens.
+ * Every plugin that exports nfsmw_custom_menus_provide gets asked for its pages the first time the Options menu, pause menu or main menu is built.
  *
  * Its own row, Options > Player > Language (language.cpp), changes the game's language while it runs; translations.cpp reads the
  * mods' translations for the current language (and again after a change).
@@ -153,6 +154,9 @@ constexpr uintptr_t kFEDatabase = 0x91CF90;  // FEDatabase*; +0x10 = options set
 constexpr uintptr_t kGameFlowManager = 0x925E70;
 constexpr uintptr_t kFEng = 0x91CADC;  // cFEng*
 constexpr uintptr_t kInGameDialogName = 0x89736C;  // "InGameDialog.fng"
+constexpr uintptr_t kPauseSelectionHash = 0x91CA2C;  // PauseMenu::mSelectionHash: what the pause menu does once it has slid out
+const auto SetGameMode = at<void(THISCALL *)(void *database, unsigned mode)>(0x50E4C0);  // cFrontendDatabase::SetGameMode: ORs the mode in
+const auto FEngSetScriptPkg = at<void (*)(const char *pkg, unsigned object, unsigned script, bool restart)>(0x524920);  // FEngSetScript(pkg, ...)
 }  // namespace game
 
 // Layouts (PC). FEObject: the base of every FEng object.
@@ -266,8 +270,8 @@ unsigned add_text(const char *id, const char *what, int row, const char *text) {
 }
 
 // The texture an entry shows: the page's own icon, else its fallback, else the Options icon (two cogs) of whichever menu is up.
+constexpr unsigned kPauseOptionsIcon = 0x520DE4E3, kMainOptionsIcon = 0x3058FE37;  // the Options entries of the pause menu and the main menu
 unsigned shown_icon(const opt::Page &page) {
-    constexpr unsigned kPauseOptionsIcon = 0x520DE4E3, kMainOptionsIcon = 0x3058FE37;
     for (unsigned icon : {page.icon, page.fallback_icon, kPauseOptionsIcon, kMainOptionsIcon})
         if (icon && game::GetTextureInfo(icon, 0, 0)) return icon;
     return page.fallback_icon;
@@ -408,6 +412,8 @@ void *g_row_vtbl[16];       // our value rows (FEToggleWidget behaviour with our
 void *g_slider_vtbl[16];    // our slider rows (FESliderWidget behaviour with our Act/Draw/SetInitialValues)
 void *g_selector_vtbl[16];  // PODriveCam with Act wrapped so the other rows refresh when the view changes
 void *g_entry_vtbl[2];      // Options menu entries
+void *g_pause_entry_vtbl[2];  // pause menu entries (see "Entries in the pause menu and the main menu")
+void *g_main_entry_vtbl[2];   // main menu entries
 void **own_vtbl(void *widget);  // the widget's vtable, or the one it had before it shared its objects (see share_objects)
 
 int &options_category() { return field<int>(field<void *>(*reinterpret_cast<void **>(game::kFEDatabase), 0x10), 0x24); }
@@ -1362,10 +1368,13 @@ void fit_window(void *screen) {
 
 bool g_redirect_switch = false;  // the screen switch the page's exit makes goes to g_exit_callback instead
 
+bool take_main_menu_entry_switch(const char *pkg);  // see "Entries in the pause menu and the main menu"
+
 // cFEng::QueuePackageSwitch: the page that was opened by a mod (open_page) leaves through the mod's callback.
 using QueueSwitchHookFn = void(FASTCALL *)(void *, void *, const char *, int, unsigned, bool);
 QueueSwitchHookFn g_orig_queue_switch = nullptr;
 void FASTCALL hook_queue_switch(void *feng, void *edx, const char *pkg, int arg, unsigned msg, bool flag) {
+    if (take_main_menu_entry_switch(pkg)) return;
     if (custom_menus::resume_career::swallow_switch(pkg)) return;
     pkg = custom_menus::resume_career::redirect_switch(pkg);
     if (g_redirect_switch && g_exit_callback) {
@@ -1516,13 +1525,15 @@ void THISCALL entry_react(void *self, const char *pkg, unsigned data, void *obj,
     g_exit_callback = nullptr;
 }
 
-void add_options_entry(void *menu, PageInfo *page) {
+// An entry of an icon strip menu (the Options menu's, or the pause menu's or main menu's own) that opens `page`. `entry_vtbl` says what pressing it does;
+// it reacts immediately, or when the menu has slid out, as the game's own entries of that menu do.
+void add_options_entry(void *menu, PageInfo *page, void **entry_vtbl = g_entry_vtbl, bool react_immediately = true) {
     void *opt_object = game::Alloc(kEntryPage + 4);
     if (!opt_object) return;
     game::IconOptionCtor(opt_object, page->icon, page->entry_hash, 0);
-    field<void **>(opt_object, 0) = g_entry_vtbl;
+    field<void **>(opt_object, 0) = entry_vtbl;
     field<PageInfo *>(opt_object, kEntryPage) = page;
-    field<unsigned char>(opt_object, 0x45) = 1;  // react immediately, like the game's own entries
+    field<unsigned char>(opt_object, 0x45) = react_immediately;
     // The constructor gives the speed trap and drag icons their tutorial movie (a "View Tutorial" button); ours never have one.
     field<unsigned char>(opt_object, 0x46) = 0;
     field<unsigned>(opt_object, 0x48) = 0;
@@ -1532,8 +1543,12 @@ void add_options_entry(void *menu, PageInfo *page) {
     // "option_1".."option_N" in the layout and silently drops extras.
     void *img = reinterpret_cast<void *(THISCALL *)(void *, void *)>(vtbl[2])(row, opt_object);
     if (img) game::FEngSetTextureHash(img, page->icon);
-    else log_line("Options menu: no free slot for the %s entry", page->page->entry_text);
+    else log_line("icon strip: no free slot for the %s entry", page->page->entry_text);
 }
+
+void add_menu_entries(void *menu, bool main_menu);  // see "Entries in the pause menu and the main menu"
+void *g_pending_pause = nullptr;  // the pause menu being set up, which gets the entries of the pages for it
+void *g_pending_main = nullptr;   // the main menu being set up, ditto
 
 // UIOptionsMain::Setup adds its icons and then lays them out with the row's SetInitialPos (the call is inlined,
 // so it cannot be hooked at SetInitialOption). Our entries must be added right before that call.
@@ -1557,6 +1572,14 @@ void FASTCALL hook_addoption(void *menu, void *edx, void *option) {
     constexpr unsigned kEaTraxIcon = 0xC52CCBF6, kCreditsIcon = 0x51009E20;
     const unsigned icon = field<unsigned>(option, 0xC);
     custom_menus::resume_career::option_added(menu, option);
+    // The Options entry is the last of the pause menu's and of the main menu's own strips: ours go before it.
+    if (g_pending_pause && menu == g_pending_pause && icon == kPauseOptionsIcon) {
+        g_pending_pause = nullptr;
+        add_menu_entries(menu, false);
+    } else if (g_pending_main && menu == g_pending_main && icon == kMainOptionsIcon) {
+        g_pending_main = nullptr;
+        add_menu_entries(menu, true);
+    }
     if (g_pending_optmain && menu == g_pending_optmain && (icon == kEaTraxIcon || icon == kCreditsIcon)) {
         g_pending_optmain = nullptr;
         for (int i = 0; i < g_page_count; ++i)
@@ -1570,7 +1593,7 @@ void FASTCALL hook_addoption(void *menu, void *edx, void *option) {
 // entry, so the press is reported for the entry that is current: a press is always for that one.
 NotifyFn g_orig_optmain_notify = nullptr;
 constexpr unsigned kSlotGuidBase = 0xCA3E3000;  // GUIDs of the cloned slots
-void FASTCALL hook_optmain_notify(void *self, void *edx, unsigned msg, void *obj, unsigned p1, unsigned p2) {
+void *pressed_object(void *self, unsigned msg, void *obj) {
     if (msg == kButtonPressed) {
         void *current = field<void *>(self, kIconScrollerCurrent);
         void *current_obj = current ? field<void *>(current, kOptionObject) : nullptr;
@@ -1579,7 +1602,10 @@ void FASTCALL hook_optmain_notify(void *self, void *edx, unsigned msg, void *obj
             if (guid >= kSlotGuidBase && guid < kSlotGuidBase + 0x100) obj = current_obj;
         }
     }
-    g_orig_optmain_notify(self, edx, msg, obj, p1, p2);
+    return obj;
+}
+void FASTCALL hook_optmain_notify(void *self, void *edx, unsigned msg, void *obj, unsigned p1, unsigned p2) {
+    g_orig_optmain_notify(self, edx, msg, pressed_object(self, msg, obj), p1, p2);
 }
 
 // A mod's icons live in its own texture pack (a .tpk in the data folder), loaded once, the first time a page needs it.
@@ -1691,6 +1717,124 @@ void FASTCALL hook_optmain_setup(void *self, void *edx) {
 }
 
 // ------------------------------------------------------------------------------------------------
+// Entries in the pause menu and the main menu themselves (Placement kPauseMenuEntry, kMainMenuEntry, kPauseAndMainMenuEntry): an icon before the
+// menu's own Options, which opens the page's screen (open_page); Back and Accept come back to the menu.
+// ------------------------------------------------------------------------------------------------
+constexpr unsigned kPadBack = 0x911AB364;
+constexpr unsigned kPauseOurSelection = 0xCA3E0A01;  // PauseMenu::mSelectionHash for our entries: none of the game's, so the menu does nothing of its own once it has slid out
+constexpr unsigned kGameModeOptions = 0x10;          // eFE_GAME_MODE_OPTIONS
+constexpr unsigned kSlideOutObject = 0x47FF4E7C, kSlideOutScript = 0xDE6EFF34;  // the script that slides a pause menu screen out
+constexpr unsigned kPauseFromRace = 0x148;  // PauseMenu (byte): the screen after a race, which has no Options entry
+
+PageInfo *g_pause_entry = nullptr;  // the pause menu's entry that was pressed
+PageInfo *g_main_entry = nullptr;   // the main menu's
+
+void switch_screen(const char *pkg, int arg) {
+    reinterpret_cast<QueueSwitchFn>(0x525940)(*reinterpret_cast<void **>(game::kFEng), pkg, arg, 0, false);
+}
+void back_to_pause_menu() { switch_screen("Pause_Main.fng", 0); }  // arg 0: the pause menu; the game's Options screens go back with arg 1, to its Options menu
+void back_to_main_menu() { switch_screen("MainMenu.fng", 0); }
+
+// The pause menu's entries react at once, like pm_SwitchToOptions::React: the choice is remembered and the menu slides out. The game's PauseMenu
+// then does nothing for our selection value, and hook_pause_notify opens the page.
+void THISCALL pause_entry_react(void *self, const char *pkg, unsigned data, void *obj, unsigned p1, unsigned p2) {
+    (void)obj; (void)p1; (void)p2;
+    if (data != kButtonPressed) return;
+    g_pause_entry = field<PageInfo *>(self, kEntryPage);
+    *reinterpret_cast<unsigned *>(game::kPauseSelectionHash) = kPauseOurSelection;
+    game::FEngSetScriptPkg(pkg, kSlideOutObject, kSlideOutScript, true);
+}
+
+// The main menu's entries react after the menu has slid out, like MainOptions::React, which only sets the Options game mode: UIMain then
+// switches to MainMenu_Sub.fng, the Options menu. Ours sets the mode too (the 3D scene's camera goes by it, as for the game's Options screens)
+// and take_main_menu_entry_switch makes the page's switch instead.
+void THISCALL main_entry_react(void *self, const char *pkg, unsigned data, void *obj, unsigned p1, unsigned p2) {
+    (void)pkg; (void)obj; (void)p1; (void)p2;
+    if (data != kButtonPressed) return;
+    g_main_entry = field<PageInfo *>(self, kEntryPage);
+    game::SetGameMode(*reinterpret_cast<void **>(game::kFEDatabase), kGameModeOptions);
+}
+
+bool take_main_menu_entry_switch(const char *pkg) {
+    if (!g_main_entry || !pkg || strcmp(pkg, "MainMenu_Sub.fng") != 0) return false;
+    PageInfo *page = g_main_entry;
+    g_main_entry = nullptr;
+    log_line("main menu: opening the page \"%s\" instead of the Options menu", page->page->id);
+    open_page(page->page->id, false, back_to_main_menu);
+    return true;
+}
+
+NotifyFn g_orig_pause_notify = nullptr;
+void FASTCALL hook_pause_notify(void *self, void *edx, unsigned msg, void *obj, unsigned p1, unsigned p2) {
+    if (msg == kPadBack) g_pause_entry = nullptr;  // backed out while the menu slid out
+    g_orig_pause_notify(self, edx, msg, pressed_object(self, msg, obj), p1, p2);
+    if (msg != kExitComplete || !g_pause_entry) return;
+    PageInfo *page = g_pause_entry;
+    g_pause_entry = nullptr;
+    if (*reinterpret_cast<unsigned *>(game::kPauseSelectionHash) != kPauseOurSelection) return;  // Start was pressed meanwhile: the game unpauses
+    log_line("pause menu: opening the page \"%s\"", page->page->id);
+    open_page(page->page->id, true, back_to_pause_menu);
+}
+
+bool has_entry_in(const PageInfo &p, bool main_menu) {
+    const opt::Placement placement = p.page->placement;
+    return placement == opt::kPauseAndMainMenuEntry || placement == (main_menu ? opt::kMainMenuEntry : opt::kPauseMenuEntry);
+}
+
+// The entries of the pages that apply, right before the menu's own Options entry (hook_addoption).
+void add_menu_entries(void *menu, bool main_menu) {
+    for (PageInfo &p : g_pages) {
+        if (!p.available || !has_entry_in(p, main_menu)) continue;
+        add_options_entry(menu, &p, main_menu ? g_main_entry_vtbl : g_pause_entry_vtbl, !main_menu);
+        log_line("%s menu: entry \"%s\"", main_menu ? "main" : "pause", p.page->entry_text);
+    }
+}
+
+// Before the menu's own entries are added: ask the mods for their pages, see which apply now, and make room in the icon strip.
+void prepare_menu_entries(void *menu, bool main_menu) {
+    discover_pages();
+    ensure_language_entries();
+    int ours = 0;
+    for (PageInfo &p : g_pages) {
+        p.available = false;
+        if (!has_entry_in(p, main_menu)) continue;
+        p.available = !p.page->available || p.page->available();
+        if (!p.available) continue;
+        ++ours;
+        load_texture_pack(p.page->texture_pack);
+        p.icon = shown_icon(*p.page);
+    }
+    if (!ours) return;
+    (main_menu ? g_pending_main : g_pending_pause) = menu;
+    // The scroller's four end markers, the most entries the game adds to either menu (the pause menu's Resume, Restart, Quit, Quit to free roam,
+    // Tuning and Options; the main menu's Career, Challenge, Quick Race, Customize, Alias Manager and Options), and ours. The layouts have 12
+    // slots, so nothing is cloned for up to two entries.
+    constexpr int kMarkers = 4, kMostGameEntries = 6;
+    ensure_icon_slots(field<const char *>(menu, kScreenPackage), kMarkers + kMostGameEntries + ours);
+}
+
+// The main menu has 11 slots, 4 of them end markers: with ours it needs one more, cloned, and its entry (the game's Options, the last) sits in the
+// clone. A press there is reported for the original slot's object, which the strip ignores (the input seemed dead): pressed_object fixes it.
+NotifyFn g_orig_main_notify = nullptr;
+void FASTCALL hook_main_notify(void *self, void *edx, unsigned msg, void *obj, unsigned p1, unsigned p2) {
+    g_orig_main_notify(self, edx, msg, pressed_object(self, msg, obj), p1, p2);
+}
+
+MethodFn g_orig_pause_setup = nullptr, g_orig_main_setup = nullptr;
+void FASTCALL hook_pause_setup(void *self, void *edx) {
+    g_pause_entry = nullptr;
+    if (!field<unsigned char>(self, kPauseFromRace)) prepare_menu_entries(self, false);
+    g_orig_pause_setup(self, edx);
+    g_pending_pause = nullptr;
+}
+void FASTCALL hook_main_setup(void *self, void *edx) {
+    g_main_entry = nullptr;
+    prepare_menu_entries(self, true);
+    g_orig_main_setup(self, edx);
+    g_pending_main = nullptr;
+}
+
+// ------------------------------------------------------------------------------------------------
 // Hooks. They are checked first: if another mod changed any of their first bytes, nothing is hooked, because the
 // parts depend on each other.
 // ------------------------------------------------------------------------------------------------
@@ -1698,6 +1842,9 @@ void install_hooks() {
     init_option_vtables();
     g_entry_vtbl[0] = reinterpret_cast<void *>(game::kIconOptionDelDtor);
     g_entry_vtbl[1] = reinterpret_cast<void *>(&entry_react);
+    g_pause_entry_vtbl[0] = g_main_entry_vtbl[0] = reinterpret_cast<void *>(game::kIconOptionDelDtor);
+    g_pause_entry_vtbl[1] = reinterpret_cast<void *>(&pause_entry_react);
+    g_main_entry_vtbl[1] = reinterpret_cast<void *>(&main_entry_react);
     const nfsmw::Hook hooks[] = {
         {"optmain", "UIOptionsMain::Setup", 0x528F30, {0x6A, 0xFF, 0x68, 0x20, 0xEB, 0x86, 0x00}, true,
          nfsmw::detour(&hook_optmain_setup), nfsmw::orig(&g_orig_optmain_setup)},
@@ -1730,6 +1877,20 @@ void install_hooks() {
     };
     nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), g_log, g_ini);
     g_video_hook = g_orig_setupvideo != nullptr;
+    // Entries in the pause menu and the main menu: they need the AddOption and screen switch hooks above, and each other (all or none).
+    if (g_orig_addoption && g_orig_queue_switch) {
+        const nfsmw::Hook entry_hooks[] = {
+            {"pausesetup", "PauseMenu::Setup", 0x546360, {0x56, 0x8B, 0xF1, 0x8A, 0x86, 0x48, 0x01}, true,
+             nfsmw::detour(&hook_pause_setup), nfsmw::orig(&g_orig_pause_setup)},
+            {"mainsetup", "UIMain::Setup", 0x544E50, {0x6A, 0xFF, 0x68, 0x00, 0xFF, 0x86, 0x00}, true,
+             nfsmw::detour(&hook_main_setup), nfsmw::orig(&g_orig_main_setup)},
+            {"pausenotify", "PauseMenu::NotificationMessage", 0x54FF10, {0x6A, 0xFF, 0x64, 0xA1, 0x00, 0x00, 0x00}, true,
+             nfsmw::detour(&hook_pause_notify), nfsmw::orig(&g_orig_pause_notify)},
+            {"mainnotify", "UIMain::NotificationMessage", 0x559FC0, {0x8B, 0x44, 0x24, 0x10, 0x8B, 0x54, 0x24}, true,
+             nfsmw::detour(&hook_main_notify), nfsmw::orig(&g_orig_main_notify)},
+        };
+        nfsmw::install_hooks(entry_hooks, sizeof(entry_hooks) / sizeof(entry_hooks[0]), g_log, g_ini, "menu entries");
+    }
     custom_menus::title_icon::install_hooks(g_log, g_ini);
     custom_menus::text_guard::install_hooks(g_log, g_ini);
     custom_menus::cycle_strips::install_hooks(g_log, g_ini);
