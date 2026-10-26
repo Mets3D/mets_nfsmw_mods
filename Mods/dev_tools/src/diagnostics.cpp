@@ -155,7 +155,12 @@ DWORD WINAPI watch_tls(LPVOID) {
 
 LONG CALLBACK exception_logger(EXCEPTION_POINTERS *e) {
     static int count = 0;
-    if (e->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION || count++ >= 3) return EXCEPTION_CONTINUE_SEARCH;
+    const DWORD code = e->ExceptionRecord->ExceptionCode;
+    // The crashes that end the game: not the C++ exceptions and debugger messages the game uses on purpose.
+    const bool fatal = code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_BREAKPOINT || code == EXCEPTION_ILLEGAL_INSTRUCTION ||
+                       code == EXCEPTION_INT_DIVIDE_BY_ZERO || code == EXCEPTION_STACK_OVERFLOW || code == EXCEPTION_PRIV_INSTRUCTION ||
+                       code == EXCEPTION_ARRAY_BOUNDS_EXCEEDED;
+    if (!fatal || count++ >= 3) return EXCEPTION_CONTINUE_SEARCH;
     const CONTEXT *c = e->ContextRecord;
     HMODULE module = nullptr;
     char name[MAX_PATH] = "?";
@@ -163,10 +168,13 @@ LONG CALLBACK exception_logger(EXCEPTION_POINTERS *e) {
                            reinterpret_cast<LPCSTR>(c->Eip), &module))
         GetModuleFileNameA(module, name, sizeof(name));
     const char *slash = strrchr(name, '\\');
-    g_log.line("ACCESS VIOLATION at eip=%#lx (%s+%#lx) %s address %#lx", c->Eip, slash ? slash + 1 : name,
-               c->Eip - reinterpret_cast<unsigned long>(module),
-               e->ExceptionRecord->ExceptionInformation[0] == 0 ? "reading" : "writing",
-               static_cast<unsigned long>(e->ExceptionRecord->ExceptionInformation[1]));
+    if (code == EXCEPTION_ACCESS_VIOLATION)
+        g_log.line("ACCESS VIOLATION at eip=%#lx (%s+%#lx) %s address %#lx", c->Eip, slash ? slash + 1 : name,
+                   c->Eip - reinterpret_cast<unsigned long>(module),
+                   e->ExceptionRecord->ExceptionInformation[0] == 0 ? "reading" : "writing",
+                   static_cast<unsigned long>(e->ExceptionRecord->ExceptionInformation[1]));
+    else
+        g_log.line("EXCEPTION %#lx at eip=%#lx (%s+%#lx)", code, c->Eip, slash ? slash + 1 : name, c->Eip - reinterpret_cast<unsigned long>(module));
     g_log.line("    eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx ebp=%08lx esp=%08lx", c->Eax, c->Ebx, c->Ecx,
                c->Edx, c->Esi, c->Edi, c->Ebp, c->Esp);
     const struct { const char *name; unsigned long value; } regs[] = {{"eax", c->Eax}, {"ebx", c->Ebx}, {"ecx", c->Ecx}, {"edx", c->Edx},
@@ -183,6 +191,7 @@ LONG CALLBACK exception_logger(EXCEPTION_POINTERS *e) {
 using ExitProcessFn = void(WINAPI *)(UINT);
 ExitProcessFn g_orig_exit_process;
 void WINAPI hook_exit_process(UINT code) {
+    g_exiting = true;
     log_caller_trace("ExitProcess", code);
     g_orig_exit_process(code);
 }

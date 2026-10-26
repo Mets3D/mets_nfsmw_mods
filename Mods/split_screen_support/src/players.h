@@ -17,6 +17,9 @@ int device(int player);
 // The keyboard as DirectInput shows it (256 bytes, bit 7 = down), whoever it reaches; false when it is not known.
 bool read_keyboard(unsigned char *out);
 
+// Tells the Press Start screen that a device let go of Start (what the real device does; for automated tests). Needs the screen showing.
+void tell_press_start(int device);
+
 void install();  // registers with events, hooks the Press Start screen
 
 }  // namespace split_screen_support::players

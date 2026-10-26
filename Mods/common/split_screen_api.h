@@ -7,6 +7,8 @@
 //                      The callback can draw lines and the like into the back buffer with the game's depth buffer still valid. `view_plat_info`
 //                      is the eViewPlatInfo of the view being drawn (its WorldClipMatrix is at +0x80), `width` and `height` are the back
 //                      buffer's. A callback is also a once-per-frame hook: it runs for player 0 on every frame the game draws.
+//   nfsmw_split_screen_support_press_start(int device)  for automated tests: the Press Start screen that is showing gets "this device let go of
+//                      Start" (device 0-3 = XInput controller, -1 = the keyboard), as if the person had pressed it.
 #pragma once
 
 #include <d3d9.h>
@@ -22,6 +24,12 @@ using OnViewDrawFn = void (*)(ViewDrawFn callback);
 inline OnViewDrawFn find_on_view_draw() {
     const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
     return module ? reinterpret_cast<OnViewDrawFn>(GetProcAddress(module, "nfsmw_split_screen_support_on_view_draw")) : nullptr;
+}
+
+using PressStartFn = void (*)(int device);
+inline PressStartFn find_press_start() {
+    const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
+    return module ? reinterpret_cast<PressStartFn>(GetProcAddress(module, "nfsmw_split_screen_support_press_start")) : nullptr;
 }
 
 }  // namespace nfsmw::split_screen_api

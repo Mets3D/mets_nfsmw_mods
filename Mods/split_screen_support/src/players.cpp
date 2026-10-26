@@ -247,6 +247,8 @@ bool split_screen() {
     return db && db[0] == 2 && (*reinterpret_cast<const unsigned *>(db + 0x12C) & 4);
 }
 
+void tell_press_start(int device) { press_start(device); }
+
 int device(int player) { return player == 0 || player == 1 ? g_race[player] : kKeyboard; }
 
 bool read_keyboard(unsigned char *out) {

@@ -36,6 +36,14 @@ The controls use your own keyboard bindings from the Controls menu:
 
 Press **-** to slow the game down and **+** (the key with the equals sign) to speed it up, each press halving or doubling the speed (from 1/16 to 8 times). The whole simulation runs at the new speed: the cars, the AI, the traffic. Above about 2 times the physics steps get coarse and the cars behave less and less like themselves. The game's own slow motion (the speedbreaker) still works on top of it, and the speed is written to `nfsmw_dev_tools.log` when it changes. `[game_speed]` in `nfsmw_dev_tools.ini` sets the keys.
 
+## Background running
+
+The game used to stop completely while its window wasn't in front (alt-tab, or another window clicked). With `[background] enabled=1` it keeps running: menus, races and rendering carry on, so you can work in another window while a long test runs.
+
+## Automation
+
+Lets a program test the game without anyone at the keyboard. A scenario is a text file with one command per line (wait for a screen, press a menu button, take a screenshot, quit). Name it with the `NFSMW_SCENARIO` environment variable or `scenario=` under `[automation]` and the game runs it by itself. The repo's `Tools/run_scenario.py` launches the game with a scenario and prints what happened; the commands and the bundled scenarios are described in [scenarios/ReadMe.md](scenarios/ReadMe.md). If the game stops drawing, the log says where its thread is.
+
 ## Ideas / TODOs
 - An options menu to tweak the current race's settings, like difficulty level, rubber banding (Catch Up), number of opponents, number of laps, traffic, police presence, and maybe even hidden values like opponent car value, however that is determined? The race would have to be restarted for the changes to take effect.
 - Would be interesting to display the perspective of a CPU player in the corner of the screen - Or, maybe it would be much easier, to allow a CPU to take control of one of the split screen players - But how do CPU players work, do they give their cars inputs like a human player, or is it something else?

@@ -9,6 +9,9 @@ namespace dev_tools {
 
 extern nfsmw::Logger g_log;
 extern char g_ini[MAX_PATH];  // nfsmw_dev_tools.ini
+// Set when the game is ending the process: nothing may suspend its threads from then on (a thread that is suspended when ExitProcess
+// kills the others stays suspended, and the process never ends).
+extern volatile bool g_exiting;
 
 inline bool ini_flag(const char *section, const char *key, bool def = true) {
     return GetPrivateProfileIntA(section, key, def ? 1 : 0, g_ini) != 0;

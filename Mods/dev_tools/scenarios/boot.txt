@@ -1,0 +1,9 @@
+# Boots with the auto load of nfsmw_dev_tools.ini (auto_load_alias), looks at where the game ends up, and quits.
+wait_until frontend timeout=120
+wait 5
+state
+screenshot boot_1
+wait 5
+state
+screenshot boot_2
+quit

@@ -1,5 +1,6 @@
 #include "view_api.h"
 
+#include "players.h"
 #include "split_screen_api.h"
 
 namespace split_screen_support::view_api {
@@ -19,6 +20,11 @@ void draw(IDirect3DDevice9 *device, const void *view_plat_info, float width, flo
 bool wanted() { return g_count > 0; }
 
 }  // namespace split_screen_support::view_api
+
+// For automated tests (nfsmw_dev_tools): the Press Start screen is told that a device (0-3 controller, -1 keyboard) let go of Start.
+extern "C" __declspec(dllexport) void nfsmw_split_screen_support_press_start(int device) {
+    split_screen_support::players::tell_press_start(device);
+}
 
 extern "C" __declspec(dllexport) void nfsmw_split_screen_support_on_view_draw(nfsmw::split_screen_api::ViewDrawFn callback) {
     using namespace split_screen_support::view_api;

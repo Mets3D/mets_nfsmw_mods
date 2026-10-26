@@ -1,0 +1,4 @@
+# Boots to the main menu and then waits: more commands can be appended to the copy in scripts/mets_mods/scenarios/ while it runs.
+wait_until main_menu timeout=120
+wait 3
+state

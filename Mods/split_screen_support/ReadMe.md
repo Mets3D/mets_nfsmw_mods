@@ -30,9 +30,10 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - The sun seems to be drawn for player 2 depending on player 1's perspective? Specifically, when player 1 has the sun in their view, player 2 might also get a sun rendered kinda arbitrarily in their view.
 - The player 1 and player 2 devices are locked in for the entire playsession after first starting a split screen race. This should not be the case, they should reset whenever we enter the split screen menu where it says "Player 1 press start" or so. Currently after 2 devices do a split-screen race, a 3rd device can't participate until the game is restarted (afaik).
 - Would be nice if we remembered the selected car for each player across sessions.
-- Would be nice if after a race we didn't get kicked all the way out and then having to click through all the menus again. The menu flow could use re-working.
+- Would be nice if after a race we didn't get kicked all the way out to the Quick Race menu, and then having to click through all the menus again.
 - How about vertical split screen? ;)
-- How about 4-player split screen?? :')
+- How about 3 or 4-player split screen?? :') This would need some menu flow tweaking, since we'd have to select how many players we want in the race, before sending to the "player x press start" screen. Also the game probably natively has 2 players, so we'd have to create 2 more, and then of course do the rendering and the UI layout 4x as well, whoof.
+- Port the options from Quick Race to Split Screen: NPC opponents, Difficulty, Catch-Up, Heat Level.
 
 ### AI Disclaimer
 

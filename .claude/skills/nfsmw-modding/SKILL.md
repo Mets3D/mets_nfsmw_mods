@@ -22,7 +22,7 @@ description: How to work on the NFS Most Wanted (2005) ASI mods in this repo - w
   Linux, cross-compiling: `cd Mods && cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=../Tools/nfsmw-2005-sdk/cmake/nfsmw-toolchain-mingw-i686.cmake && cmake --build build`.
   Re-run the configure after adding files. Details: `agent_docs/project.md`.
 - Deploy by copying `Mods/build/nfsmw_<mod>.asi` into each game install's `scripts/` (or `python Mods/set_mods.py --mode ours --game <dir>`; no install path is hard-coded, always pass `--game`).
-  **Never launch the game.** The user tests. `set_mods.py` closes a game running from that install before it changes anything (`--keep-running`
+  **Do not launch the game by hand; the user tests.** The exception is the scripted test run (`python Tools/run_scenario.py --game <install> <scenario>`, see `agent_docs/project.md` "Automated test runs"), which the user allowed on the Redux v3 install: use it for what a script can check (boot, hooks installed, a screenshot of a menu or race, no crash), and say what it cannot judge. Never close a game the user started (check `Get-CimInstance Win32_Process` for steam.exe as the parent); if one is running, ask. `set_mods.py` closes a game running from that install before it changes anything (`--keep-running`
   to leave it), because a changed `.asi` crashes a running game (Wine maps the file; seen 2026-10-16: access violation in ntdll's TLS
   callbacks reading garbage, dump written 3 ms after a `cp`). So deploy with `set_mods.py`, not `cp`; if you must copy by hand, check
   `pgrep -af 'speed\.exe'` first and use `cp --remove-destination`. Windows: kill a running `speed.exe` before deploying (the file is locked).
@@ -45,7 +45,7 @@ A diagnosis that needs one fact gets one targeted line, not a dump; a flooded lo
 behind a one-shot trigger: a test run costs the user more than a few hundred log lines, and guessing which part to log in successive runs is the most expensive way to find out.
 
 ## Token economy (the user's session budget is small)
-- Short answers: what changed, what to test, what is uncertain. No narrated tool calls, no recaps of the whole task.
+- Short answers: what changed, what to test, what is uncertain. No recaps of the whole task. But while working (especially anything that launches the game, which the user sees on their desktop) say in one line what you are about to do and why before each step, and report what each result showed as it comes in; the user follows along live and must never have to ask what is going on.
 - Targeted reads and greps; disassemble only the bytes you need (a list of relocations or a whole function dump is almost never needed).
 - Record a finding once: `agent_docs/<subject>.md` for data / flow / gotchas, `Tools/re/names.json` for a function. Do not write chronological notes about solved problems.
 - Avoid questions whose answer the code or the user's earlier words give. Ask only for decisions that are the user's.

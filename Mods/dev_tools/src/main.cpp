@@ -5,11 +5,15 @@
  *   quick_start.cpp         skips the boot flow (EA logo, intro movies, splash screen) straight to the main menu
  *   free_camera.cpp         a camera that flies around the track during a race (F1), moves the car to where it is (the speedbreaker key)
  *   game_speed.cpp          two keys that slow the game down and speed it up
+ *   background.cpp          the game keeps running while its window is not in front
+ *   automation.cpp          runs a scenario script (menu presses, waits, screenshots, quit) so a program can test the game; uses screenshot.cpp
  *
  * Files in <game>/scripts/mets_mods/: nfsmw_dev_tools.log, nfsmw_dev_tools.ini (optional).
  */
 #include "dev_tools.h"
 
+#include "automation.h"
+#include "background.h"
 #include "diagnostics.h"
 #include "free_camera.h"
 #include "game_speed.h"
@@ -22,6 +26,7 @@ namespace dev_tools {
 
 nfsmw::Logger g_log;
 char g_ini[MAX_PATH];
+volatile bool g_exiting = false;
 
 unsigned long since_start_ms() {
     FILETIME created, exited, kernel, user, now;
@@ -59,5 +64,7 @@ NFSMW_PLUGIN_MAIN() {
     if (ini_flag("quick_start", "enabled")) quick_start::install();
     if (ini_flag("free_camera", "enabled")) free_camera::install();
     if (ini_flag("game_speed", "enabled")) game_speed::install();
+    if (ini_flag("background", "enabled")) background::install();
+    if (ini_flag("automation", "enabled")) automation::install();
     return NFSMW_OK;
 }
