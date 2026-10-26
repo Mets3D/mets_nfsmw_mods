@@ -15,11 +15,11 @@ These are my mods for NFS: MW 2005 (1.3). My goal with these mods is to improve 
 Download the latest `mets_nfsmw_mods_<version>.zip` from the [Releases](../../releases) page and copy its `scripts` folder into the game's folder (next to `speed.exe`). It has Custom Menus, Controller Support, Split Screen Support and Camera Settings; Dev Tools is not included in the release.
 
 ## General Compatibility
-- Required: NFS: MW 2005 v1.3. Black Box or not, shouldn't matter.
+- Required: NFS: MW 2005 v1.3. Black Box or not, shouldn't matter, but it must be v1.3.
 - Required: [Ultimate ASI Loader (dinput8.dll)](https://github.com/ThirteenAG/Ultimate-ASI-Loader). This ships with most distributions of WideScreenFix, so you probably already have it.
-- All my mods were tested with (and without) the [Redux v3 mod pack](https://docs.google.com/spreadsheets/d/e/2PACX-1vTEQaQpo3EscLpyFm7jrr7Q9ivAmBIXN6rklMVuXAsZec0tRRw4MvHnUSD7V2kgyw/pubhtml). Some .ini tweaks needed, mentioned in the ReadMe of each mod.
+- All my mods were tested with (and without) the [Redux v3 mod pack](https://docs.google.com/spreadsheets/d/e/2PACX-1vTEQaQpo3EscLpyFm7jrr7Q9ivAmBIXN6rklMVuXAsZec0tRRw4MvHnUSD7V2kgyw/pubhtml).
 - My mods were also tested and confirmed fully working on Linux with Steam's Proton Experimental.
 
 ## AI Disclaimer
 
-The code was written by Claude (Sonnet & Opus). All ReadMe's are human-written, so you're not reading AI slop.
+The code was written by Claude (Sonnet & Opus). All ReadMe's are human-written, so you're not reading AI slop, unless you read the code.

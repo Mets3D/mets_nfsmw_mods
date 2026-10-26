@@ -684,6 +684,14 @@ HRESULT WINAPI hook_poll_device(void *device) {
     return hr < 0 && known_xinput_device(device) ? 0 : hr;
 }
 
+// A mouse state read (DIMOUSESTATE: X, Y, wheel, then the buttons): its movement is added up for the camera look (take_mouse_delta).
+void add_mouse_state(const void *data) {
+    const LONG *mouse = static_cast<const LONG *>(data);
+    g_mouse_dx += mouse[0];
+    g_mouse_dy += mouse[1];
+    if (mouse[0] || mouse[1] || mouse[2] || any_pressed(static_cast<const BYTE *>(data) + 12, 4)) g_last_input_pad = false;
+}
+
 HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
     HRESULT hr = g_orig_get_device_state(device, size, data);
     if (hr < 0 && data && (size == kJoyStateSize || size == kJoyState2Size) && known_xinput_device(device)) {
@@ -692,11 +700,9 @@ HRESULT WINAPI hook_get_device_state(void *device, DWORD size, void *data) {
         hr = 0;
     }
     if (hr >= 0 && data && (size == kMouseStateSize || size == kMouseState2Size)) {
-        if (device != g_own_mouse) g_other_mouse_seen = true;
-        const LONG *mouse = static_cast<const LONG *>(data);
-        g_mouse_dx += mouse[0];
-        g_mouse_dy += mouse[1];
-        if (mouse[0] || mouse[1] || mouse[2] || any_pressed(static_cast<const BYTE *>(data) + 12, 4)) g_last_input_pad = false;
+        if (device == g_own_mouse) return hr;  // poll_own_mouse adds its movement up itself: this hook is on the keyboard's function, which the mouse may not share
+        g_other_mouse_seen = true;
+        add_mouse_state(data);
         return hr;
     }
     if (hr >= 0 && data && size == kKeyboardStateSize) {
@@ -795,9 +801,9 @@ void *FASTCALL hook_mapping_ctor(void *self, void *edx, void *device, void *spec
     return result;
 }
 
-// The vanilla game takes the mouse from Windows (the cursor of its menus), not from DirectInput, so there is no
+// The game takes the mouse cursor from Windows (the cursor of its menus), and polls a DirectInput mouse only on some installs, so there may be no
 // movement to look around with. Without another mod reading one, a DirectInput mouse of our own (shared, only while the
-// game is in front) is read through the same hooked GetDeviceState, which adds its movement up like any other.
+// game is in front) is read here, and its movement added up like any other mouse's.
 void poll_own_mouse() {
     static bool tried = false;
     static DWORD next_try = 0;
@@ -815,9 +821,9 @@ void poll_own_mouse() {
         if (!window || !create || create(GetModuleHandleA(nullptr), 0x0800, &kIID_IDirectInput8A, &di, nullptr) < 0 || !di) return;
         // DIMOUSESTATE: X, Y, Z axes and four buttons (c_dfDIMouse, which dinput8 does not export).
         static const GUID kSysMouse = {0x6F1D2B60, 0xD5A0, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
-        static const GUID kXAxis = {0xA36D02E0, 0xC9F3, 0x11CF, {0xBF, 0xC4, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
-        static const GUID kYAxis = {0xA36D02E1, 0xC9F3, 0x11CF, {0xBF, 0xC4, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
-        static const GUID kZAxis = {0xA36D02E2, 0xC9F3, 0x11CF, {0xBF, 0xC4, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+        static const GUID kXAxis = {0xA36D02E0, 0xC9F3, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+        static const GUID kYAxis = {0xA36D02E1, 0xC9F3, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+        static const GUID kZAxis = {0xA36D02E2, 0xC9F3, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
         struct ObjectFormat {
             const GUID *guid;
             DWORD offset, type, flags;
@@ -837,27 +843,31 @@ void poll_own_mouse() {
         using SetFormatFn = HRESULT(WINAPI *)(void *, const void *);
         using SetLevelFn = HRESULT(WINAPI *)(void *, HWND, DWORD);
         using ReleaseFn = ULONG(WINAPI *)(void *);
-        const bool made = reinterpret_cast<CreateDeviceFn>(di_vtbl[3])(di, &kSysMouse, &mouse, nullptr) >= 0 && mouse;
-        if (made) {
+        static int failures = 0;  // the log gets the first few: the same thing is tried again every 5 seconds
+        const HRESULT created = reinterpret_cast<CreateDeviceFn>(di_vtbl[3])(di, &kSysMouse, &mouse, nullptr);
+        if (created >= 0 && mouse) {
             void **vtbl = *static_cast<void ***>(mouse);
-            const bool ok = reinterpret_cast<SetFormatFn>(vtbl[11])(mouse, &format) >= 0 &&
-                            reinterpret_cast<SetLevelFn>(vtbl[13])(mouse, window, 2 | 4) >= 0;  // non-exclusive, foreground
-            if (ok) {
+            const HRESULT format_hr = reinterpret_cast<SetFormatFn>(vtbl[11])(mouse, &format);
+            const HRESULT level_hr = format_hr >= 0 ? reinterpret_cast<SetLevelFn>(vtbl[13])(mouse, window, 2 | 4) : format_hr;  // non-exclusive, foreground
+            if (format_hr >= 0 && level_hr >= 0) {
                 g_own_mouse = mouse;
                 log_line("mouse: reading it through our own DirectInput device (the game takes it from Windows)");
             } else {
                 reinterpret_cast<ReleaseFn>(vtbl[2])(mouse);
-                log_line("mouse: could not set up a DirectInput mouse");
+                if (failures++ < 3)
+                    log_line("mouse: could not set up a DirectInput mouse (SetDataFormat %08lx, SetCooperativeLevel %08lx, window %p, a window: %d)",
+                             static_cast<unsigned long>(format_hr), static_cast<unsigned long>(level_hr), static_cast<void *>(window), IsWindow(window) ? 1 : 0);
             }
-        } else {
-            log_line("mouse: could not create a DirectInput mouse");
+        } else if (failures++ < 3) {
+            log_line("mouse: could not create a DirectInput mouse (CreateDevice %08lx)", static_cast<unsigned long>(created));
         }
         reinterpret_cast<ReleaseFn>(di_vtbl[2])(di);
         if (!g_own_mouse) return;
     }
     void **vtbl = *static_cast<void ***>(g_own_mouse);
     BYTE state[16];
-    HRESULT hr = reinterpret_cast<GetStateFn>(vtbl[9])(g_own_mouse, sizeof(state), state);  // the hook adds the movement up
+    HRESULT hr = reinterpret_cast<GetStateFn>(vtbl[9])(g_own_mouse, sizeof(state), state);
+    if (hr >= 0) add_mouse_state(state);
     if (hr == static_cast<HRESULT>(0x8007001E) || hr == static_cast<HRESULT>(0x8007000C)) {  // input lost / not acquired
         using AcquireFn = HRESULT(WINAPI *)(void *);
         reinterpret_cast<AcquireFn>(vtbl[7])(g_own_mouse);

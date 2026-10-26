@@ -4,12 +4,9 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) lets you tune camera views i
 
 ![The Options > Camera page in the pause menu](docs/camera-options-menu.jpg)
 
-[YouTube link.](https://www.youtube.com/watch?v=G5I_quac7Gc)
+[YouTube link.](https://www.youtube.com/watch?v=busbD-FejdI)
 
 This mod is now considered finished.
-
-## Download
-Download from the [Releases](../../../../releases) page.
 
 ## Mod Compatibility
 
@@ -18,7 +15,6 @@ Download from the [Releases](../../../../releases) page.
 - Confirmed compatible:
   - "DRIFT" and "Pursuit" camera modes added by [`NFSMWExtraOptions`](https://github.com/ExOptsTeam/NFSMWExOpts).
 - This mod will force `ForceEnableMirror = 0` in the [NFSMWHDReflections](https://github.com/sniten/NFSMWHDReflections) mod, since the mirror can now be toggled per-camera instead.
-
 
 ## Camera Settings
 

@@ -57,6 +57,39 @@ void FASTCALL hook_mover_update(void *self, void *edx, float dt) {
     g_mover = nullptr;
 }
 
+// The mouse while driving. The game draws its own cursor whenever the mouse moves, and in a window the cursor can leave it. The look takes
+// the mouse's movement from DirectInput, not from the cursor, so while the race HUD is up (FEngHud::Update ran in the last 200 ms and the
+// game is not paused, which leaves the pause menu, the result screens and the front end with their cursor) the cursor is put back at the
+// middle of the window every frame and the game's cursor is not drawn (the same test as the widescreen fix's).
+DWORD g_last_hud_tick = 0;
+bool driving() {
+    constexpr uintptr_t kGameFlowManager = 0x925E70;
+    const auto is_paused = reinterpret_cast<bool(__attribute__((thiscall)) *)(void *)>(0x64B680);  // GameFlowManager::IsPaused
+    return g_last_hud_tick && GetTickCount() - g_last_hud_tick < 200 && !is_paused(reinterpret_cast<void *>(kGameFlowManager));
+}
+
+void recentre_cursor() {
+    HWND window = *reinterpret_cast<HWND *>(0x982BF4);  // the game's window
+    RECT client;
+    if (!window || GetForegroundWindow() != window || !GetClientRect(window, &client)) return;
+    POINT middle = {client.right / 2, client.bottom / 2};
+    if (ClientToScreen(window, &middle)) SetCursorPos(middle.x, middle.y);
+}
+
+using HudUpdateFn = void(FASTCALL *)(void *, void *, unsigned, unsigned);
+HudUpdateFn g_orig_hud_update;
+void FASTCALL hook_hud_update(void *hud, void *edx, unsigned a, unsigned b) {
+    g_last_hud_tick = GetTickCount();
+    g_orig_hud_update(hud, edx, a, b);
+}
+
+using DrawCursorFn = void(__cdecl *)(int, int);
+DrawCursorFn g_orig_draw_cursor;
+void __cdecl hook_draw_cursor(int x, int y) {
+    if (g_look_cfg.enabled && driving()) return;
+    g_orig_draw_cursor(x, y);
+}
+
 void reset_look() {
     LookState &l = g_state[g_who];
     l.yaw = l.pitch = l.idle = 0.0f;
@@ -71,9 +104,14 @@ void look_at(void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
     LONG mouse_x = 0, mouse_y = 0;
     if (g_who == (extra_device::keyboard_source() ? 1 : 0)) {  // the mouse is the keyboard player's
         input::take_mouse_delta(&mouse_x, &mouse_y);
+        if (g_look_cfg.enabled && mode >= 2 && driving()) recentre_cursor();
         // Mouse movement collected while no chase camera ran (menus, pause, other views) is dropped.
         static DWORD last_tick = 0;
         const DWORD now = GetTickCount();
+        if ((mouse_x || mouse_y) && (now - last_tick > 250 || !l.prev_target_valid)) {
+            static int dropped = 0;
+            if (dropped++ < 3) log_line("look: mouse movement (%ld, %ld) dropped (%s)", mouse_x, mouse_y, !l.prev_target_valid ? "first frame of this view" : "no look update for 250 ms");
+        }
         if (now - last_tick > 250 || !l.prev_target_valid) mouse_x = mouse_y = 0;
         last_tick = now;
     }
@@ -162,8 +200,12 @@ void install_hooks() {
     const nfsmw::Hook hooks[] = {
         {"mover", "CubicCameraMover::Update", 0x47D3C0, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x81}, false,
          nfsmw::detour(&hook_mover_update), nfsmw::orig(&g_orig_mover_update)},
+        {"hud_update", "FEngHud::Update", 0x58CA30, {0x64, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x6A}, false,
+         nfsmw::detour(&hook_hud_update), nfsmw::orig(&g_orig_hud_update)},
+        {"draw_cursor", "DrawCursor", 0x56FDB0, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x81}, false,
+         nfsmw::detour(&hook_draw_cursor), nfsmw::orig(&g_orig_draw_cursor)},
     };
-    nfsmw::install_hooks(hooks, 1, g_log, nullptr, "camera look");
+    nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), g_log, nullptr, "camera look");
     if (g_look_cfg.enabled && !patch_look_call()) g_look_cfg.enabled = false;
 }
 
