@@ -59,17 +59,9 @@ void __fastcall add_option_and_ours(void *menu, void *unused, void *option) {
 
 void install() {
     // Another mod that changed this call (the NFSMWExtraOptions split screen fix adds the entry itself) leaves it as it is.
-    const auto call_to = [](uintptr_t site, uintptr_t target, unsigned char *out) {
-        out[0] = 0xE8;
-        const intptr_t rel = static_cast<intptr_t>(target) - static_cast<intptr_t>(site + 5);
-        memcpy(out + 1, &rel, 4);
-    };
-    unsigned char original[5], patched[5];
-    call_to(kSecondAddOption, kAddOption, original);
-    call_to(kSecondAddOption, reinterpret_cast<uintptr_t>(&add_option_and_ours), patched);
     g_vtable[0] = *reinterpret_cast<void **>(kCustomRaceVtable);
     g_vtable[1] = reinterpret_cast<void *>(&react);
-    if (!nfsmw::patch_bytes(kSecondAddOption, original, patched, sizeof(original))) {
+    if (!nfsmw::redirect_call(kSecondAddOption, kAddOption, reinterpret_cast<uintptr_t>(&add_option_and_ours))) {
         g_log.line("the Quick Race menu setup (%#x) was changed by another mod; not adding the Split Screen entry",
                    static_cast<unsigned>(kSecondAddOption));
         return;

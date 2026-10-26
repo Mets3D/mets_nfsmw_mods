@@ -15,6 +15,7 @@
 
 #include "custom_menus_api.h"
 #include "hooks.h"
+#include "player_count.h"
 #include "split_screen_support.h"
 
 namespace split_screen_support::minimap_option {
@@ -96,4 +97,5 @@ extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const nfsmw::cu
     g_page = {"split_minimap", "Minimap", "MINIMAP", "MINIMAP", 0, 0, nullptr, 1, kRows, nullptr, opened, value, change, changed, accept,
               discard, defaults, opt::kPlayerOptions};
     host->register_page(&g_page);
+    split_screen_support::player_count::register_texts(host);
 }

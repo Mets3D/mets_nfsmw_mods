@@ -19,6 +19,28 @@ inline bool patch_bytes(uintptr_t addr, const unsigned char *expected, const uns
     return true;
 }
 
+// Makes the `call rel32` at `site` (which must call `old_target`) call `new_target` instead. For when a function may be hooked or changed by
+// other mods, so one call of it is redirected, not the function itself; `new_target` can call `old_target` (whatever is there now).
+inline bool redirect_call(uintptr_t site, uintptr_t old_target, uintptr_t new_target) {
+    unsigned char expected[5], replacement[5];
+    expected[0] = replacement[0] = 0xE8;
+    const int32_t old_rel = static_cast<int32_t>(old_target - (site + 5)), new_rel = static_cast<int32_t>(new_target - (site + 5));
+    memcpy(expected + 1, &old_rel, 4);
+    memcpy(replacement + 1, &new_rel, 4);
+    return patch_bytes(site, expected, replacement, 5);
+}
+
+// Like redirect_call, for a call that another mod may already have redirected: whatever the `call rel32` at `site` calls now is returned
+// (0 if it is no call) and the call goes to `new_target`, which is to call the returned address, so both mods' code runs.
+inline uintptr_t chain_call(uintptr_t site, uintptr_t new_target) {
+    unsigned char *at = reinterpret_cast<unsigned char *>(site);
+    if (at[0] != 0xE8) return 0;
+    int32_t rel;
+    memcpy(&rel, at + 1, 4);
+    const uintptr_t previous = site + 5 + rel;
+    return redirect_call(site, previous, new_target) ? previous : 0;
+}
+
 // Machine code in memory of its own, written byte by byte. Short jumps are emitted with a hole (jump_short) that
 // resolve_short() fills in with the distance to the current position.
 class Stub {

@@ -199,6 +199,7 @@ void add_text(unsigned hash, const char *text) {
 
 void retranslate() {
     for (size_t i = 0; i < g_sources.size(); ++i) g_texts[i].text = translations::translate(g_sources[i].text);
+    ensure_texts();  // the game's new language table has none of them
 }
 
 void set_binding_label(opt::BindingLabelFn fn) { g_label_fn = fn; }
@@ -209,6 +210,7 @@ void add_controller_defaults(void (*fn)()) { g_defaults_fns.push_back(fn); }
 
 void apply(nfsmw::Logger &log, const char *ini) {
     g_log = &log;
+    ensure_texts();  // texts registered for anything but Controls rows (a mod's own screens) need to be in the table too
     if (!g_defaults_fns.empty()) {
         const nfsmw::Hook defaults[] = {
             {"controller_defaults", "controller defaults", 0x63CD80, {0xA1, 0x50, 0xF1, 0x91, 0x00, 0x81, 0xEC}, false,

@@ -13,7 +13,7 @@ The script copies `scenarios/<name>.txt` to the install's `scripts/mets_mods/sce
 - The install needs `nfsmw_dev_tools.asi` (deploy with `Mods/set_mods.py`) and, for the split screen scenarios, `nfsmw_split_screen_support.asi`.
 - The game runs in a 1280x720 window for the run (the widescreen fix's ini is changed and put back), because in exclusive fullscreen the game loses its Direct3D device when another window takes focus. `--fullscreen` leaves the ini alone. `[background]` in `nfsmw_dev_tools.ini` keeps the game running while unfocused.
 - `--verbose` prints the whole `nfsmw_dev_tools.log` and the other mods' log sizes.
-- The game allows one copy: a game that is already running from the install is closed first, unless it was started by Steam (then the script stops).
+- The game allows one copy: a game that is already running from the install is closed first, whoever started it.
 - A running game also re-reads its scenario file when it has grown, so lines can be appended to `scripts/mets_mods/scenarios/<name>.txt` while it runs. A scenario with no `quit` leaves the game open for that (`live.txt` is such a scenario).
 
 ## Format
@@ -38,6 +38,7 @@ Every change of screen is logged (`screen: <package> (frame, ms)`) without a com
 
 - `boot.txt` starts the game, which loads the profile named by `auto_load_alias` in `nfsmw_dev_tools.ini` and ends in the main menu, takes two screenshots and quits.
 - `split_race.txt` goes through the real menus (Main Menu > Quick Race > Split Screen > Circuit > first track > options > Press Start and car for each player) into a two player split screen race, waits ten seconds, logs the state, takes a screenshot and quits. About 36 seconds.
+- `split_race_4.txt` is the same with the **Players** row set to 4 (`more_players=1` in the split screen mod's ini): Press Start and Car Select for four players with four devices, then the race (still 2 players). About 60 seconds.
 - `live.txt` boots to the main menu and waits for lines to be appended.
 
 ## Writing a scenario for another menu path

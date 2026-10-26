@@ -12,6 +12,11 @@ constexpr int kKeyboard = -1;  // a device: the keyboard; 0-3 are XInput control
 // The game is a split screen game: Quick Race with two players (FEDatabase).
 bool split_screen();
 
+// The devices that pressed Start for players 1 and 2 (-2 for a player who has not), and putting them back (more_players.cpp keeps the
+// first round's while the second round's are chosen).
+void get_chosen(int out[2]);
+void set_chosen(const int in[2]);
+
 // The device of player 0 or player 1 in this race (0-3 an XInput controller, or kKeyboard).
 int device(int player);
 // The keyboard as DirectInput shows it (256 bytes, bit 7 = down), whoever it reaches; false when it is not known.

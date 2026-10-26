@@ -23,6 +23,7 @@
 #include "controller_api.h"
 #include "events.h"
 #include "hooks.h"
+#include "more_players.h"
 #include "split_screen_support.h"
 
 namespace split_screen_support::players {
@@ -225,6 +226,7 @@ void *hook_create_press_start(void *data) {
     void *screen = g_orig_create_press_start(data);
     if (screen && split_screen()) {
         g_press_start_screen = screen;
+        more_players::on_press_start_screen(screen);
         g_log.line("Press Start screen for player %d: every device can press",
                    *reinterpret_cast<int *>(static_cast<char *>(screen) + 0x2C) + 1);
         give_controls(kEveryone);
@@ -248,6 +250,16 @@ bool split_screen() {
 }
 
 void tell_press_start(int device) { press_start(device); }
+
+void get_chosen(int out[2]) {
+    out[0] = g_chosen[0];
+    out[1] = g_chosen[1];
+}
+
+void set_chosen(const int in[2]) {
+    g_chosen[0] = in[0];
+    g_chosen[1] = in[1];
+}
 
 int device(int player) { return player == 0 || player == 1 ? g_race[player] : kKeyboard; }
 

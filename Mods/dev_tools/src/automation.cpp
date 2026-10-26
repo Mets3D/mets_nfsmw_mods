@@ -25,6 +25,7 @@
 #include "automation.h"
 
 #include <d3d9.h>
+#include <tlhelp32.h>
 
 #include <string>
 #include <vector>
@@ -298,31 +299,40 @@ DWORD WINAPI stall_watch(void *) {
         Sleep(1000);
         const DWORD now = GetTickCount();
         if (g_exiting) return 0;
-        if (!g_last_present_ms || now - g_last_present_ms < 4000) {
+        if (now - g_last_present_ms < 4000) {
             reports = 0;
             continue;
         }
         if (reports >= 6 || now - g_last_present_ms < 4000 + 5000u * reports) continue;
         ++reports;
-        HANDLE thread = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, g_game_thread);
-        if (!thread) continue;
-        CONTEXT context = {};
-        context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
-        char line[600];
-        int n = 0;
-        if (SuspendThread(thread) != static_cast<DWORD>(-1)) {
-            if (GetThreadContext(thread, &context)) {
-                n = snprintf(line, sizeof(line), "no frame for %lu ms: eip %#lx esp %#lx, code addresses on the stack:", now - g_last_present_ms, context.Eip, context.Esp);
-                const unsigned long *stack = reinterpret_cast<const unsigned long *>(context.Esp);
-                for (int i = 0; i < 256 && n < static_cast<int>(sizeof(line)) - 12; ++i) {
-                    if (IsBadReadPtr(&stack[i], 4)) break;
-                    if (stack[i] >= 0x401000 && stack[i] < 0x900000) n += snprintf(line + n, sizeof(line) - n, " %#lx", stack[i]);
+        // Every thread of the process but this one: where each is now.
+        const DWORD me = GetCurrentThreadId(), pid = GetCurrentProcessId();
+        HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+        THREADENTRY32 entry = {sizeof(entry)};
+        for (BOOL more = snapshot != INVALID_HANDLE_VALUE && Thread32First(snapshot, &entry); more; more = Thread32Next(snapshot, &entry)) {
+            if (entry.th32OwnerProcessID != pid || entry.th32ThreadID == me) continue;
+            HANDLE thread = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, entry.th32ThreadID);
+            if (!thread) continue;
+            CONTEXT context = {};
+            context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+            char line[600];
+            int n = 0;
+            if (SuspendThread(thread) != static_cast<DWORD>(-1)) {
+                if (GetThreadContext(thread, &context)) {
+                    n = snprintf(line, sizeof(line), "no frame for %lu ms: thread %lu%s eip %#lx, code addresses on the stack:", now - g_last_present_ms,
+                                 entry.th32ThreadID, entry.th32ThreadID == g_game_thread ? " (the game's)" : "", context.Eip);
+                    const unsigned long *stack = reinterpret_cast<const unsigned long *>(context.Esp);
+                    for (int i = 0; i < 256 && n < static_cast<int>(sizeof(line)) - 12; ++i) {
+                        if (IsBadReadPtr(&stack[i], 4)) break;
+                        if (stack[i] >= 0x401000 && stack[i] < 0x900000) n += snprintf(line + n, sizeof(line) - n, " %#lx", stack[i]);
+                    }
                 }
+                ResumeThread(thread);
             }
-            ResumeThread(thread);
+            CloseHandle(thread);
+            if (n) g_log.line("automation: %s", line);
         }
-        CloseHandle(thread);
-        if (n) g_log.line("automation: %s", line);
+        if (snapshot != INVALID_HANDLE_VALUE) CloseHandle(snapshot);
     }
 }
 
@@ -343,6 +353,8 @@ DWORD WINAPI keep_hooked(void *) {
         g_log.line("automation: Present hooked (device %p, vtable %p, %lu ms after the process started)", device, vtable, since_start_ms());
         if (!watching) {
             watching = true;
+            g_game_thread = 0;
+            g_last_present_ms = GetTickCount();
             CreateThread(nullptr, 0, stall_watch, nullptr, 0, nullptr);
         }
     }

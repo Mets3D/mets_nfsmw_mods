@@ -9,6 +9,8 @@
  *   split_view.cpp     the screen in two: the world drawn once per player, each player's shadow map
  *   minimap.cpp        a minimap for each player, a colour for each player's marker
  *   minimap_option.cpp the Options > Player > Minimap row: each player can hide their own minimap
+ *   player_count.cpp   the "Players" row (2 or 4) of the split screen race options
+ *   more_players.cpp   players 3 and 4: a second round of Press Start and Car Select, their picks kept in a table
  *   players.cpp        which controller is whose (XInput), player 1's alone reaches the game
  *   state_log.cpp      a log of the player count, devices and view mode
  *   view_api.cpp       what other mods may draw into each player's picture (common/split_screen_api.h), e.g. nfsmw_improved_ai_opponents's overlay
@@ -24,6 +26,8 @@
 #include "menu_entry.h"
 #include "minimap.h"
 #include "minimap_option.h"
+#include "more_players.h"
+#include "player_count.h"
 #include "players.h"
 #include "split_view.h"
 #include "state_log.h"
@@ -47,6 +51,10 @@ NFSMW_PLUGIN_MAIN() {
     split_view::install();
     if (ini_flag("options", "use_split_minimap")) minimap::install();
     minimap_option::install();
+    if (ini_flag("options", "more_players", false)) {  // work in progress: see the ini
+        player_count::install();
+        more_players::install();
+    }
     players::install();  // before state_log: the world load log shows its ports
     state_log::install();
     events::install();

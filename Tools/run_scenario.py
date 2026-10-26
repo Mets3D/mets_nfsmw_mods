@@ -5,7 +5,7 @@ usage: python Tools/run_scenario.py --game <install dir> <scenario> [--timeout 3
 The scenario is Mods/dev_tools/scenarios/<scenario>.txt (commands: see Mods/dev_tools/src/automation.cpp). It is copied to the
 install's scripts/mets_mods/scenarios/, the game is started with NFSMW_SCENARIO=<scenario>, and killed when the scenario has not
 ended it by --timeout seconds. Needs nfsmw_dev_tools.asi in the install (deploy with Mods/set_mods.py first). A speed.exe of
-the same install that is already running is closed first; one of another install makes this stop (the game allows one copy).
+the same install that is already running is closed first (the user allowed it, even their own game); one of another install makes this stop (the game allows one copy).
 The game runs in a 1280x720 window (the widescreen fix's WindowedMode / ResX / ResY are set for the run and put back after it): in
 exclusive fullscreen the game loses its Direct3D device whenever another window takes focus, and screenshots then fail. --fullscreen keeps the ini.
 Prints the exit code, the screens reached, `state` lines and crashes from nfsmw_dev_tools.log (all of it with --verbose), and the
@@ -23,11 +23,18 @@ from pathlib import Path
 SCENARIOS = Path(__file__).resolve().parent.parent / 'Mods' / 'dev_tools' / 'scenarios'
 
 
-def running_game_paths():
+def running_games():
+    """[(pid, exe path, name of the parent process)] of every speed.exe."""
     out = subprocess.run(['powershell', '-NoProfile', '-Command',
-                          "Get-CimInstance Win32_Process -Filter \"Name='speed.exe'\" | ForEach-Object { \"$($_.ProcessId)|$($_.ExecutablePath)\" }"],
+                          "Get-CimInstance Win32_Process -Filter \"Name='speed.exe'\" | ForEach-Object { "
+                          "$p = Get-CimInstance Win32_Process -Filter \"ProcessId=$($_.ParentProcessId)\"; "
+                          "\"$($_.ProcessId)|$($_.ExecutablePath)|$($p.Name)\" }"],
                          capture_output=True, text=True).stdout
-    return [line.strip().split('|', 1) for line in out.splitlines() if '|' in line]
+    return [line.strip().split('|', 2) for line in out.splitlines() if line.count('|') == 2]
+
+
+def running_game_paths():
+    return [(pid, path) for pid, path, _ in running_games()]
 
 
 def kill(pid):
@@ -59,7 +66,7 @@ def main():
     if not (game / 'scripts' / 'nfsmw_dev_tools.asi').exists():
         sys.exit('nfsmw_dev_tools.asi is not in the install: deploy it with Mods/set_mods.py first')
 
-    for pid, path in running_game_paths():
+    for pid, path, parent in running_games():
         if Path(path).resolve() != exe:
             sys.exit(f'speed.exe {pid} from {path} is running; the game allows one copy')
         if not kill(pid):

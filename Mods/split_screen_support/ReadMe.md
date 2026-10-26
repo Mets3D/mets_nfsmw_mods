@@ -32,7 +32,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - Would be nice if we remembered the selected car for each player across sessions.
 - Would be nice if after a race we didn't get kicked all the way out to the Quick Race menu, and then having to click through all the menus again.
 - How about vertical split screen? ;)
-- How about 3 or 4-player split screen?? :') This would need some menu flow tweaking, since we'd have to select how many players we want in the race, before sending to the "player x press start" screen. Also the game probably natively has 2 players, so we'd have to create 2 more, and then of course do the rendering and the UI layout 4x as well, whoof.
+- 3 or 4-player split screen (work in progress, `more_players=1` in the [.ini](nfsmw_split_screen_support.ini), needs [Custom Menus](../custom_menus/ReadMe.md)): the menus are done (a **Players** row, 2 or 4, in the race options, and a second round of Press Start and Car Select for players 3 and 4), but the race still has 2 players. Missing: creating players 3 and 4 and their cars, rendering and HUD for 4 views, and 3 players.
 - Port the options from Quick Race to Split Screen: NPC opponents, Difficulty, Catch-Up, Heat Level.
 
 ### AI Disclaimer
