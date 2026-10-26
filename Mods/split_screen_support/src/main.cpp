@@ -10,7 +10,8 @@
  *   minimap.cpp        a minimap for each player, a colour for each player's marker
  *   minimap_option.cpp the Options > Player > Minimap row: each player can hide their own minimap
  *   player_count.cpp   the "Players" row (2 or 4) of the split screen race options
- *   more_players.cpp   players 3 and 4: a second round of Press Start and Car Select, their picks kept in a table
+ *   more_players.cpp   players 3 and 4: a second round of Press Start and Car Select, their picks kept in a table, their cars in the race
+ *   extra_streaming.cpp the track streamer's two positions chosen among four cars
  *   players.cpp        which controller is whose (XInput), player 1's alone reaches the game
  *   state_log.cpp      a log of the player count, devices and view mode
  *   view_api.cpp       what other mods may draw into each player's picture (common/split_screen_api.h), e.g. nfsmw_improved_ai_opponents's overlay
@@ -22,6 +23,7 @@
 #include "split_screen_support.h"
 
 #include "events.h"
+#include "extra_streaming.h"
 #include "fixes.h"
 #include "menu_entry.h"
 #include "minimap.h"
@@ -54,6 +56,7 @@ NFSMW_PLUGIN_MAIN() {
     if (ini_flag("options", "more_players", false)) {  // work in progress: see the ini
         player_count::install();
         more_players::install();
+        extra_streaming::install();
     }
     players::install();  // before state_log: the world load log shows its ports
     state_log::install();

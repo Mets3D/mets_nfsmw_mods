@@ -131,6 +131,24 @@ uintptr_t g_create_players = kCreatePlayers, g_create_cars = kCreateCars;  // wh
 void **&player_array() { return *reinterpret_cast<void ***>(kPlayerArray); }
 int &player_count_value() { return *reinterpret_cast<int *>(kPlayerCount); }
 
+// The car of a player as the game's physics has it, in sim space: position, forward and up vectors. ISimable (the car) virtual table +0x54 is
+// GetRigidBody; IRigidBody's +0x20 is GetPosition, +0x34 GetForwardVector, +0x3C GetUpVector (the decomp's order, one slot further for the base
+// interface) [tested: unit vectors, the up vector points up].
+bool rigid_body_vectors(void *player, float *position, float *forward, float *up) {
+    void **player_vtable = *reinterpret_cast<void ***>(player);
+    void *simable = reinterpret_cast<void *(__fastcall *)(void *, void *)>(player_vtable[1])(player, nullptr);
+    if (!simable) return false;
+    void **simable_vtable = *reinterpret_cast<void ***>(simable);
+    void *body = reinterpret_cast<void *(__fastcall *)(void *, void *)>(simable_vtable[0x54 / 4])(simable, nullptr);
+    if (!body) return false;
+    void **vtable = *reinterpret_cast<void ***>(body);
+    const float *at = reinterpret_cast<const float *(__fastcall *)(void *, void *)>(vtable[0x20 / 4])(body, nullptr);
+    memcpy(position, at, 3 * sizeof(float));
+    reinterpret_cast<void(__fastcall *)(void *, void *, float *)>(vtable[0x34 / 4])(body, nullptr, forward);
+    reinterpret_cast<void(__fastcall *)(void *, void *, float *)>(vtable[0x3C / 4])(body, nullptr, up);
+    return true;
+}
+
 const float *player_position(void *player) {
     void **vtable = *reinterpret_cast<void ***>(player);
     return static_cast<const float *>(reinterpret_cast<void *(__fastcall *)(void *, void *)>(vtable[0xC / 4])(player, nullptr));  // IPlayer::GetPosition
@@ -151,7 +169,7 @@ bool make_extra_players(void *quick_game, void *edx) {
     if (count < 4) return false;
     for (int i = count - 2; i < count; ++i) {
         void *player = player_array()[i];
-        set_player_port(player, kSetRenderPortSlot, -1);
+        set_player_port(player, kSetRenderPortSlot, -1);  // no view of the game's own: the views of players 3 and 4 are made by split_view.cpp
         set_player_port(player, kSetControllerPortSlot, -1);
     }
     return true;
@@ -222,7 +240,18 @@ void __fastcall create_cars(void *quick_game, void *edx, const float *start) {
 
 }  // namespace
 
+// What the game made for the views: active, render target, camera, and whether the view has camera movers (the list head points at itself when empty).
+void log_views() {
+    for (const int id : {1, 2, 4, 5}) {
+        const unsigned char *view = reinterpret_cast<const unsigned char *>(0x9195E0 + id * 0x70);
+        const void *const *head = reinterpret_cast<const void *const *>(view + 0x44);
+        g_log.line("view %d: id %d, active %d, render target %p, camera %p, camera movers %s", id, *reinterpret_cast<const int *>(view + 4), view[8],
+                   *reinterpret_cast<void *const *>(view + 0x60), *reinterpret_cast<void *const *>(view + 0x40), head[0] == head ? "none" : "yes");
+    }
+}
+
 void log_players() {
+    log_views();
     void *all[4] = {player_array()[0], player_array()[1], g_extra_players[0], g_extra_players[1]};
     for (int i = 0; i < 4; ++i) {
         void *player = all[i];
@@ -232,7 +261,43 @@ void log_players() {
         const float *position = static_cast<const float *>(call(0xC / 4));  // GetPosition
         g_log.line("player %d: car %p, position (%.1f, %.1f, %.1f), render port %d", i + 1, call(1), position[0], position[1], position[2],
                    static_cast<int>(reinterpret_cast<intptr_t>(call(0x2C / 4))));
+        float v[3][4] = {};
+        if (rigid_body_vectors(player, v[0], v[1], v[2]))
+            g_log.line("    rigid body: position (%.1f, %.1f, %.1f), forward (%.2f, %.2f, %.2f), up (%.2f, %.2f, %.2f)", v[0][0], v[0][1], v[0][2], v[1][0], v[1][1],
+                       v[1][2], v[2][0], v[2][1], v[2][2]);
     }
+}
+
+int extra_player_count() { return g_extra_players[0] && g_extra_players[1] ? 2 : 0; }
+
+bool player_car_state(int index, float *position, float *forward) {
+    void *player = index < 2 ? (player_count_value() > index ? player_array()[index] : nullptr) : (index < 4 ? g_extra_players[index - 2] : nullptr);
+    float up[4];
+    return player && rigid_body_vectors(player, position, forward, up);
+}
+
+// A chase camera behind the car of an extra player, in the game's render space (x, y, z of the simulation become z, -x, y: eSwizzleWorldVector).
+bool extra_camera(int index, float *eye, float *target, float *up) {
+    if (index < 0 || index > 1 || !g_extra_players[index]) return false;
+    float position[4], forward[4], car_up[4];
+    if (!rigid_body_vectors(g_extra_players[index], position, forward, car_up)) return false;
+    constexpr float kBehind = 6.0f, kHeight = 2.0f, kLookHeight = 1.2f;
+    const float world_up[3] = {0.0f, 1.0f, 0.0f};  // simulation space: y is up
+    const auto swizzle = [](const float *v, float *out, float w) {
+        out[0] = v[2];
+        out[1] = -v[0];
+        out[2] = v[1];
+        out[3] = w;
+    };
+    float eye_sim[3], target_sim[3];
+    for (int i = 0; i < 3; ++i) {
+        eye_sim[i] = position[i] - forward[i] * kBehind + world_up[i] * kHeight;
+        target_sim[i] = position[i] + world_up[i] * kLookHeight;
+    }
+    swizzle(eye_sim, eye, 1.0f);
+    swizzle(target_sim, target, 1.0f);
+    swizzle(world_up, up, 0.0f);
+    return true;
 }
 
 void reset() {

@@ -74,6 +74,11 @@ def main():
             sys.exit(f'speed.exe {pid} of this install is running and could not be closed')
         time.sleep(5)  # a game that was just closed leaves the next one hanging at start-up if it comes at once
 
+    for _ in range(40):  # a game that has just ended is still shutting down for a moment; a new one started then hangs at start-up
+        if not running_games():
+            break
+        time.sleep(0.5)
+    time.sleep(4)
     data = game / 'scripts' / 'mets_mods'
     (data / 'scenarios').mkdir(parents=True, exist_ok=True)
     shutil.copy(source, data / 'scenarios' / source.name)
@@ -115,10 +120,10 @@ def main():
     for png in sorted(shots.glob('*/*.png')) if shots.exists() else []:
         if png.stat().st_mtime >= started:
             print(png)
-    if code == 2 and args.retries > 0:
-        print(f'the scenario failed (exit code 2); running it again ({args.retries} retries left)')
-        os.execv(sys.executable, [sys.executable, __file__, args.scenario, '--game', args.game, '--timeout', str(args.timeout),
-                                  '--retries', str(args.retries - 1)] + (['--verbose'] if args.verbose else []) + (['--fullscreen'] if args.fullscreen else []))
+    if code in (2, None) and args.retries > 0:
+        print(f'the scenario failed (exit code {code}); running it again ({args.retries} retries left)')
+        sys.exit(subprocess.call([sys.executable, __file__, args.scenario, '--game', args.game, '--timeout', str(args.timeout),
+                                  '--retries', str(args.retries - 1)] + (['--verbose'] if args.verbose else []) + (['--fullscreen'] if args.fullscreen else [])))
     sys.exit(0 if code == 0 else 1)
 
 

@@ -298,6 +298,13 @@ HRESULT WINAPI hook_present(IDirect3DDevice9 *device, const RECT *source, const 
 
 // A game that stops drawing (a hang, a loading loop) is told by where its thread is: after 4 s without a frame, and every 5 s
 // after that (up to 6 times), the thread's instruction pointer and the code addresses on its stack go to the log.
+// Is the memory at `p` readable? (IsBadReadPtr works by faulting, which the crash log would report.)
+bool readable(const void *p) {
+    MEMORY_BASIC_INFORMATION info;
+    if (!VirtualQuery(p, &info, sizeof(info)) || info.State != MEM_COMMIT) return false;
+    return (info.Protect & (PAGE_NOACCESS | PAGE_GUARD)) == 0;
+}
+
 DWORD WINAPI stall_watch(void *) {
     int reports = 0;
     for (;;) {
@@ -328,7 +335,7 @@ DWORD WINAPI stall_watch(void *) {
                                  entry.th32ThreadID, entry.th32ThreadID == g_game_thread ? " (the game's)" : "", context.Eip);
                     const unsigned long *stack = reinterpret_cast<const unsigned long *>(context.Esp);
                     for (int i = 0; i < 256 && n < static_cast<int>(sizeof(line)) - 12; ++i) {
-                        if (IsBadReadPtr(&stack[i], 4)) break;
+                        if (!readable(&stack[i])) break;
                         if (stack[i] >= 0x401000 && stack[i] < 0x900000) n += snprintf(line + n, sizeof(line) - n, " %#lx", stack[i]);
                     }
                 }

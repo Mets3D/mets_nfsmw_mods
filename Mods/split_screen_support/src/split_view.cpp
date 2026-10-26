@@ -34,12 +34,15 @@
 
 #include <d3d9.h>
 
+#include <algorithm>
 #include <utility>
 
 #include <MinHook.h>
 
 #include "events.h"
 #include "hooks.h"
+#include "patch.h"
+#include "more_players.h"
 #include "players.h"
 #include "split_screen_support.h"
 
@@ -218,6 +221,35 @@ void hook_update_env_map_cameras() {
     rate = saved;
 }
 
+// eEnvMap::UpdateCameras(viewer position, cube map centre) is called by UpdateEnvironmentMapCameras (0x75611D) with the centre at the car the first
+// camera mover of view 1 follows. In the passes of players 3 and 4 that is the car of player 2 (their views have no mover of the game own), so the
+// centre is moved by the difference between their car and player 2 car. The viewer position comes from view 1 camera, which holds theirs in those passes.
+constexpr uintptr_t kEnvUpdateCamerasCall = 0x75611D, kEnvUpdateCameras = 0x6DA350;
+uintptr_t g_env_update_cameras = kEnvUpdateCameras;
+float g_env_shift[3] = {};
+bool g_env_shift_on = false;
+
+void __fastcall env_update_cameras(void *env_map, void *edx, float *viewer, float *centre) {
+    float moved[4];
+    if (g_env_shift_on) {
+        memcpy(moved, centre, sizeof(moved));
+        for (int i = 0; i < 3; ++i) moved[i] += g_env_shift[i];
+        centre = moved;
+    }
+    reinterpret_cast<void(__fastcall *)(void *, void *, float *, float *)>(g_env_update_cameras)(env_map, edx, viewer, centre);
+}
+
+// The shift (render space) from the car of player 2 to the car of extra player `index`, for the next update_env_map_for_view1.
+void aim_env_map_at_extra(int index) {
+    float own[3], own_forward[3], extra[3], extra_forward[3];
+    g_env_shift_on = more_players::player_car_state(1, own, own_forward) && more_players::player_car_state(2 + index, extra, extra_forward);
+    if (!g_env_shift_on) return;
+    const float delta[3] = {extra[0] - own[0], extra[1] - own[1], extra[2] - own[2]};
+    g_env_shift[0] = delta[2];  // simulation (x, y, z) -> render (z, -x, y)
+    g_env_shift[1] = -delta[0];
+    g_env_shift[2] = delta[1];
+}
+
 void update_env_map_for_view1() {
     if (!*reinterpret_cast<int *>(kEnvMapEnabled)) return;
     reinterpret_cast<void(__cdecl *)()>(kUpdateEnvMapCameras)();
@@ -238,8 +270,9 @@ void update_env_map_for_view1() {
 // crashes reading it. Only trading the camera made it worse: the camera and the matrices must stay a pair.
 constexpr uintptr_t kShadowView1 = 0x919C70;
 constexpr size_t kCameraSize = 0x2C0, kPlatInfoSize = 0x1A0;
-void *g_shadow_camera2 = nullptr;
-void *g_shadow_plat_info2 = nullptr;
+constexpr int kExtraPasses = 3;  // the passes after player 1's: players 2, 3 and 4 (the last two with four players)
+void *g_shadow_camera[kExtraPasses] = {};
+void *g_shadow_plat_info[kExtraPasses] = {};
 
 void *copy_of(void *original, size_t size) {
     void *copy = original ? VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE) : nullptr;
@@ -248,19 +281,70 @@ void *copy_of(void *original, size_t size) {
 }
 
 void make_shadow_copies() {
-    if ((g_shadow_camera2 && g_shadow_plat_info2)) return;
-    g_shadow_camera2 = copy_of(at<void *>(kShadowView1, kViewCamera), kCameraSize);
-    g_shadow_plat_info2 = copy_of(at<void *>(kShadowView1, kViewPlatInfo), kPlatInfoSize);
+    for (int i = 0; i < kExtraPasses; ++i) {
+        if (g_shadow_camera[i] && g_shadow_plat_info[i]) continue;
+        g_shadow_camera[i] = copy_of(at<void *>(kShadowView1, kViewCamera), kCameraSize);
+        g_shadow_plat_info[i] = copy_of(at<void *>(kShadowView1, kViewPlatInfo), kPlatInfoSize);
+    }
 }
 
-// Player 2's view for the world pass, or back.
-void trade_views() {
+// Player 2's view for the world pass, or back. `pass` is the pass (1: player 2, 2: player 3, 3: player 4), which has a shadow camera of its own.
+void trade_views(int pass) {
     for (const int offset : kTraded) std::swap(at<void *>(kView1, offset), at<void *>(kView2, offset));
-    if (g_shadow_camera2 && g_shadow_plat_info2) {
-        std::swap(at<void *>(kShadowView1, kViewCamera), g_shadow_camera2);
-        std::swap(at<void *>(kShadowView1, kViewPlatInfo), g_shadow_plat_info2);
+    if (g_shadow_camera[pass - 1] && g_shadow_plat_info[pass - 1]) {
+        std::swap(at<void *>(kShadowView1, kViewCamera), g_shadow_camera[pass - 1]);
+        std::swap(at<void *>(kShadowView1, kViewPlatInfo), g_shadow_plat_info[pass - 1]);
     }
     swap_mover_lists();
+}
+
+// ---- the views of players 3 and 4
+// They have no camera of the game's own (its camera AI makes one per view for the local players with render port 1 and 2 only). Each frame view 2's
+// slot is given a camera of ours, put behind the car (more_players.cpp) with the game's look-at matrix (eCreateLookAtMatrix 0x6CF0A0, cdecl) and
+// Camera::SetCameraMatrix (0x4700D0); the game's own setup then makes the matrices (eView::SetupPerView 0x6CF400) and the lighting
+// (eView::SetupWorldLightContext 0x5029F0) of the view from it, and the pass is the one of player 2 with that view.
+constexpr uintptr_t kSetCameraMatrix = 0x4700D0, kCreateLookAt = 0x6CF0A0, kSetupLighting = 0x5029F0, kSetupPerView = 0x6CF400;
+void *g_extra_camera[2] = {};
+void *g_extra_plat_info[2] = {};
+
+struct SavedView {
+    void *camera, *plat_info;
+};
+
+bool prepare_extra_view(int index, SavedView &saved) {
+    float eye[4], target[4], up[4];
+    if (!more_players::extra_camera(index, eye, target, up)) return false;
+    if (!g_extra_camera[index]) {
+        g_extra_camera[index] = copy_of(at<void *>(kView2, kViewCamera), kCameraSize);
+        g_extra_plat_info[index] = copy_of(at<void *>(kView2, kViewPlatInfo), kPlatInfoSize);
+        if (!g_extra_camera[index] || !g_extra_plat_info[index]) return false;
+    }
+    saved = {at<void *>(kView2, kViewCamera), at<void *>(kView2, kViewPlatInfo)};
+    at<void *>(kView2, kViewCamera) = g_extra_camera[index];
+    at<void *>(kView2, kViewPlatInfo) = g_extra_plat_info[index];
+    alignas(16) float matrix[16];
+    reinterpret_cast<void(__cdecl *)(float *, float *, float *, float *)>(kCreateLookAt)(matrix, eye, target, up);
+    // The time since the camera was last set, as the game's own movers pass it: a camera keeps the last matrix and this time, and what uses them
+    // (motion blur) works out its speed from the two.
+    static DWORD last_ms[2] = {};
+    const DWORD now = GetTickCount();
+    const float elapsed = last_ms[index] ? std::clamp((now - last_ms[index]) / 1000.0f, 0.001f, 0.1f) : 0.016f;
+    last_ms[index] = now;
+    reinterpret_cast<void(__fastcall *)(void *, void *, const float *, float)>(kSetCameraMatrix)(g_extra_camera[index], nullptr, matrix, elapsed);
+    using SetupPerViewFn = void(__fastcall *)(void *plat_info, void *edx, void *view, int unused, unsigned far_plane, int zero, int one);
+    reinterpret_cast<SetupPerViewFn>(kSetupPerView)(g_extra_plat_info[index], nullptr, reinterpret_cast<void *>(kView2), 0, kFarPlane, 0, 1);
+    reinterpret_cast<void(__fastcall *)(void *, void *)>(kSetupLighting)(reinterpret_cast<void *>(kView2), nullptr);
+    static bool logged = false;
+    if (!logged) {
+        logged = true;
+        g_log.line("split view: view of player %d: eye (%.1f, %.1f, %.1f) target (%.1f, %.1f, %.1f)", index + 3, eye[0], eye[1], eye[2], target[0], target[1], target[2]);
+    }
+    return true;
+}
+
+void restore_extra_view(const SavedView &saved) {
+    at<void *>(kView2, kViewCamera) = saved.camera;
+    at<void *>(kView2, kViewPlatInfo) = saved.plat_info;
 }
 
 // View 2 on for a split screen race, and off again afterwards (see the top).
@@ -289,6 +373,40 @@ void log_first(IDirect3DDevice9 *, IDirect3DSurface9 *back_buffer, const D3DSURF
                view_surface == back_buffer ? "is" : "is not");
 }
 
+// Four players: every pass is the whole picture, shrunk into its quadrant of the canvas (a quadrant has the screen's aspect: nothing is cropped).
+// Player 1 is the top left, player 2 the top right, players 3 and 4 the bottom row. The HUD and menus are drawn over this by the game as if for the
+// screen in two halves.
+bool four_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, const D3DSURFACE_DESC &d) {
+    const LONG w = d.Width, h = d.Height, qw = w / 2, qh = h / 2;
+    const RECT full = {0, 0, w, h};
+    const RECT quadrants[4] = {{0, 0, qw, qh}, {qw, 0, 2 * qw, qh}, {0, qh, qw, 2 * qh}, {qw, qh, 2 * qw, 2 * qh}};
+    static const char *const names[4] = {"player 1", "player 2", "player 3", "player 4"};
+    unsigned *pool = reinterpret_cast<unsigned *>(kFramePool);
+    const unsigned pool_start = pool[0];
+    g_orig_display_frame();  // player 1
+    pool[0] = pool_start;
+    view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(w), static_cast<float>(h), 0);
+    bool ok = copy(device, back_buffer, full, g_canvas, quadrants[0], names[0]);
+    for (int pass = 1; pass <= 3 && ok; ++pass) {
+        SavedView saved = {};
+        const bool extra = pass >= 2;
+        if (extra && !prepare_extra_view(pass - 2, saved)) continue;  // no car: the quadrant keeps what it had
+        clear_screen(device, back_buffer);
+        trade_views(pass);
+        if (extra) aim_env_map_at_extra(pass - 2);
+        update_env_map_for_view1();
+        g_env_shift_on = false;
+        g_orig_display_frame();
+        pool[0] = pool_start;
+        if (!extra) view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(w), static_cast<float>(h), 1);
+        trade_views(pass);
+        if (extra) restore_extra_view(saved);
+        ok = copy(device, back_buffer, full, g_canvas, quadrants[pass], names[pass]);
+    }
+    const RECT canvas_part = {0, 0, 2 * qw, 2 * qh};
+    return ok && copy(device, g_canvas, canvas_part, back_buffer, canvas_part, "to the screen");
+}
+
 void split_frame(IDirect3DDevice9 *device) {
     IDirect3DSurface9 *back_buffer = nullptr;
     if (FAILED(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &back_buffer)) || !back_buffer) return g_orig_display_frame();
@@ -308,6 +426,16 @@ void split_frame(IDirect3DDevice9 *device) {
     const RECT top = {0, 0, w, half}, bottom = {0, half, w, 2 * half};
 
     make_shadow_copies();
+    if (more_players::extra_player_count() == 2) {
+        const bool ok = four_view_frame(device, back_buffer, d);
+        back_buffer->Release();
+        if (!ok) {
+            g_failed = true;
+            release_canvas();
+            g_log.line("split view: turned off for this session");
+        }
+        return;
+    }
     // The game's per-frame memory (matrices of the flares and headlights, ...): the frame is drawn twice, and the pool is
     // sized for one drawing: the second pass reuses what the first one took, which is dead once its picture is drawn.
     unsigned *pool = reinterpret_cast<unsigned *>(kFramePool);
@@ -317,11 +445,11 @@ void split_frame(IDirect3DDevice9 *device) {
     view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(d.Width), static_cast<float>(d.Height), 0);
     bool ok = copy(device, back_buffer, source, g_canvas, top, "player 1");
     clear_screen(device, back_buffer);
-    trade_views();
+    trade_views(1);
     update_env_map_for_view1();  // reflections around player 2's car
     g_orig_display_frame();  // player 2
     view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(d.Width), static_cast<float>(d.Height), 1);  // with player 2's view still in view 1's place
-    trade_views();
+    trade_views(1);
     ok = ok && copy(device, back_buffer, source, g_canvas, bottom, "player 2");
     const RECT both = {0, 0, w, 2 * half};
     ok = ok && copy(device, g_canvas, both, back_buffer, both, "to the screen");
@@ -372,6 +500,7 @@ void install() {
          nfsmw::detour(&hook_update_env_map_cameras), nfsmw::orig(&g_orig_update_env_map_cameras)},
     };
     nfsmw::install_hooks(hooks, 3, g_log, nullptr, "split view");
+    if (const uintptr_t previous = nfsmw::chain_call(kEnvUpdateCamerasCall, reinterpret_cast<uintptr_t>(&env_update_cameras))) g_env_update_cameras = previous;
 }
 
 }  // namespace split_screen_support::split_view
