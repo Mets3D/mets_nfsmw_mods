@@ -42,9 +42,8 @@ It was my goal to integrate this mod into the original game's design as if it wa
   - A help button that explains what each setting does.
   - Controller input tested and fully supported.
 
-# TODO
-- We should ship our own camera defaults in the ini - Vanilla cameras mostly unchanged/replicated, but the super far, drift, and pursuit cameras could be tweaked, eg. to be disabled tbh.
-- I think camera look stopped working, possibly due to DevTools.
+## TODO
+- In Reduxv3, mirror is force-enabled?
 
 ### AI Disclaimer
 

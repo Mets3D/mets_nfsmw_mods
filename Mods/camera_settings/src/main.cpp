@@ -16,8 +16,6 @@
  *
  * Files in <game>/scripts/mets_mods/: nfsmw_camera_settings.ini (your changes and settings), nfsmw_camera_settings.log, nfsmw_camera_settings.tpk (the Options icon).
  * ini settings, all optional:
- *   [general]  degree_symbol=0  writes " deg" instead of the degree sign
- *              icon=<texture name, or its hash as 8 hex digits>  the Options icon (default OPTIONS_CAMERA)
  *   [hooks]    <name>=0  skips one hook (names in install_hooks)
  *
  * Offsets come from the PC disassembly; the decomp's struct offsets are from the console builds and differ.
@@ -49,7 +47,6 @@ NFSMW_PLUGIN_DECLARE("NFSMW Camera Editor", "1.1.0", "Demeter Dzadik")
 namespace {
 
 using nfsmw::field;
-using nfsmw::texture_hash;
 namespace opt = nfsmw::custom_menus;
 
 nfsmw::Logger g_log;
@@ -100,15 +97,18 @@ struct Pov {
     short tilting;         // 0x18  the game's lean with acceleration; tilt.cpp replaces what it leads to
 };
 
-enum Param { P_ENABLED, P_MIRROR, P_FOV, P_SPEED, P_SMOOTH, P_ACCEL, P_HEIGHT, P_LAG, P_ANGLE, P_TILT, NPARAM };
+// In the order of the rows on the page.
+enum Param { P_ENABLED, P_MIRROR, P_FOV, P_SPEED, P_HEIGHT, P_LAG, P_ANGLE, P_SMOOTH, P_ACCEL, P_TILT, NPARAM };
 // On / off rows: their value is stored as it is (1 / 0), not as a difference from the game's own.
 constexpr bool is_toggle(int i) { return i == P_ENABLED || i == P_MIRROR; }
+// Rows drawn as a slider bar instead of a number.
+constexpr bool is_slider(int i) { return i == P_SMOOTH || i == P_ACCEL || i == P_TILT; }
 constexpr int kNumPresets = 7;
 
 constexpr int kHoodPreset = 1;  // index in kPresetName
 const char *kPresetName[kNumPresets] = {"bumper", "hood", "close", "far", "super_far", "drift", "pursuit"};
-const char *kKey[NPARAM] = {"enabled", "mirror", "fov", "speed_fov", "smoothing", "acceleration", "height", "lag", "angle", "tilt"};
-const char *kLabel[NPARAM] = {"Enabled", "Mirror", "FOV", "Speed FoV", "Smoothing", "Acceleration", "Height", "Distance", "Pitch", "Tilt"};
+const char *kKey[NPARAM] = {"enabled", "mirror", "fov", "speed_fov", "height", "distance", "pitch", "smoothing", "acceleration", "tilt"};
+const char *kLabel[NPARAM] = {"Enabled", "Mirror", "FoV", "Speed FoV", "Height", "Distance", "Pitch", "Smoothing", "Acceleration", "Tilt"};
 
 // Help texts (2 key on the Camera options screen). Pitch is worded from the field name and values, so adjust it here if the
 // description does not match what you see.
@@ -119,11 +119,11 @@ const char *kHelp[NPARAM + 1] = {
     "Lower values zoom in. Hold Shift or LB for finer steps.",
     "Extra field of view in degrees, added on top of the base FoV as you speed up, to exaggerate the feeling of "
     "speed. It reaches this value at 300 km/h. 0 turns it off. Hold Shift or LB for finer steps.",
-    "How much the camera's movement is smoothed. Hold Shift or LB for finer steps.",
-    "How much the camera pulls back and pushes forward during acceleration and braking. Hold Shift or LB for finer steps.",
     "The camera's height above the car. Hold Shift or LB for finer steps.",
     "The camera's backwards/forwards offset from the car. Hold Shift or LB for finer steps.",
     "Tilts the camera up or down, in degrees. Hold Shift or LB for finer steps.",
+    "How much the camera's movement is smoothed. Hold Shift or LB for finer steps.",
+    "How much the camera pulls back and pushes forward during acceleration and braking. Hold Shift or LB for finer steps.",
     "How much the camera tilts with the car. Hold Shift or LB for finer steps.",
     "Selects the camera view whose settings you are editing. This is the same setting as the Camera option "
     "under Player.",
@@ -137,11 +137,11 @@ const Range kRange[NPARAM] = {
     {-1.0f, 1.0f, 2.0f, 2.0f},      // mirror
     {20.0f, 115.0f, 5.0f, 1.0f},    // FOV (with Speed FoV, 160 is the most: kMaxFov)
     {0.0f, 45.0f, 5.0f, 1.0f},      // speed FoV, degrees at full speed (the game has no value of its own: base is 0)
+    {0.0f, 8.0f, 0.25f, 0.05f},     // height
+    {-30.0f, 3.0f, 0.5f, 0.1f},     // distance (negative = behind the car)
+    {-20.0f, 20.0f, 0.5f, 0.1f},    // pitch
     {10.0f, 400.0f, 10.0f, 1.0f},   // smoothing, percent of the game's (base 100)
     {0.0f, 300.0f, 10.0f, 1.0f},    // acceleration, percent of the game's (base 100)
-    {0.0f, 8.0f, 0.25f, 0.05f},     // height
-    {-30.0f, 3.0f, 0.5f, 0.1f},     // lag (negative = behind the car)
-    {-20.0f, 20.0f, 0.5f, 0.1f},    // pitch
     {0.0f, 100.0f, 10.0f, 1.0f},    // tilt, percent of the car's (the game has none: base 0)
 };
 
@@ -158,9 +158,6 @@ float g_base[kNumPresets][NPARAM];  // the game's own values, captured before ov
 bool g_have_base[kNumPresets];
 int g_cur_type = 3;                // preset most recently requested from GetPov
 void *g_anchor = nullptr;          // CameraAnchor passed to GetPov (valid while a race is loaded)
-
-bool g_degree_sign = true;              // [general] degree_symbol
-unsigned g_icon = kCustomIconTexture;   // [general] icon
 
 float ang_to_deg(unsigned short a) { return static_cast<short>(a) * 360.0f / 65536.0f; }
 unsigned short deg_to_ang(float d) {
@@ -249,21 +246,6 @@ void ini_load() {
         }
     }
     log_line("loaded %d setting(s) from %s", loaded, g_ini);
-
-    g_degree_sign = GetPrivateProfileIntA("general", "degree_symbol", 1, g_ini) != 0;
-
-    // A texture's name (hashed like the game: h = h * 33 + c from 0xFFFFFFFF) or its hash as 8 hex digits.
-    // Texture names longer than 23 characters are cut short in the game files, so use the hash for those.
-    char icon[64] = {};
-    GetPrivateProfileStringA("general", "icon", "", icon, sizeof(icon), g_ini);
-    char *end = nullptr;
-    const unsigned long hex = strtoul(icon, &end, 16);
-    if (strlen(icon) == 8 && end && !*end) {
-        g_icon = hex;
-    } else if (icon[0]) {
-        g_icon = texture_hash(icon);
-    }
-    log_line("icon texture %08x%s%s", g_icon, icon[0] ? " from the ini: " : " (default)", icon);
 }
 
 void ini_save() {
@@ -334,19 +316,42 @@ void adjust_hood(Pov *p) {
 using GetPovFn = Pov *(FASTCALL *)(void *, void *, int);
 GetPovFn g_orig_getpov = nullptr;
 
+// GetPov reads each camera value from a list of two, the second for split screen (eGetCurrentViewMode() == 3, the first for any other
+// mode), and the game's split screen values are a good deal higher, further back and narrower than the single player's (a Porsche's
+// Pursuit camera: height 3.23 against 1.5, distance -8.2 against -4.5, pitch 11 against 5 degrees, FoV 86 against 95), which suits the
+// split screen picture. The settings are one set, and the page shows them on the single player values (single_player_pov: GetPov asked
+// while the view mode reads "one view", 1), so the numbers are the same in both modes; in a split screen race they are added to the
+// game's own split screen values instead, so the game's difference between the two modes stays.
+constexpr uintptr_t kCurrentViewMode = 0x982B3C;  // what eGetCurrentViewMode (0x6BF530) returns
+constexpr int kViewTwoViews = 3, kViewOneView = 1;
+Pov *single_player_pov(void *anchor, int type) {
+    int &mode = *reinterpret_cast<int *>(kCurrentViewMode);
+    const int saved = mode;
+    if (saved == kViewTwoViews) mode = kViewOneView;
+    Pov *p = g_orig_getpov(anchor, nullptr, type);
+    mode = saved;
+    return p;
+}
+
 Pov *FASTCALL hook_getpov(void *self, void *edx, int type) {
-    Pov *p = g_orig_getpov(self, edx, type);
-    if (p && type >= 0 && type < kNumPresets) {
+    const bool valid = type >= 0 && type < kNumPresets;
+    const bool split = valid && *reinterpret_cast<int *>(kCurrentViewMode) == kViewTwoViews;
+    float single[NPARAM];  // the game's single player values: what the page shows and the settings are relative to
+    if (split) read_base(*single_player_pov(self, type), type, single);
+    Pov *p = g_orig_getpov(self, edx, type);  // last: the Pov is one buffer of the anchor, and it must hold the mode's own values
+    if (p && valid) {
         g_cur_type = type;
         g_anchor = self;
-        float now[NPARAM];
+        float now[NPARAM];  // the game's values for this mode
         read_base(*p, type, now);
-        if (!g_have_base[type] || memcmp(now, g_base[type], sizeof(now)) != 0) {
+        if (!split) memcpy(single, now, sizeof(now));
+        if (!g_have_base[type] || memcmp(single, g_base[type], sizeof(single)) != 0) {
             static unsigned logged = 0;
             if (logged++ < 200)
-                log_line("base %-9s fov=%.1f height=%.3f lag=%.3f pitch=%.1f",
-                         kPresetName[type], now[P_FOV], now[P_HEIGHT], now[P_LAG], now[P_ANGLE]);
-            memcpy(g_base[type], now, sizeof(now));
+                log_line("base %-9s fov=%.1f height=%.3f lag=%.3f pitch=%.1f%s",
+                         kPresetName[type], single[P_FOV], single[P_HEIGHT], single[P_LAG], single[P_ANGLE],
+                         split ? " (single player; split screen has its own)" : "");
+            memcpy(g_base[type], single, sizeof(single));
             g_have_base[type] = true;
         }
         for (int i = 0; i < NPARAM; ++i)
@@ -410,7 +415,7 @@ int camera_type_being_edited() {
 }
 
 void format_value(char *out, size_t n, int param, float v) {
-    const char *deg = g_degree_sign ? "\x01" : " deg";
+    const char *deg = "\x01";  // the degree sign
     switch (param) {
         case P_FOV: snprintf(out, n, "%.0f%s", v, deg); break;
         case P_HEIGHT: snprintf(out, n, "%.2f", v); break;
@@ -467,7 +472,7 @@ void page_opened() {
     memcpy(g_ovr_open, g_ovr, sizeof(g_ovr));
     // Read every preset's own values from the game so each can be edited without having been the active view.
     for (int t = 0; t < kNumPresets; ++t) {
-        if (Pov *p = g_orig_getpov(value_source(), nullptr, t)) {
+        if (Pov *p = single_player_pov(value_source(), t)) {
             read_base(*p, t, g_base[t]);
             g_have_base[t] = true;
             log_line("game values %-9s fov=%.4f height=%.4f lag=%.4f pitch=%.4f",
@@ -481,6 +486,15 @@ unsigned page_value(int row, char *out, unsigned out_size) {
     if (row < 1) return 0;
     format_value(out, out_size, row - 1, effective(camera_type_being_edited(), row - 1));
     return 0;
+}
+
+// The percentages are drawn as the game's slider bars, filled to the value's place in its range.
+float page_fill(int row) {
+    const int param = row - 1;
+    if (param < 0 || param >= NPARAM || !is_slider(param)) return 0.0f;
+    const Range &r = kRange[param];
+    const float f = (effective(camera_type_being_edited(), param) - r.min) / (r.max - r.min);
+    return f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f);
 }
 
 void page_change(int row, int direction, bool fine) {
@@ -565,14 +579,14 @@ int mirror_override(int cam) {
 // Called by nfsmw_custom_menus when the Options menu first opens.
 extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const opt::Host *host) {
     g_rows[0] = {opt::kCameraSelectorRow, "", 0, kHelp[NPARAM]};
-    for (int p = 0; p < NPARAM; ++p) g_rows[1 + p] = {opt::kValueRow, kLabel[p], 0, kHelp[p]};
+    for (int p = 0; p < NPARAM; ++p) g_rows[1 + p] = {is_slider(p) ? opt::kSliderRow : opt::kValueRow, kLabel[p], 0, kHelp[p]};
     char translations[MAX_PATH];
     nfsmw::data_file("translations\\camera_settings", translations, sizeof(translations));
     host->register_translations(translations);  // before any text is registered
     nfsmw::data_file("nfsmw_camera_settings.tpk", g_pack_path, sizeof(g_pack_path));
-    g_page = {"camera", "Camera", "CAMERA", "CAMERA INFO", g_icon, 0, g_pack_path,
+    g_page = {"camera", "Camera", "CAMERA", "CAMERA INFO", kCustomIconTexture, 0, g_pack_path,
               1 + NPARAM, g_rows, page_available, page_opened, page_value, page_change, camera_changed, page_accept,
-              page_discard, page_defaults, opt::kNewEntryEverywhere, nullptr, page_row_enabled};
+              page_discard, page_defaults, opt::kNewEntryEverywhere, page_fill, page_row_enabled};
     host->register_page(&g_page);
     camera_settings::previous_camera::provide(host);
 }
