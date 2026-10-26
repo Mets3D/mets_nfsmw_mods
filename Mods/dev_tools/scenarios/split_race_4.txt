@@ -46,7 +46,10 @@ wait_until screen=Car_Select.fng timeout=20
 wait 3
 press accept
 wait_until racing timeout=180
-wait 10
+wait 4
+log_players
+wait 6
+log_players
 state
 screenshot split_race_4
 quit

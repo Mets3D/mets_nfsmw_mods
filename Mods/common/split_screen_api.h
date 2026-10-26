@@ -26,6 +26,13 @@ inline OnViewDrawFn find_on_view_draw() {
     return module ? reinterpret_cast<OnViewDrawFn>(GetProcAddress(module, "nfsmw_split_screen_support_on_view_draw")) : nullptr;
 }
 
+//   nfsmw_split_screen_support_log_players()  for automated tests: every local player's car, position and render port go to the split screen log.
+using LogPlayersFn = void (*)();
+inline LogPlayersFn find_log_players() {
+    const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
+    return module ? reinterpret_cast<LogPlayersFn>(GetProcAddress(module, "nfsmw_split_screen_support_log_players")) : nullptr;
+}
+
 using PressStartFn = void (*)(int device);
 inline PressStartFn find_press_start() {
     const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");

@@ -1,6 +1,6 @@
 """Runs a game scenario unattended and reports what happened.
 
-usage: python Tools/run_scenario.py --game <install dir> <scenario> [--timeout 300] [--verbose] [--fullscreen]
+usage: python Tools/run_scenario.py --game <install dir> <scenario> [--timeout 300] [--verbose] [--fullscreen] [--retries 1]
 
 The scenario is Mods/dev_tools/scenarios/<scenario>.txt (commands: see Mods/dev_tools/src/automation.cpp). It is copied to the
 install's scripts/mets_mods/scenarios/, the game is started with NFSMW_SCENARIO=<scenario>, and killed when the scenario has not
@@ -55,6 +55,7 @@ def main():
     parser.add_argument('--game', required=True)
     parser.add_argument('--timeout', type=float, default=300)
     parser.add_argument('--fullscreen', action='store_true', help='leave the display settings alone')
+    parser.add_argument('--retries', type=int, default=1, help='runs again this many times when the scenario failed (exit code 2: a menu was not where it should be)')
     parser.add_argument('--verbose', action='store_true', help='the whole log and the other logs sizes')
     args = parser.parse_args()
 
@@ -71,6 +72,7 @@ def main():
             sys.exit(f'speed.exe {pid} from {path} is running; the game allows one copy')
         if not kill(pid):
             sys.exit(f'speed.exe {pid} of this install is running and could not be closed')
+        time.sleep(5)  # a game that was just closed leaves the next one hanging at start-up if it comes at once
 
     data = game / 'scripts' / 'mets_mods'
     (data / 'scenarios').mkdir(parents=True, exist_ok=True)
@@ -113,6 +115,10 @@ def main():
     for png in sorted(shots.glob('*/*.png')) if shots.exists() else []:
         if png.stat().st_mtime >= started:
             print(png)
+    if code == 2 and args.retries > 0:
+        print(f'the scenario failed (exit code 2); running it again ({args.retries} retries left)')
+        os.execv(sys.executable, [sys.executable, __file__, args.scenario, '--game', args.game, '--timeout', str(args.timeout),
+                                  '--retries', str(args.retries - 1)] + (['--verbose'] if args.verbose else []) + (['--fullscreen'] if args.fullscreen else []))
     sys.exit(0 if code == 0 else 1)
 
 

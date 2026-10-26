@@ -7,6 +7,7 @@
  *   wait_until <condition> [timeout=<seconds>]   conditions: frontend, main_menu, racing, state=<game flow state>
  *   press <accept|back|up|down|left|right|start> [times]   a menu press, as the pad does it (holds the menu's button for 100 ms)
  *   wait_until screen=<package name>   e.g. screen=MainMenu.fng
+ *   log_players                        every local player's car, position and render port go to the split screen mod's log
  *   press_start <0-3|keyboard>         the Press Start screen of the split screen menus is told that device let go of Start
  *   screenshot <name> [width=960]      <data folder>/screenshots/<date>-<time>_<scenario>/<name>.png
  *   state                              logs the game's state: flow state, boot screen, view mode, players
@@ -219,6 +220,10 @@ void run(const std::string &line, IDirect3DDevice9 *device) {
         g_condition_deadline = GetTickCount() + (timeout.empty() ? kDefaultTimeoutMs : static_cast<DWORD>(atof(timeout.c_str()) * 1000));
     } else if (cmd == "press" && w.size() >= 2) {
         if (!press(w[1], w.size() >= 3 ? atoi(w[2].c_str()) : 1)) return quit(2, "press: unknown button");
+    } else if (cmd == "log_players") {
+        static const auto log_players = nfsmw::split_screen_api::find_log_players();
+        if (!log_players) return quit(2, "log_players: nfsmw_split_screen_support is not loaded");
+        log_players();
     } else if (cmd == "press_start" && w.size() >= 2) {
         static const auto press_start = nfsmw::split_screen_api::find_press_start();
         if (!press_start) return quit(2, "press_start: nfsmw_split_screen_support is not loaded");

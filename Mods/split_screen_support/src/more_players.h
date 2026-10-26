@@ -12,6 +12,9 @@ int round();
 // A Press Start screen was made (`screen` is the MenuScreen): in the second round its text says player 3 or 4.
 void on_press_start_screen(void *screen);
 
+// Logs every local player: their car, position and render port (for automated tests).
+void log_players();
+
 void install();
 
 }  // namespace split_screen_support::more_players

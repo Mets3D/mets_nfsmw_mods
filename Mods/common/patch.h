@@ -41,6 +41,15 @@ inline uintptr_t chain_call(uintptr_t site, uintptr_t new_target) {
     return redirect_call(site, previous, new_target) ? previous : 0;
 }
 
+// Where the `call rel32` at `site` goes now (0 if it is no call).
+inline uintptr_t call_target(uintptr_t site) {
+    const unsigned char *at = reinterpret_cast<const unsigned char *>(site);
+    if (at[0] != 0xE8) return 0;
+    int32_t rel;
+    memcpy(&rel, at + 1, 4);
+    return site + 5 + rel;
+}
+
 // Machine code in memory of its own, written byte by byte. Short jumps are emitted with a hole (jump_short) that
 // resolve_short() fills in with the distance to the current position.
 class Stub {
