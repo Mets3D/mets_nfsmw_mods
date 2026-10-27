@@ -31,6 +31,7 @@ One command per line. `#` starts a comment. Arguments are words, or `key=value`.
 | `drive <player 2-4> <gas 0..1> [steer -1..1]` | That player's own game input device says that (gas and steering) until `drive <player> off` (needs `mets_controller_support`; player 1 reads every device and cannot be driven this way). |
 | `entry <player 2-4> <binding entry> <value or off>` | That player's device says that value for a binding entry (15 camera change, 16 look back, 25-28 look left / right / up / down) until `off`. |
 | `pause_request <player 2-4> <1 or 0>` | That player's device holds (1) or lets go of (0) the pause button: the pause menu is theirs. |
+| `log_cars` | Logs the cars of the profile's garage (the Quick Race's car list): index, handle (the first word), and the folder in CARS that has the car's name with its size. The `log_cars` scenario does just that. |
 | `log_players` | Logs every local player of the split screen mod: car, position, render port (needs `nfsmw_split_screen_support`). |
 | `press_start <0-3\|keyboard>` | For the split screen Press Start screens: tells the one that is showing that this device let go of Start (needs `nfsmw_split_screen_support`). |
 | `screenshot <name> [width=960]` | Saves the back buffer as `scripts/mets_mods/screenshots/<date>-<time>_<scenario>/<name>.png`, at most `width` pixels wide. A 960 px picture costs an AI about 700 tokens to look at. |

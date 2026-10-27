@@ -7,6 +7,7 @@
  *   wait_until <condition> [timeout=<seconds>]   conditions: frontend, main_menu, racing, state=<game flow state>
  *   press <accept|back|up|down|left|right|start> [times]   a menu press, as the pad does it (holds the menu's button for 100 ms)
  *   wait_until screen=<package name>   e.g. screen=MainMenu.fng
+ *   log_cars                           the cars of the profile's garage (the Quick Race car list), with their folder in CARS and its size
  *   log_players                        every local player's car, position and render port go to the split screen mod's log
  *   press_start <0-3|keyboard>         the Press Start screen of the split screen menus is told that device let go of Start
  *   screenshot <name> [width=960]      <data folder>/screenshots/<date>-<time>_<scenario>/<name>.png
@@ -203,6 +204,45 @@ void log_state() {
                db ? *reinterpret_cast<const unsigned *>(db + 0x12C) : 0u);
 }
 
+// The cars of the profile's garage, which the Quick Race's Car Select lists in this order: index, the record's first words, and the folder in CARS whose
+// name makes the record's key (Attrib::StringToKey 0x454640 of the lower case name) with its size.
+void log_cars() {
+    unsigned char *db = *reinterpret_cast<unsigned char **>(kFeDatabase);
+    if (!db) return g_log.line("cars: no database yet");
+    struct Folder {
+        std::string name;
+        unsigned key;
+        unsigned long long bytes;
+    };
+    std::vector<Folder> folders;
+    WIN32_FIND_DATAA found;
+    HANDLE find = FindFirstFileA("CARS\\*", &found);
+    for (BOOL ok = find != INVALID_HANDLE_VALUE; ok; ok = FindNextFileA(find, &found)) {
+        if (!(found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || found.cFileName[0] == '.') continue;
+        std::string lower = found.cFileName;
+        for (char &c : lower) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+        unsigned long long bytes = 0;
+        WIN32_FIND_DATAA file;
+        HANDLE inner = FindFirstFileA(("CARS\\" + std::string(found.cFileName) + "\\*").c_str(), &file);
+        for (BOOL more = inner != INVALID_HANDLE_VALUE; more; more = FindNextFileA(inner, &file))
+            bytes += (static_cast<unsigned long long>(file.nFileSizeHigh) << 32) | file.nFileSizeLow;
+        if (inner != INVALID_HANDLE_VALUE) FindClose(inner);
+        folders.push_back({lower, reinterpret_cast<unsigned(__cdecl *)(const char *)>(0x454640)(lower.c_str()), bytes});
+    }
+    if (find != INVALID_HANDLE_VALUE) FindClose(find);
+    void *car_db = *reinterpret_cast<unsigned char **>(db + 0x10) + 0x414;
+    for (int i = 0; i < 400; ++i) {
+        const unsigned char *record = reinterpret_cast<unsigned char *(__fastcall *)(void *, void *, int)>(0x56ECF0)(car_db, nullptr, i);
+        if (!record) break;
+        const unsigned key = *reinterpret_cast<const unsigned *>(record + 8);
+        const Folder *match = nullptr;
+        for (const Folder &f : folders)
+            if (f.key == key) match = &f;
+        g_log.line("cars: %d: words %08x %08x, key %08x, folder %s (%.1f MB)", i, *reinterpret_cast<const unsigned *>(record), *reinterpret_cast<const unsigned *>(record + 4),
+                   key, match ? match->name.c_str() : "?", match ? match->bytes / 1048576.0 : 0.0);
+    }
+}
+
 void read_script() {
     FILE *file = fopen(g_script_path.c_str(), "r");
     if (!file) return;
@@ -271,6 +311,8 @@ void run(const std::string &line, IDirect3DDevice9 *device) {
         g_measure_start_frame = g_frame;
         g_wait_until_ms = g_measure_start_ms + g_measure_ms;
         g_measuring = true;
+    } else if (cmd == "log_cars") {
+        log_cars();
     } else if (cmd == "state") {
         log_state();
     } else if (cmd == "log") {

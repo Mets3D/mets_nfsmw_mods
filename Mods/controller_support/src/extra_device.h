@@ -14,7 +14,7 @@ namespace pad::extra_device {
 // Makes the device (once) and gives it a source: an XInput controller (0-3), controller_api::kSourceKeyboard or
 // kSourceNone. Returns the port the second player's ActionQueue must read, or -1 when there is no device.
 // More than two players have more devices (slots 1 and 2: players 3 and 4): add_slot does the same for a slot, add() is slot 0. Only slot 0 has
-// rumble, camera look and the joystick port -1 mapping of the second player.
+// the joystick port -1 mapping of the second player.
 constexpr int kSlots = 3;
 int add_slot(int slot, int source);
 int add(int source);
@@ -23,7 +23,9 @@ int port();                 // the device's port, or -1 before add()
 // ports and crashes on them, so the player's database port stays -1) gets the device's port while it has a source.
 int port_for_player(int joystick_port);
 int source_slot();               // the XInput controller of the device's source (rumble, camera look), or -1
-int keyboard_slot();            // the slot whose source is the keyboard (the mouse then looks around in that player's camera), or -1
+int source_slot_of(int slot);    // the same for the device of a slot (rumble)
+int slot_of_port(int port);      // the slot whose device has this port, or -1
+int keyboard_slot();          // the slot whose source is the keyboard (the mouse then looks around in that player's camera), or -1
 float value(int entry);
 float value_slot(int slot, int entry);  // the same for the device of a slot         // what the device says for a binding entry now (0..1)
 void test_input(int slot, bool on, int gas, int steer);

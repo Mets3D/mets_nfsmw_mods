@@ -1,0 +1,5 @@
+# Logs the cars of the profile's garage (the list of the Quick Race's Car Select) with their size on disk, and quits.
+wait_until main_menu timeout=120
+wait 2
+log_cars
+quit

@@ -49,6 +49,12 @@ bool is_extra(void *device) {
     return false;
 }
 int source_slot() { return g_source >= 0 ? g_source : -1; }
+int source_slot_of(int slot) { return slot >= 0 && slot < kSlots && g_slots[slot].source >= 0 ? g_slots[slot].source : -1; }
+int slot_of_port(int port) {
+    for (int i = 0; i < kSlots; ++i)
+        if (g_slots[i].device && port >= 0 && g_slots[i].port == port) return i;
+    return -1;
+}
 int keyboard_slot() {
     for (int i = 0; i < kSlots; ++i)
         if (g_slots[i].device && g_slots[i].source == nfsmw::controller_api::kSourceKeyboard) return i;

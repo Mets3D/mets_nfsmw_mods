@@ -144,24 +144,25 @@ bool on_ground(const void *surface) {
 // thread talks to the controller: in a race the game thread just sets the level it should play (each frame), and
 // the Settings page's previews are played by the thread itself, so a crash and its preview reach the controller the same
 // way. The thread also stops the motors when the game stops updating (loading, a hang).
-// Two players can rumble (the second one reads the extra device, see extra_device.h); g_cur is the one the game thread is
+// Up to four players can rumble (the others read the extra devices, see extra_device.h); g_cur is the one the game thread is
 // working on, set at every entry from the game (the feedback objects know their player).
+constexpr int kPlayers = 4;
 int g_cur = 0;
-volatile float g_game_level[2] = {};
-volatile DWORD g_last_rumble_update[2] = {};  // when the race last set g_game_level
+volatile float g_game_level[kPlayers] = {};
+volatile DWORD g_last_rumble_update[kPlayers] = {};  // when the race last set g_game_level
 volatile LONG g_preview_effect = -1;      // the effect being previewed, or -1
 volatile DWORD g_preview_start = 0;
 
-volatile LONG g_stop_now[2] = {};  // pause / reset: the motors stop at once, not after the short hold below
+volatile LONG g_stop_now[kPlayers] = {};  // pause / reset: the motors stop at once, not after the short hold below
 
 void set_motors(float level) { g_game_level[g_cur] = level; }
 
 // The thread's side. A change is sent at most every 30 ms (a rise of a tenth or more, or stopping, at once); a steady
 // level is sent again every half second, as Xbox controllers on Bluetooth stop a rumble after a while.
 void send_level(int player, float level, int port) {
-    static WORD sent[2] = {};
-    static DWORD last_send[2] = {};
-    static int sent_port[2] = {-1, -1};
+    static WORD sent[kPlayers] = {};
+    static DWORD last_send[kPlayers] = {};
+    static int sent_port[kPlayers] = {-1, -1, -1, -1};
     if (!xinput::can_vibrate()) return;
     if (sent_port[player] != port) {  // the player changed controller: the old one stops
         if (sent_port[player] >= 0 && sent[player]) {
@@ -223,9 +224,9 @@ bool preview_shape(int effect, float t, float *out) {
 }
 
 // Which controller a player's rumble goes to: player 1 the one in use (or none, when no controller reaches the game),
-// player 2 the one that is the source of their device (-1: none, or the keyboard).
+// the others the one that is the source of their device (-1: none, or the keyboard).
 int player_slot(int player) {
-    if (player == 1) return extra_device::source_slot();
+    if (player >= 1) return extra_device::source_slot_of(player - 1);
     return input::player_one_rumble_slot();
 }
 
@@ -237,7 +238,7 @@ DWORD WINAPI rumble_thread(void *) {
         // The times come from the other thread: read them before GetTickCount(), and compare signed, so a time set a
         // tick later than our clock reading never looks like one from 49 days ago. (It did once: the motors were cut
         // to 0 every few frames, which made every effect in a race feel weak.)
-        for (int player = 0; player < 2; ++player) {
+        for (int player = 0; player < kPlayers; ++player) {
             float level = 0.0f;
             const LONG effect = player == 0 ? g_preview_effect : -1;  // the Settings page plays on player 1's controller
             const DWORD preview_start = g_preview_start, last_update = g_last_rumble_update[player];
@@ -300,7 +301,7 @@ struct RumbleState {
     float scrape, scrape_hold;         // sliding along a wall or a car
     int jolt_effect, scrape_effect;    // the effects they belong to
     LARGE_INTEGER last;                // the previous EndUpdate, 0 after a pause
-} g_states[2];
+} g_states[kPlayers];
 
 RumbleState &rs() { return g_states[g_cur]; }
 
@@ -418,8 +419,8 @@ void update_rumble() {
 struct Feedback {
     void **vtbl;
     void *inner;  // the game's object, which every call is passed on to
-    int index;    // 0 player 1, 1 the second player
-} g_feedbacks[2] = {{nullptr, nullptr, 0}, {nullptr, nullptr, 1}};
+    int index;    // 0 player 1, 1 the second player, 2 and 3 the third and fourth
+} g_feedbacks[kPlayers] = {{nullptr, nullptr, 0}, {nullptr, nullptr, 1}, {nullptr, nullptr, 2}, {nullptr, nullptr, 3}};
 
 template <typename... A>
 void pass_on(int index, A... args) {
@@ -572,10 +573,11 @@ void keep_game_vibration_on(void *view) {
 // player has been given a controller. Returns the object's index, or -1 when the player rumbles through the game's
 // own object.
 int install_feedback(void *&ffb, int port) {
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < kPlayers; ++i)
         if (ffb == &g_feedbacks[i]) return i;
     if (!g_rumble_enabled || !xinput::can_vibrate()) return -1;
-    const int index = port < 0 ? -1 : port == extra_device::port() ? 1 : 0;
+    const int slot = extra_device::slot_of_port(port);
+    const int index = port < 0 ? -1 : slot >= 0 ? slot + 1 : 0;
     if (index < 0) return -1;
     Feedback &feedback = g_feedbacks[index];
     feedback.vtbl = g_feedback_vtbl;
@@ -583,8 +585,7 @@ int install_feedback(void *&ffb, int port) {
     ffb = &feedback;
     g_cur = index;
     clear_rumble_effects();
-    log_line("rumble: the %s player (port %d) now rumbles through mets_controller_support (the game's feedback object: %p)",
-             index == 0 ? "first" : "second", port, feedback.inner);
+    log_line("rumble: player %d (port %d) now rumbles through mets_controller_support (the game's feedback object: %p)", index + 1, port, feedback.inner);
     return index;
 }
 
@@ -595,7 +596,7 @@ void FASTCALL hook_do_ffb(void *player, void *edx) {
     // view (0x4C further on) has the object at +0xC.
     void *&ffb = field<void *>(player, 0x58);
     int index = -1;
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < kPlayers; ++i)
         if (ffb == &g_feedbacks[i]) index = i;
     if (index >= 0) {
         g_cur = index;

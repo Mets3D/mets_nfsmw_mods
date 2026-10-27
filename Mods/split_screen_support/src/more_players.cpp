@@ -79,6 +79,18 @@ void capture(int first, int count = 2) {
     p2.valid = count > 1;
     p1.car_handle = *selected_car(0);
     p1.device = devices[0];
+    // A diagnostic: every player drives this car ([options] test_car_handle: the handle of a car of the profile's garage, test_car: the name of its folder in CARS).
+    char test_name[32];
+    GetPrivateProfileStringA("options", "test_car", "", test_name, sizeof(test_name), g_ini);
+    const int test_handle = GetPrivateProfileIntA("options", "test_car_handle", 0, g_ini);
+    if (test_handle > 0 && test_name[0]) {
+        p1.car_handle = test_handle;
+        *selected_car(0) = test_handle;
+        strcpy(car_name(), test_name);
+        if (void *old = *customization_pointer()) reinterpret_cast<void (*)(void *)>(kBFree)(old);
+        *customization_pointer() = nullptr;
+        g_log.line("test_car: players %d to %d drive \"%s\" (handle %d)", first + 1, first + count, test_name, test_handle);
+    }
     if (count < 2) {
         g_log.line("player %d chose: car handle %#x on device %d", first + 1, p1.car_handle, p1.device);
         return;
