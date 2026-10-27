@@ -47,6 +47,7 @@ long g_countdown_offset = -1;  // set once the race has told a HUD to count down
 
 void *g_huds[kMaxHuds];     // by player: 0 = player 1
 void *g_players[kMaxHuds];  // their IPlayer
+const char *g_packages[kMaxHuds];
 int g_hud_count = 0;     // HUDs of this race so far
 int g_copies_used = 0;
 bool g_extra_huds_made = false;
@@ -59,12 +60,20 @@ int index_of(void *hud) {
     return -1;
 }
 
-// Each minimap has its player's colour for its own marker, and shows player 2 (player 1's minimap) or player 1 (the others) as its second one.
+// Each minimap has its player's colour for its own marker, and shows every other player in theirs.
 void set_markers() {
     for (int i = 0; i < g_hud_count; ++i) {
         void *minimap = *reinterpret_cast<void **>(static_cast<char *>(g_huds[i]) + kHudMinimap);
-        const int other = i == 0 ? 1 : 0;
-        if (minimap && other < g_hud_count) minimap::set_markers(minimap, kColours[i], g_players[other], kColours[other]);
+        if (!minimap) continue;
+        const void *others[kMaxHuds];
+        unsigned colours[kMaxHuds];
+        int count = 0;
+        for (int j = 0; j < g_hud_count; ++j)
+            if (j != i) {
+                others[count] = g_players[j];
+                colours[count++] = kColours[j];
+            }
+        minimap::set_markers(minimap, g_packages[i], kColours[i], others, colours, count);
     }
 }
 
@@ -86,6 +95,7 @@ void hud_made(void *hud, int type, const char *package, void *player, int number
     const int index = g_hud_count++;
     g_huds[index] = hud;
     g_players[index] = player;
+    g_packages[index] = package;
     hud_views::assign(package, index, 4);
     if (type == kHudSplit2 && strcmp(package, kSource) != 0) {  // (a package that is not a copy: making it failed: has no minimap objects)
         void *memory = reinterpret_cast<void *(__cdecl *)(size_t)>(kMalloc)(kMinimapSize);

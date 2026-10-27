@@ -64,7 +64,7 @@ screenshot driving_a
 log_players
 drive 3 1 1
 drive 4 1 -1
-wait 3
+wait 7
 screenshot driving_b width=1280
 log_players
 quit

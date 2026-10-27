@@ -8,8 +8,8 @@ namespace split_screen_support::minimap {
 void place(void *minimap, const char *package, float dy);
 
 // The markers of a minimap that is not one of the two of a game for two players (hud_players.cpp makes them): its own marker has the colour `own_rgb` and
-// the second marker follows `other_player` (an IPlayer) in `other_rgb`. Forgotten when the HUDs go.
-void set_markers(void *minimap, unsigned own_rgb, void *other_player, unsigned other_rgb);
+// the other markers follow `others` (IPlayers) in `other_rgb`: the first is the minimap's second marker, the rest copies of it in the HUD's `package`. Forgotten when the HUDs go.
+void set_markers(void *minimap, const char *package, unsigned own_rgb, const void *const *others, const unsigned *other_rgb, int count);
 
 void install();
 

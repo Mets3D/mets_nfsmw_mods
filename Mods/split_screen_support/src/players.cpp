@@ -40,9 +40,10 @@ constexpr unsigned kStartReleased = 0xEBFCDA65;
 constexpr int kNotChosen = -2;
 constexpr int kEveryone = -3, kNormal = -4;  // for give_controls(): every device; back to the default
 constexpr int kStartKeys[] = {0x1C, 0x39, 0x9C};  // DirectInput codes: Enter, Space, numpad Enter
+constexpr int kNextDeviceKey = 0x43;               // F9: the Press Start screen takes the next device that has no player (see poll())
 
 bool g_start_was_down[4];  // XInput slots
-bool g_key_was_down = false;
+bool g_key_was_down = false, g_next_key_was_down = false;
 bool g_connected[4];
 DWORD g_next_scan = 0;
 int g_chosen[2] = {kNotChosen, kNotChosen};  // at the Press Start screens
@@ -71,6 +72,22 @@ void press_start(int device) {
     g_pressed_by = kNotChosen;
 }
 
+bool device_taken(int device) {
+    if (g_chosen[0] == device || g_chosen[1] == device) return true;
+    return more_players::round() == 1 && more_players::device_used_in_first_round(device);
+}
+
+// F9 on a Press Start screen: the player gets the first device that has no player yet (a connected controller, else the keyboard, else a controller
+// that is not connected), so a game can be tested with fewer devices than players.
+int next_free_device() {
+    for (int i = 0; i < 4; ++i)
+        if (g_connected[i] && !device_taken(i)) return i;
+    if (!device_taken(kKeyboard)) return kKeyboard;
+    for (int i = 0; i < 4; ++i)
+        if (!device_taken(i)) return i;
+    return kNotChosen;
+}
+
 void poll() {
     const DWORD now = GetTickCount();
     const bool scan = static_cast<LONG>(now - g_next_scan) >= 0;
@@ -97,6 +114,15 @@ void poll() {
         for (const int key : kStartKeys) down |= (keys[key] & 0x80) != 0;
         if (g_key_was_down && !down && released == kNotChosen) released = kKeyboard;
         g_key_was_down = down;
+        const bool next = (keys[kNextDeviceKey] & 0x80) != 0;
+        if (g_next_key_was_down && !next && released == kNotChosen) {
+            const int device = next_free_device();
+            if (device != kNotChosen) {
+                g_log.line("F9: the Press Start screen gets %s", describe(device));
+                released = device;
+            }
+        }
+        g_next_key_was_down = next;
     }
     if (released != kNotChosen) press_start(released);
 }

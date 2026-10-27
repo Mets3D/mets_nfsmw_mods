@@ -118,12 +118,18 @@ struct TileSet {
 TileSet g_tile_sets[8];
 int g_tile_set_count = 0;
 
+constexpr int kMaxOthers = 7;
 struct Markers {
     void *minimap;
     unsigned own_rgb;
-    void *other_player;
-    unsigned other_rgb;
+    int other_count;
+    int clones_made_for;       // how many others the clones were made for (a failed try is not repeated)
+    const char *package;       // the HUD's package (for the markers' clones)
+    void *clones[kMaxOthers];  // the markers of the others but the first: copies of the second marker, in its group (the layout has none of the AI racers' markers)
+    void *others[kMaxOthers];  // the other players (IPlayer): the first is shown with the minimap's second marker, the rest with its racer markers
+    unsigned other_rgb[kMaxOthers];
 };
+
 Markers g_markers[8];
 int g_marker_count = 0;
 
@@ -341,7 +347,18 @@ struct Placed {
 Placed g_placed[64];
 int g_placed_count = 0;
 
+// A clone of a marker is shown by the minimap's update only: with the HUD hidden (the own marker is hidden) it is hidden too.
+void follow_marker_visibility() {
+    for (int i = 0; i < g_marker_count; ++i) {
+        void *own = field<void *>(g_markers[i].minimap, 0x90);
+        if (!own || !(field<unsigned>(own, 0x1C) & 1)) continue;
+        for (int k = 1; k < g_markers[i].other_count; ++k)
+            if (g_markers[i].clones[k]) field<unsigned>(g_markers[i].clones[k], 0x1C) |= 1;
+    }
+}
+
 void pin_placed() {
+    follow_marker_visibility();
     for (int i = 0; i < g_placed_count; ++i)
         if (position_y(g_placed[i].object) != g_placed[i].y) shift(g_placed[i].object, g_placed[i].y - position_y(g_placed[i].object));
 }
@@ -355,6 +372,38 @@ void drop_second_minimap() {
     g_right_split = g_right_main = g_left = nullptr;
     forget_layout();
     g_hud_frames = 0;
+}
+
+// The group that has `target` as a child (anywhere below `group`).
+void *parent_of(void *group, void *target, int depth = 0) {
+    if (depth > 8) return nullptr;
+    for (void *c = first_child(group); c; c = next_of(c)) {
+        if (c == target) return group;
+        if (is_group(c))
+            if (void *found = parent_of(c, target, depth + 1)) return found;
+    }
+    return nullptr;
+}
+
+// A minimap has one marker for another player; the others are copies of it, in the same group (so the group's visibility is theirs).
+void make_marker_clones(Markers &m) {
+    if (m.clones_made_for == m.other_count) return;
+    m.clones_made_for = m.other_count;
+    void *marker = field<void *>(m.minimap, 0x94);
+    void *package = m.package ? find_package(m.package) : nullptr;
+    if (!marker || !package || !can_clone(marker)) return;
+    void *group = nullptr;
+    for (void *o = field<void *>(package, 0x4C); o && !group; o = next_of(o))
+        if (is_group(o)) group = parent_of(o, marker);
+    if (!group) return;
+    for (int k = 1; k < m.other_count; ++k) {
+        if (m.clones[k]) continue;
+        void *copy = reinterpret_cast<CloneFn>(vslot(marker, 1))(marker, nullptr, false);
+        if (!copy) continue;
+        finish_clone(marker, copy);
+        reinterpret_cast<void(__fastcall *)(void *, void *, void *)>(0x5B5420)(group, nullptr, copy);  // FEGroup::AddObject
+        m.clones[k] = copy;
+    }
 }
 
 // ---- hooks
@@ -423,9 +472,19 @@ void colour(void *marker, unsigned rgb) {
 
 void __fastcall hook_minimap_update(void *self, void *edx, void *player) {
     g_orig_minimap_update(self, edx, player);
-    if (const Markers *m = markers_of(self)) {
+    if (Markers *m = markers_of(self)) {
+        make_marker_clones(*m);
         colour(field<void *>(self, 0x90), m->own_rgb);
-        colour(field<void *>(self, 0x94), m->other_rgb);
+        if (m->other_count > 0) colour(field<void *>(self, 0x94), m->other_rgb[0]);
+        for (int k = 1; k < m->other_count && k <= 8; ++k) {
+            void *art = m->clones[k];
+            void *simable = reinterpret_cast<void *(__fastcall *)(void *, void *)>(vslot(m->others[k], 1))(m->others[k], nullptr);
+            if (!art || !simable) continue;
+            float position[2] = {}, direction[2] = {};
+            reinterpret_cast<VehicleVectorsFn>(0x579840)(position, direction, simable);
+            reinterpret_cast<ElementArtFn>(0x5675D0)(self, nullptr, position, direction, art, false);
+            colour(art, m->other_rgb[k]);
+        }
         return;
     }
     if (!g_b || (self != g_a && self != g_b)) return;
@@ -437,7 +496,7 @@ void __fastcall hook_minimap_update(void *self, void *edx, void *player) {
 // Minimap::UpdatePlayer2Element: the second arrow is whatever the last entry of the player list is; it has to be the other player.
 void __fastcall hook_other_marker(void *self, void *edx) {
     const Markers *m = markers_of(self);
-    void *other = m ? m->other_player : self == g_b ? g_player1 : self == g_a ? g_player2 : nullptr;
+    void *other = m ? (m->other_count > 0 ? m->others[0] : nullptr) : self == g_b ? g_player1 : self == g_a ? g_player2 : nullptr;
     if (!other) {
         g_orig_other_marker(self, edx);
         return;
@@ -590,10 +649,21 @@ void place(void *minimap, const char *package, float dy) {
     g_log.line("minimap: %d objects of %s moved by %.0f", moved, package, dy);
 }
 
-void set_markers(void *minimap, unsigned own_rgb, void *other_player, unsigned other_rgb) {
+void set_markers(void *minimap, const char *package, unsigned own_rgb, const void *const *others, const unsigned *other_rgb, int count) {
     Markers *m = markers_of(minimap);
-    if (!m && g_marker_count < 8) m = &g_markers[g_marker_count++];
-    if (m) *m = {minimap, own_rgb, other_player, other_rgb};
+    if (!m && g_marker_count < 8) {
+        m = &g_markers[g_marker_count++];
+        *m = {};
+    }
+    if (!m) return;
+    m->minimap = minimap;
+    m->package = package;
+    m->own_rgb = own_rgb;
+    m->other_count = count < kMaxOthers ? count : kMaxOthers;
+    for (int i = 0; i < m->other_count; ++i) {
+        m->others[i] = const_cast<void *>(others[i]);
+        m->other_rgb[i] = other_rgb[i];
+    }
 }
 
 void install() {
