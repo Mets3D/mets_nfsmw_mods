@@ -330,6 +330,15 @@ void set_chosen(const int in[2]) {
 
 int device(int player) { return player >= 0 && player < 4 ? g_race[player] : kKeyboard; }
 
+int chosen(int index) { return index >= 0 && index < 2 ? g_chosen[index] : kNotChosen; }
+
+void device_label(int device, char *out, unsigned size) {
+    static const api::DeviceLabelFn label = api::find_device_label();
+    out[0] = 0;
+    if (!label || device == kNotChosen) return;
+    label(device == kKeyboard ? api::kSourceKeyboard : device, out, static_cast<int>(size));
+}
+
 int extra_port(int extra) { return extra >= 0 && extra < 2 ? g_extra_port[extra] : -1; }
 
 bool read_keyboard(unsigned char *out) {

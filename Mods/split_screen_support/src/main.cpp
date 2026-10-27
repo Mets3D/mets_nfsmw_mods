@@ -66,6 +66,7 @@ NFSMW_PLUGIN_MAIN() {
         hud_views::install();
         hud_players::install();
     }
+    more_players::install_car_select_label();
     players::install();  // before state_log: the world load log shows its ports
     state_log::install();
     events::install();

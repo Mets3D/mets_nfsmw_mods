@@ -20,6 +20,11 @@ void set_chosen(const int in[2]);
 // The game input device port of player 3 or 4 (extra 0 or 1), -1 when they have none (see players.cpp).
 int extra_port(int extra);
 
+// The device that pressed Start on the Press Start screen of player `index` (0 or 1) of this round: -2 when none did.
+int chosen(int index);
+// The device's name as the Controls menu shows it ("Xbox One S Controller", "Keyboard"); empty without mets_controller_support.
+void device_label(int device, char *out, unsigned size);
+
 // The device of player 0 to 3 in this race (0-3 an XInput controller, or kKeyboard).
 int device(int player);
 // The keyboard as DirectInput shows it (256 bytes, bit 7 = down), whoever it reaches; false when it is not known.

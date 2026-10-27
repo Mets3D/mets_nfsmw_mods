@@ -395,4 +395,22 @@ void install_hooks() {
 
 }  // namespace pad::pad_sets
 
+// The name of a device as the Controls menu shows it: the keyboard's, or the controller of an XInput slot (its model, "#2" for a second of the same name).
+// `source`: an XInput controller 0-3, or controller_api::kSourceKeyboard. Returns 0 when the controller is not known (the label is then "Controller N").
+extern "C" __declspec(dllexport) int mets_controller_support_device_label(int source, char *out, int size) {
+    using namespace pad::pad_sets;
+    if (!out || size < 2) return 0;
+    if (source == nfsmw::controller_api::kSourceKeyboard) {
+        snprintf(out, size, "%s", g_orig_name ? g_orig_name(1) : "Keyboard");
+        return 1;
+    }
+    for (int pad = 0; pad < joystick_count(); ++pad)
+        if (pad::input::xinput_slot_of_joystick(pad) == source) {
+            label_of_pad(pad, g_orig_name ? g_orig_name(3) : "Controller", out, size);
+            return 1;
+        }
+    snprintf(out, size, "Controller %d", source + 1);
+    return 0;
+}
+
 extern "C" __declspec(dllexport) int mets_controller_support_live_pad() { return pad::pad_sets::live_pad(); }

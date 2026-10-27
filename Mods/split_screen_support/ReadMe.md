@@ -11,6 +11,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 ## Features
 - Each player gets their own minimap and minimap color, not present in the base game. With [Custom Menus](../custom_menus/ReadMe.md) installed, each player can hide their own minimap in **Options > Player > Minimap**. Can be turned off in the [.ini](nfsmw_split_screen_support.ini) (`use_split_minimap`).
 - Each player can fully control their own camera.
+- The Car Select screen says which player it is for and with which device ("Player 2 - Xbox One S Controller", the name the Controls menu shows).
 - Either player can invoke the pause menu, and change their keybinds during a race.
 - Each player's screen renders with its own shadows, reflection cubemap, geometry culling.
 - Performance optimization culling smaller objects is disabled, since it's not needed on modern computers. Can be turned back on in the [.ini](nfsmw_split_screen_support.ini) (`cull_small_objects`).
@@ -31,7 +32,6 @@ Needs [Custom Menus](../custom_menus/ReadMe.md) (the **Players** row, 2 or 4, in
 Not done yet:
 - Players 3 and 4 have no rumble or mouse look, and their camera views are rough copies of the game's (the game has no camera for them). No camera settings for them.
 - A bigger car memory pool for four cars; 3 players (or 5 to 9: the layout code is for any number, the rest is for two extra players).
-- I think it might also be cool if instead of "Player 1/2/3/4" in the car select menu, it would also display the input device's name (same that's displayed in the Controls menu). Is this possible?
 
 ## Older TODOs, not 4-player split-screen specific
 - The sun seems to be drawn for player 2 depending on player 1's perspective? Specifically, when player 1 has the sun in their view, player 2 might also get a sun rendered kinda arbitrarily in their view.

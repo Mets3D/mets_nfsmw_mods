@@ -400,44 +400,63 @@ void reset() {
 
 int round() { return g_round; }
 
-// The Car Select screen of the second round says "Player 3" or "Player 4": the game's label (the language string 0x7B070984 / 0x7B070985, "Player 1" /
-// "Player 2" in the object 0xE3FE27FE) with the number changed, for the player whose Press Start came just before.
-int g_label_player = 3;
+// The Car Select screen of a split screen race says which player it is for and with which device: the game's label (the language string 0x7B070984 /
+// 0x7B070985, "Player 1" / "Player 2" in the object 0xE3FE27FE) with the number changed (3 and 4 in the second round), and the device's name as the
+// Controls menu shows it, for the player whose Press Start came just before.
+int g_press_start_player = 0;  // the player of the last Press Start screen of this round: 0 or 1
 constexpr unsigned kCarSelectPlayerObject = 0xE3FE27FE, kPlayerOneString = 0x7B070984;
 
 void *(*g_orig_create_car_select)(void *);
 void *hook_create_car_select(void *data) {
     void *screen = g_orig_create_car_select(data);
-    if (!screen || g_round != 1) return screen;
-    char text[64];
+    if (!screen || !players::split_screen()) return screen;
+    const int number = 2 * g_round + g_press_start_player + 1;
+    char text[160];
     const char *label = reinterpret_cast<const char *(*)(unsigned)>(kGetLocalizedString)(kPlayerOneString);
     strncpy(text, label ? label : "PLAYER 1", sizeof(text) - 1);
     text[sizeof(text) - 1] = 0;
     for (char *c = text + strlen(text); c-- > text;)
         if (*c >= '0' && *c <= '9') {
-            *c = static_cast<char>('0' + g_label_player);
+            *c = static_cast<char>('0' + number);
             break;
         }
+    char device[96];
+    players::device_label(players::chosen(g_press_start_player), device, sizeof(device));
+    if (device[0]) snprintf(text + strlen(text), sizeof(text) - strlen(text), " - %s", device);
     const char *package = *reinterpret_cast<const char **>(static_cast<char *>(screen) + kScreenPackage);
-    reinterpret_cast<int (*)(const char *, int, const char *, ...)>(kFePrintfPackage)(package, kCarSelectPlayerObject, "%s", text);
+    // The label is a group of strings (the text and its shadow). A string has room for 15 characters (FEPrintf cuts the text there), so they are assigned
+    // with the game's own FEWideString::operator= (0x57E8C0), which makes room, and the flags FEPrintf sets: do not take the text from the language string
+    // (2), the text is new (0x400000).
+    if (void *group = reinterpret_cast<void *(*)(const char *, unsigned)>(0x524850)(package, kCarSelectPlayerObject)) {  // FEngFindObject
+        for (void *child = *reinterpret_cast<void **>(static_cast<char *>(group) + 0x64); child; child = *reinterpret_cast<void **>(static_cast<char *>(child) + 4)) {
+            char *o = static_cast<char *>(child);
+            if (*reinterpret_cast<int *>(o + 0x18) != 2) continue;  // a string
+            reinterpret_cast<void *(__fastcall *)(void *, void *, const char *)>(0x57E8C0)(o + 0x64, nullptr, text);
+            *reinterpret_cast<unsigned *>(o + 0x1C) |= (1u << 25) | (1u << 24) | 0x400002u;
+        }
+    }
+    g_log.line("Car Select: \"%s\"", text);
     return screen;
 }
 
 void on_press_start_screen(void *screen) {
+    g_press_start_player = *reinterpret_cast<int *>(static_cast<char *>(screen) + kPressStartPlayer) & 1;
     if (g_round != 1) return;
-    const int player = *reinterpret_cast<int *>(static_cast<char *>(screen) + kPressStartPlayer) + 3;
-    g_label_player = player;
+    const int player = g_press_start_player + 3;
     const char *package = *reinterpret_cast<const char **>(static_cast<char *>(screen) + kScreenPackage);
     const char *format = reinterpret_cast<const char *(*)(unsigned)>(kGetLocalizedString)(kPlayerTextFormat);
     reinterpret_cast<int (*)(const char *, int, const char *, ...)>(kFePrintfPackage)(package, kPlayerTextObject, format, player);
 }
 
-void install() {
+void install_car_select_label() {
     const nfsmw::Hook hooks[] = {
         {"carselectlabel", "CreateQRCarSelect", 0x570C00, {0x6A, 0xFF, 0x68, 0x94, 0x17, 0x87, 0x00}, false, nfsmw::detour(&hook_create_car_select),
          nfsmw::orig(&g_orig_create_car_select)},
     };
-    nfsmw::install_hooks(hooks, 1, g_log, nullptr, "more players");
+    nfsmw::install_hooks(hooks, 1, g_log, nullptr, "car select label");
+}
+
+void install() {
     // The call is redirected, not StartRace hooked: other mods change functions too (see player_count.cpp).
     if (const uintptr_t target = nfsmw::call_target(kCreatePlayersCall)) g_create_players = target;
     if (const uintptr_t previous = nfsmw::chain_call(kCreateCarsCall, reinterpret_cast<uintptr_t>(&create_cars))) g_create_cars = previous;

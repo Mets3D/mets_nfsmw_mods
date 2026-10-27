@@ -9,6 +9,8 @@
 //                      kSourceNone. Returns the port for the player's joystick port (FEDatabase), or -1 when there is none
 //   int mets_controller_support_extra_device_slot(int slot, int source)  the same for more players: slot 0 is the second player's (as above), 1 and 2 are
 //                      the third's and fourth's. They have no rumble or camera look.
+//   int mets_controller_support_device_label(int source, char *out, int size)  the name of a device as the Controls menu shows it ("Xbox One S Controller",
+//                      "Keyboard"; source: an XInput controller 0-3 or kSourceKeyboard); 0 when the controller is not known
 //   mets_controller_support_look_camera(int slot, int mode, float dt, float *from, float *to, float *up, void *out)  makes the look-at matrix of a camera (eye
 //                      `from`, target `to`, `up`: 3 floats each, the game's render space) with the camera look of the device of extra slot 1 or 2 (players 3 and 4) and its
 //                      look-back button applied; `mode` is the camera view type (0 bumper, 1 hood, 2 and up the outside views, which can be looked around)
@@ -29,6 +31,7 @@ using VehicleSourceFn = void (*)(int source);
 using ExtraDeviceFn = int (*)(int source);
 using ExtraDeviceSlotFn = int (*)(int slot, int source);
 using TestInputFn = void (*)(int slot, int on, int gas, int steer);
+using DeviceLabelFn = int (*)(int source, char *out, int size);
 using LookCameraFn = void (*)(int slot, int mode, float dt, float *from, float *to, float *up, void *out_matrix);
 using TestEntryFn = void (*)(int slot, int entry, int milli);
 using TestPauseFn = void (*)(int slot, int down);
@@ -54,6 +57,9 @@ inline ExtraDeviceSlotFn find_extra_device_slot() {
 }
 inline TestInputFn find_test_input() {  // for automated tests only (dev_tools)
     return reinterpret_cast<TestInputFn>(detail::find("mets_controller_support_test_input"));
+}
+inline DeviceLabelFn find_device_label() {
+    return reinterpret_cast<DeviceLabelFn>(detail::find("mets_controller_support_device_label"));
 }
 inline LookCameraFn find_look_camera() {
     return reinterpret_cast<LookCameraFn>(detail::find("mets_controller_support_look_camera"));

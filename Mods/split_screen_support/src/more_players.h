@@ -38,6 +38,9 @@ void *extra_player(int index);
 // otherwise none. `player` that is not an extra player is left alone.
 void lend_view(void *player, bool on);
 
+// The Car Select screens of a split screen race say which player and which device (all split screen races, not only those with more than two players).
+void install_car_select_label();
+
 void install();
 
 }  // namespace split_screen_support::more_players
