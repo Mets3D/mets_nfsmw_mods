@@ -13,6 +13,10 @@ namespace pad::extra_device {
 
 // Makes the device (once) and gives it a source: an XInput controller (0-3), controller_api::kSourceKeyboard or
 // kSourceNone. Returns the port the second player's ActionQueue must read, or -1 when there is no device.
+// More than two players have more devices (slots 1 and 2: players 3 and 4): add_slot does the same for a slot, add() is slot 0. Only slot 0 has
+// rumble, camera look and the joystick port -1 mapping of the second player.
+constexpr int kSlots = 3;
+int add_slot(int slot, int source);
 int add(int source);
 int port();                 // the device's port, or -1 before add()
 // The port a player must read: the second player (joystick port -1: the FE input of the PC game has no queue for other
@@ -21,7 +25,8 @@ int port_for_player(int joystick_port);
 int source_slot();               // the XInput controller of the device's source (rumble, camera look), or -1
 bool keyboard_source();         // the source is the keyboard (the mouse then looks around in this player's camera)
 float value(int entry);         // what the device says for a binding entry now (0..1)
-bool is_extra(void *device);  // a GameDevice that is this one
+void test_input(int slot, bool on, int gas, int steer);  // see the export in extra_device.cpp
+bool is_extra(void *device);  // a GameDevice that is one of these
 void poll(void *device);      // PollDevice of this device: its values from the source's bindings
 
 }  // namespace pad::extra_device

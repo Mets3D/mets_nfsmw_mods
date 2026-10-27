@@ -15,15 +15,29 @@ constexpr uintptr_t kFactory = 0x63CD10;     // makes a GameDevice: cdecl, (port
 constexpr uintptr_t kStringHash = 0x5CC240;  // the game's name hash: cdecl, (const char *)
 constexpr int kRecordsAt = 0x34, kPreviousAt = 0x1034, kCurrentAt = 0x1434;  // inside a GameDevice, 0x400 bytes of floats
 
-void *g_device = nullptr;
-int g_port = -1;
-volatile LONG g_source = nfsmw::controller_api::kSourceNone;
+struct Slot {
+    void *device = nullptr;
+    int port = -1;
+    volatile LONG source = nfsmw::controller_api::kSourceNone;
+    volatile LONG test = 0;  // an automated test drives the device: gas and steering, in thousandths (see mets_controller_support_test_input)
+    volatile LONG test_gas = 0, test_steer = 0;
+};
+Slot g_slots[kSlots];
+
+// The device of the second player is slot 0.
+void *&g_device = g_slots[0].device;
+int &g_port = g_slots[0].port;
+volatile LONG &g_source = g_slots[0].source;
 
 int port() { return g_port; }
 int port_for_player(int joystick_port) {
     return joystick_port == -1 && g_device && g_source != nfsmw::controller_api::kSourceNone ? g_port : joystick_port;
 }
-bool is_extra(void *device) { return g_device && device == g_device; }
+bool is_extra(void *device) {
+    for (const Slot &slot : g_slots)
+        if (slot.device && slot.device == device) return true;
+    return false;
+}
 int source_slot() { return g_source >= 0 ? g_source : -1; }
 bool keyboard_source() { return g_source == nfsmw::controller_api::kSourceKeyboard; }
 float value(int entry) {
@@ -56,9 +70,11 @@ void set_up_tables(char *device) {
     field<int>(device, 0x1838) = kBindingCount;
 }
 
-int add(int source) {
-    InterlockedExchange(&g_source, source);
-    if (g_device) return g_port;
+int add_slot(int slot_index, int source) {
+    if (slot_index < 0 || slot_index >= kSlots) return -1;
+    Slot &slot = g_slots[slot_index];
+    InterlockedExchange(&slot.source, source);
+    if (slot.device) return slot.port;
     char *io = reinterpret_cast<char *>(kIoModule);
     const int index = field<int>(io, 4);
     if (index < 1 || index >= kMaxDevices || !field<void *>(io, 8)) {
@@ -75,25 +91,54 @@ int add(int source) {
     field<void *>(io, 8 + index * 4) = device;
     field<int>(io, 4) = index + 1;
     field<unsigned>(io, 0x48) |= 1u << index;
-    g_device = device;
-    g_port = index;
-    log_line("extra device: a second GameDevice at port %d, for the second player", index);
-    return g_port;
+    slot.device = device;
+    slot.port = index;
+    log_line("extra device: a GameDevice at port %d, for player %d", index, slot_index + 2);
+    return slot.port;
 }
 
+int add(int source) { return add_slot(0, source); }
+
 void poll(void *device) {
+    const Slot *owner = nullptr;
+    for (const Slot &slot : g_slots)
+        if (slot.device && slot.device == device) owner = &slot;
+    if (!owner) return;
     char *d = static_cast<char *>(device);
     float *current = field<float *>(d, 0x20);
     memcpy(field<float *>(d, 0x1C), current, 0x400);
     float values[kBindingCount] = {};
-    const int source = g_source;
+    const int source = owner->source;
     if (source >= 0) pad_sets::actions_of_slot(source, values);
     else if (source == nfsmw::controller_api::kSourceKeyboard) pad_sets::actions_of_keyboard(values);
+    if (owner->test) {
+        values[0] = owner->test_gas / 1000.0f;                                       // GAS
+        values[2] = owner->test_steer < 0 ? owner->test_steer / -1000.0f : 0.0f;    // STEERLEFT
+        values[3] = owner->test_steer > 0 ? owner->test_steer / 1000.0f : 0.0f;     // STEERRIGHT
+    }
     for (int e = 0; e < kBindingCount; ++e) current[e] = values[e];
+}
+
+void test_input(int slot_index, bool on, int gas, int steer) {
+    if (slot_index < 0 || slot_index >= kSlots) return;
+    Slot &slot = g_slots[slot_index];
+    slot.test_gas = gas;
+    slot.test_steer = steer;
+    slot.test = on ? 1 : 0;
 }
 
 }  // namespace pad::extra_device
 
 extern "C" __declspec(dllexport) int mets_controller_support_extra_device(int source) {
     return pad::extra_device::add(source);
+}
+
+// For automated tests (dev_tools): the device of a slot says gas and steering (thousandths, steering -1000 left to 1000 right) whatever its source is, until
+// `on` is 0.
+extern "C" __declspec(dllexport) void mets_controller_support_test_input(int slot, int on, int gas, int steer) {
+    pad::extra_device::test_input(slot, on != 0, gas, steer);
+}
+
+extern "C" __declspec(dllexport) int mets_controller_support_extra_device_slot(int slot, int source) {
+    return pad::extra_device::add_slot(slot, source);
 }

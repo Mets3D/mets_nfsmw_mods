@@ -1,0 +1,70 @@
+# split_race_4, then players 2, 3 and 4 drive (their own game input devices, see `drive` in ReadMe.md): positions in the log before and after.
+# Through the real menus with the Players row set to 4: Press Start and Car Select for players 1 and 2, then again for players 3 and 4
+# (devices: keyboard, controllers 0, 1 and 2), then the race, which has 2 players until the code that makes more exists. The log of
+# nfsmw_split_screen_support says what each round chose.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 2
+press down 2
+press right
+wait 2
+screenshot race_options
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 1
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 2
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+screenshot car_select_3 width=640
+press right 3
+wait 2
+press accept
+wait_until racing timeout=180
+wait 8
+log_players
+drive 2 1 0
+drive 3 1 0
+drive 4 1 0
+wait 5
+screenshot driving_a
+log_players
+drive 3 1 1
+drive 4 1 -1
+wait 3
+screenshot driving_b width=1280
+log_players
+quit

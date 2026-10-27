@@ -24,6 +24,8 @@
  */
 #include "more_players.h"
 
+#include <cmath>
+
 #include "hooks.h"
 #include "patch.h"
 #include "player_count.h"
@@ -41,6 +43,7 @@ constexpr uintptr_t kCreatePlayersCall = 0x6F4EDA, kCreatePlayers = 0x6F2700, kC
                     kPlayerCount = 0x92D884;
 constexpr unsigned kSetRenderPortSlot = 0x28 / 4, kSetControllerPortSlot = 0x30 / 4;  // IPlayer's virtual table
 constexpr int kAllTypes = 11;
+constexpr float kRowSpacing = 9.0f;  // metres between the two rows of the starting grid
 constexpr unsigned kSelectedCar = 0x10, kSplitCarName = 0x470, kSplitCustomization = 0x46C, kCustomizationSize = 0x198, kPressStartPlayer = 0x2C,
                    kScreenPackage = 0x10;
 constexpr unsigned kPlayerTextObject = 0xB244CF71, kPlayerTextFormat = 0xCF538E1C;  // "Player %d press start": the object and the language string
@@ -170,7 +173,7 @@ bool make_extra_players(void *quick_game, void *edx) {
     for (int i = count - 2; i < count; ++i) {
         void *player = player_array()[i];
         set_player_port(player, kSetRenderPortSlot, -1);  // no view of the game's own: the views of players 3 and 4 are made by split_view.cpp
-        set_player_port(player, kSetControllerPortSlot, -1);
+        set_player_port(player, kSetControllerPortSlot, players::extra_port(i - (count - 2)));  // their device (players.cpp), -1 when they have none
     }
     return true;
 }
@@ -215,11 +218,19 @@ void __fastcall create_cars(void *quick_game, void *edx, const float *start) {
     }
     *customization_pointer() = custom;  // the game frees it after use
 
-    // The game puts the second car at a fixed step from the first: the extra cars go two steps further along that line, one step apart.
+    // A grid: the game puts the second car beside the first, and the extra cars go a row behind them (the same step apart) along the way the first
+    // car faces.
     const float *first = player_position(saved_array[0]), *second = player_position(saved_array[1]);
     float shifted[4] = {start[0], start[1], start[2], start[3]};
-    shifted[0] += 2 * (second[0] - first[0]);
-    shifted[2] += 2 * (second[2] - first[2]);
+    float own_position[4], forward[4], up[4];
+    if (rigid_body_vectors(saved_array[0], own_position, forward, up) && hypotf(forward[0], forward[2]) > 0.1f) {
+        const float length = hypotf(forward[0], forward[2]);
+        shifted[0] -= forward[0] / length * kRowSpacing;
+        shifted[2] -= forward[2] / length * kRowSpacing;
+    } else {
+        shifted[0] += 2 * (second[0] - first[0]);  // no direction: further along the line between the first two
+        shifted[2] += 2 * (second[2] - first[2]);
+    }
     g_log.line("first two cars at (%.1f, %.1f) and (%.1f, %.1f): the cars of players 3 and 4 start at (%.1f, %.1f)", first[0], first[2], second[0], second[2],
                shifted[0], shifted[2]);
     g_log.line("cars of players 3 and 4: start (%.1f, %.1f, %.1f), car handle %#x and \"%s\"", start[0], start[1], start[2], g_picks[2].car_handle,
@@ -245,8 +256,9 @@ void log_views() {
     for (const int id : {1, 2, 4, 5}) {
         const unsigned char *view = reinterpret_cast<const unsigned char *>(0x9195E0 + id * 0x70);
         const void *const *head = reinterpret_cast<const void *const *>(view + 0x44);
-        g_log.line("view %d: id %d, active %d, render target %p, camera %p, camera movers %s", id, *reinterpret_cast<const int *>(view + 4), view[8],
-                   *reinterpret_cast<void *const *>(view + 0x60), *reinterpret_cast<void *const *>(view + 0x40), head[0] == head ? "none" : "yes");
+        g_log.line("view %d: id %d, active %d, render target %p, camera %p, camera movers %s, pixel minimum size %d", id, *reinterpret_cast<const int *>(view + 4),
+                   view[8], *reinterpret_cast<void *const *>(view + 0x60), *reinterpret_cast<void *const *>(view + 0x40), head[0] == head ? "none" : "yes",
+                   *reinterpret_cast<const int *>(view + 0x24));
     }
 }
 
@@ -270,6 +282,19 @@ void log_players() {
 
 int extra_player_count() { return g_extra_players[0] && g_extra_players[1] ? 2 : 0; }
 
+int pick_device(int player) { return player >= 0 && player < 4 && g_picks[player].valid ? g_picks[player].device : -2; }
+
+bool device_used_in_first_round(int device) { return g_picks[0].valid && (g_picks[0].device == device || g_picks[1].device == device); }
+
+void *extra_player(int index) { return index >= 0 && index < 2 ? g_extra_players[index] : nullptr; }
+
+void lend_view(void *player, bool on) {
+    for (int i = 0; i < 2; ++i)
+        if (player && player == g_extra_players[i]) set_player_port(player, kSetRenderPortSlot, on ? i + 1 : -1);  // the view of player 1 or 2
+}
+
+bool four_player_race() { return wants_extra_players(); }
+
 bool player_car_state(int index, float *position, float *forward) {
     void *player = index < 2 ? (player_count_value() > index ? player_array()[index] : nullptr) : (index < 4 ? g_extra_players[index - 2] : nullptr);
     float up[4];
@@ -282,6 +307,22 @@ bool extra_camera(int index, float *eye, float *target, float *up) {
     float position[4], forward[4], car_up[4];
     if (!rigid_body_vectors(g_extra_players[index], position, forward, car_up)) return false;
     constexpr float kBehind = 6.0f, kHeight = 2.0f, kLookHeight = 1.2f;
+    // The direction the camera looks follows the car's with a delay (about a tenth of a second), so a car that swerves does not jerk the picture.
+    static float smooth[2][3];
+    static DWORD last_ms[2];
+    const DWORD now = GetTickCount();
+    const float seconds = last_ms[index] ? (now - last_ms[index]) / 1000.0f : 1.0f;
+    last_ms[index] = now;
+    float *facing = smooth[index];
+    const float length = sqrtf(forward[0] * forward[0] + forward[1] * forward[1] + forward[2] * forward[2]);
+    if (seconds > 0.5f || (facing[0] * forward[0] + facing[1] * forward[1] + facing[2] * forward[2]) < 0.0f || length < 0.1f) {
+        for (int i = 0; i < 3; ++i) facing[i] = forward[i];
+    } else {
+        const float blend = 1.0f - expf(-seconds / 0.1f);
+        for (int i = 0; i < 3; ++i) facing[i] += (forward[i] - facing[i]) * blend;
+        const float n = sqrtf(facing[0] * facing[0] + facing[1] * facing[1] + facing[2] * facing[2]);
+        for (int i = 0; i < 3; ++i) facing[i] /= n > 0.001f ? n : 1.0f;
+    }
     const float world_up[3] = {0.0f, 1.0f, 0.0f};  // simulation space: y is up
     const auto swizzle = [](const float *v, float *out, float w) {
         out[0] = v[2];
@@ -291,7 +332,7 @@ bool extra_camera(int index, float *eye, float *target, float *up) {
     };
     float eye_sim[3], target_sim[3];
     for (int i = 0; i < 3; ++i) {
-        eye_sim[i] = position[i] - forward[i] * kBehind + world_up[i] * kHeight;
+        eye_sim[i] = position[i] - facing[i] * kBehind + world_up[i] * kHeight;
         target_sim[i] = position[i] + world_up[i] * kLookHeight;
     }
     swizzle(eye_sim, eye, 1.0f);
@@ -308,15 +349,44 @@ void reset() {
 
 int round() { return g_round; }
 
+// The Car Select screen of the second round says "Player 3" or "Player 4": the game's label (the language string 0x7B070984 / 0x7B070985, "Player 1" /
+// "Player 2" in the object 0xE3FE27FE) with the number changed, for the player whose Press Start came just before.
+int g_label_player = 3;
+constexpr unsigned kCarSelectPlayerObject = 0xE3FE27FE, kPlayerOneString = 0x7B070984;
+
+void *(*g_orig_create_car_select)(void *);
+void *hook_create_car_select(void *data) {
+    void *screen = g_orig_create_car_select(data);
+    if (!screen || g_round != 1) return screen;
+    char text[64];
+    const char *label = reinterpret_cast<const char *(*)(unsigned)>(kGetLocalizedString)(kPlayerOneString);
+    strncpy(text, label ? label : "PLAYER 1", sizeof(text) - 1);
+    text[sizeof(text) - 1] = 0;
+    for (char *c = text + strlen(text); c-- > text;)
+        if (*c >= '0' && *c <= '9') {
+            *c = static_cast<char>('0' + g_label_player);
+            break;
+        }
+    const char *package = *reinterpret_cast<const char **>(static_cast<char *>(screen) + kScreenPackage);
+    reinterpret_cast<int (*)(const char *, int, const char *, ...)>(kFePrintfPackage)(package, kCarSelectPlayerObject, "%s", text);
+    return screen;
+}
+
 void on_press_start_screen(void *screen) {
     if (g_round != 1) return;
     const int player = *reinterpret_cast<int *>(static_cast<char *>(screen) + kPressStartPlayer) + 3;
+    g_label_player = player;
     const char *package = *reinterpret_cast<const char **>(static_cast<char *>(screen) + kScreenPackage);
     const char *format = reinterpret_cast<const char *(*)(unsigned)>(kGetLocalizedString)(kPlayerTextFormat);
     reinterpret_cast<int (*)(const char *, int, const char *, ...)>(kFePrintfPackage)(package, kPlayerTextObject, format, player);
 }
 
 void install() {
+    const nfsmw::Hook hooks[] = {
+        {"carselectlabel", "CreateQRCarSelect", 0x570C00, {0x6A, 0xFF, 0x68, 0x94, 0x17, 0x87, 0x00}, false, nfsmw::detour(&hook_create_car_select),
+         nfsmw::orig(&g_orig_create_car_select)},
+    };
+    nfsmw::install_hooks(hooks, 1, g_log, nullptr, "more players");
     // The call is redirected, not StartRace hooked: other mods change functions too (see player_count.cpp).
     if (const uintptr_t target = nfsmw::call_target(kCreatePlayersCall)) g_create_players = target;
     if (const uintptr_t previous = nfsmw::chain_call(kCreateCarsCall, reinterpret_cast<uintptr_t>(&create_cars))) g_create_cars = previous;

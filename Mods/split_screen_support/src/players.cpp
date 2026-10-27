@@ -46,7 +46,8 @@ bool g_key_was_down = false;
 bool g_connected[4];
 DWORD g_next_scan = 0;
 int g_chosen[2] = {kNotChosen, kNotChosen};  // at the Press Start screens
-int g_race[2] = {kKeyboard, kKeyboard};       // in the race
+int g_race[4] = {kKeyboard, kKeyboard, kKeyboard, kKeyboard};  // in the race
+int g_extra_port[2] = {-1, -1};               // the game input device ports of players 3 and 4
 bool g_controls_asked = false;                // mets_controller_support was told what reaches the game
 void *g_press_start_screen = nullptr;         // the Press Start screen showing, if any
 int g_pressed_by = kNotChosen;  // the device whose Start the screen is being told about (see press_start)
@@ -143,6 +144,38 @@ int other_device(int taken) {
     return kKeyboard;
 }
 
+// A device that is none of those of the first `count` players of the race.
+int free_device(int count) {
+    for (int i = 0; i < 4; ++i) {
+        bool taken = false;
+        for (int p = 0; p < count; ++p) taken = taken || g_race[p] == i;
+        if (g_connected[i] && !taken) return i;
+    }
+    return kKeyboard;
+}
+
+// Players 3 and 4 read game input devices of their own, like player 2 (slots 1 and 2 of mets_controller_support's extra devices).
+void start_extra_players() {
+    static const api::ExtraDeviceSlotFn slot = api::find_extra_device_slot();
+    for (int i = 0; i < 2; ++i) {
+        int device = more_players::pick_device(2 + i);
+        for (int p = 0; p < 2 + i; ++p)
+            if (device == g_race[p]) device = kNotChosen;  // a device that has a player already
+        if (device == kNotChosen) device = free_device(2 + i);
+        g_race[2 + i] = device;
+        g_extra_port[i] = slot ? slot(1 + i, device == kKeyboard ? api::kSourceKeyboard : device) : -1;
+        g_log.line("player %d reads %s (%s)", 3 + i, describe(device), g_extra_port[i] >= 0 ? "a game input device of their own" : "no game input device");
+    }
+}
+
+void end_extra_players() {
+    static const api::ExtraDeviceSlotFn slot = api::find_extra_device_slot();
+    for (int i = 0; i < 2; ++i) {
+        if (slot) slot(1 + i, api::kSourceNone);
+        g_extra_port[i] = -1;
+    }
+}
+
 void on_world_load() {
     if (!split_screen()) return;
     poll();
@@ -164,6 +197,7 @@ void on_world_load() {
     fe_database()[0x0D] = 0xFF;  // player 2's joystick port: -1 (see start_second_player)
     give_controls(p1);
     start_second_player(p2);
+    if (more_players::four_player_race()) start_extra_players();
     g_phase = Phase::kRace;
     g_race_seen = false;
     g_log.line("split screen race: player 1 on %s, player 2 on %s", describe(p1), describe(p2));
@@ -180,6 +214,7 @@ void on_frame() {
             g_race_seen = false;
             give_controls(kNormal);
             end_second_player();
+            end_extra_players();
             g_log.line("the race is over: every device controls the menus again");
         }
     } else if (split_screen() && view_mode == kTwoViews) {  // a race started again without loading (a restart)
@@ -187,11 +222,13 @@ void on_frame() {
         g_race_seen = true;
         give_controls(g_race[0]);
         start_second_player(g_race[1]);
+        if (more_players::four_player_race()) start_extra_players();
         g_log.line("the race went on: player 1 on %s, player 2 on %s", describe(g_race[0]), describe(g_race[1]));
     }
     if (!split_screen() && (g_controls_asked || g_chosen[0] != kNotChosen || g_chosen[1] != kNotChosen)) {
         if (g_controls_asked) give_controls(kNormal);
         end_second_player();
+        end_extra_players();
         g_phase = Phase::kMenus;
         g_press_start_screen = nullptr;
         g_chosen[0] = g_chosen[1] = kNotChosen;
@@ -209,6 +246,10 @@ void __fastcall hook_press_start(void *screen, void *edx, unsigned message, void
         if ((player == 0 || player == 1) && g_chosen[1 - player] == g_pressed_by) {
             g_log.line("Press Start: %s already plays player %d; ignored", describe(g_pressed_by), 2 - player);
             return;  // a device that already has a player does nothing: the screen stays
+        }
+        if (more_players::round() == 1 && more_players::device_used_in_first_round(g_pressed_by)) {
+            g_log.line("Press Start: %s already plays in the first round; ignored", describe(g_pressed_by));
+            return;
         }
         if (player == 0 || player == 1) {
             g_chosen[player] = g_pressed_by;
@@ -261,7 +302,9 @@ void set_chosen(const int in[2]) {
     g_chosen[1] = in[1];
 }
 
-int device(int player) { return player == 0 || player == 1 ? g_race[player] : kKeyboard; }
+int device(int player) { return player >= 0 && player < 4 ? g_race[player] : kKeyboard; }
+
+int extra_port(int extra) { return extra >= 0 && extra < 2 ? g_extra_port[extra] : -1; }
 
 bool read_keyboard(unsigned char *out) {
     static const api::KeyboardStateFn fn = api::find_keyboard_state();

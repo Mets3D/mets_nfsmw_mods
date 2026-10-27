@@ -6,7 +6,11 @@
  * nfsmw_split_screen_support.ini ([options] use_split_minimap), as has the scenery detail rule in fixes.cpp ([options] cull_small_objects):
  *   menu_entry.cpp     the "Split Screen" entry of the Quick Race menu
  *   fixes.cpp          the changes that let the race load and show
- *   split_view.cpp     the screen in two: the world drawn once per player, each player's shadow map
+ *   split_view.cpp     the screen in two (or four): the world drawn once per player, each player's shadow map
+ *   reflections.cpp    the car reflection cube map of each player (a copy of its six faces per player)
+ *   layout.h           where each player's picture goes (a grid of cells)
+ *   hud_views.cpp      each player's HUD package drawn into their cell of the screen
+ *   hud_players.cpp    a HUD with a minimap for each of four players (copies of HUD_Player1.fng made by hud_packages.cpp)
  *   minimap.cpp        a minimap for each player, a colour for each player's marker
  *   minimap_option.cpp the Options > Player > Minimap row: each player can hide their own minimap
  *   player_count.cpp   the "Players" row (2 or 4) of the split screen race options
@@ -25,6 +29,8 @@
 #include "events.h"
 #include "extra_streaming.h"
 #include "fixes.h"
+#include "hud_players.h"
+#include "hud_views.h"
 #include "menu_entry.h"
 #include "minimap.h"
 #include "minimap_option.h"
@@ -57,6 +63,8 @@ NFSMW_PLUGIN_MAIN() {
         player_count::install();
         more_players::install();
         extra_streaming::install();
+        hud_views::install();
+        hud_players::install();
     }
     players::install();  // before state_log: the world load log shows its ports
     state_log::install();

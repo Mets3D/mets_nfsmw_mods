@@ -10,6 +10,9 @@
  *   log_players                        every local player's car, position and render port go to the split screen mod's log
  *   press_start <0-3|keyboard>         the Press Start screen of the split screen menus is told that device let go of Start
  *   screenshot <name> [width=960]      <data folder>/screenshots/<date>-<time>_<scenario>/<name>.png
+ *   measure <seconds>                  waits that long and logs the frame rate over it
+ *   profile <seconds>                  like measure, and samples the game's thread: where its time goes goes to the log
+ *   drive <player 2-4> <gas 0..1> <steer -1..1>   that player's own game input device says that until `drive <player> off` (mets_controller_support)
  *   state                              logs the game's state: flow state, boot screen, view mode, players
  *   log <text>
  *   quit [code]
@@ -28,11 +31,14 @@
 #include <d3d9.h>
 #include <tlhelp32.h>
 
+#include <algorithm>
+#include <map>
 #include <string>
 #include <vector>
 
 #include "dev_tools.h"
 #include "screenshot.h"
+#include "controller_api.h"
 #include "split_screen_api.h"
 
 namespace dev_tools::automation {
@@ -56,7 +62,12 @@ unsigned g_frame = 0;
 DWORD g_last_present_ms = 0, g_game_thread = 0;
 
 // What the script is waiting for. Only one at a time.
+// A frame rate measurement (`measure`): the frame and time it began, and its seconds.
+bool g_measuring = false;
+unsigned g_measure_start_frame = 0;
+DWORD g_measure_start_ms = 0, g_measure_ms = 0;
 DWORD g_wait_until_ms = 0;
+void start_profile(DWORD ms);
 unsigned g_wait_until_frame = 0;
 std::string g_condition;  // empty = no condition
 DWORD g_condition_deadline = 0;
@@ -224,6 +235,13 @@ void run(const std::string &line, IDirect3DDevice9 *device) {
         static const auto log_players = nfsmw::split_screen_api::find_log_players();
         if (!log_players) return quit(2, "log_players: nfsmw_split_screen_support is not loaded");
         log_players();
+    } else if (cmd == "drive" && w.size() >= 3) {
+        static const auto test_input = nfsmw::controller_api::find_test_input();
+        if (!test_input) return quit(2, "drive: mets_controller_support is not loaded");
+        const int player = atoi(w[1].c_str());
+        if (player < 2 || player > 4) return quit(2, "drive: players 2 to 4");
+        if (w[2] == "off") test_input(player - 2, 0, 0, 0);
+        else test_input(player - 2, 1, static_cast<int>(atof(w[2].c_str()) * 1000), w.size() >= 4 ? static_cast<int>(atof(w[3].c_str()) * 1000) : 0);
     } else if (cmd == "press_start" && w.size() >= 2) {
         static const auto press_start = nfsmw::split_screen_api::find_press_start();
         if (!press_start) return quit(2, "press_start: nfsmw_split_screen_support is not loaded");
@@ -231,6 +249,13 @@ void run(const std::string &line, IDirect3DDevice9 *device) {
     } else if (cmd == "screenshot" && w.size() >= 2) {
         const std::string path = g_screenshot_dir + w[1] + ".png";
         if (!screenshot::save(device, path.c_str(), atoi(arg(w, "width", "960").c_str()))) g_log.line("automation: the screenshot failed");
+    } else if ((cmd == "measure" || cmd == "profile") && w.size() >= 2) {
+        if (cmd == "profile") start_profile(static_cast<DWORD>(atof(w[1].c_str()) * 1000));
+        g_measure_ms = static_cast<DWORD>(atof(w[1].c_str()) * 1000);
+        g_measure_start_ms = GetTickCount();
+        g_measure_start_frame = g_frame;
+        g_wait_until_ms = g_measure_start_ms + g_measure_ms;
+        g_measuring = true;
     } else if (cmd == "state") {
         log_state();
     } else if (cmd == "log") {
@@ -241,6 +266,87 @@ void run(const std::string &line, IDirect3DDevice9 *device) {
     } else {
         return quit(2, "command not understood");
     }
+}
+
+// ---- `profile`: a thread looks at the game thread's instruction pointer every millisecond or two. Code in speed.exe is counted by 256-byte block (the
+// Tools/re names say which function it is), code in the D3D runtime and the driver by module and by the code in speed.exe that is the first on the stack
+// below it (roughly the game function that called in).
+struct Sample {
+    DWORD eip, caller;
+};
+std::vector<Sample> g_samples;
+volatile bool g_profiling = false;
+DWORD g_profile_ms = 0;
+
+bool readable(const void *p);
+
+std::string module_of(DWORD address) {
+    HMODULE module = nullptr;
+    char path[MAX_PATH] = "?";
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCSTR>(address), &module))
+        GetModuleFileNameA(module, path, sizeof(path));
+    const char *name = strrchr(path, '\\');
+    return name ? name + 1 : path;
+}
+
+DWORD WINAPI profile_thread(void *) {
+    HANDLE thread = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, g_game_thread);
+    if (!thread) return 0;
+    const DWORD end = GetTickCount() + g_profile_ms;
+    g_samples.reserve(20000);
+    while (static_cast<LONG>(GetTickCount() - end) < 0) {
+        Sleep(1);
+        CONTEXT context = {};
+        context.ContextFlags = CONTEXT_CONTROL;
+        if (SuspendThread(thread) == static_cast<DWORD>(-1)) continue;
+        Sample sample = {};
+        if (GetThreadContext(thread, &context)) {
+            sample.eip = context.Eip;
+            const unsigned long *stack = reinterpret_cast<const unsigned long *>(context.Esp);
+            for (int i = 0; i < 512 && readable(&stack[i]); ++i)
+                if (stack[i] >= 0x401000 && stack[i] < 0x900000) {
+                    sample.caller = stack[i];
+                    break;
+                }
+        }
+        ResumeThread(thread);
+        if (sample.eip) g_samples.push_back(sample);
+    }
+    CloseHandle(thread);
+    std::map<std::string, unsigned> modules, blocks, callers;
+    for (const Sample &s : g_samples) {
+        const bool in_game = s.eip >= 0x401000 && s.eip < 0x900000;
+        modules[in_game ? "speed.exe" : module_of(s.eip)]++;
+        char key[48];
+        if (in_game) {
+            snprintf(key, sizeof(key), "%06lx", static_cast<unsigned long>(s.eip & ~0xFFu));
+            blocks[key]++;
+        } else if (s.caller) {
+            snprintf(key, sizeof(key), "%06lx (%s)", static_cast<unsigned long>(s.caller & ~0xFFu), module_of(s.eip).c_str());
+            callers[key]++;
+        }
+    }
+    auto top = [](const std::map<std::string, unsigned> &counts, size_t n) {
+        std::vector<std::pair<unsigned, std::string>> sorted;
+        for (const auto &c : counts) sorted.push_back({c.second, c.first});
+        std::sort(sorted.rbegin(), sorted.rend());
+        if (sorted.size() > n) sorted.resize(n);
+        return sorted;
+    };
+    g_log.line("profile: %zu samples over %lu ms", g_samples.size(), g_profile_ms);
+    for (const auto &m : top(modules, 12)) g_log.line("profile: module %s: %u", m.second.c_str(), m.first);
+    for (const auto &b : top(blocks, 40)) g_log.line("profile: speed.exe block %s: %u", b.second.c_str(), b.first);
+    for (const auto &c : top(callers, 30)) g_log.line("profile: outside speed.exe, called from %s: %u", c.second.c_str(), c.first);
+    g_samples.clear();
+    g_profiling = false;
+    return 0;
+}
+
+void start_profile(DWORD ms) {
+    if (g_profiling || !g_game_thread) return;
+    g_profiling = true;
+    g_profile_ms = ms;
+    CreateThread(nullptr, 0, profile_thread, nullptr, 0, nullptr);
 }
 
 void tick(IDirect3DDevice9 *device) {
@@ -263,6 +369,12 @@ void tick(IDirect3DDevice9 *device) {
         if (g_wait_until_ms) {
             if (static_cast<LONG>(GetTickCount() - g_wait_until_ms) < 0) return;
             g_wait_until_ms = 0;
+        }
+        if (g_measuring) {
+            g_measuring = false;
+            const DWORD ms = GetTickCount() - g_measure_start_ms;
+            g_log.line("measure: %u frames in %lu ms: %.1f frames per second (%.2f ms a frame)", g_frame - g_measure_start_frame, ms,
+                       (g_frame - g_measure_start_frame) * 1000.0 / ms, static_cast<double>(ms) / (g_frame - g_measure_start_frame));
         }
         if (!g_condition.empty()) {
             if (condition_met(g_condition)) {

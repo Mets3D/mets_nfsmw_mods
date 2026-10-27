@@ -70,11 +70,14 @@ void view_mode() {
 // (0x729280: cmp eax,3; jl 0x729296), against 17 pixels and the model of the right detail in one view. Small objects and the shadows
 // of the far ones vanished. Each pass here draws a full size picture, so the one view rule is the right one. Only done when the
 // ini's [options] cull_small_objects is 0 (it is 1 when missing: the game's own rule).
+bool g_scenery_patched = false;
+constexpr unsigned char kSceneryOriginal[2] = {0x7C, 0x11};  // jl 0x729296: the one view rule, for view modes below 3
+constexpr unsigned char kSceneryPatched[2] = {0xEB, 0x11};   // jmp 0x729296: for every mode
+
 void scenery_detail() {
-    static const unsigned char kExpected[2] = {0x7C, 0x11};  // jl 0x729296: the one view rule, for view modes below 3
-    static const unsigned char kPatched[2] = {0xEB, 0x11};   // jmp 0x729296: for every mode
     if (ini_flag("options", "cull_small_objects")) return g_log.line("fix scenery_detail: off in the ini (cull_small_objects=1)");
-    report("scenery_detail", nfsmw::patch_bytes(0x729283, kExpected, kPatched, sizeof(kExpected)));
+    g_scenery_patched = nfsmw::patch_bytes(0x729283, kSceneryOriginal, kSceneryPatched, sizeof(kSceneryOriginal));
+    report("scenery_detail", g_scenery_patched);
 }
 
 // CarRenderInfo::Render puts the car's rim material on the wheel models of the tire level of detail with
@@ -102,6 +105,16 @@ void missing_wheel() {
 }
 
 }  // namespace
+
+void use_one_view_scenery_rule(bool one_view) {
+    static bool state_known = false, current = true;  // the patch is on after install()
+    if (!g_scenery_patched || (state_known && current == one_view)) return;
+    const bool done = one_view ? nfsmw::patch_bytes(0x729283, kSceneryOriginal, kSceneryPatched, 2) : nfsmw::patch_bytes(0x729283, kSceneryPatched, kSceneryOriginal, 2);
+    if (!done) return;
+    state_known = true;
+    current = one_view;
+    g_log.line("scenery detail: %s rule", one_view ? "the one view" : "the game own (for views a quarter of the screen)");
+}
 
 void install() {
     missing_wheel();

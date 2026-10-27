@@ -7,6 +7,8 @@
 //   int mets_controller_support_extra_device(int source)  a second game input device (own port) for a second local
 //                      player, saying what the bindings of `source` ask for: an XInput controller 0-3, kSourceKeyboard or
 //                      kSourceNone. Returns the port for the player's joystick port (FEDatabase), or -1 when there is none
+//   int mets_controller_support_extra_device_slot(int slot, int source)  the same for more players: slot 0 is the second player's (as above), 1 and 2 are
+//                      the third's and fourth's. They have no rumble or camera look.
 //   int mets_controller_support_live_pad()  whose controller bindings the live binding table holds now (0 = the first controller's;
 //                      the Controls screen can show another's). A mod keeping bindings of its own saves them only while this is 0.
 //   mets_controller_support_keyboard_state(unsigned char *out)  the keyboard as DirectInput shows it (256 bytes, a key is
@@ -22,6 +24,8 @@ constexpr int kSourceKeyboard = -10, kSourceNone = -11;  // sources of the extra
 
 using VehicleSourceFn = void (*)(int source);
 using ExtraDeviceFn = int (*)(int source);
+using ExtraDeviceSlotFn = int (*)(int slot, int source);
+using TestInputFn = void (*)(int slot, int on, int gas, int steer);
 using KeyboardStateFn = int (*)(unsigned char *out);
 using LivePadFn = int (*)();
 
@@ -38,6 +42,12 @@ inline VehicleSourceFn find_vehicle_source() {
 }
 inline ExtraDeviceFn find_extra_device() {
     return reinterpret_cast<ExtraDeviceFn>(detail::find("mets_controller_support_extra_device"));
+}
+inline ExtraDeviceSlotFn find_extra_device_slot() {
+    return reinterpret_cast<ExtraDeviceSlotFn>(detail::find("mets_controller_support_extra_device_slot"));
+}
+inline TestInputFn find_test_input() {  // for automated tests only (dev_tools)
+    return reinterpret_cast<TestInputFn>(detail::find("mets_controller_support_test_input"));
 }
 inline LivePadFn find_live_pad() {
     return reinterpret_cast<LivePadFn>(detail::find("mets_controller_support_live_pad"));

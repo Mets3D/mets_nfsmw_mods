@@ -26,6 +26,9 @@ One command per line. `#` starts a comment. Arguments are words, or `key=value`.
 | `wait_frames <n>` | Waits for n drawn frames. |
 | `wait_until <condition> [timeout=<s>]` | Waits for a condition (default timeout 120 s). Conditions: `frontend` (menus are up), `main_menu` (menus, and the boot sequence is over), `racing`, `state=<n>` (the game flow state: 3 menus, 6 race), `screen=<package>` (the screen that has the controls, e.g. `screen=Track_Select.fng`). |
 | `press <button> [times]` | A menu button press, held for 100 ms as a real press is: `accept`, `back`, `up`, `down`, `left`, `right`, `start`. The next command waits until the presses are done. |
+| `measure <seconds>` | Waits that long and logs the frame rate over it (`measure: N frames in M ms`). |
+| `profile <seconds>` | Like `measure`, and a thread samples the game thread's instruction pointer every millisecond: the log gets the time by module (the game, d3d9, d3dx9, the driver) and by 256-byte block of the game's code (`Tools/re/re.py name <addr>` says which function), and for time spent outside the game the block of the game's code that called in. The game was 28% d3d9, 23% d3dx9 and 24% its own code in a four player race: the cost is draw calls. |
+| `drive <player 2-4> <gas 0..1> [steer -1..1]` | That player's own game input device says that (gas and steering) until `drive <player> off` (needs `mets_controller_support`; player 1 reads every device and cannot be driven this way). |
 | `log_players` | Logs every local player of the split screen mod: car, position, render port (needs `nfsmw_split_screen_support`). |
 | `press_start <0-3\|keyboard>` | For the split screen Press Start screens: tells the one that is showing that this device let go of Start (needs `nfsmw_split_screen_support`). |
 | `screenshot <name> [width=960]` | Saves the back buffer as `scripts/mets_mods/screenshots/<date>-<time>_<scenario>/<name>.png`, at most `width` pixels wide. A 960 px picture costs an AI about 700 tokens to look at. |
@@ -39,7 +42,8 @@ Every change of screen is logged (`screen: <package> (frame, ms)`) without a com
 
 - `boot.txt` starts the game, which loads the profile named by `auto_load_alias` in `nfsmw_dev_tools.ini` and ends in the main menu, takes two screenshots and quits.
 - `split_race.txt` goes through the real menus (Main Menu > Quick Race > Split Screen > Circuit > first track > options > Press Start and car for each player) into a two player split screen race, waits ten seconds, logs the state, takes a screenshot and quits. About 36 seconds.
-- `split_race_4.txt` is the same with the **Players** row set to 4 (`more_players=1` in the split screen mod's ini): Press Start and Car Select for four players with four devices, then a race with four cars (the extra two stand still: nothing drives them yet), `log_players` twice and a screenshot. About 60 seconds. The launcher runs a scenario again once when it fails (`--retries`): a menu is sometimes not where it should be.
+- `split_race_4.txt` is the same with the **Players** row set to 4 (`more_players=1` in the split screen mod's ini): Press Start and Car Select for four players with four devices, then a race with four cars, the first two screenshots of the countdown, `log_players` twice, a `profile` of ten seconds (the frame rate and where the time goes) and a screenshot. About 80 seconds.
+- `split_race_4_drive.txt` is the same, and then players 2, 3 and 4 drive (`drive`), steering different ways: the positions in the log before and after show that each of them has input, and the screenshots the four HUDs while driving. The launcher runs a scenario again once when it fails (`--retries`): a menu is sometimes not where it should be.
 - `live.txt` boots to the main menu and waits for lines to be appended.
 
 ## Writing a scenario for another menu path

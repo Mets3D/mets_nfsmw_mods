@@ -20,6 +20,7 @@
 
 #include "events.h"
 #include "hooks.h"
+#include "more_players.h"
 #include "split_screen_support.h"
 
 namespace split_screen_support::minimap {
@@ -109,12 +110,29 @@ constexpr unsigned kMapChildren[5] = {60, 64, 68, 72, 144};  // the Minimap's ob
 
 // The tiles each minimap wants (the streamer keeps what the last call asked for).
 void *g_setup_for;
-short g_tiles[2][8];
-int g_tile_count[2];
+struct TileSet {
+    void *minimap;
+    short tiles[8];
+    int count;
+};
+TileSet g_tile_sets[8];
+int g_tile_set_count = 0;
 
-void *(__fastcall *g_orig_hud)(void *, void *, int, const char *, void *, int);
-void (__fastcall *g_orig_hud_dtor)(void *, void *);
-void (__fastcall *g_orig_hud_update)(void *, void *, void *, float);
+struct Markers {
+    void *minimap;
+    unsigned own_rgb;
+    void *other_player;
+    unsigned other_rgb;
+};
+Markers g_markers[8];
+int g_marker_count = 0;
+
+Markers *markers_of(void *minimap) {
+    for (int i = 0; i < g_marker_count; ++i)
+        if (g_markers[i].minimap == minimap) return &g_markers[i];
+    return nullptr;
+}
+
 void *(__fastcall *g_orig_minimap)(void *, void *, const char *, int);
 void (__fastcall *g_orig_minimap_update)(void *, void *, void *);
 void (__fastcall *g_orig_setup)(void *, void *, void *);
@@ -315,11 +333,24 @@ void pin_x() {
     }
 }
 
+// Minimaps placed by place(): the objects moved and where each has to stay (the position the shift gave it).
+struct Placed {
+    void *object;
+    float y;
+};
+Placed g_placed[64];
+int g_placed_count = 0;
+
+void pin_placed() {
+    for (int i = 0; i < g_placed_count; ++i)
+        if (position_y(g_placed[i].object) != g_placed[i].y) shift(g_placed[i].object, g_placed[i].y - position_y(g_placed[i].object));
+}
+
 void drop_second_minimap() {
     if (g_b) reinterpret_cast<MinimapDtorFn>(0x5A6520)(g_b, nullptr, 1);
     g_b = nullptr;
     remove_clones();
-    g_tile_count[0] = g_tile_count[1] = 0;
+    g_tile_set_count = 0;
     g_pinned_x_count = 0;
     g_right_split = g_right_main = g_left = nullptr;
     forget_layout();
@@ -327,21 +358,25 @@ void drop_second_minimap() {
 }
 
 // ---- hooks
-void *__fastcall hook_hud(void *self, void *edx, int type, const char *package, void *player, int number) {
+void hud_filter(int &type, const char *&) {
     if (type == kHudSplit1) g_a = nullptr;
-    void *result = g_orig_hud(self, edx, type, package, player, number);
+}
+
+void hud_made(void *self, int type, const char *, void *player, int) {
     if (type == kHudSplit1) {
         g_hud1 = self;
         g_player1 = player;
-    } else if (type == kHudSplit2) {
+    } else if (type == kHudSplit2 && !more_players::four_player_race()) {  // with four players hud_players.cpp gives each HUD a minimap of its own
         g_hud2 = self;
         g_player2 = player;
         build_second_minimap();
     }
-    return result;
 }
 
-void __fastcall hook_hud_dtor(void *self, void *edx) {
+void hud_destroy(void *self) {
+    g_placed_count = 0;
+    g_tile_set_count = 0;  // the minimaps that are left ask again (they do every frame)
+    g_marker_count = 0;
     if (self == g_hud2) {
         drop_second_minimap();
         g_hud2 = nullptr;
@@ -349,7 +384,6 @@ void __fastcall hook_hud_dtor(void *self, void *edx) {
         g_hud1 = nullptr;
         g_a = nullptr;
     }
-    g_orig_hud_dtor(self, edx);
 }
 
 void *__fastcall hook_minimap(void *self, void *edx, const char *package, int number) {
@@ -372,8 +406,7 @@ void update_visibility() {
     }
 }
 
-void __fastcall hook_hud_update(void *self, void *edx, void *player, float dt) {
-    g_orig_hud_update(self, edx, player, dt);
+void hud_updated(void *self, void *player) {
     if (self != g_hud2 || !g_b) return;
     if (g_hud_frames >= kSettleFrames) restore_layout();
     pin_clones();
@@ -390,6 +423,11 @@ void colour(void *marker, unsigned rgb) {
 
 void __fastcall hook_minimap_update(void *self, void *edx, void *player) {
     g_orig_minimap_update(self, edx, player);
+    if (const Markers *m = markers_of(self)) {
+        colour(field<void *>(self, 0x90), m->own_rgb);
+        colour(field<void *>(self, 0x94), m->other_rgb);
+        return;
+    }
     if (!g_b || (self != g_a && self != g_b)) return;
     const bool first = self == g_a;
     colour(field<void *>(self, 0x90), first ? kColorPlayer1 : kColorPlayer2);
@@ -398,7 +436,8 @@ void __fastcall hook_minimap_update(void *self, void *edx, void *player) {
 
 // Minimap::UpdatePlayer2Element: the second arrow is whatever the last entry of the player list is; it has to be the other player.
 void __fastcall hook_other_marker(void *self, void *edx) {
-    void *other = self == g_b ? g_player1 : self == g_a ? g_player2 : nullptr;
+    const Markers *m = markers_of(self);
+    void *other = m ? m->other_player : self == g_b ? g_player1 : self == g_a ? g_player2 : nullptr;
     if (!other) {
         g_orig_other_marker(self, edx);
         return;
@@ -415,21 +454,34 @@ void __fastcall hook_setup(void *self, void *edx, void *player) {
     g_setup_for = nullptr;
 }
 
-// The tile streamer unloads every tile that is not in the list. With both minimaps its list is the two lists together.
+// The tile streamer unloads every tile that is not in the list. With several minimaps its list is all their lists together (each tile once: the streamer
+// has 9 slots, and more would not fit).
 void __fastcall hook_tiles(void *self, void *edx, short *tiles, int count) {
-    const int slot = (g_b && g_setup_for == g_a) ? 0 : (g_b && g_setup_for == g_b) ? 1 : -1;
-    if (slot < 0 || count > 4) {
-        if (count == 0) g_tile_count[0] = g_tile_count[1] = 0;
+    if (!g_setup_for || count > 4 || count < 0) {
+        if (count == 0) g_tile_set_count = 0;
         g_orig_tiles(self, edx, tiles, count);
         return;
     }
-    memcpy(g_tiles[slot], tiles, count * sizeof(short));
-    g_tile_count[slot] = count;
-    short both[8];
+    TileSet *set = nullptr;
+    for (int i = 0; i < g_tile_set_count; ++i)
+        if (g_tile_sets[i].minimap == g_setup_for) set = &g_tile_sets[i];
+    if (!set && g_tile_set_count < 8) set = &g_tile_sets[g_tile_set_count++];
+    if (!set) {
+        g_orig_tiles(self, edx, tiles, count);
+        return;
+    }
+    set->minimap = g_setup_for;
+    memcpy(set->tiles, tiles, count * sizeof(short));
+    set->count = count;
+    short all[9];
     int n = 0;
-    for (int s = 0; s < 2; ++s)
-        for (int i = 0; i < g_tile_count[s]; ++i) both[n++] = g_tiles[s][i];
-    g_orig_tiles(self, edx, both, n);
+    for (int s = 0; s < g_tile_set_count; ++s)
+        for (int i = 0; i < g_tile_sets[s].count && n < 9; ++i) {
+            bool seen = false;
+            for (int k = 0; k < n; ++k) seen = seen || all[k] == g_tile_sets[s].tiles[i];
+            if (!seen) all[n++] = g_tile_sets[s].tiles[i];
+        }
+    g_orig_tiles(self, edx, all, n);
 }
 
 float *child_x(void *map, int i) {
@@ -519,14 +571,33 @@ void restore_layout() {
 
 }  // namespace
 
+void place(void *minimap, const char *package, float dy) {
+    void *package_object = find_package(package);
+    if (!minimap || !package_object) return;
+    void *set = static_cast<char *>(minimap) + 8;
+    void *marker = field<void *>(minimap, 0x90);
+    void *layout = field<void *>(minimap, 0x38);  // the map picture's group: the minimap sets its position every frame
+    int moved = 0;
+    for (void *o = field<void *>(package_object, 0x4C); o; o = next_of(o)) {
+        if (!contains(o, set) || has_descendant(o, marker)) continue;
+        shift(o, dy);
+        ++moved;
+        if (o != layout && g_placed_count < 64) g_placed[g_placed_count++] = {o, position_y(o)};
+    }
+    field<float>(minimap, 0xBC) += dy;  // map centre y
+    field<float>(minimap, 0xA0) += dy;  // default position y
+    place_marker(minimap);
+    g_log.line("minimap: %d objects of %s moved by %.0f", moved, package, dy);
+}
+
+void set_markers(void *minimap, unsigned own_rgb, void *other_player, unsigned other_rgb) {
+    Markers *m = markers_of(minimap);
+    if (!m && g_marker_count < 8) m = &g_markers[g_marker_count++];
+    if (m) *m = {minimap, own_rgb, other_player, other_rgb};
+}
+
 void install() {
     const nfsmw::Hook hooks[] = {
-        {"minimap", "FEngHud::FEngHud", 0x5A6600, {0x6A, 0xFF, 0x68, 0xB6, 0x39, 0x87, 0x00}, true, nfsmw::detour(&hook_hud),
-         nfsmw::orig(&g_orig_hud)},
-        {"minimap", "FEngHud::~FEngHud", 0x5A0910, {0x6A, 0xFF, 0x68, 0x9A, 0x34, 0x87, 0x00}, true, nfsmw::detour(&hook_hud_dtor),
-         nfsmw::orig(&g_orig_hud_dtor)},
-        {"minimap", "FEngHud::Update", 0x58CA30, {0x64, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x6A}, true, nfsmw::detour(&hook_hud_update),
-         nfsmw::orig(&g_orig_hud_update)},
         {"minimap", "Minimap::Minimap", 0x59D500, {0x6A, 0xFF, 0x68, 0xF3, 0x2F, 0x87, 0x00}, true, nfsmw::detour(&hook_minimap),
          nfsmw::orig(&g_orig_minimap)},
         {"minimap", "Minimap::Update", 0x59DB50, {0x83, 0xEC, 0x10, 0x53, 0x56, 0x8B, 0xF1}, true, nfsmw::detour(&hook_minimap_update),
@@ -542,6 +613,11 @@ void install() {
     };
     nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), g_log, nullptr, "minimap");
     events::on_frame(update_visibility);
+    events::on_frame(pin_placed);
+    events::on_hud_construct(&hud_filter);
+    events::on_hud_made(&hud_made);
+    events::on_hud_destroy(&hud_destroy);
+    events::on_hud_update(nullptr, &hud_updated);
 }
 
 }  // namespace split_screen_support::minimap

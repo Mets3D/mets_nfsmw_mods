@@ -48,6 +48,7 @@ wait 2
 press_start 2
 wait_until screen=Car_Select.fng timeout=20
 wait 3
+screenshot car_select_3 width=640
 press right 3
 wait 2
 press accept
