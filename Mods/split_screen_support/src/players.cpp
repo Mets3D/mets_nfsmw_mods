@@ -294,8 +294,14 @@ void *hook_create_press_start(void *data) {
     if (screen && split_screen()) {
         g_press_start_screen = screen;
         more_players::on_press_start_screen(screen);
-        g_log.line("Press Start screen for player %d: every device can press",
-                   *reinterpret_cast<int *>(static_cast<char *>(screen) + 0x2C) + 1);
+        const int player = *reinterpret_cast<int *>(static_cast<char *>(screen) + 0x2C);
+        if (player == 0 && more_players::round() == 0 && (g_chosen[0] != kNotChosen || g_chosen[1] != kNotChosen)) {
+            // The first Press Start of a new game: the devices of the last one are free again (the choices were kept until the game left split screen mode,
+            // which it does not when the next split screen game follows at once).
+            g_chosen[0] = g_chosen[1] = kNotChosen;
+            g_log.line("Press Start: a new split screen game, every device is free again");
+        }
+        g_log.line("Press Start screen for player %d: every device can press", player + 1);
         give_controls(kEveryone);
     }
     return screen;

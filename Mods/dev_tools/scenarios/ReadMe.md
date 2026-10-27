@@ -55,6 +55,8 @@ Every change of screen is logged (`screen: <package> (frame, ms)`) without a com
 - `split_race_4_quit.txt` is the same, and then player 3 pauses the race and quits to the menu: the log must have no exception and the screens end at the main menu.
 - `split_race_4_options.txt` is the same, and then player 3 pauses, opens Options > Player and changes the camera, Gauges, Free Look Reset, Minimap and HUD Scale: the screenshots before and after show only player 3's picture and HUD changed, the log (`log_players`) each player's camera view, and the .ini files (`[player_3]`, `[look_player_3]`) what was kept (it writes them: remove those sections after a run).
 - `split_race_4_ai.txt` is the same with the AI driving players 3 and 4 (set `[player_3] control=improved` and `[player_4] control=vanilla` in `nfsmw_improved_ai_opponents.ini` first): the log and the screenshots show their cars driving off.
+- `split_race_again.txt` is a 2 player race, Quit Race from the pause menu, and a second game from where the game lands: it must be the race options (Track_Options.fng), and the devices of the first game (keyboard, controller 0) must be free again (controllers 1 and 2 play).
+- `split_race_4_perf.txt` is split_race_4 and then the frame rate of fifteen seconds (`measure`) and the log's frame timing; run it with `--resolution WxH` to see how the frame time follows the pixels.
 - `live.txt` boots to the main menu and waits for lines to be appended.
 
 ## Writing a scenario for another menu path

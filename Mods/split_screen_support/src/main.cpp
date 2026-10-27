@@ -26,6 +26,7 @@
  */
 #include "split_screen_support.h"
 
+#include "after_race.h"
 #include "events.h"
 #include "extra_cameras.h"
 #include "extra_streaming.h"
@@ -59,6 +60,7 @@ NFSMW_PLUGIN_MAIN() {
     menu_entry::install();
     fixes::install();
     split_view::install();
+    after_race::install();
     minimap::install();
     hud_views::install();
     hud_players::install();

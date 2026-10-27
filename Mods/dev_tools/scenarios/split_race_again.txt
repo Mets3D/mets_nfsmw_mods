@@ -1,0 +1,63 @@
+# A 2 player split screen race, quit from the pause menu, and a second one started from where the game lands: it must land at the race options (Track_Options.fng), not the Quick Race menu, and the devices of the first game must be free again (players 1 and 2 of the second game are controllers 1 and 2).
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until racing timeout=180
+wait 6
+pause_request 2 1
+wait 0.3
+pause_request 2 0
+wait 2
+press right 2
+wait 1
+press accept
+wait 2
+press left
+wait 1
+press accept
+wait_until screen=Track_Options.fng timeout=60
+wait 3
+state
+screenshot after_race width=640
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until racing timeout=180
+wait 5
+log_players
+quit

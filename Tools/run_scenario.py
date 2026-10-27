@@ -6,7 +6,7 @@ The scenario is Mods/dev_tools/scenarios/<scenario>.txt (commands: see Mods/dev_
 install's scripts/mets_mods/scenarios/, the game is started with NFSMW_SCENARIO=<scenario>, and killed when the scenario has not
 ended it by --timeout seconds. Needs nfsmw_dev_tools.asi in the install (deploy with Mods/set_mods.py first). A speed.exe of
 the same install that is already running is closed first (the user allowed it, even their own game); one of another install makes this stop (the game allows one copy).
-The game runs in a 1280x720 window (the widescreen fix's WindowedMode / ResX / ResY are set for the run and put back after it): in
+The game runs in a 1280x720 window (--resolution WxH) (the widescreen fix's WindowedMode / ResX / ResY are set for the run and put back after it): in
 exclusive fullscreen the game loses its Direct3D device whenever another window takes focus, and screenshots then fail. --fullscreen keeps the ini.
 Prints the exit code, the screens reached, `state` lines and crashes from nfsmw_dev_tools.log (all of it with --verbose), and the
 screenshots' full paths.
@@ -56,6 +56,7 @@ def main():
     parser.add_argument('--timeout', type=float, default=300)
     parser.add_argument('--fullscreen', action='store_true', help='leave the display settings alone')
     parser.add_argument('--retries', type=int, default=1, help='runs again this many times when the scenario failed (exit code 2: a menu was not where it should be)')
+    parser.add_argument('--resolution', default='1280x720', help='the window size of the run, WIDTHxHEIGHT (for measuring how the frame time scales with the pixels)')
     parser.add_argument('--verbose', action='store_true', help='the whole log and the other logs sizes')
     args = parser.parse_args()
 
@@ -90,7 +91,8 @@ def main():
     ws_original = ws_ini.read_bytes() if ws_ini.exists() and not args.fullscreen else None
     if ws_original is not None:
         text = ws_original.decode('latin-1')
-        for key, value in (('WindowedMode', 2), ('ResX', 1280), ('ResY', 720)):
+        res_x, res_y = (int(v) for v in args.resolution.lower().split('x'))
+        for key, value in (('WindowedMode', 2), ('ResX', res_x), ('ResY', res_y)):
             text = re.sub(rf'(?m)^({key}\s*=\s*)\d+', rf'\g<1>{value}', text)
         ws_ini.write_bytes(text.encode('latin-1'))
     started = time.time()

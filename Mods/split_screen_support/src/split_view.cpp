@@ -234,6 +234,22 @@ void make_shadow_copies() {
     }
 }
 
+// The glow view (4): the game draws a second picture of the world's lights (flares, glows) in it, into a target of its own, which the picture is then lit with. It shares
+// view 1's camera *object* and has matrices of its own, so with view 1's camera traded for another player's it kept drawing the lights of player 1's view into every other
+// player's picture (the second player's sun and headlight glows moved with the first player's camera). It follows view 1's camera, and its matrices are made again for
+// the pass (setup_glow_view).
+constexpr uintptr_t kGlowView = 0x9197A0;
+constexpr unsigned kFarPlane = 0x466A6000;  // 15000.0f, as eDisplayFrame passes it
+constexpr uintptr_t kSetupPerView = 0x6CF400;
+
+void follow_with_glow_view() { at<void *>(kGlowView, kViewCamera) = at<void *>(kView1, kViewCamera); }
+
+void setup_glow_view() {
+    follow_with_glow_view();
+    using SetupPerViewFn = void(__fastcall *)(void *plat_info, void *edx, void *view, int unused, unsigned far_plane, int zero, int one);
+    reinterpret_cast<SetupPerViewFn>(kSetupPerView)(at<void *>(kGlowView, kViewPlatInfo), nullptr, reinterpret_cast<void *>(kGlowView), 0, kFarPlane, 0, 1);
+}
+
 // Another player's view for the world pass, or back: view 1 and `other` (view 2 for player 2, the views of extra_cameras.h for players 3 and 4) trade what makes
 // a view what it is. `pass` is the pass (1: player 2, 2: player 3, 3: player 4), which has a shadow camera of its own.
 void trade_views(int pass, uintptr_t other) {
@@ -243,6 +259,7 @@ void trade_views(int pass, uintptr_t other) {
         std::swap(at<void *>(kShadowView1, kViewPlatInfo), g_shadow_plat_info[pass - 1]);
     }
     swap_mover_lists(other);
+    follow_with_glow_view();
 }
 
 // View 2 on for a split screen race, and off again afterwards (see the top).
@@ -385,6 +402,7 @@ bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, 
         if (!other) continue;  // no camera yet: the quadrant keeps what it had
         clear_screen(device, back_buffer);
         trade_views(pass, other);
+        setup_glow_view();
         if (timed) cpu_start = now_ms();
         reflections::begin_pass(device, pass, players);
         g_orig_display_frame();
@@ -447,6 +465,7 @@ void split_frame(IDirect3DDevice9 *device) {
     bool ok = copy(device, back_buffer, source, g_canvas, top, "player 1");
     clear_screen(device, back_buffer);
     trade_views(1, kView2);
+    setup_glow_view();
     reflections::begin_pass(device, 1, 2);  // reflections around player 2's car
     g_orig_display_frame();  // player 2
     reflections::end_pass(device, 1);
