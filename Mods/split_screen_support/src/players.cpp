@@ -183,7 +183,7 @@ int free_device(int count) {
 // Players 3 and 4 read game input devices of their own, like player 2 (slots 1 and 2 of mets_controller_support's extra devices).
 void start_extra_players() {
     static const api::ExtraDeviceSlotFn slot = api::find_extra_device_slot();
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < more_players::extras_in_race(); ++i) {
         int device = more_players::pick_device(2 + i);
         for (int p = 0; p < 2 + i; ++p)
             if (device == g_race[p]) device = kNotChosen;  // a device that has a player already
@@ -223,7 +223,7 @@ void on_world_load() {
     fe_database()[0x0D] = 0xFF;  // player 2's joystick port: -1 (see start_second_player)
     give_controls(p1);
     start_second_player(p2);
-    if (more_players::four_player_race()) start_extra_players();
+    if (more_players::extras_in_race() > 0) start_extra_players();
     g_phase = Phase::kRace;
     g_race_seen = false;
     g_log.line("split screen race: player 1 on %s, player 2 on %s", describe(p1), describe(p2));
@@ -248,7 +248,7 @@ void on_frame() {
         g_race_seen = true;
         give_controls(g_race[0]);
         start_second_player(g_race[1]);
-        if (more_players::four_player_race()) start_extra_players();
+        if (more_players::extras_in_race() > 0) start_extra_players();
         g_log.line("the race went on: player 1 on %s, player 2 on %s", describe(g_race[0]), describe(g_race[1]));
     }
     if (!split_screen() && (g_controls_asked || g_chosen[0] != kNotChosen || g_chosen[1] != kNotChosen)) {

@@ -1,0 +1,58 @@
+# Three players: through the real menus with the Players row set to 3: Press Start and Car Select for players 1 and 2, then for player 3 alone (devices: keyboard,
+# controllers 0 and 1), then the race with three views (player 1 has the top half); players 2 and 3 drive (see `drive` in ReadMe.md).
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 2
+press down 2
+press right
+wait 2
+screenshot race_options
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 1
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+screenshot car_select_3 width=640
+press right 2
+wait 2
+press accept
+wait_until racing timeout=180
+wait 8
+log_players
+drive 2 1 0
+drive 3 1 0
+wait 5
+screenshot driving_a width=1280
+log_players
+drive 3 1 1
+wait 6
+screenshot driving_b width=1280
+log_players
+quit

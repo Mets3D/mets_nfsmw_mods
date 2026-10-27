@@ -1,5 +1,5 @@
 /*
- * The race with 4 players runs the game's own two player menu flow twice. A split screen race starts when the second player has chosen
+ * The race with 3 or 4 players runs the game's own two player menu flow twice. A split screen race starts when the second player has chosen
  * a car: UIQRCarSelect::CommitChangeStartRace deletes the second player's temporary profile, which saves their car in the FEDatabase (the
  * car's name at +0x470 and a malloc'd copy of its customization, 0x198 bytes, at +0x46C: DeleteMultiplayerProfile 0x58FFA0), and calls
  * RaceStarter::StartRace (0x57ECA0). The first player's car is the handle in the Quick Race settings (GetQuickRaceSettings 0x56DBE0 with
@@ -7,7 +7,8 @@
  *
  * When more than 2 players are wanted (player_count.cpp), StartRace is not called after the first round: the picks of players 1 and 2 are
  * kept in a table of ours, and the game is sent back to Press Start for the second round (PressStart.fng, player 0), whose screens are
- * the same ones: their choices are players 3 and 4. After the second round the first round's picks go back where the game reads them,
+ * the same ones: their choices are players 3 and 4 (with three players the first player's choice of a car ends the round: the switch to the next Press Start
+ * is the start of the race instead). After the second round the first round's picks go back where the game reads them,
  * players 3 and 4 are kept in the table, and StartRace is called: the race has players 1 and 2 (the cars of 3 and 4 come with the race
  * code that creates more players).
  * The screens only ever know players 0 and 1, so none of the game's per player arrays (profiles, settings, joystick ports) has to grow.
@@ -24,6 +25,7 @@
  */
 #include "more_players.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "hooks.h"
@@ -39,6 +41,7 @@ namespace {
 constexpr uintptr_t kFeDatabase = 0x91CF90, kFEng = 0x91CADC, kGetQuickRaceSettings = 0x56DBE0, kQueuePackageSwitch = 0x525940, kBMalloc = 0x465A70,
                     kBFree = 0x4655F0, kFePrintfPackage = 0x5252D0, kGetLocalizedString = 0x56BC10, kStartRace = 0x57ECA0,
                     kCommitCallSite = 0x7A3B09;  // the call of StartRace in UIQRCarSelect's commit function
+constexpr uintptr_t kSplitMode = 0x988E04;  // 1 in a split screen game: CreatePlayers makes the second player, CreateCars the second car
 constexpr uintptr_t kCreatePlayersCall = 0x6F4EDA, kCreatePlayers = 0x6F2700, kCreateCarsCall = 0x6F4EE5, kCreateCars = 0x6F47A0, kPlayerArray = 0x92D87C,
                     kPlayerCount = 0x92D884;
 constexpr unsigned kSetRenderPortSlot = 0x28 / 4, kSetControllerPortSlot = 0x30 / 4;  // IPlayer's virtual table
@@ -67,14 +70,19 @@ unsigned *selected_car(int player) {
 void **customization_pointer() { return reinterpret_cast<void **>(database() + kSplitCustomization); }
 char *car_name() { return reinterpret_cast<char *>(database() + kSplitCarName); }
 
-// What the first player and the second player of the finished round chose goes into g_picks[first] and [first + 1].
-void capture(int first) {
+// What the first player and the second player of the finished round chose goes into g_picks[first] and [first + 1] (`count` 1: the first player only).
+void capture(int first, int count = 2) {
     Pick &p1 = g_picks[first], &p2 = g_picks[first + 1];
     int devices[2];
     players::get_chosen(devices);
-    p1.valid = p2.valid = true;
+    p1.valid = true;
+    p2.valid = count > 1;
     p1.car_handle = *selected_car(0);
     p1.device = devices[0];
+    if (count < 2) {
+        g_log.line("player %d chose: car handle %#x on device %d", first + 1, p1.car_handle, p1.device);
+        return;
+    }
     p2.device = devices[1];
     strncpy(p2.car, car_name(), sizeof(p2.car) - 1);
     p2.car[sizeof(p2.car) - 1] = 0;
@@ -113,21 +121,26 @@ void start_race() {
     if (g_round == 0) {
         capture(0);
         g_round = 1;
-        g_log.line("second round: Press Start and Car Select for players 3 and 4");
+        g_log.line("second round: Press Start and Car Select for player%s", player_count::wanted() > 3 ? "s 3 and 4" : " 3");
         reinterpret_cast<void(__fastcall *)(void *, void *, const char *, int, int, bool)>(kQueuePackageSwitch)(
             *reinterpret_cast<void **>(kFEng), nullptr, "PressStart.fng", 0, 0, false);
         return;
     }
-    capture(2);
+    capture(2, player_count::wanted() - 2);
     restore_first_round();
     g_round = 0;
-    g_log.line("all 4 players chose; the race starts with players 1 and 2 (3 and 4 are not made yet)");
+    g_log.line("all %d players chose; the race starts with players 1 and 2 (the others are made after their cars)", player_count::wanted());
     original_start_race();
 }
 
 // ---- the race: players 3 and 4
 
-bool wants_extra_players() { return players::split_screen() && player_count::wanted() >= 4 && g_picks[2].valid && g_picks[3].valid; }
+// How many players besides the first two the race that is about to load (or is running) has: 0 to 2 (0 until the second round's picks are there).
+int extras_wanted() {
+    if (!players::split_screen() || player_count::wanted() < 3) return 0;
+    const int wanted = std::min(player_count::wanted(), 4) - 2;
+    return g_picks[2].valid && (wanted < 2 || g_picks[3].valid) ? wanted : 0;
+}
 
 uintptr_t g_create_players = kCreatePlayers, g_create_cars = kCreateCars;  // what the calls go to (another mod may have redirected them)
 
@@ -162,18 +175,23 @@ void set_player_port(void *player, unsigned slot, int value) {
     reinterpret_cast<void(__fastcall *)(void *, void *, int)>(vtable[slot])(player, nullptr, value);
 }
 
-// Two more LocalPlayers, by calling CreatePlayers again (they get the first two players' ports and settings, which are then taken away: no view,
-// no device yet). Only after CreateCars made the first two cars: it gives the second player's car to the last player of the list.
-bool make_extra_players(void *quick_game, void *edx) {
+// More LocalPlayers, by calling CreatePlayers again (they get the first two players' ports and settings, which are then taken away: no view, no device yet):
+// two of them, or one when the game is not in split screen mode for the call (CreatePlayers makes the second player only in that mode). Only after CreateCars
+// made the first two cars: it gives the second player's car to the last player of the list.
+bool make_extra_players(void *quick_game, void *edx, int extras) {
     using Fn = void(__fastcall *)(void *, void *);
+    int &split_mode = *reinterpret_cast<int *>(kSplitMode);
+    const int saved_mode = split_mode;
+    if (extras == 1) split_mode = 0;
     reinterpret_cast<Fn>(g_create_players)(quick_game, edx);
+    split_mode = saved_mode;
     const int count = player_count_value();
-    g_log.line("local players: %d (the second call of CreatePlayers made players 3 and 4)", count);
-    if (count < 4) return false;
-    for (int i = count - 2; i < count; ++i) {
+    g_log.line("local players: %d (the second call of CreatePlayers made %d more)", count, extras);
+    if (count < 2 + extras) return false;
+    for (int i = count - extras; i < count; ++i) {
         void *player = player_array()[i];
-        set_player_port(player, kSetRenderPortSlot, -1);  // no view of the game's own: the views of players 3 and 4 are made by split_view.cpp
-        set_player_port(player, kSetControllerPortSlot, players::extra_port(i - (count - 2)));  // their device (players.cpp), -1 when they have none
+        set_player_port(player, kSetRenderPortSlot, -1);  // no view of the game's own: the views of the extra players are made by split_view.cpp
+        set_player_port(player, kSetControllerPortSlot, players::extra_port(i - (count - extras)));  // their device (players.cpp), -1 when they have none
     }
     return true;
 }
@@ -224,7 +242,8 @@ void give_own_settings(int index, void *player) {
 void __fastcall create_cars(void *quick_game, void *edx, const float *start) {
     using Fn = void(__fastcall *)(void *, void *, const float *);
     reinterpret_cast<Fn>(g_create_cars)(quick_game, edx, start);
-    if (!wants_extra_players() || !make_extra_players(quick_game, edx)) return;
+    const int extras = extras_wanted();
+    if (!extras || !make_extra_players(quick_game, edx, extras)) return;
     log_player_cars("after the first CreateCars");
 
     void **saved_array = player_array();
@@ -234,18 +253,22 @@ void __fastcall create_cars(void *quick_game, void *edx, const float *start) {
     strncpy(saved_name, car_name(), sizeof(saved_name) - 1);
     saved_name[sizeof(saved_name) - 1] = 0;
 
-    void *list[2] = {player_array()[saved_count - 2], player_array()[saved_count - 1]};
-    g_extra_players[0] = list[0];
-    g_extra_players[1] = list[1];
-    for (int i = 0; i < 2; ++i) give_own_settings(i, list[i]);
+    void *list[2] = {};
+    for (int i = 0; i < extras; ++i) {
+        list[i] = player_array()[saved_count - extras + i];
+        g_extra_players[i] = list[i];
+        give_own_settings(i, list[i]);
+    }
     player_array() = reinterpret_cast<void **>(list);
-    player_count_value() = 2;
+    player_count_value() = extras;
     *selected_car(0) = g_picks[2].car_handle;
-    strcpy(car_name(), g_picks[3].car);
     void *custom = nullptr;
-    if (g_picks[3].has_customization) {
-        custom = reinterpret_cast<void *(*)(int, int)>(kBMalloc)(kCustomizationSize, 0x47);
-        if (custom) memcpy(custom, g_picks[3].customization, kCustomizationSize);
+    if (extras == 2) {  // the second player's car is the one named in the FEDatabase
+        strcpy(car_name(), g_picks[3].car);
+        if (g_picks[3].has_customization) {
+            custom = reinterpret_cast<void *(*)(int, int)>(kBMalloc)(kCustomizationSize, 0x47);
+            if (custom) memcpy(custom, g_picks[3].customization, kCustomizationSize);
+        }
     }
     *customization_pointer() = custom;  // the game frees it after use
 
@@ -264,19 +287,23 @@ void __fastcall create_cars(void *quick_game, void *edx, const float *start) {
     }
     g_log.line("first two cars at (%.1f, %.1f) and (%.1f, %.1f): the cars of players 3 and 4 start at (%.1f, %.1f)", first[0], first[2], second[0], second[2],
                shifted[0], shifted[2]);
-    g_log.line("cars of players 3 and 4: start (%.1f, %.1f, %.1f), car handle %#x and \"%s\"", start[0], start[1], start[2], g_picks[2].car_handle,
-               g_picks[3].car);
+    g_log.line("cars of players 3%s: start (%.1f, %.1f, %.1f), car handle %#x and \"%s\"", extras == 2 ? " and 4" : "", start[0], start[1], start[2],
+               g_picks[2].car_handle, extras == 2 ? g_picks[3].car : "");
+    int &split_mode = *reinterpret_cast<int *>(kSplitMode);
+    const int saved_mode = split_mode;
+    if (extras == 1) split_mode = 0;  // one car only: the second is made in split screen mode
     reinterpret_cast<Fn>(g_create_cars)(quick_game, edx, shifted);
+    split_mode = saved_mode;
 
     player_array() = saved_array;
     // Players 3 and 4 leave the list of local players (they stay in the list of all players, which keeps their cars): everything the game does
     // for the local players (HUD, camera, view, the pause menu) then does not know them. A HUD of theirs would be a second copy of the HUD of
     // player 1 or 2 (same package) on the same view, and a null one crashes the loops that ask each local player for it.
-    player_count_value() = saved_count - 2;
+    player_count_value() = saved_count - extras;
     *selected_car(0) = saved_car;
     strcpy(car_name(), saved_name);
     *customization_pointer() = nullptr;
-    g_log.line("cars of players 3 and 4 made");
+    g_log.line("cars of the extra players made");
     log_player_cars("after the second CreateCars");
 }
 
@@ -313,7 +340,7 @@ void log_players() {
     }
 }
 
-int extra_player_count() { return g_extra_players[0] && g_extra_players[1] ? 2 : 0; }
+int extra_player_count() { return (g_extra_players[0] ? 1 : 0) + (g_extra_players[1] ? 1 : 0); }
 
 int pick_device(int player) { return player >= 0 && player < 4 && g_picks[player].valid ? g_picks[player].device : -2; }
 
@@ -326,9 +353,9 @@ void lend_view(void *player, bool on) {
         if (player && player == g_extra_players[i]) set_player_port(player, kSetRenderPortSlot, on ? i + 1 : -1);  // the view of player 1 or 2
 }
 
-bool four_player_race() { return wants_extra_players(); }
+int extras_in_race() { return extras_wanted(); }
 
-int race_players() { return !players::split_screen() ? 1 : wants_extra_players() ? 4 : 2; }
+int race_players() { return !players::split_screen() ? 1 : 2 + extras_wanted(); }
 
 bool player_car_state(int index, float *position, float *forward) {
     void *player = index < 2 ? (player_count_value() > index ? player_array()[index] : nullptr) : (index < 4 ? g_extra_players[index - 2] : nullptr);
@@ -458,7 +485,23 @@ void install_car_select_label() {
     nfsmw::install_hooks(hooks, 1, g_log, nullptr, "car select label");
 }
 
+// UIQRCarSelect::NotificationMessage sends the first player's choice on to the second player's Press Start screen (cFEng::QueuePackageSwitch, one call at
+// 0x7C2694 for all the ways of choosing a car). With three players the first player of the second round is the last one: the race starts instead.
+constexpr uintptr_t kPressStartSwitchCall = 0x7C2694, kQueuePackageSwitchFn = 0x525940;
+uintptr_t g_queue_package_switch = kQueuePackageSwitchFn;
+
+void __fastcall queue_package_switch(void *feng, void *edx, const char *package, int a, unsigned b, bool c) {
+    if (g_round == 1 && players::split_screen() && player_count::wanted() == 3 && package && strcmp(package, "PressStart.fng") == 0) {
+        g_log.line("second round of three: the first player's car is chosen; the race starts");
+        start_race();
+        return;
+    }
+    reinterpret_cast<void(__fastcall *)(void *, void *, const char *, int, unsigned, bool)>(g_queue_package_switch)(feng, edx, package, a, b, c);
+}
+
 void install() {
+    if (const uintptr_t previous = nfsmw::chain_call(kPressStartSwitchCall, reinterpret_cast<uintptr_t>(&queue_package_switch))) g_queue_package_switch = previous;
+    else g_log.line("more players: the call at %#x is not a call; 3 players will ask for a second Press Start", static_cast<unsigned>(kPressStartSwitchCall));
     // The call is redirected, not StartRace hooked: other mods change functions too (see player_count.cpp).
     if (const uintptr_t target = nfsmw::call_target(kCreatePlayersCall)) g_create_players = target;
     if (const uintptr_t previous = nfsmw::chain_call(kCreateCarsCall, reinterpret_cast<uintptr_t>(&create_cars))) g_create_cars = previous;

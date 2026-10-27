@@ -3,8 +3,8 @@
  * from +0xC0, with about a dozen loops over exactly two in its code and other fields right behind the array, so it cannot be made bigger. Camera::UpdateAll
  * (0x480C16) calls UpdateCameraMovers (0x47C880), which gives each active view that has a camera mover a position (PredictStreamingPosition, 0x7238D0):
  * views 1 and 2. Players 3 and 4 have views of our own and no mover, so the world around them was not kept.
- * With four players, after the game has done that, the two positions are chosen again among the four cars: the pair that keeps every car nearest to
- * one of them (the two-centre of the four) in the plane of the track. A position of player 1 or 2 keeps the game's own entry (with its speed and
+ * With three or four players, after the game has done that, the two positions are chosen again among the cars: the pair that keeps every car nearest to
+ * one of them (the two-centre of the cars) in the plane of the track. A position of player 1 or 2 keeps the game's own entry (with its speed and
  * direction); for player 3 or 4 the entry is made with PredictStreamingPosition. Cars far enough apart for one to be out of the range of both will
  * see the world pop in around it: the streamer has room for two places.
  */
@@ -40,10 +40,11 @@ float distance_squared(const float *a, const float *b) {
 
 void __cdecl update_camera_movers(float dt) {
     reinterpret_cast<void(__cdecl *)(float)>(g_update_camera_movers)(dt);
-    if (!players::split_screen() || more_players::extra_player_count() != 2) return;
+    if (!players::split_screen() || more_players::extra_player_count() == 0) return;
 
+    const int count = 2 + more_players::extra_player_count();
     float position[4][3], forward[4][3];
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < count; ++i) {
         float sim_position[3], sim_forward[3];
         if (!more_players::player_car_state(i, sim_position, sim_forward)) return;
         to_render(sim_position, position[i]);
@@ -51,10 +52,10 @@ void __cdecl update_camera_movers(float dt) {
     }
     int first = 0, second = 1;
     float best = 3.0e38f;
-    for (int a = 0; a < 4; ++a)
-        for (int b = a + 1; b < 4; ++b) {
+    for (int a = 0; a < count; ++a)
+        for (int b = a + 1; b < count; ++b) {
             float worst = 0;
-            for (int i = 0; i < 4; ++i) {
+            for (int i = 0; i < count; ++i) {
                 const float nearest = std::min(distance_squared(position[i], position[a]), distance_squared(position[i], position[b]));
                 worst = std::max(worst, nearest);
             }
@@ -84,7 +85,7 @@ void __cdecl update_camera_movers(float dt) {
     static bool logged = false;
     if (!logged) {
         logged = true;
-        g_log.line("streaming: players %d and %d keep the track around them (they are the best pair for the four cars)", first + 1, second + 1);
+        g_log.line("streaming: players %d and %d keep the track around them (they are the best pair for the %d cars)", first + 1, second + 1, count);
     }
 }
 

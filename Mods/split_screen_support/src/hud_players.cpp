@@ -152,9 +152,9 @@ void __fastcall hook_epause(void *self, void *edx, int player, int b, int c) {
 
 // Players 3 and 4: once the game has made the HUDs of players 1 and 2.
 void make_extra_huds() {
-    if (g_extra_huds_made || !active() || g_hud_count < 2 || more_players::extra_player_count() != 2) return;
+    if (g_extra_huds_made || !active() || g_hud_count < 2 || more_players::extra_player_count() == 0) return;
     g_extra_huds_made = true;
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < more_players::extra_player_count(); ++i) {
         void *player = more_players::extra_player(i);
         void **vtable = *reinterpret_cast<void ***>(player);
         reinterpret_cast<void(__fastcall *)(void *, void *, int)>(vtable[kPlayerSetHudSlot])(player, nullptr, kHudSplit2);

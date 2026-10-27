@@ -1,4 +1,4 @@
-// Players 3 and 4: a second round of Press Start and Car Select (see more_players.cpp).
+// Players 3 and 4: a second round of Press Start and Car Select (see more_players.cpp), with the first player only for three players.
 #pragma once
 
 namespace split_screen_support::more_players {
@@ -15,15 +15,16 @@ void on_press_start_screen(void *screen);
 // Logs every local player: their car, position and render port (for automated tests).
 void log_players();
 
-// Players 3 and 4 of a race with four players: how many there are now (0 or 2), and the camera of one of them (0 or 1): eye, target and up
+// Players 3 and 4 of a race with three or four players: how many there are now (0 to 2), and the camera of one of them (0 or 1): eye, target and up
 // vectors in the game's render space (4 floats each) and the camera's view type (0 bumper to 6 pursuit). False when they have no car.
 int extra_player_count();
 
 // How many players the race that is about to load or is running has: 1 when it is not a split screen race.
 int race_players();
 
-// The race that is about to load or is running has four players (the Players row says 4 and the second round of picks is there).
-bool four_player_race();
+// How many players beyond the first two the race that is about to load or is running has: 0, 1 or 2 (the Players row says 3 or 4 and the second round of picks is
+// there).
+int extras_in_race();
 
 // The car of player 1 to 4 (index 0 to 3) in simulation space: position and forward vector (3 floats each). False when there is no such car.
 bool player_car_state(int index, float *position, float *forward);

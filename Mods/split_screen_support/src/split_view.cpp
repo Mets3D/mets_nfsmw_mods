@@ -216,7 +216,7 @@ bool g_view2_on = false;  // view 2 is on for a split screen race (switch_view2)
 // crashes reading it. Only trading the camera made it worse: the camera and the matrices must stay a pair.
 constexpr uintptr_t kShadowView1 = 0x919C70;
 constexpr size_t kCameraSize = 0x2C0, kPlatInfoSize = 0x1A0;
-constexpr int kExtraPasses = 3;  // the passes after player 1's: players 2, 3 and 4 (the last two with four players)
+constexpr int kExtraPasses = 3;  // the passes after player 1's: players 2, 3 and 4 (the last two with more than two players)
 void *g_shadow_camera[kExtraPasses] = {};
 void *g_shadow_plat_info[kExtraPasses] = {};
 
@@ -310,7 +310,7 @@ void switch_view2(bool on) {
 
 void on_world_load() {
     if (players::split_screen()) switch_view2(true);
-    fixes::use_one_view_scenery_rule(!more_players::four_player_race());
+    fixes::use_one_view_scenery_rule(more_players::extras_in_race() == 0);
     hud_views::clear();
 }
 
@@ -397,14 +397,20 @@ void read_timing() {
     for (int i = 0; i < kTimestamps - 1; ++i) g_gpu_ms[i] = g_cpu_ms[i] = 0;
 }
 
-// Four players: every pass is the whole picture, shrunk into its quadrant of the canvas (a quadrant has the screen's aspect: nothing is cropped).
-// Player 1 is the top left, player 2 the top right, players 3 and 4 the bottom row. The HUD and menus are drawn over this by the game as if for the
-// screen in two halves.
-bool four_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, const D3DSURFACE_DESC &d) {
+// Three or four players: every pass is the whole picture, shrunk into its cell of the canvas (a quadrant has the screen's aspect: nothing is cropped), except
+// the first player's with three players, who has the top half: a band of the picture, as with two. The cells are those of layout.h: with four players
+// player 1 is the top left, player 2 the top right, players 3 and 4 the bottom row; with three player 1 has the top half and players 2 and 3 the bottom
+// row. The HUD and menus are drawn over this by the game as if for the screen in two halves.
+bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, const D3DSURFACE_DESC &d, int players) {
     const LONG w = d.Width, h = d.Height, qw = w / 2, qh = h / 2;
     const RECT full = {0, 0, w, h};
-    RECT quadrants[4];
-    for (int i = 0; i < 4; ++i) quadrants[i] = layout::cell(i, 4, 2 * qw, 2 * qh);
+    RECT cells[4];
+    for (int i = 0; i < players; ++i) cells[i] = layout::cell(i, players, 2 * qw, 2 * qh);
+    RECT first_source = full;  // what of player 1's picture goes to the first cell
+    if (players == 3) {
+        LONG band_top = std::clamp(static_cast<LONG>(kBandCenter * h) - qh / 2, 0L, h - qh);
+        first_source = {0, band_top, w, band_top + qh};
+    }
     static const char *const names[4] = {"player 1", "player 2", "player 3", "player 4"};
     unsigned *pool = reinterpret_cast<unsigned *>(kFramePool);
     const unsigned pool_start = pool[0];
@@ -416,7 +422,7 @@ bool four_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, c
         stamps[0]->Issue(D3DISSUE_END);
         cpu_start = now_ms();
     }
-    reflections::begin_pass(device, 0, 4);
+    reflections::begin_pass(device, 0, players);
     g_orig_display_frame();  // player 1
     pool[0] = pool_start;
     reflections::end_pass(device, 0);
@@ -425,15 +431,15 @@ bool four_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, c
         stamps[1]->Issue(D3DISSUE_END);
     }
     view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(w), static_cast<float>(h), 0);
-    bool ok = copy(device, back_buffer, full, g_canvas, quadrants[0], names[0]);
-    for (int pass = 1; pass <= 3 && ok; ++pass) {
+    bool ok = copy(device, back_buffer, first_source, g_canvas, cells[0], names[0]);
+    for (int pass = 1; pass < players && ok; ++pass) {
         SavedView saved = {};
         const bool extra = pass >= 2;
         if (extra && !prepare_extra_view(pass - 2, saved)) continue;  // no car: the quadrant keeps what it had
         clear_screen(device, back_buffer);
         trade_views(pass);
         if (timed) cpu_start = now_ms();
-        reflections::begin_pass(device, pass, 4);
+        reflections::begin_pass(device, pass, players);
         g_orig_display_frame();
         pool[0] = pool_start;
         reflections::end_pass(device, pass);
@@ -444,9 +450,12 @@ bool four_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, c
         if (!extra) view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(w), static_cast<float>(h), 1);
         trade_views(pass);
         if (extra) restore_extra_view(saved);
-        ok = copy(device, back_buffer, full, g_canvas, quadrants[pass], names[pass]);
+        ok = copy(device, back_buffer, full, g_canvas, cells[pass], names[pass]);
     }
-    if (timed) ++g_timed_frame;
+    if (timed) {
+        for (int i = players + 1; i < kTimestamps; ++i) stamps[i]->Issue(D3DISSUE_END);  // the passes there are not: no time
+        ++g_timed_frame;
+    }
     const RECT canvas_part = {0, 0, 2 * qw, 2 * qh};
     return ok && copy(device, g_canvas, canvas_part, back_buffer, canvas_part, "to the screen");
 }
@@ -470,8 +479,8 @@ void split_frame(IDirect3DDevice9 *device) {
     const RECT top = {0, 0, w, half}, bottom = {0, half, w, 2 * half};
 
     make_shadow_copies();
-    if (more_players::extra_player_count() == 2) {
-        const bool ok = four_view_frame(device, back_buffer, d);
+    if (more_players::extra_player_count() > 0) {
+        const bool ok = multi_view_frame(device, back_buffer, d, 2 + more_players::extra_player_count());
         back_buffer->Release();
         if (!ok) {
             g_failed = true;

@@ -1,12 +1,11 @@
 /*
- * A "Players" row (2 or 4) in the race options that follow the track select (UIQRTrackOptions, Track_Options.fng) of a split screen
+ * A "Players" row (2, 3 or 4) in the race options that follow the track select (UIQRTrackOptions, Track_Options.fng) of a split screen
  * race. The screen builds its rows in Setup (0x7BA7C0), which calls one of SetupCircuit / SetupSprint ... and sets the first row as the
  * cursor's; after it returns our row is added the way nfsmw_custom_menus builds the rows of its pages: an FEToggleWidget (constructor
  * 0x589300, 0x5C bytes) whose virtual table is PODriveCam's (the table those rows use) with Act and Draw replaced, handed to
  * UIWidgetMenu::AddToggleOption (0x588570). The row's texts are language strings registered through nfsmw_custom_menus (without it
  * there is no row, and the race has two players).
- * Left and right change the value: 2 <-> 4 (3 players would leave the second round of Press Start / Car Select after one player, which
- * the game's screens do not do by themselves: see more_players.cpp).
+ * Left and right change the value: 2, 3 or 4 (with 3 the second round of Press Start / Car Select is for one player: see more_players.cpp).
  */
 #include "player_count.h"
 
@@ -48,7 +47,7 @@ void __fastcall draw(void *self, void *) {
 // FEToggleWidget::Act(const char *package, uint32 pad message)
 void __fastcall act(void *self, void *, const char *, unsigned data) {
     if (data != kPadLeft && data != kPadRight) return;
-    g_wanted = g_wanted == 2 ? 4 : 2;
+    g_wanted = data == kPadRight ? (g_wanted == 4 ? 2 : g_wanted + 1) : (g_wanted == 2 ? 4 : g_wanted - 1);
     field<unsigned char>(self, kChanged) = 1;
     void **vtable = field<void **>(self, 0);
     reinterpret_cast<void(__fastcall *)(void *, void *, unsigned)>(vtable[kBlinkSlot])(self, nullptr, data);  // the arrow blinks
