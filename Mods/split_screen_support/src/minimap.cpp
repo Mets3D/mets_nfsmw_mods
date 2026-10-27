@@ -19,6 +19,8 @@
 #include <d3d9.h>
 
 #include "events.h"
+#include "hud_views.h"
+#include "fe_objects.h"
 #include "hooks.h"
 #include "more_players.h"
 #include "split_screen_support.h"
@@ -27,20 +29,16 @@ namespace split_screen_support::minimap {
 
 namespace {
 
+using namespace fe;
+
 constexpr int kHudSplit1 = 3, kHudSplit2 = 4;  // ePlayerHudType
-constexpr uintptr_t kFengInstance = 0x91CADC;  // cFEng::mInstance
 constexpr unsigned kMinimapSize = 0x338;
 constexpr uintptr_t kMalloc = 0x7C66D0;  // the game's allocator (cdecl): FEngHud makes its Minimap with it
-constexpr unsigned kDirty = (1u << 25) | (1u << 24);  // FF_Dirty | FF_DirtyTransform
+constexpr unsigned kDirty = fe::kFlagDirty;
 
 // FEng colours are 0xAARRGGBB; the alpha stays as the game set it.
 constexpr unsigned kColorPlayer1 = 0x00FF9040;  // orange
 constexpr unsigned kColorPlayer2 = 0x002090FF;  // blue
-
-template <typename T>
-T &field(void *base, size_t offset) {
-    return *reinterpret_cast<T *>(static_cast<char *>(base) + offset);
-}
 
 // Object layouts (speed.exe 1.3):
 //   FEObject: next +4, name hash +0x10, type +0x18 (1 image, 5 group, 12 multi image), flags +0x1C, data size +0x30, data +0x2C
@@ -48,20 +46,12 @@ T &field(void *base, size_t offset) {
 //   FEPackage: first object +0x4C.
 //   HudElement: object list +8 (circular; next +0, object +8). Minimap: map layout +0x38, own marker +0x90, other player's marker
 //   +0x94, default position +0x9C (y +0xA0), map centre +0xB8 (y +0xBC).
-void *next_of(void *o) { return field<void *>(o, 4); }
-void *first_child(void *group) { return field<void *>(group, 0x64); }
-bool is_group(void *o) { return field<int>(o, 0x18) == 5; }
-
-float &position_y(void *o) { return field<float>(field<void *>(o, 0x2C), 0x20); }
-float &position_x(void *o) { return field<float>(field<void *>(o, 0x2C), 0x1C); }
-
 void shift(void *o, float dy) {
     position_y(o) += dy;
     field<unsigned>(o, 0x1C) |= kDirty;
 }
 
 // ---- the game's functions
-using FindPackageFn = void *(__fastcall *)(void *, void *, const char *);
 using AddObjectFn = void(__fastcall *)(void *, void *, void *);
 using CloneFn = void *(__fastcall *)(void *, void *, bool);
 using DeletingDtorFn = void(__fastcall *)(void *, void *, unsigned);
@@ -76,11 +66,6 @@ using ElementArtFn = void(__fastcall *)(void *, void *, float *, float *, void *
 using GetColorFn = unsigned(__cdecl *)(void *);
 using SetColorFn = void(__cdecl *)(void *, unsigned);
 using MallocFn = void *(__cdecl *)(size_t);
-
-void *find_package(const char *name) {
-    void *feng = *reinterpret_cast<void **>(kFengInstance);
-    return feng ? reinterpret_cast<FindPackageFn>(0x516AF0)(feng, nullptr, name) : nullptr;
-}
 
 // Entry n of an object's virtual table (0 = deleting destructor, 1 = Clone for FEObject, 1 = GetSimable for IPlayer).
 void *vslot(void *object, int n) { return (*reinterpret_cast<void ***>(object))[n]; }
@@ -403,6 +388,7 @@ void make_marker_clones(Markers &m) {
         finish_clone(marker, copy);
         reinterpret_cast<void(__fastcall *)(void *, void *, void *)>(0x5B5420)(group, nullptr, copy);  // FEGroup::AddObject
         m.clones[k] = copy;
+        hud_views::classify_like(copy, marker);
     }
 }
 
@@ -647,6 +633,23 @@ void place(void *minimap, const char *package, float dy) {
     field<float>(minimap, 0xA0) += dy;  // default position y
     place_marker(minimap);
     g_log.line("minimap: %d objects of %s moved by %.0f", moved, package, dy);
+}
+
+void dump_object(void *o, int depth) {
+    const char *indent = depth == 0 ? "" : depth == 1 ? "  " : depth == 2 ? "    " : "      ";
+    void *data = field<void *>(o, 0x2C);
+    if (!data) return;
+    g_log.line("dump: %s%08x type %d pos (%.0f, %.0f) size (%.2f, %.2f) flags %08x alpha %d", indent, field<unsigned>(o, 0x10), field<int>(o, 0x18), field<float>(data, 0x1C),
+               field<float>(data, 0x20), field<float>(data, 0x38), field<float>(data, 0x3C), field<unsigned>(o, 0x1C), field<int>(data, 0xC));
+    if (is_group(o) && depth < 4)
+        for (void *c = first_child(o); c; c = next_of(c)) dump_object(c, depth + 1);
+}
+
+void dump_package(const char *package) {
+    void *p = find_package(package);
+    if (!p) return;
+    g_log.line("dump: package %s", package);
+    for (void *o = field<void *>(p, 0x4C); o; o = next_of(o)) dump_object(o, 0);
 }
 
 void set_markers(void *minimap, const char *package, unsigned own_rgb, const void *const *others, const unsigned *other_rgb, int count) {

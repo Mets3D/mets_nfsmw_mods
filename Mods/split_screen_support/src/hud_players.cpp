@@ -106,7 +106,13 @@ void hud_made(void *hud, int type, const char *package, void *player, int number
         }
     }
     if (void *minimap = *reinterpret_cast<void **>(static_cast<char *>(hud) + kHudMinimap)) minimap::place(minimap, package, kMinimapRise);
+    hud_views::classify(package);
     set_markers();
+    static bool dumped = false;
+    if (!dumped && index == 0 && ini_flag("options", "dump_hud", false)) {
+        dumped = true;
+        minimap::dump_package(package);
+    }
 }
 
 void hud_destroy(void *hud) {

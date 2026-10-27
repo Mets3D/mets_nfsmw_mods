@@ -11,6 +11,9 @@ void place(void *minimap, const char *package, float dy);
 // the other markers follow `others` (IPlayers) in `other_rgb`: the first is the minimap's second marker, the rest copies of it in the HUD's `package`. Forgotten when the HUDs go.
 void set_markers(void *minimap, const char *package, unsigned own_rgb, const void *const *others, const unsigned *other_rgb, int count);
 
+// Logs the objects of an FEng package (a tree: name hash, type, position, size, flags): for working out a HUD's layout. ([options] dump_hud=1)
+void dump_package(const char *package);
+
 void install();
 
 }  // namespace split_screen_support::minimap

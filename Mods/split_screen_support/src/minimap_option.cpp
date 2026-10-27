@@ -7,7 +7,7 @@
  * settings, 2 = off) is not per player; this takes the bit out for one player. The second player's minimap (minimap.cpp) asks the same
  * function for its visibility, so it follows too.
  *
- * Each player's choice is kept in the ini ([player_1] ... [player_4] minimap=0). With more than two players the player is the one whose HUD asked for
+ * The page also has the HUD Scale (four players: hud_views.cpp). Each player's choices are kept in the ini ([player_1] ... [player_4] minimap=0, hud_scale=70). With more than two players the player is the one whose HUD asked for
  * the pause menu (hud_players.cpp), since the game's own numbers only go to 2.
  */
 #include "minimap_option.h"
@@ -17,6 +17,8 @@
 #include "custom_menus_api.h"
 #include "hooks.h"
 #include "hud_players.h"
+#include "hud_views.h"
+#include "more_players.h"
 #include "player_count.h"
 #include "split_screen_support.h"
 
@@ -38,6 +40,9 @@ constexpr unsigned kOnText = 0x417B2604, kOffText = 0x70DFE5C2;  // the game's o
 constexpr int kPlayers = 4;
 bool g_show[kPlayers] = {true, true, true, true};
 bool g_opened[kPlayers];
+constexpr int kScaleStep = 10, kMinScale = 40;      // the HUD scale, percent: 40 to 100
+int g_scale[kPlayers] = {100, 100, 100, 100};
+int g_scale_opened[kPlayers];
 
 const char *section_of(int who) {
     static const char *const names[kPlayers] = {"player_1", "player_2", "player_3", "player_4"};
@@ -62,32 +67,71 @@ unsigned long long __fastcall hook_features(void *self, void *edx, void *player)
 }
 
 // ---- the row
+constexpr int kRowMinimap = 0, kRowScale = 1;
 constexpr opt::Row kRows[] = {
     {opt::kValueRow, "Minimap", 0, "Shows or hides your minimap while you drive."},
+    {opt::kValueRow, "HUD Scale", 0, "How big your HUD is in your quarter of the screen (with four players): each corner of it keeps its place and gets smaller."},
 };
 
-unsigned value(int, char *, unsigned) { return g_show[editing()] ? kOnText : kOffText; }
-void change(int, int direction, bool) { g_show[editing()] = direction > 0; }
-void opened() {
-    for (int who = 0; who < kPlayers; ++who) g_opened[who] = g_show[who];
+unsigned value(int row, char *out, unsigned out_size) {
+    if (row == kRowMinimap) return g_show[editing()] ? kOnText : kOffText;
+    snprintf(out, out_size, "%d%%", g_scale[editing()]);
+    return 0;
 }
-bool changed() { return g_show[editing()] != g_opened[editing()]; }
-void accept() {
+void change(int row, int direction, bool) {
+    if (row == kRowMinimap) {
+        g_show[editing()] = direction > 0;
+        return;
+    }
+    int &scale = g_scale[editing()];
+    scale = std::clamp(scale + (direction > 0 ? kScaleStep : -kScaleStep), kMinScale, 100);
+    hud_views::set_scale(editing(), scale);  // at once, to be seen behind the menu
+}
+void opened() {
     for (int who = 0; who < kPlayers; ++who) {
-        if (g_show[who] == g_opened[who]) continue;
-        WritePrivateProfileStringA(section_of(who), "minimap", g_show[who] ? "1" : "0", g_ini);
-        g_log.line("player %d's minimap %s", who + 1, g_show[who] ? "shown" : "hidden");
         g_opened[who] = g_show[who];
+        g_scale_opened[who] = g_scale[who];
     }
 }
-void discard() { g_show[editing()] = g_opened[editing()]; }
-void defaults() { g_show[editing()] = true; }
+bool changed() { return g_show[editing()] != g_opened[editing()] || g_scale[editing()] != g_scale_opened[editing()]; }
+void accept() {
+    for (int who = 0; who < kPlayers; ++who) {
+        if (g_show[who] != g_opened[who]) {
+            WritePrivateProfileStringA(section_of(who), "minimap", g_show[who] ? "1" : "0", g_ini);
+            g_log.line("player %d's minimap %s", who + 1, g_show[who] ? "shown" : "hidden");
+            g_opened[who] = g_show[who];
+        }
+        if (g_scale[who] != g_scale_opened[who]) {
+            char text[16];
+            snprintf(text, sizeof(text), "%d", g_scale[who]);
+            WritePrivateProfileStringA(section_of(who), "hud_scale", text, g_ini);
+            g_log.line("player %d's HUD scale %d%%", who + 1, g_scale[who]);
+            g_scale_opened[who] = g_scale[who];
+        }
+    }
+}
+void discard() {
+    g_show[editing()] = g_opened[editing()];
+    g_scale[editing()] = g_scale_opened[editing()];
+    hud_views::set_scale(editing(), g_scale[editing()]);
+}
+void defaults() {
+    g_show[editing()] = true;
+    g_scale[editing()] = 100;
+    hud_views::set_scale(editing(), 100);
+}
+// The HUD scale needs a race with four players (the HUDs of two are the game's own).
+bool row_enabled(int row) { return row != kRowScale || more_players::four_player_race(); }
 
 opt::Page g_page;
 
 }  // namespace
 
 void install() {
+    for (int who = 0; who < kPlayers; ++who) {
+        g_scale[who] = std::clamp(static_cast<int>(GetPrivateProfileIntA(section_of(who), "hud_scale", 100, g_ini)), kMinScale, 100);
+        hud_views::set_scale(who, g_scale[who]);
+    }
     for (int who = 0; who < kPlayers; ++who) g_show[who] = GetPrivateProfileIntA(section_of(who), "minimap", 1, g_ini) != 0;
     const nfsmw::Hook hooks[] = {
         {"hudfeatures", "FEngHud::DetermineHudFeatures", kDetermineHudFeatures, {0x53, 0x55, 0x56, 0x8B, 0xD9, 0x8B, 0x4C}, false,
@@ -104,8 +148,8 @@ extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const nfsmw::cu
     char translations[MAX_PATH];
     nfsmw::data_file("translations\\split_screen_support", translations, sizeof(translations));
     host->register_translations(translations);  // before any text is registered
-    g_page = {"split_minimap", "Minimap", "MINIMAP", "MINIMAP", 0, 0, nullptr, 1, kRows, nullptr, opened, value, change, changed, accept,
-              discard, defaults, opt::kPlayerOptions};
+    g_page = {"split_minimap", "Minimap", "MINIMAP", "MINIMAP", 0, 0, nullptr, 2, kRows, nullptr, opened, value, change, changed, accept,
+              discard, defaults, opt::kPlayerOptions, nullptr, row_enabled};
     host->register_page(&g_page);
     split_screen_support::player_count::register_texts(host);
 }
