@@ -27,6 +27,7 @@
 #include "split_screen_support.h"
 
 #include "events.h"
+#include "extra_cameras.h"
 #include "extra_streaming.h"
 #include "fixes.h"
 #include "hud_players.h"
@@ -65,6 +66,7 @@ NFSMW_PLUGIN_MAIN() {
         player_count::install();
         more_players::install();
         extra_streaming::install();
+        extra_cameras::install();
     }
     more_players::install_car_select_label();
     players::install();  // before state_log: the world load log shows its ports

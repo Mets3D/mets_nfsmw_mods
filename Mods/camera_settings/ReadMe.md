@@ -29,6 +29,7 @@ It was my goal to integrate this mod into the original game's design as if it wa
   - Mirror: Whether a rear-view mirror is visible in this view. (The vanilla game's "Player -> Rearview Mirror" option is removed.)
   - Enabled: Whether this camera view is used by the Next/Previous Camera View hotkeys.
 - You can hold Shift or LB to change values with smaller increments.
+- In a split screen game ([Split Screen Support](../split_screen_support/ReadMe.md), up to 4 players) the settings are the same for every player: each player's camera is the game's own, so each player's current view (Change Camera View) gets them.
 - Cycling cameras: The mod renames the vanilla game's "Change Camera View" keybind to **"Next Camera View"** and adds a **Previous Camera View** counterpart.
 - Values are applied as offsets:
   - In the game, every car has base camera positions for each camera view. This is preserved by applying your customizations as an offset.

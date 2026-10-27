@@ -15,8 +15,7 @@ void on_press_start_screen(void *screen);
 // Logs every local player: their car, position and render port (for automated tests).
 void log_players();
 
-// Players 3 and 4 of a race with three or four players: how many there are now (0 to 2), and the camera of one of them (0 or 1): eye, target and up
-// vectors in the game's render space (4 floats each) and the camera's view type (0 bumper to 6 pursuit). False when they have no car.
+// Players 3 and 4 of a race with three or four players: how many there are now (0 to 2).
 int extra_player_count();
 
 // How many players the race that is about to load or is running has: 1 when it is not a split screen race.
@@ -28,7 +27,6 @@ int extras_in_race();
 
 // The car of player 1 to 4 (index 0 to 3) in simulation space: position and forward vector (3 floats each). False when there is no such car.
 bool player_car_state(int index, float *position, float *forward);
-bool extra_camera(int index, float *eye, float *target, float *up, int *mode);
 
 // The device that pressed Start for player 1 to 4 (0-3 a controller, players::kKeyboard) in the picks of the two rounds; -2 when the player did not
 // choose (or has not yet). A device used in the first round can not be chosen in the second.
@@ -41,6 +39,14 @@ void *extra_player(int index);
 // While the game updates the HUD of an extra player the player has a render port that is a view (the HUD code asks that view about the camera), and
 // otherwise none. `player` that is not an extra player is left alone.
 void lend_view(void *player, bool on);
+
+// Whether the extra player (0 or 1 for players 3 and 4) is in a running race and has a car.
+bool extra_ready(int index);
+
+// The game finds the player a camera director is for among the local players by their render port, and the extra players are not in that list: for the
+// duration of the game's own setup of their camera (on = true until it is called again with false) the extra player is the only local player, in the view
+// the camera is made for.
+void make_only_local_player(int index, bool on);
 
 // The Car Select screens of a split screen race say which player and which device (all split screen races, not only those with more than two players).
 void install_car_select_label();

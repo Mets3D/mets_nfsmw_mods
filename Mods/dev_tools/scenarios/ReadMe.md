@@ -51,6 +51,8 @@ Every change of screen is logged (`screen: <package> (frame, ms)`) without a com
 - `split_race_4.txt` is the same with the **Players** row set to 4 (`more_players=1` in the split screen mod's ini): Press Start and Car Select for four players with four devices, then a race with four cars, the first two screenshots of the countdown, `log_players` twice, a `profile` of ten seconds (the frame rate and where the time goes) and a screenshot. About 80 seconds.
 - `split_race_4_drive.txt` is the same, and then players 2, 3 and 4 drive (`drive`), steering different ways: the positions in the log before and after show that each of them has input, and the screenshots the four HUDs while driving. The launcher runs a scenario again once when it fails (`--retries`): a menu is sometimes not where it should be.
 - `split_race_3.txt` is the same with the **Players** row set to 3: the second round of Press Start and Car Select is for player 3 alone, then a race with three views (player 1 has the top half); players 2 and 3 drive.
+- `split_race_4_look.txt` is the same, and then players 3 and 4 use the camera buttons of their own devices (look, look back, Change Camera View): screenshots before and during.
+- `split_race_4_quit.txt` is the same, and then player 3 pauses the race and quits to the menu: the log must have no exception and the screens end at the main menu.
 - `live.txt` boots to the main menu and waits for lines to be appended.
 
 ## Writing a scenario for another menu path

@@ -28,8 +28,8 @@
 #include <algorithm>
 #include <cmath>
 
-#include "clock.h"
 #include "hooks.h"
+#include "view_ids.h"
 #include "patch.h"
 #include "player_count.h"
 #include "players.h"
@@ -226,7 +226,7 @@ void *g_extra_players[2];
 // The game keeps a PlayerSettings (0x14 bytes, array at [FEDatabase + 0x10] + 0x80) for players 1 and 2 only, and players 3 and 4 had those: pressing
 // Change Camera View as player 3 changed player 1's camera. Each extra player gets a copy of the settings of player 1 or 2, handed out by a copy of
 // their IPlayer's virtual table whose GetSettings (+0x14) is ours.
-constexpr unsigned kSettingsArray = 0x80, kSettingsSize = 0x14, kSettingsCurCam = 0xC, kGetSettingsSlot = 0x14 / 4, kVTableSlots = 32;
+constexpr unsigned kSettingsArray = 0x80, kSettingsSize = 0x14, kGetSettingsSlot = 0x14 / 4, kVTableSlots = 32;
 unsigned char *g_extra_settings[2];
 void *(__fastcall *g_orig_get_settings)(void *, void *);
 
@@ -363,7 +363,33 @@ void *extra_player(int index) { return index >= 0 && index < 2 ? g_extra_players
 
 void lend_view(void *player, bool on) {
     for (int i = 0; i < 2; ++i)
-        if (player && player == g_extra_players[i]) set_player_port(player, kSetRenderPortSlot, on ? i + 1 : -1);  // the view of player 1 or 2
+        if (player && player == g_extra_players[i]) set_player_port(player, kSetRenderPortSlot, on ? nfsmw::views::kPlayerView[2 + i] : -1);
+}
+
+namespace {
+void **g_saved_list;
+int g_saved_count;
+}  // namespace
+
+bool extra_ready(int index) {
+    float position[4], forward[4], up[4];
+    return index >= 0 && index < 2 && g_extra_players[index] && player_count_value() >= 2 && rigid_body_vectors(g_extra_players[index], position, forward, up);
+}
+
+void make_only_local_player(int index, bool on) {
+    static void *list[1];
+    if (on) {
+        g_saved_list = player_array();
+        g_saved_count = player_count_value();
+        list[0] = g_extra_players[index];
+        player_array() = list;
+        player_count_value() = 1;
+        lend_view(g_extra_players[index], true);
+    } else {
+        player_array() = g_saved_list;
+        player_count_value() = g_saved_count;
+        lend_view(g_extra_players[index], false);
+    }
 }
 
 int extras_in_race() { return extras_wanted(); }
@@ -374,64 +400,6 @@ bool player_car_state(int index, float *position, float *forward) {
     void *player = index < 2 ? (player_count_value() > index ? player_array()[index] : nullptr) : (index < 4 ? g_extra_players[index - 2] : nullptr);
     float up[4];
     return player && rigid_body_vectors(player, position, forward, up);
-}
-
-// The camera of an extra player (0 or 1 for players 3 and 4), in the game's render space (x, y, z of the simulation become z, -x, y: eSwizzleWorldVector),
-// for the view type the player chose (their settings' CurCam, which the Change Camera View button scrolls): eye, target and up (4 floats each) and the view
-// type (`mode`: 0 bumper, 1 hood, 2 close, 3 far, 4 super far, 5 drift, 6 pursuit). The numbers are rough copies of the game's views: the outside views are
-// behind the car and a little above, looking at it, the direction following the car's with a delay (about a tenth of a second); the bumper and hood
-// views are in the car and look the way it faces.
-struct Preset {
-    float behind, height, look_height, ahead;  // metres; `ahead` > 0: an inside view, looking that far ahead
-};
-constexpr Preset kPresets[7] = {{-2.1f, 0.55f, 0.55f, 20.0f}, {-0.5f, 1.25f, 1.25f, 20.0f}, {5.0f, 1.6f, 1.0f, 0.0f}, {7.5f, 2.4f, 1.2f, 0.0f},
-                                {11.0f, 4.0f, 1.2f, 0.0f},    {5.5f, 1.7f, 1.0f, 0.0f},   {6.0f, 2.0f, 1.2f, 0.0f}};
-
-bool extra_camera(int index, float *eye, float *target, float *up, int *mode) {
-    if (index < 0 || index > 1 || !g_extra_players[index]) return false;
-    float position[4], forward[4], car_up[4];
-    if (!rigid_body_vectors(g_extra_players[index], position, forward, car_up)) return false;
-    int cam = g_extra_settings[index] ? *reinterpret_cast<int *>(g_extra_settings[index] + kSettingsCurCam) : 6;
-    if (cam < 0 || cam > 6) cam = 6;
-    *mode = cam;
-    static int logged_cam[2] = {-1, -1};
-    if (logged_cam[index] != cam) {
-        logged_cam[index] = cam;
-        g_log.line("player %d: camera view %d (0 bumper, 1 hood, 2 close, 3 far, 4 super far, 5 drift, 6 pursuit)", index + 3, cam);
-    }
-    const Preset &preset = kPresets[cam];
-    static float smooth[2][3];
-    static double last_time[2];
-    const double now = seconds_now();
-    const float seconds = last_time[index] > 0.0 ? static_cast<float>(now - last_time[index]) : 1.0f;
-    last_time[index] = now;
-    float *facing = smooth[index];
-    const float length = sqrtf(forward[0] * forward[0] + forward[1] * forward[1] + forward[2] * forward[2]);
-    if (seconds > 0.5f || (facing[0] * forward[0] + facing[1] * forward[1] + facing[2] * forward[2]) < 0.0f || length < 0.1f) {
-        for (int i = 0; i < 3; ++i) facing[i] = forward[i];
-    } else {
-        const float blend = 1.0f - expf(-seconds / 0.1f);
-        for (int i = 0; i < 3; ++i) facing[i] += (forward[i] - facing[i]) * blend;
-        const float n = sqrtf(facing[0] * facing[0] + facing[1] * facing[1] + facing[2] * facing[2]);
-        for (int i = 0; i < 3; ++i) facing[i] /= n > 0.001f ? n : 1.0f;
-    }
-    const float *direction = preset.ahead > 0.0f ? forward : facing;
-    const float world_up[3] = {0.0f, 1.0f, 0.0f};  // simulation space: y is up
-    const auto swizzle = [](const float *v, float *out, float w) {
-        out[0] = v[2];
-        out[1] = -v[0];
-        out[2] = v[1];
-        out[3] = w;
-    };
-    float eye_sim[3], target_sim[3];
-    for (int i = 0; i < 3; ++i) {
-        eye_sim[i] = position[i] - direction[i] * preset.behind + world_up[i] * preset.height;
-        target_sim[i] = preset.ahead > 0.0f ? eye_sim[i] + forward[i] * preset.ahead : position[i] + world_up[i] * preset.look_height;
-    }
-    swizzle(eye_sim, eye, 1.0f);
-    swizzle(target_sim, target, 1.0f);
-    swizzle(world_up, up, 0.0f);
-    return true;
 }
 
 void reset() {

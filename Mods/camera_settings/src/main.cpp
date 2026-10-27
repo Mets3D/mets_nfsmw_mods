@@ -273,7 +273,7 @@ struct SpeedState {
     void *anchor;
     float t;  // 0..1 share of full speed, smoothed
 };
-SpeedState g_speed[2];  // one per player's anchor
+SpeedState g_speed[4];  // one per player's anchor
 
 // Widens the FoV by up to `max_gain_deg` with the car's speed. Chase views (Lag behind the car, negative) also move toward
 // the car: a dolly zoom keeps distance * tan(fov / 2) constant, so the car keeps its size on screen while the background

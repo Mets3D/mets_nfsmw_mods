@@ -2,7 +2,7 @@
  * The track streamer (TrackStreamer, 0x9AA9D0) knows two positions it keeps the track sections around: `StreamingPositionEntries[2]`, 0x64 bytes each
  * from +0xC0, with about a dozen loops over exactly two in its code and other fields right behind the array, so it cannot be made bigger. Camera::UpdateAll
  * (0x480C16) calls UpdateCameraMovers (0x47C880), which gives each active view that has a camera mover a position (PredictStreamingPosition, 0x7238D0):
- * views 1 and 2. Players 3 and 4 have views of our own and no mover, so the world around them was not kept.
+ * views 1 and 2. The views of players 3 and 4 (extra_cameras.cpp) are not active, so the world around them was not kept.
  * With three or four players, after the game has done that, the two positions are chosen again among the cars: the pair that keeps every car nearest to
  * one of them (the two-centre of the cars) in the plane of the track. A position of player 1 or 2 keeps the game's own entry (with its speed and
  * direction); for player 3 or 4 the entry is made with PredictStreamingPosition. Cars far enough apart for one to be out of the range of both will

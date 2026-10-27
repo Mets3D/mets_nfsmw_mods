@@ -171,10 +171,6 @@ extern "C" __declspec(dllexport) void mets_controller_support_test_input(int slo
     pad::extra_device::test_input(slot, on != 0, gas, steer);
 }
 
-extern "C" __declspec(dllexport) void mets_controller_support_look_camera(int slot, int mode, float dt, float *from, float *to, float *up, void *out) {
-    pad::look::look_camera(slot, mode, dt, from, to, up, out);
-}
-
 // For automated tests: the device of a slot says `milli`/1000 for a binding entry (see agent_docs/input-system.md) until it is set to -1.
 extern "C" __declspec(dllexport) void mets_controller_support_test_entry(int slot, int entry, int milli) {
     pad::extra_device::test_entry(slot, entry, milli);

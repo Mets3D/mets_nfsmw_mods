@@ -1,0 +1,72 @@
+# split_race_4, then players 3 and 4 use the camera buttons of their own devices (entry 28 look, 16 look back, 15 change camera view) and a screenshot of each: their cameras are the game's own, so each does what players 1 and 2's do.
+# Through the real menus with the Players row set to 4 (see split_race_4_drive), then the race.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 2
+press down 2
+press right 2
+wait 2
+screenshot race_options
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 1
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 2
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+screenshot car_select_3 width=640
+press right 3
+wait 2
+press accept
+wait_until racing timeout=180
+wait 8
+wait 6
+drive 3 1 0
+drive 4 1 0
+wait 3
+screenshot cam_a width=1280
+entry 3 28 1
+entry 4 16 1
+wait 2
+screenshot cam_look width=1280
+entry 3 28 off
+entry 4 16 off
+entry 3 15 1
+wait 0.3
+entry 3 15 off
+wait 3
+screenshot cam_changed width=1280
+quit

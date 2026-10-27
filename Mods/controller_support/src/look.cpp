@@ -5,6 +5,7 @@
 #include "input.h"
 #include "look.h"
 #include "look_options.h"
+#include "view_ids.h"
 
 namespace pad::look {
 
@@ -14,36 +15,28 @@ using namespace pad::bindings;
 // eCreateLookAtMatrix(out, from, to, up) at 0x47DCBC; that call is redirected here and the eye position (from) is
 // turned around the target (to) by the look offsets. The mover's camera mode (+0x9C) is the view type (0 bumper,
 // 1 hood, 2 close, 3 far, ...), +0xA1 is set while looking back (that view can be orbited too). Based on the widescreen fix's Camera.ixx (MIT,
-// ThirteenAG), generalised to every chase view and fed from the game's bindings. A second player (another mod gave
-// them a device: extra_device.h) looks around with the look bindings of that device, in their own view
-// (view 2, whose camera mover is the second one); the first player's look and the mouse stay with the first.
+// ThirteenAG), generalised to every chase view and fed from the game's bindings. Another player (another mod gave
+// them a device: extra_device.h) looks around with the look bindings of that device, in their own view (view_ids.h: the view of the camera mover
+// says whose it is); the first player's look and the mouse stay with the first.
 // ------------------------------------------------------------------------------------------------
 struct Vec3 {
     float x, y, z;
 };
 using LookAtFn = void (*)(void *, Vec3 *, Vec3 *, Vec3 *);
 constexpr uintptr_t kLookAtCall = 0x47DCBC, kLookAt = 0x6CF0A0;
-constexpr int kLookBackEntry = 16;  // CAM_ACTION_LOOKBACK
 
 void *g_mover = nullptr;  // the CubicCameraMover being updated
 float g_mover_dt = 0.0f;
-int g_who = 0;  // whose it is: 0 the first player's, 1 the second player's
+int g_who = 0;  // whose it is: 0 to 3
 
 struct LookState {
     float yaw = 0.0f, pitch = 0.0f;  // offsets in degrees
     float idle = 0.0f;
     Vec3 prev_target{};
     bool prev_target_valid = false;
-} g_state[4];  // by player: 0 the first player's, 1 the second's (a game camera mover), 2 and 3 the third's and fourth's (look_camera: no mover of the game's)
+} g_state[4];  // by player
 
-// The camera mover of view 2 (eViews[2], 0x9196C0, its list of movers at +0x44; a mover's list node is at +4), if any.
-void *second_mover() {
-    constexpr uintptr_t kList = 0x9196C0 + 0x44;
-    const uintptr_t first = *reinterpret_cast<uintptr_t *>(kList);
-    return first && first != kList ? reinterpret_cast<void *>(first - 4) : nullptr;
-}
-
-// The second player's look (-1..1 each way): their device's look entries, with the same bindings and dead zone as anybody's.
+// The look of a player with a device of their own (-1..1 each way): their device's look entries, with the same bindings and dead zone as anybody's.
 void second_stick(int who, float *x, float *y) {
     const int slot = who - 1;
     *x = extra_device::value_slot(slot, kLookEntry[L_RIGHT]) - extra_device::value_slot(slot, kLookEntry[L_LEFT]);
@@ -54,7 +47,7 @@ using MoverUpdateFn = void(FASTCALL *)(void *, void *, float);
 MoverUpdateFn g_orig_mover_update;
 void FASTCALL hook_mover_update(void *self, void *edx, float dt) {
     g_mover = self;
-    g_who = self == second_mover() ? 1 : 0;
+    g_who = std::max(0, nfsmw::views::player_of_view(field<int>(self, 0x10)));  // CameraMover +0x10: its view
     g_mover_dt = dt;
     g_orig_mover_update(self, edx, dt);
     g_mover = nullptr;
@@ -197,21 +190,6 @@ void look_at(void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
     const int mode = g_mover ? field<int>(g_mover, 0x9C) : -1;
     const bool looking_back = g_mover && field<unsigned char>(g_mover, 0xA1);
     apply_look(g_who, mode, looking_back, g_mover_dt, out, from, to, up);
-}
-
-// For a camera that is not the game's (split_screen_support's chase cameras for players 3 and 4, the devices of slots 1 and 2 of extra_device.h): the
-// same, with the look bindings of that device; the look-back button turns the camera around.
-void look_camera(int slot, int mode, float dt, float *from, float *to, float *up, void *out) {
-    const int who = slot + 1;
-    if (who < 2 || who > 3) return reinterpret_cast<LookAtFn>(kLookAt)(out, reinterpret_cast<Vec3 *>(from), reinterpret_cast<Vec3 *>(to), reinterpret_cast<Vec3 *>(up));
-    Vec3 eye = *reinterpret_cast<Vec3 *>(from);
-    const Vec3 target = *reinterpret_cast<Vec3 *>(to);
-    const bool back = extra_device::value_slot(slot, kLookBackEntry) > 0.5f;
-    if (back) eye = {2 * target.x - eye.x, 2 * target.y - eye.y, eye.z};
-    apply_look(who, mode, back, dt, out, &eye, const_cast<Vec3 *>(&target), reinterpret_cast<Vec3 *>(up));
-    static int calls[4];
-    if ((g_state[who].yaw != 0.0f || g_state[who].pitch != 0.0f || back) && ++calls[who] % 30 == 1)
-        log_line("look: player %d camera view %d: yaw %.1f, pitch %.1f degrees%s", who + 1, mode, g_state[who].yaw, g_state[who].pitch, back ? ", looking back" : "");
 }
 
 bool patch_look_call() {

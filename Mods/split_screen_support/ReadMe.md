@@ -29,12 +29,21 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - For supported controllers, see the [Controller Support](../controller_support/ReadMe.md) mod - The game natively supports Xbox controllers, and for everything else, Steam Input is tested and works as a translation layer.
 
 ## 3 and 4-player splitscreen (work in progress: `more_players=1` in the [.ini](nfsmw_split_screen_support.ini))
-Needs [Custom Menus](../custom_menus/ReadMe.md) (the **Players** row, 2, 3 or 4, in the options of a split screen race) and [Controller Support](../controller_support/ReadMe.md) (an input device each). With 3 or 4 players there is a second round of Press Start and Car Select for players 3 and 4 (on a screen of Press Start, **F9** gives the player the next device nobody has yet, for testing with fewer devices than players), a 2x2 starting grid, and the screen in four quadrants (with 3 players, player 1 has the top half, and a HUD of full size; players 2 and 3 have a quadrant each): each player has their own camera (Change Camera View, look, look back), the track streamed around them, reflections, a HUD with a minimap (every minimap shows every other player, each player has their own marker colour), the 3, 2, 1, Go!, and their own **Options > Player > Minimap** and **HUD Scale** (the HUD of a quadrant is half the size of the HUD of a half screen at 100%). The pause menu is the one of the player who pressed pause.
+Needs [Custom Menus](../custom_menus/ReadMe.md) (the **Players** row, 2, 3 or 4, in the options of a split screen race) and [Controller Support](../controller_support/ReadMe.md) (an input device each). With 3 or 4 players there is a second round of Press Start and Car Select for players 3 and 4 (on a screen of Press Start, **F9** gives the player the next device nobody has yet, for testing with fewer devices than players), a 2x2 starting grid, and the screen in four quadrants (with 3 players, player 1 has the top half, and a HUD of full size; players 2 and 3 have a quadrant each): each player has their own camera, the game's own (Change Camera View, look, look back, and every setting of [Camera Settings](../camera_settings/ReadMe.md)), the track streamed around them, reflections, a HUD with a minimap (every minimap shows every other player, each player has their own marker colour), the 3, 2, 1, Go!, and their own **Options > Player > Minimap** and **HUD Scale** (the HUD of a quadrant is half the size of the HUD of a half screen at 100%). The pause menu is the one of the player who pressed pause.
 
 
 ## 3 or more player split screen TODO:
 - With 3 players, player 3's view is flickering: Every other frame seems to be a slightly different perspective, perhaps different FoV. According to Claude, "Their camera views are rough copies of the game's (the game has no camera for them). No camera settings for them." - This situation needs to improve. I didn't test with 4 players yet.
 - 5 to 9 players (the layout code is for any number, the rest is for two extra players).
+
+## To check by hand (built and run by an AI through logs and screenshots only; not seen by a person)
+- Players 3 and 4 now have the game's own camera instead of a copy of ours (see the flicker point above): does the flicker of player 3's view still happen, with 3 and with 4 players, while standing still and while driving?
+- Camera Settings (**Options > Camera**: FoV, Speed FoV, height, distance, pitch, smoothing, acceleration, tilt) apply to players 3 and 4 as to 1 and 2. (A test with FoV at its smallest changed all the views.)
+- Look (right stick, mouse), look back and Change Camera View of players 3 and 4 on real controllers. The mouse should only look around for the player who drives with the keyboard.
+- Rumble of players 3 and 4.
+- HUD Scale in games of 1, 2, 3 and 4 players, and the HUD of the first player with 3 players (full size).
+- Leaving a 3 or 4 player race to the menu and starting another one (the cameras of players 3 and 4 are made and removed with the race: a quit from the pause menu was tested to get back to the menu).
+- A known gap: **Options > Player** (camera view, look settings, ...) of player 3 or 4 changes player 1's or 2's settings, not their own.
 
 ## Older TODOs, not 4-player split-screen specific
 - The sun seems to be drawn for player 2 depending on player 1's perspective? Specifically, when player 1 has the sun in their view, player 2 might also get a sun rendered kinda arbitrarily in their view.
