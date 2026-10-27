@@ -30,12 +30,15 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 
 ## 3 and 4-player splitscreen (work in progress: `more_players=1` in the [.ini](nfsmw_split_screen_support.ini))
 Needs [Custom Menus](../custom_menus/ReadMe.md) (the **Players** row, 2, 3 or 4, in the options of a split screen race) and [Controller Support](../controller_support/ReadMe.md) (an input device each). With 3 or 4 players there is a second round of Press Start and Car Select for players 3 and 4 (on a screen of Press Start, **F9** gives the player the next device nobody has yet, for testing with fewer devices than players), a 2x2 starting grid, and the screen in four quadrants (with 3 players, player 1 has the top half, and a HUD of full size; players 2 and 3 have a quadrant each): each player has their own camera (Change Camera View, look, look back), the track streamed around them, reflections, a HUD with a minimap (every minimap shows every other player, each player has their own marker colour), the 3, 2, 1, Go!, and their own **Options > Player > Minimap** and **HUD Scale** (the HUD of a quadrant is half the size of the HUD of a half screen at 100%). The pause menu is the one of the player who pressed pause.
-Not done yet:
-- Rumble for players 3 and 4 is built (each on their own controller) but not confirmed on a real controller yet. Their camera views are rough copies of the game's (the game has no camera for them). No camera settings for them.
+
+
+## 3 or more player split screen TODO:
+- With 3 players, player 3's view is flickering: Every other frame seems to be a slightly different perspective, perhaps different FoV. According to Claude, "Their camera views are rough copies of the game's (the game has no camera for them). No camera settings for them." - This situation needs to improve. I didn't test with 4 players yet.
 - 5 to 9 players (the layout code is for any number, the rest is for two extra players).
 
 ## Older TODOs, not 4-player split-screen specific
 - The sun seems to be drawn for player 2 depending on player 1's perspective? Specifically, when player 1 has the sun in their view, player 2 might also get a sun rendered kinda arbitrarily in their view.
+    - Also, in 3-player split screen, the sun was even observed to be drawn twice for player 3. When player 1's camera turned away from the sun, the wrong sun on player 3's screen got dimmer, and when player 2's camera also turned away from the sun, the wrong sun on player 3's screen fully disappeared.
 - The player 1 and player 2 devices are locked in for the entire playsession after first starting a split screen race. This should not be the case, they should reset whenever we enter the split screen menu where it says "Player 1 press start" or so. Currently after 2 devices do a split-screen race, a 3rd device can't participate until the game is restarted (afaik).
 - Would be nice if we remembered the selected car for each player across sessions.
 - Would be nice if after a race we didn't get kicked all the way out to the Quick Race menu, and then having to click through all the menus again.

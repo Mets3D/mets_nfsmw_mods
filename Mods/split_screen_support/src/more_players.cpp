@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "clock.h"
 #include "hooks.h"
 #include "patch.h"
 #include "player_count.h"
@@ -400,10 +401,10 @@ bool extra_camera(int index, float *eye, float *target, float *up, int *mode) {
     }
     const Preset &preset = kPresets[cam];
     static float smooth[2][3];
-    static DWORD last_ms[2];
-    const DWORD now = GetTickCount();
-    const float seconds = last_ms[index] ? (now - last_ms[index]) / 1000.0f : 1.0f;
-    last_ms[index] = now;
+    static double last_time[2];
+    const double now = seconds_now();
+    const float seconds = last_time[index] > 0.0 ? static_cast<float>(now - last_time[index]) : 1.0f;
+    last_time[index] = now;
     float *facing = smooth[index];
     const float length = sqrtf(forward[0] * forward[0] + forward[1] * forward[1] + forward[2] * forward[2]);
     if (seconds > 0.5f || (facing[0] * forward[0] + facing[1] * forward[1] + facing[2] * forward[2]) < 0.0f || length < 0.1f) {

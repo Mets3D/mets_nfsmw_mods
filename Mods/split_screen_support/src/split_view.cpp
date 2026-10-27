@@ -35,10 +35,12 @@
 #include <d3d9.h>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 #include <MinHook.h>
 
+#include "clock.h"
 #include "controller_api.h"
 #include "events.h"
 #include "fixes.h"
@@ -258,6 +260,31 @@ struct SavedView {
     void *camera, *plat_info;
 };
 
+// The game's cameras widen the field of view with the car's speed (Camera +0xC4, an angle of 65536 to the turn: measured from the second player's camera, 13650 at
+// rest to about 14700 at 30 m/s, rising by up to 4 a frame and falling twice as fast), and the copy of a camera that the extra views have keeps the field of
+// view it was copied with. This gives it the widening: a target from the car's speed (smoothed, from the car's movement between frames), approached at those rates.
+void widen_field_of_view(int index, float elapsed) {
+    constexpr float kPerMetrePerSecond = 33.0f, kMaxSpeed = 40.0f, kRiseRate = 240.0f, kFallRate = 480.0f;  // angle units, per second for the rates
+    static float base[2], current[2], speed[2], last_position[2][3];
+    static bool started[2];
+    unsigned short &fov = *reinterpret_cast<unsigned short *>(static_cast<unsigned char *>(g_extra_camera[index]) + 0xC4);
+    float position[4], forward[4];
+    if (!more_players::player_car_state(2 + index, position, forward)) return;
+    if (!started[index]) {
+        started[index] = true;
+        base[index] = current[index] = fov;
+        memcpy(last_position[index], position, sizeof(last_position[index]));
+    }
+    const float dx = position[0] - last_position[index][0], dz = position[2] - last_position[index][2];
+    memcpy(last_position[index], position, sizeof(last_position[index]));
+    const float raw = std::min(std::sqrt(dx * dx + dz * dz) / elapsed, 120.0f);
+    speed[index] += (raw - speed[index]) * (1.0f - std::exp(-elapsed / 0.3f));
+    const float target = base[index] + kPerMetrePerSecond * std::clamp(speed[index] - 2.0f, 0.0f, kMaxSpeed);
+    const float step = (target > current[index] ? kRiseRate : kFallRate) * elapsed;
+    current[index] += std::clamp(target - current[index], -step, step);
+    fov = static_cast<unsigned short>(current[index]);
+}
+
 bool prepare_extra_view(int index, SavedView &saved) {
     float eye[4], target[4], up[4];
     int mode = 6;
@@ -272,10 +299,11 @@ bool prepare_extra_view(int index, SavedView &saved) {
     at<void *>(kView2, kViewPlatInfo) = g_extra_plat_info[index];
     // The time since the camera was last set, as the game's own movers pass it: a camera keeps the last matrix and this time, and what uses them
     // (motion blur) works out its speed from the two.
-    static DWORD last_ms[2] = {};
-    const DWORD now = GetTickCount();
-    const float elapsed = last_ms[index] ? std::clamp((now - last_ms[index]) / 1000.0f, 0.001f, 0.1f) : 0.016f;
-    last_ms[index] = now;
+    static double last_time[2] = {};
+    const double now = seconds_now();
+    const float elapsed = last_time[index] > 0.0 ? std::clamp(static_cast<float>(now - last_time[index]), 0.001f, 0.1f) : 0.016f;
+    last_time[index] = now;
+    widen_field_of_view(index, elapsed);
     alignas(16) float matrix[16];
     // With mets_controller_support the player's look buttons and look-back button turn the camera (the game's own cameras have that through the same code).
     static const auto look_camera = nfsmw::controller_api::find_look_camera();
