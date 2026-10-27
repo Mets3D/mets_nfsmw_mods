@@ -39,6 +39,7 @@
 
 #include <MinHook.h>
 
+#include "controller_api.h"
 #include "events.h"
 #include "fixes.h"
 #include "hud_views.h"
@@ -259,7 +260,8 @@ struct SavedView {
 
 bool prepare_extra_view(int index, SavedView &saved) {
     float eye[4], target[4], up[4];
-    if (!more_players::extra_camera(index, eye, target, up)) return false;
+    int mode = 6;
+    if (!more_players::extra_camera(index, eye, target, up, &mode)) return false;
     if (!g_extra_camera[index]) {
         g_extra_camera[index] = copy_of(at<void *>(kView2, kViewCamera), kCameraSize);
         g_extra_plat_info[index] = copy_of(at<void *>(kView2, kViewPlatInfo), kPlatInfoSize);
@@ -268,14 +270,17 @@ bool prepare_extra_view(int index, SavedView &saved) {
     saved = {at<void *>(kView2, kViewCamera), at<void *>(kView2, kViewPlatInfo)};
     at<void *>(kView2, kViewCamera) = g_extra_camera[index];
     at<void *>(kView2, kViewPlatInfo) = g_extra_plat_info[index];
-    alignas(16) float matrix[16];
-    reinterpret_cast<void(__cdecl *)(float *, float *, float *, float *)>(kCreateLookAt)(matrix, eye, target, up);
     // The time since the camera was last set, as the game's own movers pass it: a camera keeps the last matrix and this time, and what uses them
     // (motion blur) works out its speed from the two.
     static DWORD last_ms[2] = {};
     const DWORD now = GetTickCount();
     const float elapsed = last_ms[index] ? std::clamp((now - last_ms[index]) / 1000.0f, 0.001f, 0.1f) : 0.016f;
     last_ms[index] = now;
+    alignas(16) float matrix[16];
+    // With mets_controller_support the player's look buttons and look-back button turn the camera (the game's own cameras have that through the same code).
+    static const auto look_camera = nfsmw::controller_api::find_look_camera();
+    if (look_camera) look_camera(index + 1, mode, elapsed, eye, target, up, matrix);
+    else reinterpret_cast<void(__cdecl *)(float *, float *, float *, float *)>(kCreateLookAt)(matrix, eye, target, up);
     reinterpret_cast<void(__fastcall *)(void *, void *, const float *, float)>(kSetCameraMatrix)(g_extra_camera[index], nullptr, matrix, elapsed);
     using SetupPerViewFn = void(__fastcall *)(void *plat_info, void *edx, void *view, int unused, unsigned far_plane, int zero, int one);
     reinterpret_cast<SetupPerViewFn>(kSetupPerView)(g_extra_plat_info[index], nullptr, reinterpret_cast<void *>(kView2), 0, kFarPlane, 0, 1);

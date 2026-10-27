@@ -3,6 +3,7 @@
 #include "bindings.h"
 #include "controller_api.h"
 #include "input.h"
+#include "look.h"
 #include "pad_sets.h"
 
 namespace pad::extra_device {
@@ -22,8 +23,16 @@ struct Slot {
     volatile LONG test = 0;  // an automated test drives the device: gas and steering, in thousandths (see mets_controller_support_test_input)
     volatile LONG test_gas = 0, test_steer = 0;
     volatile LONG test_pause = 0;  // the device says "pause request" (entry 18)
+    volatile LONG test_entry[kBindingCount];  // an automated test sets binding entries (thousandths; -1 = not set)
 };
 Slot g_slots[kSlots];
+
+struct EntryInit {
+    EntryInit() {
+        for (Slot &slot : g_slots)
+            for (int i = 0; i < kBindingCount; ++i) slot.test_entry[i] = -1;
+    }
+} g_entry_init;
 
 // The device of the second player is slot 0.
 void *&g_device = g_slots[0].device;
@@ -41,10 +50,11 @@ bool is_extra(void *device) {
 }
 int source_slot() { return g_source >= 0 ? g_source : -1; }
 bool keyboard_source() { return g_source == nfsmw::controller_api::kSourceKeyboard; }
-float value(int entry) {
-    if (!g_device || entry < 0 || entry >= kBindingCount) return 0.0f;
-    return field<float *>(g_device, 0x20)[entry];
+float value_slot(int slot, int entry) {
+    if (slot < 0 || slot >= kSlots || !g_slots[slot].device || entry < 0 || entry >= kBindingCount) return 0.0f;
+    return field<float *>(g_slots[slot].device, 0x20)[entry];
 }
+float value(int entry) { return value_slot(0, entry); }
 
 // The game makes its first GameDevice with all its tables; a later one only gets the fields (the constructor skips them),
 // and the port-0-only initialisation that links an input to a value (GameDevice vtable 3) is not run for it. Both are
@@ -118,7 +128,13 @@ void poll(void *device) {
         values[3] = owner->test_steer > 0 ? owner->test_steer / 1000.0f : 0.0f;     // STEERRIGHT
     }
     if (owner->test_pause) values[18] = 1.0f;  // HUD PAUSEREQUEST
+    for (int e = 0; e < kBindingCount; ++e)
+        if (owner->test_entry[e] >= 0) values[e] = owner->test_entry[e] / 1000.0f;
     for (int e = 0; e < kBindingCount; ++e) current[e] = values[e];
+}
+
+void test_entry(int slot_index, int entry, int milli) {
+    if (slot_index >= 0 && slot_index < kSlots && entry >= 0 && entry < kBindingCount) g_slots[slot_index].test_entry[entry] = milli;
 }
 
 void test_pause(int slot_index, bool down) {
@@ -143,6 +159,15 @@ extern "C" __declspec(dllexport) int mets_controller_support_extra_device(int so
 // `on` is 0.
 extern "C" __declspec(dllexport) void mets_controller_support_test_input(int slot, int on, int gas, int steer) {
     pad::extra_device::test_input(slot, on != 0, gas, steer);
+}
+
+extern "C" __declspec(dllexport) void mets_controller_support_look_camera(int slot, int mode, float dt, float *from, float *to, float *up, void *out) {
+    pad::look::look_camera(slot, mode, dt, from, to, up, out);
+}
+
+// For automated tests: the device of a slot says `milli`/1000 for a binding entry (see agent_docs/input-system.md) until it is set to -1.
+extern "C" __declspec(dllexport) void mets_controller_support_test_entry(int slot, int entry, int milli) {
+    pad::extra_device::test_entry(slot, entry, milli);
 }
 
 extern "C" __declspec(dllexport) void mets_controller_support_test_pause(int slot, int down) {

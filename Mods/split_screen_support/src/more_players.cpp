@@ -191,6 +191,36 @@ void log_player_cars(const char *when) {
 
 void *g_extra_players[2];
 
+// ---- their own settings
+// The game keeps a PlayerSettings (0x14 bytes, array at [FEDatabase + 0x10] + 0x80) for players 1 and 2 only, and players 3 and 4 had those: pressing
+// Change Camera View as player 3 changed player 1's camera. Each extra player gets a copy of the settings of player 1 or 2, handed out by a copy of
+// their IPlayer's virtual table whose GetSettings (+0x14) is ours.
+constexpr unsigned kSettingsArray = 0x80, kSettingsSize = 0x14, kSettingsCurCam = 0xC, kGetSettingsSlot = 0x14 / 4, kVTableSlots = 32;
+unsigned char *g_extra_settings[2];
+void *(__fastcall *g_orig_get_settings)(void *, void *);
+
+void *__fastcall extra_get_settings(void *self, void *edx) {
+    for (int i = 0; i < 2; ++i)
+        if (self == g_extra_players[i] && g_extra_settings[i]) return g_extra_settings[i];
+    return g_orig_get_settings(self, edx);
+}
+
+void give_own_settings(int index, void *player) {
+    unsigned char *database = *reinterpret_cast<unsigned char **>(kFeDatabase);
+    unsigned char *all = *reinterpret_cast<unsigned char **>(database + 0x10) + kSettingsArray;
+    if (!g_extra_settings[index]) g_extra_settings[index] = static_cast<unsigned char *>(malloc(kSettingsSize));
+    if (!g_extra_settings[index]) return;
+    memcpy(g_extra_settings[index], all + index * kSettingsSize, kSettingsSize);  // player 1's or 2's
+    void **original = *reinterpret_cast<void ***>(player);
+    if (original[kGetSettingsSlot] == reinterpret_cast<void *>(&extra_get_settings)) return;
+    void **table = static_cast<void **>(malloc(kVTableSlots * sizeof(void *)));
+    if (!table) return;
+    memcpy(table, original, kVTableSlots * sizeof(void *));
+    g_orig_get_settings = reinterpret_cast<void *(__fastcall *)(void *, void *)>(table[kGetSettingsSlot]);
+    table[kGetSettingsSlot] = reinterpret_cast<void *>(&extra_get_settings);
+    *reinterpret_cast<void ***>(player) = table;
+}
+
 void __fastcall create_cars(void *quick_game, void *edx, const float *start) {
     using Fn = void(__fastcall *)(void *, void *, const float *);
     reinterpret_cast<Fn>(g_create_cars)(quick_game, edx, start);
@@ -207,6 +237,7 @@ void __fastcall create_cars(void *quick_game, void *edx, const float *start) {
     void *list[2] = {player_array()[saved_count - 2], player_array()[saved_count - 1]};
     g_extra_players[0] = list[0];
     g_extra_players[1] = list[1];
+    for (int i = 0; i < 2; ++i) give_own_settings(i, list[i]);
     player_array() = reinterpret_cast<void **>(list);
     player_count_value() = 2;
     *selected_car(0) = g_picks[2].car_handle;
@@ -271,6 +302,8 @@ void log_players() {
         void **vtable = *reinterpret_cast<void ***>(player);
         const auto call = [&](unsigned slot) { return reinterpret_cast<void *(__fastcall *)(void *, void *)>(vtable[slot])(player, nullptr); };
         const float *position = static_cast<const float *>(call(0xC / 4));  // GetPosition
+        const unsigned char *settings = reinterpret_cast<const unsigned char *(__fastcall *)(void *, void *)>(vtable[0x14 / 4])(player, nullptr);
+        g_log.line("player %d: camera view %d (its settings %p)", i + 1, settings ? *reinterpret_cast<const int *>(settings + 0xC) : -1, settings);
         g_log.line("player %d: car %p, position (%.1f, %.1f, %.1f), render port %d", i + 1, call(1), position[0], position[1], position[2],
                    static_cast<int>(reinterpret_cast<intptr_t>(call(0x2C / 4))));
         float v[3][4] = {};
@@ -301,13 +334,30 @@ bool player_car_state(int index, float *position, float *forward) {
     return player && rigid_body_vectors(player, position, forward, up);
 }
 
-// A chase camera behind the car of an extra player, in the game's render space (x, y, z of the simulation become z, -x, y: eSwizzleWorldVector).
-bool extra_camera(int index, float *eye, float *target, float *up) {
+// The camera of an extra player (0 or 1 for players 3 and 4), in the game's render space (x, y, z of the simulation become z, -x, y: eSwizzleWorldVector),
+// for the view type the player chose (their settings' CurCam, which the Change Camera View button scrolls): eye, target and up (4 floats each) and the view
+// type (`mode`: 0 bumper, 1 hood, 2 close, 3 far, 4 super far, 5 drift, 6 pursuit). The numbers are rough copies of the game's views: the outside views are
+// behind the car and a little above, looking at it, the direction following the car's with a delay (about a tenth of a second); the bumper and hood
+// views are in the car and look the way it faces.
+struct Preset {
+    float behind, height, look_height, ahead;  // metres; `ahead` > 0: an inside view, looking that far ahead
+};
+constexpr Preset kPresets[7] = {{-2.1f, 0.55f, 0.55f, 20.0f}, {-0.5f, 1.25f, 1.25f, 20.0f}, {5.0f, 1.6f, 1.0f, 0.0f}, {7.5f, 2.4f, 1.2f, 0.0f},
+                                {11.0f, 4.0f, 1.2f, 0.0f},    {5.5f, 1.7f, 1.0f, 0.0f},   {6.0f, 2.0f, 1.2f, 0.0f}};
+
+bool extra_camera(int index, float *eye, float *target, float *up, int *mode) {
     if (index < 0 || index > 1 || !g_extra_players[index]) return false;
     float position[4], forward[4], car_up[4];
     if (!rigid_body_vectors(g_extra_players[index], position, forward, car_up)) return false;
-    constexpr float kBehind = 6.0f, kHeight = 2.0f, kLookHeight = 1.2f;
-    // The direction the camera looks follows the car's with a delay (about a tenth of a second), so a car that swerves does not jerk the picture.
+    int cam = g_extra_settings[index] ? *reinterpret_cast<int *>(g_extra_settings[index] + kSettingsCurCam) : 6;
+    if (cam < 0 || cam > 6) cam = 6;
+    *mode = cam;
+    static int logged_cam[2] = {-1, -1};
+    if (logged_cam[index] != cam) {
+        logged_cam[index] = cam;
+        g_log.line("player %d: camera view %d (0 bumper, 1 hood, 2 close, 3 far, 4 super far, 5 drift, 6 pursuit)", index + 3, cam);
+    }
+    const Preset &preset = kPresets[cam];
     static float smooth[2][3];
     static DWORD last_ms[2];
     const DWORD now = GetTickCount();
@@ -323,6 +373,7 @@ bool extra_camera(int index, float *eye, float *target, float *up) {
         const float n = sqrtf(facing[0] * facing[0] + facing[1] * facing[1] + facing[2] * facing[2]);
         for (int i = 0; i < 3; ++i) facing[i] /= n > 0.001f ? n : 1.0f;
     }
+    const float *direction = preset.ahead > 0.0f ? forward : facing;
     const float world_up[3] = {0.0f, 1.0f, 0.0f};  // simulation space: y is up
     const auto swizzle = [](const float *v, float *out, float w) {
         out[0] = v[2];
@@ -332,8 +383,8 @@ bool extra_camera(int index, float *eye, float *target, float *up) {
     };
     float eye_sim[3], target_sim[3];
     for (int i = 0; i < 3; ++i) {
-        eye_sim[i] = position[i] - facing[i] * kBehind + world_up[i] * kHeight;
-        target_sim[i] = position[i] + world_up[i] * kLookHeight;
+        eye_sim[i] = position[i] - direction[i] * preset.behind + world_up[i] * preset.height;
+        target_sim[i] = preset.ahead > 0.0f ? eye_sim[i] + forward[i] * preset.ahead : position[i] + world_up[i] * preset.look_height;
     }
     swizzle(eye_sim, eye, 1.0f);
     swizzle(target_sim, target, 1.0f);

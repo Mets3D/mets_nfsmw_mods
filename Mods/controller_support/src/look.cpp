@@ -22,6 +22,7 @@ struct Vec3 {
 };
 using LookAtFn = void (*)(void *, Vec3 *, Vec3 *, Vec3 *);
 constexpr uintptr_t kLookAtCall = 0x47DCBC, kLookAt = 0x6CF0A0;
+constexpr int kLookBackEntry = 16;  // CAM_ACTION_LOOKBACK
 
 void *g_mover = nullptr;  // the CubicCameraMover being updated
 float g_mover_dt = 0.0f;
@@ -32,7 +33,7 @@ struct LookState {
     float idle = 0.0f;
     Vec3 prev_target{};
     bool prev_target_valid = false;
-} g_state[2];
+} g_state[4];  // by player: 0 the first player's, 1 the second's (a game camera mover), 2 and 3 the third's and fourth's (look_camera: no mover of the game's)
 
 // The camera mover of view 2 (eViews[2], 0x9196C0, its list of movers at +0x44; a mover's list node is at +4), if any.
 void *second_mover() {
@@ -42,9 +43,10 @@ void *second_mover() {
 }
 
 // The second player's look (-1..1 each way): their device's look entries, with the same bindings and dead zone as anybody's.
-void second_stick(float *x, float *y) {
-    *x = extra_device::value(kLookEntry[L_RIGHT]) - extra_device::value(kLookEntry[L_LEFT]);
-    *y = extra_device::value(kLookEntry[L_UP]) - extra_device::value(kLookEntry[L_DOWN]);
+void second_stick(int who, float *x, float *y) {
+    const int slot = who - 1;
+    *x = extra_device::value_slot(slot, kLookEntry[L_RIGHT]) - extra_device::value_slot(slot, kLookEntry[L_LEFT]);
+    *y = extra_device::value_slot(slot, kLookEntry[L_UP]) - extra_device::value_slot(slot, kLookEntry[L_DOWN]);
 }
 
 using MoverUpdateFn = void(FASTCALL *)(void *, void *, float);
@@ -90,19 +92,18 @@ void __cdecl hook_draw_cursor(int x, int y) {
     g_orig_draw_cursor(x, y);
 }
 
-void reset_look() {
-    LookState &l = g_state[g_who];
+void reset_look(int who) {
+    LookState &l = g_state[who];
     l.yaw = l.pitch = l.idle = 0.0f;
     l.prev_target_valid = false;
 }
 
-void look_at(void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
+// The look-at matrix of the camera of player `who` (see g_state) with the player's look offsets: `mode` is the view type (0 bumper, 1 hood, 2 close, ...).
+void apply_look(int who, int mode, bool looking_back, float mover_dt, void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
     const auto original = reinterpret_cast<LookAtFn>(kLookAt);
-    const int mode = g_mover ? field<int>(g_mover, 0x9C) : -1;
-    const bool looking_back = g_mover && field<unsigned char>(g_mover, 0xA1);
-    LookState &l = g_state[g_who];
+    LookState &l = g_state[who];
     LONG mouse_x = 0, mouse_y = 0;
-    if (g_who == (extra_device::keyboard_source() ? 1 : 0)) {  // the mouse is the keyboard player's
+    if (who == (extra_device::keyboard_source() ? 1 : 0)) {  // the mouse is the keyboard player's
         input::take_mouse_delta(&mouse_x, &mouse_y);
         if (g_look_cfg.enabled && mode >= 2 && driving()) recentre_cursor();
         // Mouse movement collected while no chase camera ran (menus, pause, other views) is dropped.
@@ -116,16 +117,16 @@ void look_at(void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
         last_tick = now;
     }
     // The look-back view is orbited like the others; switching between it and the normal view starts from the view's own angle.
-    static bool was_looking_back[2];
-    if (looking_back != was_looking_back[g_who]) {
-        was_looking_back[g_who] = looking_back;
-        reset_look();
+    static bool was_looking_back[4];
+    if (looking_back != was_looking_back[who]) {
+        was_looking_back[who] = looking_back;
+        reset_look(who);
     }
     if (!g_look_cfg.enabled || mode < 2) {
-        reset_look();
+        reset_look(who);
         return original(out, from, to, up);
     }
-    const float dt = g_mover_dt > 0.0f && g_mover_dt < 0.5f ? g_mover_dt : 1.0f / 60.0f;
+    const float dt = mover_dt > 0.0f && mover_dt < 0.5f ? mover_dt : 1.0f / 60.0f;
 
     float car_speed = 0.0f;
     if (l.prev_target_valid) {
@@ -136,11 +137,11 @@ void look_at(void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
     l.prev_target_valid = true;
 
     float stick_x, stick_y;
-    if (g_who == 0) {
+    if (who == 0) {
         stick_x = g_look_input[L_RIGHT] - g_look_input[L_LEFT];
         stick_y = g_look_input[L_UP] - g_look_input[L_DOWN];
     } else {
-        second_stick(&stick_x, &stick_y);  // none without a controller
+        second_stick(who, &stick_x, &stick_y);  // none without a controller
     }
     float yaw_delta = -stick_x * g_look_cfg.stick_speed * dt - mouse_x * g_look_cfg.mouse_sensitivity;
     // "Look Up" (stick_y > 0) raises the view, i.e. lowers the pitch offset; so does the mouse moving up (a negative count).
@@ -153,7 +154,7 @@ void look_at(void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
         l.idle = 0.0f;
     } else {
         l.idle += dt;
-        const float delay = look_options::return_delay(g_who);  // 0 = never
+        const float delay = look_options::return_delay(who);  // 0 = never
         if (delay > 0.0f && l.idle >= delay && car_speed > 0.5f) {
             const float k = 1.0f - std::exp(-g_look_cfg.return_speed * dt);
             l.yaw -= l.yaw * k;
@@ -177,6 +178,28 @@ void look_at(void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
     Vec3 eye = {to->x + dist * std::cos(pitch) * std::cos(yaw), to->y + dist * std::cos(pitch) * std::sin(yaw),
                 to->z + dist * std::sin(pitch)};
     original(out, &eye, to, up);
+}
+
+// CubicCameraMover::Update's call of eCreateLookAtMatrix.
+void look_at(void *out, Vec3 *from, Vec3 *to, Vec3 *up) {
+    const int mode = g_mover ? field<int>(g_mover, 0x9C) : -1;
+    const bool looking_back = g_mover && field<unsigned char>(g_mover, 0xA1);
+    apply_look(g_who, mode, looking_back, g_mover_dt, out, from, to, up);
+}
+
+// For a camera that is not the game's (split_screen_support's chase cameras for players 3 and 4, the devices of slots 1 and 2 of extra_device.h): the
+// same, with the look bindings of that device; the look-back button turns the camera around.
+void look_camera(int slot, int mode, float dt, float *from, float *to, float *up, void *out) {
+    const int who = slot + 1;
+    if (who < 2 || who > 3) return reinterpret_cast<LookAtFn>(kLookAt)(out, reinterpret_cast<Vec3 *>(from), reinterpret_cast<Vec3 *>(to), reinterpret_cast<Vec3 *>(up));
+    Vec3 eye = *reinterpret_cast<Vec3 *>(from);
+    const Vec3 target = *reinterpret_cast<Vec3 *>(to);
+    const bool back = extra_device::value_slot(slot, kLookBackEntry) > 0.5f;
+    if (back) eye = {2 * target.x - eye.x, 2 * target.y - eye.y, eye.z};
+    apply_look(who, mode, back, dt, out, &eye, const_cast<Vec3 *>(&target), reinterpret_cast<Vec3 *>(up));
+    static int calls[4];
+    if ((g_state[who].yaw != 0.0f || g_state[who].pitch != 0.0f || back) && ++calls[who] % 30 == 1)
+        log_line("look: player %d camera view %d: yaw %.1f, pitch %.1f degrees%s", who + 1, mode, g_state[who].yaw, g_state[who].pitch, back ? ", looking back" : "");
 }
 
 bool patch_look_call() {

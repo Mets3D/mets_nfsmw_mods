@@ -1,0 +1,79 @@
+# split_race_4, then player 3 changes the camera view twice (the log shows each player's camera view: player 1's must stay), (three times: pursuit, bumper, hood, close), looks right in the close view, and looks back.
+# Through the real menus with the Players row set to 4: Press Start and Car Select for players 1 and 2, then again for players 3 and 4
+# (devices: keyboard, controllers 0, 1 and 2), then the race, which has 2 players until the code that makes more exists. The log of
+# nfsmw_split_screen_support says what each round chose.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 2
+press down 2
+press right
+wait 2
+screenshot race_options
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 1
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 2
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+screenshot car_select_3 width=640
+press right 3
+wait 2
+press accept
+wait_until racing timeout=180
+wait 9
+log_players
+entry 3 15 1
+wait 0.3
+entry 3 15 off
+wait 1
+log_players
+entry 3 15 1
+wait 0.3
+entry 3 15 off
+wait 1
+entry 3 15 1
+wait 0.3
+entry 3 15 off
+wait 1
+log_players
+entry 3 28 1
+wait 1.5
+entry 3 28 off
+entry 3 16 1
+wait 1
+entry 3 16 off
+quit
