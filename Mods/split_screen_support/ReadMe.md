@@ -55,7 +55,7 @@ Needs [Custom Menus](../custom_menus/ReadMe.md) (the **Players** row, 2, 3 or 4,
 ## Older TODOs, not 4-player split-screen specific
 - Would be nice if we remembered the selected car for each player across sessions.
 - How about vertical split screen? ;)
-- I believe we are still rendering each screen at full resolution and then scaling it down. I assume it would be a significant performance boost if we just rendered the view of each player at its final size to begin with instead of this silliness.
+- Four players run at about 53 frames per second here and that is the CPU: each player's picture costs the game 4 ms of CPU however many pixels it has. Drawing each view at the size of its cell was tried (the game's render target pointed at surfaces of the cell's size for the pass) and gave nothing (53.8 frames per second before, 52.1 after, 4 players, 1920 x 1080), so it was not kept. Not drawing the shadow map, the road reflection and the car reflection at all would give 8.6% (53.4 to 58.0), so the draw calls are not the main cost either. What would help is less work for each picture (see [agent_docs/split-screen.md](../../agent_docs/split-screen.md), "Where the time of a four player frame goes").
 - Port the options from Quick Race to Split Screen: NPC opponents, Difficulty, Catch-Up, Heat Level.
 - Maybe we could also share shadow maps when players are close to each other, but I wouldn't bother with this yet.
 
