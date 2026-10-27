@@ -399,6 +399,14 @@ void tick(IDirect3DDevice9 *device) {
                 log_state();
                 return quit(2, "timed out waiting");
             } else {
+                // The auto load ends in a "Load complete" dialog that waits for Continue (it is not always there): the boot flow is over after it.
+                static DWORD last_dialog_press = 0;
+                const DWORD now = GetTickCount();
+                if (g_condition == "main_menu" && game_state() == 3 && !boot_flow_over() && since_start_ms() > 8000 && now - last_dialog_press > 3000 && !g_presses_left) {
+                    last_dialog_press = now;
+                    g_log.line("automation: the boot flow is not over: Continue (accept) for the dialog of the auto load");
+                    press("accept", 1);
+                }
                 return;
             }
         }

@@ -33,7 +33,7 @@ Download from the [Releases](../../../../releases) page.
 The vanilla game's default keybindings don't use the analogue triggers for throttle and braking, and the Nitro button is the Start button, which is a bit ridiculous. I decided to completely ignore the game's default controller keybindings and completely overhaul them. Of course, they are still fully remappable. The better defaults can be disabled in the .ini.
 
 ## Camera look
-- All 3rd-person car cameras can be controlled with either the mouse, or the right stick
+- All 3rd-person car cameras can be controlled with either the mouse, or the right stick (in a split screen race the mouse is the camera of the player who plays on the keyboard, and of nobody if everybody plays on a controller)
 - The latter is remappable in the Controls menu, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
 - After letting go of the "Look" inputs for a few seconds, the camera returns to its default position. With [Custom Menus](../custom_menus/ReadMe.md) installed, **Options > Player > Free Look Reset** sets how many seconds that takes for each player, or Off to leave the camera where you put it.
 - Free look also works in the Look Behind view.

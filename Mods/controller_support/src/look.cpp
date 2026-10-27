@@ -1,4 +1,5 @@
 #include "bindings.h"
+#include "controller_api.h"
 #include "extra_device.h"
 #include "hooks.h"
 #include "input.h"
@@ -92,6 +93,15 @@ void __cdecl hook_draw_cursor(int x, int y) {
     g_orig_draw_cursor(x, y);
 }
 
+// Whose camera the mouse looks around in: the player the keyboard drives (player 1, or the player of an extra device whose source is the keyboard), or nobody
+// when every player is on a controller (-1; in a game of one player, whose vehicle source is every device, the mouse is player 1's).
+int mouse_owner() {
+    const int slot = extra_device::keyboard_slot();
+    if (slot >= 0) return slot + 1;
+    const int vehicle = input::vehicle_source();
+    return vehicle == nfsmw::controller_api::kDefault || vehicle == nfsmw::controller_api::kSourceKeyboard ? 0 : -1;
+}
+
 void reset_look(int who) {
     LookState &l = g_state[who];
     l.yaw = l.pitch = l.idle = 0.0f;
@@ -103,8 +113,10 @@ void apply_look(int who, int mode, bool looking_back, float mover_dt, void *out,
     const auto original = reinterpret_cast<LookAtFn>(kLookAt);
     LookState &l = g_state[who];
     LONG mouse_x = 0, mouse_y = 0;
-    if (who == (extra_device::keyboard_source() ? 1 : 0)) {  // the mouse is the keyboard player's
+    const int owner = mouse_owner();
+    if (who == (owner < 0 ? 0 : owner)) {  // the mouse is the keyboard player's; with none, player 1's camera only keeps the cursor in the window
         input::take_mouse_delta(&mouse_x, &mouse_y);
+        if (owner < 0) mouse_x = mouse_y = 0;
         if (g_look_cfg.enabled && mode >= 2 && driving()) recentre_cursor();
         // Mouse movement collected while no chase camera ran (menus, pause, other views) is dropped.
         static DWORD last_tick = 0;

@@ -23,7 +23,7 @@ int port();                 // the device's port, or -1 before add()
 // ports and crashes on them, so the player's database port stays -1) gets the device's port while it has a source.
 int port_for_player(int joystick_port);
 int source_slot();               // the XInput controller of the device's source (rumble, camera look), or -1
-bool keyboard_source();         // the source is the keyboard (the mouse then looks around in this player's camera)
+int keyboard_slot();            // the slot whose source is the keyboard (the mouse then looks around in that player's camera), or -1
 float value(int entry);
 float value_slot(int slot, int entry);  // the same for the device of a slot         // what the device says for a binding entry now (0..1)
 void test_input(int slot, bool on, int gas, int steer);

@@ -9,7 +9,8 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 3. Pick the cars, the track and the options, and race.
 
 ## Features
-- Each player gets their own minimap and minimap color, not present in the base game. With [Custom Menus](../custom_menus/ReadMe.md) installed, each player can hide their own minimap in **Options > Player > Minimap**. Can be turned off in the [.ini](nfsmw_split_screen_support.ini) (`use_split_minimap`).
+- Each player gets their own minimap and minimap color, not present in the base game. With [Custom Menus](../custom_menus/ReadMe.md) installed, each player can hide their own minimap in **Options > Player > Minimap**.
+- With [Custom Menus](../custom_menus/ReadMe.md) installed, each player can scale their HUD (also in a game with one player) in **Options > Player > HUD Scale** (40% to 100%): each part of the HUD (race info at the top right, speedometer at the bottom right, minimap at the bottom left) shrinks around its own corner of the player's part of the screen.
 - Each player can fully control their own camera.
 - The Car Select screen says which player it is for and with which device ("Player 2 - Xbox One S Controller", the name the Controls menu shows).
 - Either player can invoke the pause menu, and change their keybinds during a race.
@@ -28,9 +29,9 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - For supported controllers, see the [Controller Support](../controller_support/ReadMe.md) mod - The game natively supports Xbox controllers, and for everything else, Steam Input is tested and works as a translation layer.
 
 ## 4-player splitscreen (work in progress: `more_players=1` in the [.ini](nfsmw_split_screen_support.ini))
-Needs [Custom Menus](../custom_menus/ReadMe.md) (the **Players** row, 2 or 4, in the options of a split screen race) and [Controller Support](../controller_support/ReadMe.md) (an input device each). With 4 players there is a second round of Press Start and Car Select for players 3 and 4 (on a screen of Press Start, **F9** gives the player the next device nobody has yet, for testing with fewer devices than players), a 2x2 starting grid, and the screen in four quadrants: each player has their own camera (Change Camera View, look, look back), the track streamed around them, reflections, a HUD with a minimap (every minimap shows every other player, each player has their own marker colour), the 3, 2, 1, Go!, and their own **Options > Player > Minimap** and **HUD Scale** (40-100%: each corner of the HUD shrinks around its own corner of the quadrant). The pause menu is the one of the player who pressed pause.
+Needs [Custom Menus](../custom_menus/ReadMe.md) (the **Players** row, 2 or 4, in the options of a split screen race) and [Controller Support](../controller_support/ReadMe.md) (an input device each). With 4 players there is a second round of Press Start and Car Select for players 3 and 4 (on a screen of Press Start, **F9** gives the player the next device nobody has yet, for testing with fewer devices than players), a 2x2 starting grid, and the screen in four quadrants: each player has their own camera (Change Camera View, look, look back), the track streamed around them, reflections, a HUD with a minimap (every minimap shows every other player, each player has their own marker colour), the 3, 2, 1, Go!, and their own **Options > Player > Minimap** and **HUD Scale** (the HUD of a quadrant is half the size of the HUD of a half screen at 100%). The pause menu is the one of the player who pressed pause.
 Not done yet:
-- Players 3 and 4 have no rumble or mouse look, and their camera views are rough copies of the game's (the game has no camera for them). No camera settings for them.
+- Players 3 and 4 have no rumble, and their camera views are rough copies of the game's (the game has no camera for them). No camera settings for them.
 - A bigger car memory pool for four cars; 3 players (or 5 to 9: the layout code is for any number, the rest is for two extra players).
 
 ## Older TODOs, not 4-player split-screen specific

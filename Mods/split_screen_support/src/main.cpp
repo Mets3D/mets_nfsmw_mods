@@ -57,14 +57,14 @@ NFSMW_PLUGIN_MAIN() {
     menu_entry::install();
     fixes::install();
     split_view::install();
-    if (ini_flag("options", "use_split_minimap")) minimap::install();
+    minimap::install();
+    hud_views::install();
+    hud_players::install();
     minimap_option::install();
     if (ini_flag("options", "more_players", false)) {  // work in progress: see the ini
         player_count::install();
         more_players::install();
         extra_streaming::install();
-        hud_views::install();
-        hud_players::install();
     }
     more_players::install_car_select_label();
     players::install();  // before state_log: the world load log shows its ports

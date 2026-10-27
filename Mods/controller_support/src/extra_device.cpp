@@ -49,7 +49,11 @@ bool is_extra(void *device) {
     return false;
 }
 int source_slot() { return g_source >= 0 ? g_source : -1; }
-bool keyboard_source() { return g_source == nfsmw::controller_api::kSourceKeyboard; }
+int keyboard_slot() {
+    for (int i = 0; i < kSlots; ++i)
+        if (g_slots[i].device && g_slots[i].source == nfsmw::controller_api::kSourceKeyboard) return i;
+    return -1;
+}
 float value_slot(int slot, int entry) {
     if (slot < 0 || slot >= kSlots || !g_slots[slot].device || entry < 0 || entry >= kBindingCount) return 0.0f;
     return field<float *>(g_slots[slot].device, 0x20)[entry];

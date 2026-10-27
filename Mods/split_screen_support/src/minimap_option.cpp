@@ -7,8 +7,8 @@
  * settings, 2 = off) is not per player; this takes the bit out for one player. The second player's minimap (minimap.cpp) asks the same
  * function for its visibility, so it follows too.
  *
- * The page also has the HUD Scale (four players: hud_views.cpp). Each player's choices are kept in the ini ([player_1] ... [player_4] minimap=0, hud_scale=70). With more than two players the player is the one whose HUD asked for
- * the pause menu (hud_players.cpp), since the game's own numbers only go to 2.
+ * The page also has the HUD Scale (how big the player's HUD is: hud_views.cpp). Each player's choices are kept in the ini ([player_1] ... [player_4] minimap=0,
+ * hud_scale=70). With more than two players the player is the one whose HUD asked for the pause menu (hud_players.cpp), since the game's own numbers only go to 2.
  */
 #include "minimap_option.h"
 
@@ -18,7 +18,6 @@
 #include "hooks.h"
 #include "hud_players.h"
 #include "hud_views.h"
-#include "more_players.h"
 #include "player_count.h"
 #include "split_screen_support.h"
 
@@ -70,7 +69,7 @@ unsigned long long __fastcall hook_features(void *self, void *edx, void *player)
 constexpr int kRowMinimap = 0, kRowScale = 1;
 constexpr opt::Row kRows[] = {
     {opt::kValueRow, "Minimap", 0, "Shows or hides your minimap while you drive."},
-    {opt::kValueRow, "HUD Scale", 0, "How big your HUD is in your quarter of the screen (with four players): each corner of it keeps its place and gets smaller."},
+    {opt::kValueRow, "HUD Scale", 0, "How big your HUD is: each corner of it keeps its place and gets smaller."},
 };
 
 unsigned value(int row, char *out, unsigned out_size) {
@@ -120,9 +119,6 @@ void defaults() {
     g_scale[editing()] = 100;
     hud_views::set_scale(editing(), 100);
 }
-// The HUD scale needs a race with four players (the HUDs of two are the game's own).
-bool row_enabled(int row) { return row != kRowScale || more_players::four_player_race(); }
-
 opt::Page g_page;
 
 }  // namespace
@@ -149,7 +145,7 @@ extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const nfsmw::cu
     nfsmw::data_file("translations\\split_screen_support", translations, sizeof(translations));
     host->register_translations(translations);  // before any text is registered
     g_page = {"split_minimap", "Minimap", "MINIMAP", "MINIMAP", 0, 0, nullptr, 2, kRows, nullptr, opened, value, change, changed, accept,
-              discard, defaults, opt::kPlayerOptions, nullptr, row_enabled};
+              discard, defaults, opt::kPlayerOptions, nullptr, nullptr};
     host->register_page(&g_page);
     split_screen_support::player_count::register_texts(host);
 }

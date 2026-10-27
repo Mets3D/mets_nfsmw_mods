@@ -19,6 +19,9 @@ void log_players();
 // vectors in the game's render space (4 floats each) and the camera's view type (0 bumper to 6 pursuit). False when they have no car.
 int extra_player_count();
 
+// How many players the race that is about to load or is running has: 1 when it is not a split screen race.
+int race_players();
+
 // The race that is about to load or is running has four players (the Players row says 4 and the second round of picks is there).
 bool four_player_race();
 

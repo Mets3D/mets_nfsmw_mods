@@ -1,0 +1,17 @@
+# From the start to a single player race, through the real menus (Main Menu > Quick Race > Quick_Race_Brief): waits for the race to run for a
+# while, takes a picture, and ends the game.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press accept
+wait_until screen=Quick_Race_Brief.fng timeout=20
+wait 2
+press accept
+wait_until racing timeout=180
+wait 8
+state
+screenshot single_race
+quit

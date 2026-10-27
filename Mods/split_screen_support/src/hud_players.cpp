@@ -1,6 +1,6 @@
 /*
- * Two players have a HUD each (FEngHud, types 3 and 4: HUD_Player1.fng with the minimap and HUD_Player2.fng without), made by the game for the local
- * players. With more players every player gets a HUD like player 1's, scaled into their cell of the screen (hud_views.cpp):
+ * A split screen race has a HUD for each of its two local players (FEngHud, types 3 and 4: HUD_Player1.fng with the minimap and HUD_Player2.fng without),
+ * made by the game. Every player gets a HUD like player 1's, scaled into their cell of the screen (hud_views.cpp):
  *   - each HUD needs a package of its own (the HUD finds its objects by the package's name), so the HUDs of players 2, 3 and 4 get copies of
  *     HUD_Player1.fng under other names (hud_packages.cpp), swapped in for the package name the game hands the constructor;
  *   - a HUD of type 4 has no minimap (the game makes one for types 1 and 3 only): the copy has the objects, so a Minimap is made on it and put in the
@@ -24,6 +24,7 @@
 #include "hud_views.h"
 #include "minimap.h"
 #include "more_players.h"
+#include "players.h"
 #include "split_screen_support.h"
 
 namespace split_screen_support::hud_players {
@@ -52,7 +53,7 @@ int g_hud_count = 0;     // HUDs of this race so far
 int g_copies_used = 0;
 bool g_extra_huds_made = false;
 
-bool active() { return more_players::four_player_race(); }
+bool active() { return players::split_screen(); }
 
 int index_of(void *hud) {
     for (int i = 0; i < g_hud_count; ++i)
@@ -90,13 +91,21 @@ void hud_filter(int &type, const char *&package) {
 }
 
 void hud_made(void *hud, int type, const char *package, void *player, int number) {
-    if (!active() || g_hud_count >= kMaxHuds) return;
-    if (type != kHudSplit1 && type != kHudSplit2) return;
+    g_log.line("hud: type %d, package %s, player %d", type, package ? package : "?", number);
+    if (package && ini_flag("options", "dump_hud", false)) minimap::dump_package(package);
+    if (!package) return;
+    if (!active()) {  // a game with one player: its HUD, whichever it is, goes by the player's HUD scale
+        hud_views::assign(package, 0, 1);
+        hud_views::classify(package);
+        if (void *minimap = *reinterpret_cast<void **>(static_cast<char *>(hud) + kHudMinimap)) minimap::for_each_object(minimap, &hud_views::classify_as_minimap);
+        return;
+    }
+    if (g_hud_count >= kMaxHuds || (type != kHudSplit1 && type != kHudSplit2)) return;
     const int index = g_hud_count++;
     g_huds[index] = hud;
     g_players[index] = player;
     g_packages[index] = package;
-    hud_views::assign(package, index, 4);
+    hud_views::assign(package, index, more_players::race_players());
     if (type == kHudSplit2 && strcmp(package, kSource) != 0) {  // (a package that is not a copy: making it failed: has no minimap objects)
         void *memory = reinterpret_cast<void *(__cdecl *)(size_t)>(kMalloc)(kMinimapSize);
         if (memory) {
@@ -107,12 +116,8 @@ void hud_made(void *hud, int type, const char *package, void *player, int number
     }
     if (void *minimap = *reinterpret_cast<void **>(static_cast<char *>(hud) + kHudMinimap)) minimap::place(minimap, package, kMinimapRise);
     hud_views::classify(package);
+    if (void *minimap = *reinterpret_cast<void **>(static_cast<char *>(hud) + kHudMinimap)) minimap::for_each_object(minimap, &hud_views::classify_as_minimap);
     set_markers();
-    static bool dumped = false;
-    if (!dumped && index == 0 && ini_flag("options", "dump_hud", false)) {
-        dumped = true;
-        minimap::dump_package(package);
-    }
 }
 
 void hud_destroy(void *hud) {

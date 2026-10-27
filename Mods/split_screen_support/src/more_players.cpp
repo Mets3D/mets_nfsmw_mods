@@ -328,6 +328,8 @@ void lend_view(void *player, bool on) {
 
 bool four_player_race() { return wants_extra_players(); }
 
+int race_players() { return !players::split_screen() ? 1 : wants_extra_players() ? 4 : 2; }
+
 bool player_car_state(int index, float *position, float *forward) {
     void *player = index < 2 ? (player_count_value() > index ? player_array()[index] : nullptr) : (index < 4 ? g_extra_players[index - 2] : nullptr);
     float up[4];

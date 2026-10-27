@@ -38,11 +38,14 @@ One command per line. `#` starts a comment. Arguments are words, or `key=value`.
 | `log <text>` | Writes a line to the log. |
 | `quit [code]` | Ends the game (exit code 0 by default; the game leaves its main loop like a closed window). |
 
+`wait_until main_menu` also presses Continue (accept) every 3 seconds while the boot flow is not over after the auto load: the load ends in a "Load complete" dialog that waits for it (it is not always there).
+
 Every change of screen is logged (`screen: <package> (frame, ms)`) without a command, which is how a scenario or an agent can tell where the menus are without looking at a picture.
 
 ## The bundled scenarios
 
 - `boot.txt` starts the game, which loads the profile named by `auto_load_alias` in `nfsmw_dev_tools.ini` and ends in the main menu, takes two screenshots and quits.
+- `single_race.txt` goes through the real menus (Main Menu > Quick Race > the race the game picks) into a race with one player and takes a screenshot: for the HUD of a game that is not split screen. The game picks the race (and its car) at random, and a few of them crash in `CreateCars`: run it with `--retries 1`.
 - `split_race.txt` goes through the real menus (Main Menu > Quick Race > Split Screen > Circuit > first track > options > Press Start and car for each player) into a two player split screen race, waits ten seconds, logs the state, takes a screenshot and quits. About 36 seconds.
 - `split_race_4.txt` is the same with the **Players** row set to 4 (`more_players=1` in the split screen mod's ini): Press Start and Car Select for four players with four devices, then a race with four cars, the first two screenshots of the countdown, `log_players` twice, a `profile` of ten seconds (the frame rate and where the time goes) and a screenshot. About 80 seconds.
 - `split_race_4_drive.txt` is the same, and then players 2, 3 and 4 drive (`drive`), steering different ways: the positions in the log before and after show that each of them has input, and the screenshots the four HUDs while driving. The launcher runs a scenario again once when it fails (`--retries`): a menu is sometimes not where it should be.
