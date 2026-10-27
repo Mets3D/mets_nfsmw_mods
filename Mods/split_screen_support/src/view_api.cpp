@@ -1,6 +1,7 @@
 #include "view_api.h"
 
 #include "more_players.h"
+#include "hud_players.h"
 #include "players.h"
 #include "split_screen_api.h"
 
@@ -26,6 +27,9 @@ bool wanted() { return g_count > 0; }
 extern "C" __declspec(dllexport) void nfsmw_split_screen_support_press_start(int device) {
     split_screen_support::players::tell_press_start(device);
 }
+
+// Whose Player options are open (0 to 3): the player who asked for the pause menu, or -1 when that is not known (the main menu, a game of one player).
+extern "C" __declspec(dllexport) int nfsmw_split_screen_support_options_player() { return split_screen_support::hud_players::pause_requester(); }
 
 extern "C" __declspec(dllexport) void nfsmw_split_screen_support_log_players() { split_screen_support::more_players::log_players(); }
 

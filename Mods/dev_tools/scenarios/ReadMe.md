@@ -53,6 +53,7 @@ Every change of screen is logged (`screen: <package> (frame, ms)`) without a com
 - `split_race_3.txt` is the same with the **Players** row set to 3: the second round of Press Start and Car Select is for player 3 alone, then a race with three views (player 1 has the top half); players 2 and 3 drive.
 - `split_race_4_look.txt` is the same, and then players 3 and 4 use the camera buttons of their own devices (look, look back, Change Camera View): screenshots before and during.
 - `split_race_4_quit.txt` is the same, and then player 3 pauses the race and quits to the menu: the log must have no exception and the screens end at the main menu.
+- `split_race_4_options.txt` is the same, and then player 3 pauses, opens Options > Player and changes the camera, Gauges, Free Look Reset, Minimap and HUD Scale: the screenshots before and after show only player 3's picture and HUD changed, the log (`log_players`) each player's camera view, and the .ini files (`[player_3]`, `[look_player_3]`) what was kept (it writes them: remove those sections after a run).
 - `live.txt` boots to the main menu and waits for lines to be appended.
 
 ## Writing a scenario for another menu path

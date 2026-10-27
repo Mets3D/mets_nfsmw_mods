@@ -120,6 +120,9 @@ void hud_made(void *hud, int type, const char *package, void *player, int number
     set_markers();
 }
 
+int g_updating = -1;  // the player whose HUD the game is updating
+int g_pause_requester = -1;
+
 void hud_destroy(void *hud) {
     const int index = index_of(hud);
     if (index < 0) return;
@@ -127,12 +130,10 @@ void hud_destroy(void *hud) {
     if (--g_hud_count == 0) {
         g_copies_used = 0;
         g_extra_huds_made = false;
+        g_pause_requester = -1;  // the race is over: the Options of the main menu are player 1's
         hud_views::clear();
     }
 }
-
-int g_updating = -1;  // the player whose HUD the game is updating
-int g_pause_requester = -1;
 
 void hud_before_update(void *hud, void *player) {
     g_updating = index_of(hud);

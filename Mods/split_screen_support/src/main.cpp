@@ -37,6 +37,7 @@
 #include "minimap_option.h"
 #include "more_players.h"
 #include "player_count.h"
+#include "player_settings.h"
 #include "players.h"
 #include "split_view.h"
 #include "state_log.h"
@@ -67,6 +68,7 @@ NFSMW_PLUGIN_MAIN() {
         more_players::install();
         extra_streaming::install();
         extra_cameras::install();
+        player_settings::install();
     }
     more_players::install_car_select_label();
     players::install();  // before state_log: the world load log shows its ports

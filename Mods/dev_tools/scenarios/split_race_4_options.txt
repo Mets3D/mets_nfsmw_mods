@@ -1,0 +1,94 @@
+# split_race_4, then player 3 opens Options > Player from the pause menu and changes the camera, Gauges, Free Look Reset, Minimap and HUD Scale: only player 3's HUD and camera change (the screenshots before and after, log_players for each player's camera view).
+# Through the real menus with the Players row set to 4 (see split_race_4_drive), then the race.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 2
+press down 2
+press right 2
+wait 2
+screenshot race_options
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 1
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 2
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+screenshot car_select_3 width=640
+press right 3
+wait 2
+press accept
+wait_until racing timeout=180
+wait 8
+wait 6
+wait 6
+drive 3 0 0
+drive 4 0 0
+log_players
+screenshot before width=1280
+pause_request 3 1
+wait 0.3
+pause_request 3 0
+wait 2
+press left
+wait 1
+press accept
+wait 3
+press right 3
+wait 1
+press accept
+wait 3
+press down
+press right
+press down
+press right
+press down 6
+press right 2
+press down
+press left
+press down
+press left 3
+wait 1
+screenshot options width=960
+press accept
+wait 3
+press back
+wait 3
+press back
+wait 3
+log_players
+screenshot after width=1280
+quit

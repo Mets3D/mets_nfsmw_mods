@@ -361,6 +361,8 @@ bool device_used_in_first_round(int device) { return g_picks[0].valid && (g_pick
 
 void *extra_player(int index) { return index >= 0 && index < 2 ? g_extra_players[index] : nullptr; }
 
+unsigned char *extra_settings(int index) { return index >= 0 && index < 2 ? g_extra_settings[index] : nullptr; }
+
 void lend_view(void *player, bool on) {
     for (int i = 0; i < 2; ++i)
         if (player && player == g_extra_players[i]) set_player_port(player, kSetRenderPortSlot, on ? nfsmw::views::kPlayerView[2 + i] : -1);

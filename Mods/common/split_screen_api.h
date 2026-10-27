@@ -7,6 +7,8 @@
 //                      The callback can draw lines and the like into the back buffer with the game's depth buffer still valid. `view_plat_info`
 //                      is the eViewPlatInfo of the view being drawn (its WorldClipMatrix is at +0x80), `width` and `height` are the back
 //                      buffer's. A callback is also a once-per-frame hook: it runs for player 0 on every frame the game draws.
+//   int nfsmw_split_screen_support_options_player()  whose Player options (the pause menu's Options) are open: 0 to 3, the player who asked for the pause menu, or -1
+//                      when that is not known (the main menu, a game of one player): the game's own PlayerToEdit (0 or 1) is then right.
 //   nfsmw_split_screen_support_press_start(int device)  for automated tests: the Press Start screen that is showing gets "this device let go of
 //                      Start" (device 0-3 = XInput controller, -1 = the keyboard), as if the person had pressed it.
 #pragma once
@@ -31,6 +33,12 @@ using LogPlayersFn = void (*)();
 inline LogPlayersFn find_log_players() {
     const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
     return module ? reinterpret_cast<LogPlayersFn>(GetProcAddress(module, "nfsmw_split_screen_support_log_players")) : nullptr;
+}
+
+using OptionsPlayerFn = int (*)();
+inline OptionsPlayerFn find_options_player() {
+    const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
+    return module ? reinterpret_cast<OptionsPlayerFn>(GetProcAddress(module, "nfsmw_split_screen_support_options_player")) : nullptr;
 }
 
 using PressStartFn = void (*)(int device);

@@ -19,6 +19,7 @@
 #include "hud_players.h"
 #include "hud_views.h"
 #include "player_count.h"
+#include "player_settings.h"
 #include "split_screen_support.h"
 
 namespace split_screen_support::minimap_option {
@@ -29,7 +30,7 @@ namespace {
 
 constexpr uintptr_t kDetermineHudFeatures = 0x57CA60;
 constexpr uintptr_t kPlayerToEdit = 0x91CA24;  // UIOptionsScreen::PlayerToEdit: whose Player options are open
-constexpr int kHudType = 0x20;                 // FEngHud: ePlayerHudType
+constexpr int kHudType = 0x20, kHudSettingsSlot = 0x2C;                 // FEngHud: ePlayerHudType
 constexpr int kHudSplit2 = 4;                  // player 2's HUD in split screen; every other type is player 1's
 // The minimap (bit 16) and the heat meter (bit 14, the flame and the ring around the minimap): the game sets and clears them together
 // (its own minimap setting off takes both out).
@@ -58,9 +59,10 @@ using FeaturesFn = unsigned long long(__fastcall *)(void *, void *, void *);
 FeaturesFn g_orig_features = nullptr;
 
 unsigned long long __fastcall hook_features(void *self, void *edx, void *player) {
-    unsigned long long features = g_orig_features(self, edx, player);
     int who = hud_players::player_of_hud(self);
     if (who < 0) who = *reinterpret_cast<int *>(static_cast<char *>(self) + kHudType) == kHudSplit2 ? 1 : 0;
+    player_settings::Use settings(who, *reinterpret_cast<int *>(static_cast<char *>(self) + kHudSettingsSlot));  // the game reads the HUD toggles by the HUD's settings slot
+    unsigned long long features = g_orig_features(self, edx, player);
     if (!g_show[who]) features &= ~kMinimapFeatures;
     return features;
 }

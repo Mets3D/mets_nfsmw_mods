@@ -36,6 +36,9 @@ bool device_used_in_first_round(int device);
 // The LocalPlayer of an extra player (0 or 1 for players 3 and 4), null when there is none.
 void *extra_player(int index);
 
+// The PlayerSettings (0x14 bytes) of an extra player: a copy of player 1's or 2's made with the race. Null when there is none.
+unsigned char *extra_settings(int index);
+
 // While the game updates the HUD of an extra player the player has a render port that is a view (the HUD code asks that view about the camera), and
 // otherwise none. `player` that is not an extra player is left alone.
 void lend_view(void *player, bool on);
