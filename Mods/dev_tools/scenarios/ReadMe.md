@@ -29,6 +29,8 @@ One command per line. `#` starts a comment. Arguments are words, or `key=value`.
 | `measure <seconds>` | Waits that long and logs the frame rate over it (`measure: N frames in M ms`). |
 | `profile <seconds>` | Like `measure`, and a thread samples the game thread's instruction pointer every millisecond: the log gets the time by module (the game, d3d9, d3dx9, the driver) and by 256-byte block of the game's code (`Tools/re/re.py name <addr>` says which function), and for time spent outside the game the block of the game's code that called in. The game was 28% d3d9, 23% d3dx9 and 24% its own code in a four player race: the cost is draw calls. |
 | `drive <player 2-4> <gas 0..1> [steer -1..1]` | That player's own game input device says that (gas and steering) until `drive <player> off` (needs `mets_controller_support`; player 1 reads every device and cannot be driven this way). |
+| `entry <player 2-4> <binding entry> <value or off>` | That player's device says that value for a binding entry (15 camera change, 16 look back, 25-28 look left / right / up / down) until `off`. |
+| `pause_request <player 2-4> <1 or 0>` | That player's device holds (1) or lets go of (0) the pause button: the pause menu is theirs. |
 | `log_players` | Logs every local player of the split screen mod: car, position, render port (needs `nfsmw_split_screen_support`). |
 | `press_start <0-3\|keyboard>` | For the split screen Press Start screens: tells the one that is showing that this device let go of Start (needs `nfsmw_split_screen_support`). |
 | `screenshot <name> [width=960]` | Saves the back buffer as `scripts/mets_mods/screenshots/<date>-<time>_<scenario>/<name>.png`, at most `width` pixels wide. A 960 px picture costs an AI about 700 tokens to look at. |
