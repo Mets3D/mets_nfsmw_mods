@@ -33,8 +33,6 @@ Needs [Custom Menus](../custom_menus/ReadMe.md) (the **Players** row, 2, 3 or 4,
 
 
 ## 3 or more player split screen TODO:
-- Make clear in the pause menu whose **Options > Player** it is (the player who opened the pause menu): the page's subtitle says "Player 1" whoever that is. At least the subtitle could be dynamic and show the player's name ("Player 3 - Xbox One S Controller", as the Car Select screen does).
-- Options > AI Driving (Improved AI Opponents) only has players 1 and 2: players 3 and 4 get player 2's.
 - With 3 players, player 3's view is flickering: Every other frame seems to be a slightly different perspective, perhaps different FoV. According to Claude, "Their camera views are rough copies of the game's (the game has no camera for them). No camera settings for them." - This situation needs to improve. I didn't test with 4 players yet.
 - 5 to 9 players (the layout code is for any number, the rest is for two extra players).
 
@@ -44,8 +42,10 @@ Needs [Custom Menus](../custom_menus/ReadMe.md) (the **Players** row, 2, 3 or 4,
 - Look (right stick, mouse), look back and Change Camera View of players 3 and 4 on real controllers. The mouse should only look around for the player who drives with the keyboard.
 - Rumble of players 3 and 4.
 - HUD Scale in games of 1, 2, 3 and 4 players, and the HUD of the first player with 3 players (full size).
+- The subtitle of **Options > Player** in the pause menu says which player's it is ("Player 3 - Xbox One S Controller"); it said "Player 1" whoever opened it.
+- Players 3 and 4 driven by the Improved AI (**Options > AI Driving**, or `control=improved` in `[player_3]` of the Improved AI's .ini): the cars drive off by themselves.
 - Leaving a 3 or 4 player race to the menu and starting another one (the cameras of players 3 and 4 are made and removed with the race: a quit from the pause menu was tested to get back to the menu).
-- **Options > Player** of players 3 and 4 (pause menu opened by their own device): Camera, Gauges, Race Information, Split Time, Score, Leaderboard, Minimap, HUD Scale and Free Look Reset should change only that player's. Minimap, HUD Scale and Free Look Reset are kept between sessions (`[player_3]`, `[player_4]` in the .ini of this mod, `[look_player_3]` in the one of Controller Support); the game's own toggles and camera view are not: players 3 and 4 start each race with a copy of player 1's and 2's.
+- **Options > Player** of players 3 and 4 (pause menu opened by their own device): Camera, Gauges, Race Information, Split Time, Score, Leaderboard, Minimap, HUD Scale and Free Look Reset should change only that player's. Players 3 and 4 keep their choices between sessions in this mod's .ini (`[player_3]`, `[player_4]`: minimap, hud_scale and `settings`, the game's own toggles and camera view as bytes, since the game's profile has room for two players only), and the Free Look Reset in the one of Controller Support (`[look_player_3]`). Until they choose, players 3 and 4 start with a copy of player 1's and 2's settings.
 
 ## Older TODOs, not 4-player split-screen specific
 - The sun seems to be drawn for player 2 depending on player 1's perspective? Specifically, when player 1 has the sun in their view, player 2 might also get a sun rendered kinda arbitrarily in their view.

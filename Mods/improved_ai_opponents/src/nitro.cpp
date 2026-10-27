@@ -76,8 +76,8 @@ float clear_run(const void *nav, float speed, int player) {
     return run;
 }
 
-DWORD g_waiting_said[2] = {0, 0}, g_progress_said[2] = {0, 0};
-float g_burn_seconds[2] = {0, 0}, g_rest_seconds[2] = {1e9f, 1e9f};  // how long the car has been burning, and not burning
+DWORD g_waiting_said[kPlayers] = {}, g_progress_said[kPlayers] = {};
+float g_burn_seconds[kPlayers] = {}, g_rest_seconds[kPlayers] = {1e9f, 1e9f, 1e9f, 1e9f};  // how long the car has been burning, and not burning
 
 // How far the race has left to go for a player's car (metres), -1 when that is not known: the part of the race the car has done (GRacerInfo::mPctRaceComplete, as a share or
 // as a percentage) of the race's length (GRaceStatus::fRaceLength). Both are checked for being plausible, since the layouts are from the decomp.
@@ -95,7 +95,7 @@ float race_remaining(int player, float *progress) {
 }  // namespace
 
 bool decide(int player, const unsigned char *action, const unsigned char *frame, bool game_wants) {
-    const int p = player != 0 ? 1 : 0;
+    const int p = slot_of(player);
     const bool was_on = read<unsigned char>(frame, kFrameWasNos) != 0;
     const float potential_nos = read<float>(frame, kFramePotentialNos);
     const bool can = !read<unsigned char>(action, kActionTurnAround) && !read<unsigned char>(frame, kFrameNeedToStop) && !read<unsigned char>(frame, kFrameStaging) && potential_nos > 0.0f;

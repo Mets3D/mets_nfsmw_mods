@@ -9,6 +9,8 @@
 //                      buffer's. A callback is also a once-per-frame hook: it runs for player 0 on every frame the game draws.
 //   int nfsmw_split_screen_support_options_player()  whose Player options (the pause menu's Options) are open: 0 to 3, the player who asked for the pause menu, or -1
 //                      when that is not known (the main menu, a game of one player): the game's own PlayerToEdit (0 or 1) is then right.
+//   void *nfsmw_split_screen_support_player(int index)  the game's LocalPlayer (IPlayer) of player 1 to 4 (index 0 to 3); null when there is none. Players 3 and 4
+//                      are not in the game's list of local players.
 //   nfsmw_split_screen_support_press_start(int device)  for automated tests: the Press Start screen that is showing gets "this device let go of
 //                      Start" (device 0-3 = XInput controller, -1 = the keyboard), as if the person had pressed it.
 #pragma once
@@ -39,6 +41,12 @@ using OptionsPlayerFn = int (*)();
 inline OptionsPlayerFn find_options_player() {
     const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
     return module ? reinterpret_cast<OptionsPlayerFn>(GetProcAddress(module, "nfsmw_split_screen_support_options_player")) : nullptr;
+}
+
+using PlayerFn = void *(*)(int index);
+inline PlayerFn find_player() {
+    const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
+    return module ? reinterpret_cast<PlayerFn>(GetProcAddress(module, "nfsmw_split_screen_support_player")) : nullptr;
 }
 
 using PressStartFn = void (*)(int device);

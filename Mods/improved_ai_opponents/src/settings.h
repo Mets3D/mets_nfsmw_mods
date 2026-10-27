@@ -1,4 +1,4 @@
-// The settings of each player's AI: what the Options > AI Driving page edits (menu.cpp) and the ini keeps ([player_1] / [player_2]).
+// The settings of each player's AI: what the Options > AI Driving page edits (menu.cpp) and the ini keeps ([player_1] to [player_4]).
 #pragma once
 
 namespace improved_ai_opponents::settings {
@@ -22,7 +22,7 @@ struct Player {
     int overlay = kOverlayOff;  // F8 steps through them; the AI's calculations are drawn also while a human drives (the improved AI then plans beside the car)
 };
 
-Player &player(int who);  // 0 = player 1, 1 = player 2
+Player &player(int who);  // 0 = player 1 ... 3 = player 4
 Player defaults(int who);
 
 void load();

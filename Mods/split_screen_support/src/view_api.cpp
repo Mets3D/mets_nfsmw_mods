@@ -31,6 +31,9 @@ extern "C" __declspec(dllexport) void nfsmw_split_screen_support_press_start(int
 // Whose Player options are open (0 to 3): the player who asked for the pause menu, or -1 when that is not known (the main menu, a game of one player).
 extern "C" __declspec(dllexport) int nfsmw_split_screen_support_options_player() { return split_screen_support::hud_players::pause_requester(); }
 
+// The LocalPlayer (IPlayer) of player 1 to 4 (0 to 3), null when there is none.
+extern "C" __declspec(dllexport) void *nfsmw_split_screen_support_player(int index) { return split_screen_support::more_players::game_player(index); }
+
 extern "C" __declspec(dllexport) void nfsmw_split_screen_support_log_players() { split_screen_support::more_players::log_players(); }
 
 extern "C" __declspec(dllexport) void nfsmw_split_screen_support_on_view_draw(nfsmw::split_screen_api::ViewDrawFn callback) {

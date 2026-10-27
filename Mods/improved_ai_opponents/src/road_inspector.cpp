@@ -613,8 +613,8 @@ void add_cost(const View &v, int player) {
 }  // namespace
 
 void set_mode(int player, int mode) {
-    static int last[2] = {settings::kOverlayOff, settings::kOverlayOff};
-    int &was = last[player != 0 ? 1 : 0];
+    static int last[kPlayers] = {};  // kOverlayOff is 0
+    int &was = last[slot_of(player)];
     if (was == mode) return;
     was = mode;
     g_active = g_active_segment = kNone;  // a selection belongs to a mode

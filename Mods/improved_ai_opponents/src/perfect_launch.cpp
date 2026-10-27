@@ -29,12 +29,12 @@ struct State {
     float integral = kIntegralStart, rpm = 0.0f;
     bool have_rpm = false;
 };
-State g_state[2];
+State g_state[kPlayers];
 
 }  // namespace
 
 float throttle(int player, float rpm, float start, float range, float dt, float fallback) {
-    const int p = player != 0 ? 1 : 0;
+    const int p = slot_of(player);
     State &s = g_state[p];
     const DWORD now = GetTickCount();
     if (now - s.last > kNewStaging) s = State();

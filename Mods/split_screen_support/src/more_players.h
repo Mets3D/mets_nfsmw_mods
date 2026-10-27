@@ -33,6 +33,9 @@ bool player_car_state(int index, float *position, float *forward);
 int pick_device(int player);
 bool device_used_in_first_round(int device);
 
+// The LocalPlayer (IPlayer) of player 1 to 4 (0 to 3), null when there is none.
+void *game_player(int index);
+
 // The LocalPlayer of an extra player (0 or 1 for players 3 and 4), null when there is none.
 void *extra_player(int index);
 
@@ -50,6 +53,9 @@ bool extra_ready(int index);
 // duration of the game's own setup of their camera (on = true until it is called again with false) the extra player is the only local player, in the view
 // the camera is made for.
 void make_only_local_player(int index, bool on);
+
+// How the game and the menus call player 1 to 4 (0 to 3): "Player 3 - Xbox One S Controller".
+void player_name(int player, char *text, unsigned size);
 
 // The Car Select screens of a split screen race say which player and which device (all split screen races, not only those with more than two players).
 void install_car_select_label();

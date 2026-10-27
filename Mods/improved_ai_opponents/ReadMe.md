@@ -5,7 +5,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) aims to implement extremely 
 ## Features
 This mod is currently WIP, so it can't be used in Career mode yet, only in Split Screen.
 
-- You can race against the Improved AI in Split Screen mode.
+- You can race against the Improved AI in Split Screen mode. In a 3 or 4 player split screen, any of the players can be driven by the Improved or the vanilla AI: each player has their own **Options > AI Driving** (the pause menu opened by that player, the page's player is the one named under the title of Options > Player), kept in this mod's .ini (`[player_1]` to `[player_4]`).
 - TODO: You can race against the Improved AI in career mode.
 
 ## AI

@@ -234,9 +234,9 @@ void add_route_segments(Lines &lines, const unsigned char *nav, const float *car
 
 void draw(IDirect3DDevice9 *device, const void *view_plat_info, float width, float height, int player) {
     static bool f8_was_down = false;
-    if (nfsmw::key_pressed(nfsmw::game_has_focus() && nfsmw::key_down(VK_F8), f8_was_down)) {  // Off, AI Logic, Roads, Cost, for both players
+    if (nfsmw::key_pressed(nfsmw::game_has_focus() && nfsmw::key_down(VK_F8), f8_was_down)) {  // Off, AI Logic, Roads, Cost, for every player
         const int next = (settings::player(0).overlay + 1) % 4;
-        settings::player(0).overlay = settings::player(1).overlay = next;
+        for (int who = 0; who < kPlayers; ++who) settings::player(who).overlay = next;
         g_log.line("overlay: %s", settings::overlay_name(next));
     }
     const int mode = settings::player(player).overlay;

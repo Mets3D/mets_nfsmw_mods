@@ -15,6 +15,10 @@ private:
     unsigned char *a_ = nullptr, *b_ = nullptr;
 };
 
+// The settings players 3 and 4 had last (the game's profile has room for two players only: they are kept in this mod's ini, `[player_3]` / `[player_4]` settings=
+// as hex bytes). `extra` is 0 or 1. Load returns false when there are none.
+bool load(int extra, unsigned char *out);
+
 void install();
 
 }  // namespace split_screen_support::player_settings

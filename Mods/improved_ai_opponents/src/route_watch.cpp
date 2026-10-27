@@ -31,7 +31,7 @@ struct Watch {
     unsigned short goal = 0, segment = 0;  // the goal segment of the route, the segment the nav was on
     float nav_at[3] = {}, car_at[3] = {};
 };
-Watch g_watch[2];
+Watch g_watch[kPlayers];
 
 template <typename T> T read(const void *base, unsigned offset) { return *reinterpret_cast<const T *>(static_cast<const unsigned char *>(base) + offset); }
 
@@ -61,10 +61,10 @@ int index_in(const std::vector<unsigned short> &path, unsigned segment) {
 
 }  // namespace
 
-void requested(int player) { g_watch[player != 0 ? 1 : 0].asked = true; }
+void requested(int player) { g_watch[slot_of(player)].asked = true; }
 
 void frame(int player, const void *nav, const float *car) {
-    Watch &w = g_watch[player != 0 ? 1 : 0];
+    Watch &w = g_watch[slot_of(player)];
     if (!nav || IsBadReadPtr(nav, 0x300) || !car || !road::loaded()) {
         w.on_path = false;
         return;

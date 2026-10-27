@@ -394,7 +394,7 @@ bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, 
             g_cpu_ms[pass] += now_ms() - cpu_start;
             stamps[pass + 1]->Issue(D3DISSUE_END);
         }
-        if (!extra) view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(w), static_cast<float>(h), 1);
+        view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(w), static_cast<float>(h), pass);  // with the player's view in view 1's place
         trade_views(pass, other);
         ok = copy(device, back_buffer, full, g_canvas, cells[pass], names[pass]);
     }

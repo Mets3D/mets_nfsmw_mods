@@ -32,6 +32,7 @@
 #include "view_ids.h"
 #include "patch.h"
 #include "player_count.h"
+#include "player_settings.h"
 #include "players.h"
 #include "split_screen_support.h"
 
@@ -242,6 +243,7 @@ void give_own_settings(int index, void *player) {
     if (!g_extra_settings[index]) g_extra_settings[index] = static_cast<unsigned char *>(malloc(kSettingsSize));
     if (!g_extra_settings[index]) return;
     memcpy(g_extra_settings[index], all + index * kSettingsSize, kSettingsSize);  // player 1's or 2's
+    player_settings::load(index, g_extra_settings[index]);                          // unless they chose their own before (this mod's ini)
     void **original = *reinterpret_cast<void ***>(player);
     if (original[kGetSettingsSlot] == reinterpret_cast<void *>(&extra_get_settings)) return;
     void **table = static_cast<void **>(malloc(kVTableSlots * sizeof(void *)));
@@ -359,6 +361,13 @@ int pick_device(int player) { return player >= 0 && player < 4 && g_picks[player
 
 bool device_used_in_first_round(int device) { return g_picks[0].valid && (g_picks[0].device == device || g_picks[1].device == device); }
 
+// The LocalPlayer of player 1 to 4 (0 to 3), null when there is none (players 1 and 2: the local player list, players 3 and 4: the extra players).
+void *game_player(int index) {
+    if (index < 0 || index > 3) return nullptr;
+    if (index >= 2) return g_extra_players[index - 2];
+    return index < player_count_value() ? player_array()[index] : nullptr;
+}
+
 void *extra_player(int index) { return index >= 0 && index < 2 ? g_extra_players[index] : nullptr; }
 
 unsigned char *extra_settings(int index) { return index >= 0 && index < 2 ? g_extra_settings[index] : nullptr; }
@@ -418,23 +427,27 @@ int round() { return g_round; }
 int g_press_start_player = 0;  // the player of the last Press Start screen of this round: 0 or 1
 constexpr unsigned kCarSelectPlayerObject = 0xE3FE27FE, kPlayerOneString = 0x7B070984;
 
-void *(*g_orig_create_car_select)(void *);
-void *hook_create_car_select(void *data) {
-    void *screen = g_orig_create_car_select(data);
-    if (!screen || !players::split_screen()) return screen;
-    const int number = 2 * g_round + g_press_start_player + 1;
-    char text[160];
+// "Player 3 - Xbox One S Controller": the game's "Player 1" text with the number changed, and the device's name as the Controls menu shows it.
+void format_player_name(int number, int device, char *text, unsigned size) {
     const char *label = reinterpret_cast<const char *(*)(unsigned)>(kGetLocalizedString)(kPlayerOneString);
-    strncpy(text, label ? label : "PLAYER 1", sizeof(text) - 1);
-    text[sizeof(text) - 1] = 0;
+    strncpy(text, label ? label : "PLAYER 1", size - 1);
+    text[size - 1] = 0;
     for (char *c = text + strlen(text); c-- > text;)
         if (*c >= '0' && *c <= '9') {
             *c = static_cast<char>('0' + number);
             break;
         }
-    char device[96];
-    players::device_label(players::chosen(g_press_start_player), device, sizeof(device));
-    if (device[0]) snprintf(text + strlen(text), sizeof(text) - strlen(text), " - %s", device);
+    char name[96];
+    players::device_label(device, name, sizeof(name));
+    if (name[0]) snprintf(text + strlen(text), size - strlen(text), " - %s", name);
+}
+
+void *(*g_orig_create_car_select)(void *);
+void *hook_create_car_select(void *data) {
+    void *screen = g_orig_create_car_select(data);
+    if (!screen || !players::split_screen()) return screen;
+    char text[160];
+    format_player_name(2 * g_round + g_press_start_player + 1, players::chosen(g_press_start_player), text, sizeof(text));
     const char *package = *reinterpret_cast<const char **>(static_cast<char *>(screen) + kScreenPackage);
     // The label is a group of strings (the text and its shadow). A string has room for 15 characters (FEPrintf cuts the text there), so they are assigned
     // with the game's own FEWideString::operator= (0x57E8C0), which makes room, and the flags FEPrintf sets: do not take the text from the language string
@@ -449,6 +462,10 @@ void *hook_create_car_select(void *data) {
     }
     g_log.line("Car Select: \"%s\"", text);
     return screen;
+}
+
+void player_name(int player, char *text, unsigned size) {
+    format_player_name(player + 1, player < 2 ? players::chosen(player) : pick_device(player), text, size);
 }
 
 void on_press_start_screen(void *screen) {

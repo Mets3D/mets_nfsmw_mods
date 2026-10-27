@@ -10,6 +10,7 @@
 #include "custom_menus_api.h"
 #include "improved_ai_opponents.h"
 #include "settings.h"
+#include "split_screen_api.h"
 
 namespace opt = nfsmw::custom_menus;
 namespace st = improved_ai_opponents::settings;
@@ -54,9 +55,15 @@ constexpr opt::Row kRows[] = {
      "your car while you drive). Roads: the road network around the camera. Cost: pick the nodes of a route to see what it costs."},
 };
 
-st::Player g_opened[2];  // each player's settings when the page opened
+st::Player g_opened[improved_ai_opponents::kPlayers];  // each player's settings when the page opened
 
-int editing() { return std::clamp(*reinterpret_cast<int *>(kPlayerToEdit), 0, 1); }
+// Whose options are open: with split screen support the player who asked for the pause menu (0 to 3), otherwise the game's own number (0 or 1).
+int editing() {
+    static nfsmw::split_screen_api::OptionsPlayerFn options_player = nullptr;
+    if (!options_player) options_player = nfsmw::split_screen_api::find_options_player();
+    const int player = options_player ? options_player() : -1;
+    return player >= 0 && player < improved_ai_opponents::kPlayers ? player : std::clamp(*reinterpret_cast<int *>(kPlayerToEdit), 0, 1);
+}
 st::Player &now() { return st::player(editing()); }
 
 unsigned value(int row, char *out, unsigned size) {
@@ -124,12 +131,12 @@ bool same(const st::Player &a, const st::Player &b) {
 }
 
 void opened() {
-    for (int who = 0; who < 2; ++who) g_opened[who] = st::player(who);
+    for (int who = 0; who < improved_ai_opponents::kPlayers; ++who) g_opened[who] = st::player(who);
 }
 bool available() { return improved_ai_opponents::g_active; }
 bool changed() { return !same(now(), g_opened[editing()]); }
 void accept() {
-    for (int who = 0; who < 2; ++who) {
+    for (int who = 0; who < improved_ai_opponents::kPlayers; ++who) {
         if (same(st::player(who), g_opened[who])) continue;
         st::save(who);
         g_opened[who] = st::player(who);

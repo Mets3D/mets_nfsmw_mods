@@ -26,7 +26,7 @@ constexpr float kMinRemaining = 1800.0f;      // metres of route left when the n
 constexpr float kAhead = 3000.0f;             // how far along the race route the search is asked to go (from the end of the route)
 constexpr DWORD kBackoff = 2500;              // ms between two searches for a player
 
-DWORD g_last[2] = {0, 0}, g_submitted[2] = {0, 0};  // when the last search was started; when the one that is running was (0: none)
+DWORD g_last[kPlayers] = {}, g_submitted[kPlayers] = {};  // when the last search was started; when the one that is running was (0: none)
 
 template <typename T> T read(const void *base, unsigned offset) { return *reinterpret_cast<const T *>(static_cast<const unsigned char *>(base) + offset); }
 
@@ -87,7 +87,7 @@ int follow_race_route(int node, unsigned came_by, float ahead, float *distance) 
 }  // namespace
 
 void frame(int player, void *nav, const float *car) {
-    DWORD &last = g_last[player != 0 ? 1 : 0], &submitted = g_submitted[player != 0 ? 1 : 0];
+    DWORD &last = g_last[slot_of(player)], &submitted = g_submitted[slot_of(player)];
     if (!nav || IsBadReadPtr(nav, 0x300) || !car || !road::loaded() || read<int>(nav, kNavType) != kPathType) return;
     const int count = read<int>(nav, kNavPathCount);
     const unsigned short *path = read<const unsigned short *>(nav, kNavPath);

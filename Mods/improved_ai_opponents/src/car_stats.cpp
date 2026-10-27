@@ -39,20 +39,20 @@ Stats make_default() {
 }
 
 const Stats g_default = make_default();
-Stats g_stats[2] = {g_default, g_default};
-const void *g_tires[2] = {nullptr, nullptr};
-DWORD g_last_refresh[2] = {0, 0};
+Stats g_stats[kPlayers] = {g_default, g_default, g_default, g_default};
+const void *g_tires[kPlayers] = {};
+DWORD g_last_refresh[kPlayers] = {};
 
 bool sane(float v, float low, float high) { return std::isfinite(v) && v >= low && v <= high; }
 
 }  // namespace
 
 void note_tires(int player, const void *tires) {
-    if (player >= 0 && player < 2) g_tires[player] = tires;
+    if (player >= 0 && player < kPlayers) g_tires[player] = tires;
 }
 
 void refresh(int player, void *vehicle_ai) {
-    if (player < 0 || player > 1) return;
+    if (player < 0 || player >= kPlayers) return;
     if (!vehicle_ai) {
         g_stats[player] = g_default;
         g_tires[player] = nullptr;
@@ -96,8 +96,8 @@ void refresh(int player, void *vehicle_ai) {
 }
 
 const Stats &of(int player) {
-    if (player >= 0 && player < 2) return g_stats[player];
-    for (int p = 0; p < 2; ++p)
+    if (player >= 0 && player < kPlayers) return g_stats[player];
+    for (int p = 0; p < kPlayers; ++p)
         if (g_stats[p].from_car) return g_stats[p];
     return g_default;
 }

@@ -290,10 +290,10 @@ void *g_stand_in_vtable[7] = {reinterpret_cast<void *>(stand_in_destructor), rei
                               reinterpret_cast<void *>(stand_in_angular_velocity), reinterpret_cast<void *>(stand_in_dimension), reinterpret_cast<void *>(stand_in_attributes),
                               reinterpret_cast<void *>(stand_in_world_id)};
 
-StandIn g_stand_ins[2][kMaxStandIns];  // per player
-int g_stand_in_count[2];
-DWORD g_stand_in_frame[2] = {~0u, ~0u};
-std::vector<std::pair<void *, int>> g_steered_around[2];  // the (model, box) pairs of the last frame's stand-ins: those are being steered around
+StandIn g_stand_ins[kPlayers][kMaxStandIns];  // per player
+int g_stand_in_count[kPlayers];
+DWORD g_stand_in_frame[kPlayers] = {~0u, ~0u, ~0u, ~0u};
+std::vector<std::pair<void *, int>> g_steered_around[kPlayers];  // the (model, box) pairs of the last frame's stand-ins: those are being steered around
 
 using FetchFn = int(__fastcall *)(void *, void *, void **, int);
 FetchFn g_orig_fetch = nullptr;

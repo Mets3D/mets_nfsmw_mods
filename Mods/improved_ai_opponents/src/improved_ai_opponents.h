@@ -28,6 +28,9 @@ class Mutex {
     CRITICAL_SECTION section_;
 };
 
+constexpr int kPlayers = 4;  // the players of a split screen race
+inline int slot_of(int player) { return player < 0 ? 0 : (player >= kPlayers ? kPlayers - 1 : player); }
+
 constexpr int kPathRacer = 2, kPathPlayer = 4;  // WRoadNav path types: an opponent's racer, a player's car (the AI of a human)
 
 inline bool ini_flag(const char *section, const char *key, bool def = true) {
