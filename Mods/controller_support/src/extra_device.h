@@ -25,7 +25,8 @@ int port_for_player(int joystick_port);
 int source_slot();               // the XInput controller of the device's source (rumble, camera look), or -1
 bool keyboard_source();         // the source is the keyboard (the mouse then looks around in this player's camera)
 float value(int entry);         // what the device says for a binding entry now (0..1)
-void test_input(int slot, bool on, int gas, int steer);  // see the export in extra_device.cpp
+void test_input(int slot, bool on, int gas, int steer);
+void test_pause(int slot, bool down);  // see the export in extra_device.cpp
 bool is_extra(void *device);  // a GameDevice that is one of these
 void poll(void *device);      // PollDevice of this device: its values from the source's bindings
 

@@ -26,6 +26,7 @@ using VehicleSourceFn = void (*)(int source);
 using ExtraDeviceFn = int (*)(int source);
 using ExtraDeviceSlotFn = int (*)(int slot, int source);
 using TestInputFn = void (*)(int slot, int on, int gas, int steer);
+using TestPauseFn = void (*)(int slot, int down);
 using KeyboardStateFn = int (*)(unsigned char *out);
 using LivePadFn = int (*)();
 
@@ -48,6 +49,9 @@ inline ExtraDeviceSlotFn find_extra_device_slot() {
 }
 inline TestInputFn find_test_input() {  // for automated tests only (dev_tools)
     return reinterpret_cast<TestInputFn>(detail::find("mets_controller_support_test_input"));
+}
+inline TestPauseFn find_test_pause() {  // for automated tests only (dev_tools)
+    return reinterpret_cast<TestPauseFn>(detail::find("mets_controller_support_test_pause"));
 }
 inline LivePadFn find_live_pad() {
     return reinterpret_cast<LivePadFn>(detail::find("mets_controller_support_live_pad"));

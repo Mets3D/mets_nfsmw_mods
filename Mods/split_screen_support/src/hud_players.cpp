@@ -120,8 +120,24 @@ void hud_destroy(void *hud) {
     }
 }
 
-void hud_before_update(void *, void *player) { more_players::lend_view(player, true); }
-void hud_after_update(void *, void *player) { more_players::lend_view(player, false); }
+int g_updating = -1;  // the player whose HUD the game is updating
+int g_pause_requester = -1;
+
+void hud_before_update(void *hud, void *player) {
+    g_updating = index_of(hud);
+    more_players::lend_view(player, true);
+}
+void hud_after_update(void *, void *player) {
+    g_updating = -1;
+    more_players::lend_view(player, false);
+}
+
+// EPause::EPause(settings index, ?, ?): the pause request of a player's HUD (FEngHud::JoyHandle) is made while that HUD updates.
+void(__fastcall *g_orig_epause)(void *, void *, int, int, int);
+void __fastcall hook_epause(void *self, void *edx, int player, int b, int c) {
+    g_orig_epause(self, edx, player, b, c);
+    g_pause_requester = g_updating >= 0 ? g_updating : -1;
+}
 
 // Players 3 and 4: once the game has made the HUDs of players 1 and 2.
 void make_extra_huds() {
@@ -163,12 +179,16 @@ void __fastcall hook_begin_countdown(void *self, void *edx) {
 
 }  // namespace
 
+int player_of_hud(void *hud) { return index_of(hud); }
+int pause_requester() { return g_pause_requester; }
+
 void install() {
     const nfsmw::Hook hooks[] = {
+        {"pause", "EPause::EPause", 0x623A90, {0x8B, 0x54, 0x24, 0x08, 0x8B, 0xC1, 0x8B}, false, nfsmw::detour(&hook_epause), nfsmw::orig(&g_orig_epause)},
         {"countdown", "Countdown::BeginCountdown", 0x567F10, {0x68, 0x00, 0x05, 0x8A, 0x00, 0x6A, 0x08}, false, nfsmw::detour(&hook_begin_countdown),
          nfsmw::orig(&g_orig_begin_countdown)},
     };
-    nfsmw::install_hooks(hooks, 1, g_log, nullptr, "hud players");
+    nfsmw::install_hooks(hooks, 2, g_log, nullptr, "hud players");
     events::on_hud_construct(&hud_filter);
     events::on_hud_made(&hud_made);
     events::on_hud_destroy(&hud_destroy);

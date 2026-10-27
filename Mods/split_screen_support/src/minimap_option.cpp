@@ -7,7 +7,8 @@
  * settings, 2 = off) is not per player; this takes the bit out for one player. The second player's minimap (minimap.cpp) asks the same
  * function for its visibility, so it follows too.
  *
- * Each player's choice is kept in the ini ([player_1] / [player_2] minimap=0).
+ * Each player's choice is kept in the ini ([player_1] ... [player_4] minimap=0). With more than two players the player is the one whose HUD asked for
+ * the pause menu (hud_players.cpp), since the game's own numbers only go to 2.
  */
 #include "minimap_option.h"
 
@@ -15,6 +16,7 @@
 
 #include "custom_menus_api.h"
 #include "hooks.h"
+#include "hud_players.h"
 #include "player_count.h"
 #include "split_screen_support.h"
 
@@ -33,11 +35,19 @@ constexpr int kHudSplit2 = 4;                  // player 2's HUD in split screen
 constexpr unsigned long long kMinimapFeatures = 0x10000 | 0x4000;
 constexpr unsigned kOnText = 0x417B2604, kOffText = 0x70DFE5C2;  // the game's own "On" and "Off"
 
-bool g_show[2] = {true, true};
-bool g_opened[2];
+constexpr int kPlayers = 4;
+bool g_show[kPlayers] = {true, true, true, true};
+bool g_opened[kPlayers];
 
-const char *section_of(int who) { return who == 0 ? "player_1" : "player_2"; }
-int editing() { return std::clamp(*reinterpret_cast<int *>(kPlayerToEdit), 0, 1); }
+const char *section_of(int who) {
+    static const char *const names[kPlayers] = {"player_1", "player_2", "player_3", "player_4"};
+    return names[who];
+}
+// Whose options are open: the player who asked for the pause menu (with more than two players the game's PlayerToEdit only has 0 and 1).
+int editing() {
+    const int requester = hud_players::pause_requester();
+    return requester >= 0 && requester < kPlayers ? requester : std::clamp(*reinterpret_cast<int *>(kPlayerToEdit), 0, 1);
+}
 
 // ---- the hook
 using FeaturesFn = unsigned long long(__fastcall *)(void *, void *, void *);
@@ -45,7 +55,8 @@ FeaturesFn g_orig_features = nullptr;
 
 unsigned long long __fastcall hook_features(void *self, void *edx, void *player) {
     unsigned long long features = g_orig_features(self, edx, player);
-    const int who = *reinterpret_cast<int *>(static_cast<char *>(self) + kHudType) == kHudSplit2 ? 1 : 0;
+    int who = hud_players::player_of_hud(self);
+    if (who < 0) who = *reinterpret_cast<int *>(static_cast<char *>(self) + kHudType) == kHudSplit2 ? 1 : 0;
     if (!g_show[who]) features &= ~kMinimapFeatures;
     return features;
 }
@@ -58,12 +69,11 @@ constexpr opt::Row kRows[] = {
 unsigned value(int, char *, unsigned) { return g_show[editing()] ? kOnText : kOffText; }
 void change(int, int direction, bool) { g_show[editing()] = direction > 0; }
 void opened() {
-    g_opened[0] = g_show[0];
-    g_opened[1] = g_show[1];
+    for (int who = 0; who < kPlayers; ++who) g_opened[who] = g_show[who];
 }
 bool changed() { return g_show[editing()] != g_opened[editing()]; }
 void accept() {
-    for (int who = 0; who < 2; ++who) {
+    for (int who = 0; who < kPlayers; ++who) {
         if (g_show[who] == g_opened[who]) continue;
         WritePrivateProfileStringA(section_of(who), "minimap", g_show[who] ? "1" : "0", g_ini);
         g_log.line("player %d's minimap %s", who + 1, g_show[who] ? "shown" : "hidden");
@@ -78,7 +88,7 @@ opt::Page g_page;
 }  // namespace
 
 void install() {
-    for (int who = 0; who < 2; ++who) g_show[who] = GetPrivateProfileIntA(section_of(who), "minimap", 1, g_ini) != 0;
+    for (int who = 0; who < kPlayers; ++who) g_show[who] = GetPrivateProfileIntA(section_of(who), "minimap", 1, g_ini) != 0;
     const nfsmw::Hook hooks[] = {
         {"hudfeatures", "FEngHud::DetermineHudFeatures", kDetermineHudFeatures, {0x53, 0x55, 0x56, 0x8B, 0xD9, 0x8B, 0x4C}, false,
          nfsmw::detour(&hook_features), nfsmw::orig(&g_orig_features)},

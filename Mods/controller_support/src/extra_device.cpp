@@ -21,6 +21,7 @@ struct Slot {
     volatile LONG source = nfsmw::controller_api::kSourceNone;
     volatile LONG test = 0;  // an automated test drives the device: gas and steering, in thousandths (see mets_controller_support_test_input)
     volatile LONG test_gas = 0, test_steer = 0;
+    volatile LONG test_pause = 0;  // the device says "pause request" (entry 18)
 };
 Slot g_slots[kSlots];
 
@@ -116,7 +117,12 @@ void poll(void *device) {
         values[2] = owner->test_steer < 0 ? owner->test_steer / -1000.0f : 0.0f;    // STEERLEFT
         values[3] = owner->test_steer > 0 ? owner->test_steer / 1000.0f : 0.0f;     // STEERRIGHT
     }
+    if (owner->test_pause) values[18] = 1.0f;  // HUD PAUSEREQUEST
     for (int e = 0; e < kBindingCount; ++e) current[e] = values[e];
+}
+
+void test_pause(int slot_index, bool down) {
+    if (slot_index >= 0 && slot_index < kSlots) g_slots[slot_index].test_pause = down ? 1 : 0;
 }
 
 void test_input(int slot_index, bool on, int gas, int steer) {
@@ -137,6 +143,10 @@ extern "C" __declspec(dllexport) int mets_controller_support_extra_device(int so
 // `on` is 0.
 extern "C" __declspec(dllexport) void mets_controller_support_test_input(int slot, int on, int gas, int steer) {
     pad::extra_device::test_input(slot, on != 0, gas, steer);
+}
+
+extern "C" __declspec(dllexport) void mets_controller_support_test_pause(int slot, int down) {
+    pad::extra_device::test_pause(slot, down != 0);
 }
 
 extern "C" __declspec(dllexport) int mets_controller_support_extra_device_slot(int slot, int source) {
