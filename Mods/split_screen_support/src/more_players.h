@@ -6,7 +6,7 @@ namespace split_screen_support::more_players {
 // A new race setup (the race options screen was built): the next race starts with the first round.
 void reset();
 
-// 0 in the first round (players 1 and 2), 1 in the second (players 3 and 4).
+// 0 in the first round (players 1 and 2), 1 in the second (players 3 and 4), ...
 int round();
 
 // A Press Start screen was made (`screen` is the MenuScreen): in the second round its text says player 3 or 4.
@@ -28,12 +28,12 @@ int extras_in_race();
 // The car of player 1 to 4 (index 0 to 3) in simulation space: position and forward vector (3 floats each). False when there is no such car.
 bool player_car_state(int index, float *position, float *forward);
 
-// The device that pressed Start for player 1 to 4 (0-3 a controller, players::kKeyboard) in the picks of the two rounds; -2 when the player did not
-// choose (or has not yet). A device used in the first round can not be chosen in the second.
+// The device that pressed Start for a player (0-3 a controller, players::kKeyboard) in the picks of the rounds; -2 when the player did not choose (or has not
+// yet). A device used in an earlier round can not be chosen in a later one.
 int pick_device(int player);
-bool device_used_in_first_round(int device);
+bool device_used_in_earlier_round(int device);
 
-// The LocalPlayer (IPlayer) of player 1 to 4 (0 to 3), null when there is none.
+// The LocalPlayer (IPlayer) of a player (0-based), null when there is none.
 void *game_player(int index);
 
 // The LocalPlayer of an extra player (0 or 1 for players 3 and 4), null when there is none.

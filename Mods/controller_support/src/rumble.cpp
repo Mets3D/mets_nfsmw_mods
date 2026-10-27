@@ -1,8 +1,11 @@
 #include <MinHook.h>
 
+#include <algorithm>
+
 #include "device_settings.h"
 #include "hooks.h"
 #include "input.h"
+#include "max_players.h"
 #include "extra_device.h"
 #include "profile.h"
 #include "rumble.h"
@@ -144,9 +147,9 @@ bool on_ground(const void *surface) {
 // thread talks to the controller: in a race the game thread just sets the level it should play (each frame), and
 // the Settings page's previews are played by the thread itself, so a crash and its preview reach the controller the same
 // way. The thread also stops the motors when the game stops updating (loading, a hang).
-// Up to four players can rumble (the others read the extra devices, see extra_device.h); g_cur is the one the game thread is
+// Every player can rumble (the others read the extra devices, see extra_device.h); g_cur is the one the game thread is
 // working on, set at every entry from the game (the feedback objects know their player).
-constexpr int kPlayers = 4;
+constexpr int kPlayers = nfsmw::kMaxPlayers;
 int g_cur = 0;
 volatile float g_game_level[kPlayers] = {};
 volatile DWORD g_last_rumble_update[kPlayers] = {};  // when the race last set g_game_level
@@ -162,7 +165,12 @@ void set_motors(float level) { g_game_level[g_cur] = level; }
 void send_level(int player, float level, int port) {
     static WORD sent[kPlayers] = {};
     static DWORD last_send[kPlayers] = {};
-    static int sent_port[kPlayers] = {-1, -1, -1, -1};
+    static int sent_port[kPlayers] = {};
+    static bool sent_port_set = false;
+    if (!sent_port_set) {
+        sent_port_set = true;
+        std::fill(sent_port, sent_port + kPlayers, -1);
+    }
     if (!xinput::can_vibrate()) return;
     if (sent_port[player] != port) {  // the player changed controller: the old one stops
         if (sent_port[player] >= 0 && sent[player]) {
@@ -419,8 +427,14 @@ void update_rumble() {
 struct Feedback {
     void **vtbl;
     void *inner;  // the game's object, which every call is passed on to
-    int index;    // 0 player 1, 1 the second player, 2 and 3 the third and fourth
-} g_feedbacks[kPlayers] = {{nullptr, nullptr, 0}, {nullptr, nullptr, 1}, {nullptr, nullptr, 2}, {nullptr, nullptr, 3}};
+    int index;    // the player: 0 player 1, 1 the second player, 2 the third ...
+} g_feedbacks[kPlayers];
+
+struct FeedbackInit {
+    FeedbackInit() {
+        for (int i = 0; i < kPlayers; ++i) g_feedbacks[i] = {nullptr, nullptr, i};
+    }
+} g_feedback_init;
 
 template <typename... A>
 void pass_on(int index, A... args) {

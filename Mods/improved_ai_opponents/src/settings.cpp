@@ -16,8 +16,10 @@ const char *const kShortcuts[] = {"avoid", "allowed", "always"};
 const char *const kOverlays[] = {"off", "ai_logic", "roads", "cost"};
 
 const char *section_of(int who) {
-    static const char *const names[kPlayers] = {"player_1", "player_2", "player_3", "player_4"};
-    return names[slot_of(who)];
+    static char name[kPlayers][16];
+    const int slot = slot_of(who);
+    if (!name[slot][0]) snprintf(name[slot], sizeof(name[slot]), "player_%d", slot + 1);
+    return name[slot];
 }
 
 template <size_t N> int read_choice(const char *section, const char *key, const char *const (&names)[N], int fallback) {

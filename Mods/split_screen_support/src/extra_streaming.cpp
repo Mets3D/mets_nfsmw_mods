@@ -12,6 +12,7 @@
 
 #include <algorithm>
 
+#include "max_players.h"
 #include "more_players.h"
 #include "patch.h"
 #include "players.h"
@@ -23,6 +24,7 @@ namespace {
 
 constexpr uintptr_t kUpdateAllCallSite = 0x480C16, kUpdateCameraMovers = 0x47C880, kStreamer = 0x9AA9D0, kPredictStreamingPosition = 0x7238D0;
 constexpr unsigned kEntries = 0xC0, kEntrySize = 0x64, kEntryFlag = 0x1D;
+constexpr int kPlaces = 2;  // what the game's track streamer has: two places it keeps the track around
 
 uintptr_t g_update_camera_movers = kUpdateCameraMovers;
 
@@ -42,8 +44,8 @@ void __cdecl update_camera_movers(float dt) {
     reinterpret_cast<void(__cdecl *)(float)>(g_update_camera_movers)(dt);
     if (!players::split_screen() || more_players::extra_player_count() == 0) return;
 
-    const int count = 2 + more_players::extra_player_count();
-    float position[4][3], forward[4][3];
+    const int count = nfsmw::kPlayersPerRound + more_players::extra_player_count();
+    float position[nfsmw::kMaxPlayers][3], forward[nfsmw::kMaxPlayers][3];
     for (int i = 0; i < count; ++i) {
         float sim_position[3], sim_forward[3];
         if (!more_players::player_car_state(i, sim_position, sim_forward)) return;
@@ -68,11 +70,11 @@ void __cdecl update_camera_movers(float dt) {
     if (first == 0 && second == 1) return;  // the game own two
 
     unsigned char *entries = reinterpret_cast<unsigned char *>(kStreamer) + kEntries;
-    unsigned char own[2][kEntrySize];
+    unsigned char own[kPlaces][kEntrySize];
     memcpy(own[0], entries, kEntrySize);
     memcpy(own[1], entries + kEntrySize, kEntrySize);
-    const int chosen[2] = {first, second};
-    for (int slot = 0; slot < 2; ++slot) {
+    const int chosen[kPlaces] = {first, second};
+    for (int slot = 0; slot < kPlaces; ++slot) {
         const int player = chosen[slot];
         if (player < 2) {
             memcpy(entries + slot * kEntrySize, own[player], kEntrySize);

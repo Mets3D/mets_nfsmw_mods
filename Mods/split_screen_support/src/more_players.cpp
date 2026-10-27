@@ -29,6 +29,7 @@
 #include <cmath>
 
 #include "hooks.h"
+#include "max_players.h"
 #include "view_ids.h"
 #include "patch.h"
 #include "player_count.h"
@@ -61,7 +62,7 @@ struct Pick {
     unsigned char customization[kCustomizationSize];
     int device = 0;
 };
-Pick g_picks[4];  // the players of both rounds
+Pick g_picks[nfsmw::kMaxPlayers];  // the players of all rounds
 int g_round = 0;
 
 unsigned char *database() { return *reinterpret_cast<unsigned char **>(kFeDatabase); }
@@ -124,6 +125,12 @@ void restore_first_round() {
 
 uintptr_t g_start_race = kStartRace;  // what the commit function called before the redirect: StartRace, or another mod's function that calls it
 
+// How many players the Players row asked for, and how they are shared among the rounds of Press Start / Car Select (the game's screens know two players, so
+// each round has two, the last one one when the count is odd).
+int wanted_players() { return std::min(player_count::wanted(), nfsmw::kMaxPlayers); }
+int rounds_wanted() { return (wanted_players() + nfsmw::kPlayersPerRound - 1) / nfsmw::kPlayersPerRound; }
+int players_in_round(int round) { return std::min(nfsmw::kPlayersPerRound, wanted_players() - round * nfsmw::kPlayersPerRound); }
+
 // What the car select's commit function (0x7A3AF0) calls instead of RaceStarter::StartRace.
 void start_race() {
     const auto original_start_race = reinterpret_cast<void (*)()>(g_start_race);
@@ -132,28 +139,30 @@ void start_race() {
         original_start_race();
         return;
     }
-    if (g_round == 0) {
-        capture(0);
-        g_round = 1;
-        g_log.line("second round: Press Start and Car Select for player%s", player_count::wanted() > 3 ? "s 3 and 4" : " 3");
+    capture(g_round * nfsmw::kPlayersPerRound, players_in_round(g_round));
+    if (g_round + 1 < rounds_wanted()) {
+        ++g_round;
+        g_log.line("round %d: Press Start and Car Select for players %d to %d", g_round + 1, g_round * nfsmw::kPlayersPerRound + 1,
+                   g_round * nfsmw::kPlayersPerRound + players_in_round(g_round));
         reinterpret_cast<void(__fastcall *)(void *, void *, const char *, int, int, bool)>(kQueuePackageSwitch)(
             *reinterpret_cast<void **>(kFEng), nullptr, "PressStart.fng", 0, 0, false);
         return;
     }
-    capture(2, player_count::wanted() - 2);
     restore_first_round();
     g_round = 0;
-    g_log.line("all %d players chose; the race starts with players 1 and 2 (the others are made after their cars)", player_count::wanted());
+    g_log.line("all %d players chose; the race starts with players 1 and 2 (the others are made after their cars)", wanted_players());
     original_start_race();
 }
 
 // ---- the race: players 3 and 4
 
-// How many players besides the first two the race that is about to load (or is running) has: 0 to 2 (0 until the second round's picks are there).
+// How many players besides the first two the race that is about to load (or is running) has (0 until the picks of every round are there).
 int extras_wanted() {
     if (!players::split_screen() || player_count::wanted() < 3) return 0;
-    const int wanted = std::min(player_count::wanted(), 4) - 2;
-    return g_picks[2].valid && (wanted < 2 || g_picks[3].valid) ? wanted : 0;
+    const int extras = wanted_players() - nfsmw::kPlayersPerRound;
+    for (int i = 0; i < extras; ++i)
+        if (!g_picks[nfsmw::kPlayersPerRound + i].valid) return 0;
+    return extras;
 }
 
 uintptr_t g_create_players = kCreatePlayers, g_create_cars = kCreateCars;  // what the calls go to (another mod may have redirected them)
@@ -189,22 +198,24 @@ void set_player_port(void *player, unsigned slot, int value) {
     reinterpret_cast<void(__fastcall *)(void *, void *, int)>(vtable[slot])(player, nullptr, value);
 }
 
-// More LocalPlayers, by calling CreatePlayers again (they get the first two players' ports and settings, which are then taken away: no view, no device yet):
-// two of them, or one when the game is not in split screen mode for the call (CreatePlayers makes the second player only in that mode). Only after CreateCars
-// made the first two cars: it gives the second player's car to the last player of the list.
+// More LocalPlayers, by calling CreatePlayers again (they get the first two players' ports and settings, which are then taken away: no view, no device yet): two
+// of them for each call, or one when the game is not in split screen mode for the call (CreatePlayers makes the second player only in that mode). Only after
+// CreateCars made the first two cars: it gives the second player's car to the last player of the list.
 bool make_extra_players(void *quick_game, void *edx, int extras) {
     using Fn = void(__fastcall *)(void *, void *);
     int &split_mode = *reinterpret_cast<int *>(kSplitMode);
     const int saved_mode = split_mode;
-    if (extras == 1) split_mode = 0;
-    reinterpret_cast<Fn>(g_create_players)(quick_game, edx);
-    split_mode = saved_mode;
+    for (int made = 0; made < extras; made += nfsmw::kPlayersPerRound) {
+        if (extras - made == 1) split_mode = 0;
+        reinterpret_cast<Fn>(g_create_players)(quick_game, edx);
+        split_mode = saved_mode;
+    }
     const int count = player_count_value();
-    g_log.line("local players: %d (the second call of CreatePlayers made %d more)", count, extras);
-    if (count < 2 + extras) return false;
+    g_log.line("local players: %d (the calls of CreatePlayers made %d more)", count, extras);
+    if (count < nfsmw::kPlayersPerRound + extras) return false;
     for (int i = count - extras; i < count; ++i) {
         void *player = player_array()[i];
-        set_player_port(player, kSetRenderPortSlot, -1);  // no view of the game's own: the views of the extra players are made by split_view.cpp
+        set_player_port(player, kSetRenderPortSlot, -1);  // no view of the game's own: the views of the extra players are made by extra_cameras.cpp
         set_player_port(player, kSetControllerPortSlot, players::extra_port(i - (count - extras)));  // their device (players.cpp), -1 when they have none
     }
     return true;
@@ -221,18 +232,18 @@ void log_player_cars(const char *when) {
     }
 }
 
-void *g_extra_players[2];
+void *g_extra_players[nfsmw::kMaxExtras];
 
 // ---- their own settings
-// The game keeps a PlayerSettings (0x14 bytes, array at [FEDatabase + 0x10] + 0x80) for players 1 and 2 only, and players 3 and 4 had those: pressing
+// The game keeps a PlayerSettings (0x14 bytes, array at [FEDatabase + 0x10] + 0x80) for players 1 and 2 only, and the other players had those: pressing
 // Change Camera View as player 3 changed player 1's camera. Each extra player gets a copy of the settings of player 1 or 2, handed out by a copy of
 // their IPlayer's virtual table whose GetSettings (+0x14) is ours.
 constexpr unsigned kSettingsArray = 0x80, kSettingsSize = 0x14, kGetSettingsSlot = 0x14 / 4, kVTableSlots = 32;
-unsigned char *g_extra_settings[2];
+unsigned char *g_extra_settings[nfsmw::kMaxExtras];
 void *(__fastcall *g_orig_get_settings)(void *, void *);
 
 void *__fastcall extra_get_settings(void *self, void *edx) {
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < nfsmw::kMaxExtras; ++i)
         if (self == g_extra_players[i] && g_extra_settings[i]) return g_extra_settings[i];
     return g_orig_get_settings(self, edx);
 }
@@ -242,7 +253,7 @@ void give_own_settings(int index, void *player) {
     unsigned char *all = *reinterpret_cast<unsigned char **>(database + 0x10) + kSettingsArray;
     if (!g_extra_settings[index]) g_extra_settings[index] = static_cast<unsigned char *>(malloc(kSettingsSize));
     if (!g_extra_settings[index]) return;
-    memcpy(g_extra_settings[index], all + index * kSettingsSize, kSettingsSize);  // player 1's or 2's
+    memcpy(g_extra_settings[index], all + (index % nfsmw::kPlayersPerRound) * kSettingsSize, kSettingsSize);  // player 1's or 2's (the slot their LocalPlayer was made with)
     player_settings::load(index, g_extra_settings[index]);                          // unless they chose their own before (this mod's ini)
     void **original = *reinterpret_cast<void ***>(player);
     if (original[kGetSettingsSlot] == reinterpret_cast<void *>(&extra_get_settings)) return;
@@ -268,50 +279,56 @@ void __fastcall create_cars(void *quick_game, void *edx, const float *start) {
     strncpy(saved_name, car_name(), sizeof(saved_name) - 1);
     saved_name[sizeof(saved_name) - 1] = 0;
 
-    void *list[2] = {};
+    void *extra_list[nfsmw::kMaxExtras] = {};
     for (int i = 0; i < extras; ++i) {
-        list[i] = player_array()[saved_count - extras + i];
-        g_extra_players[i] = list[i];
-        give_own_settings(i, list[i]);
+        extra_list[i] = player_array()[saved_count - extras + i];
+        g_extra_players[i] = extra_list[i];
+        give_own_settings(i, extra_list[i]);
     }
-    player_array() = reinterpret_cast<void **>(list);
-    player_count_value() = extras;
-    *selected_car(0) = g_picks[2].car_handle;
-    void *custom = nullptr;
-    if (extras == 2) {  // the second player's car is the one named in the FEDatabase
-        strcpy(car_name(), g_picks[3].car);
-        if (g_picks[3].has_customization) {
-            custom = reinterpret_cast<void *(*)(int, int)>(kBMalloc)(kCustomizationSize, 0x47);
-            if (custom) memcpy(custom, g_picks[3].customization, kCustomizationSize);
-        }
-    }
-    *customization_pointer() = custom;  // the game frees it after use
 
-    // A grid: the game puts the second car beside the first, and the extra cars go a row behind them (the same step apart) along the way the first
-    // car faces.
+    // A grid: the game puts the second car beside the first, and the extra cars go in rows behind them (the same step apart) along the way the first car faces.
     const float *first = player_position(saved_array[0]), *second = player_position(saved_array[1]);
-    float shifted[4] = {start[0], start[1], start[2], start[3]};
+    float row[2];  // the step from one row to the next, in the x, z plane of the simulation
     float own_position[4], forward[4], up[4];
     if (rigid_body_vectors(saved_array[0], own_position, forward, up) && hypotf(forward[0], forward[2]) > 0.1f) {
         const float length = hypotf(forward[0], forward[2]);
-        shifted[0] -= forward[0] / length * kRowSpacing;
-        shifted[2] -= forward[2] / length * kRowSpacing;
+        row[0] = -forward[0] / length * kRowSpacing;
+        row[1] = -forward[2] / length * kRowSpacing;
     } else {
-        shifted[0] += 2 * (second[0] - first[0]);  // no direction: further along the line between the first two
-        shifted[2] += 2 * (second[2] - first[2]);
+        row[0] = 2 * (second[0] - first[0]);  // no direction: further along the line between the first two
+        row[1] = 2 * (second[2] - first[2]);
     }
-    g_log.line("first two cars at (%.1f, %.1f) and (%.1f, %.1f): the cars of players 3 and 4 start at (%.1f, %.1f)", first[0], first[2], second[0], second[2],
-               shifted[0], shifted[2]);
-    g_log.line("cars of players 3%s: start (%.1f, %.1f, %.1f), car handle %#x and \"%s\"", extras == 2 ? " and 4" : "", start[0], start[1], start[2],
-               g_picks[2].car_handle, extras == 2 ? g_picks[3].car : "");
+    g_log.line("first two cars at (%.1f, %.1f) and (%.1f, %.1f): the rows of the other cars are (%.1f, %.1f) apart", first[0], first[2], second[0], second[2], row[0], row[1]);
     int &split_mode = *reinterpret_cast<int *>(kSplitMode);
     const int saved_mode = split_mode;
-    if (extras == 1) split_mode = 0;  // one car only: the second is made in split screen mode
-    reinterpret_cast<Fn>(g_create_cars)(quick_game, edx, shifted);
-    split_mode = saved_mode;
+    for (int made = 0, group = 0; made < extras; made += nfsmw::kPlayersPerRound, ++group) {
+        const int in_group = std::min(nfsmw::kPlayersPerRound, extras - made);
+        void *list[nfsmw::kPlayersPerRound] = {};
+        for (int i = 0; i < in_group; ++i) list[i] = extra_list[made + i];
+        player_array() = reinterpret_cast<void **>(list);
+        player_count_value() = in_group;
+        const Pick &first_pick = g_picks[nfsmw::kPlayersPerRound + made];
+        *selected_car(0) = first_pick.car_handle;
+        void *custom = nullptr;
+        if (in_group == 2) {  // the second player's car is the one named in the FEDatabase
+            const Pick &second_pick = g_picks[nfsmw::kPlayersPerRound + made + 1];
+            strcpy(car_name(), second_pick.car);
+            if (second_pick.has_customization) {
+                custom = reinterpret_cast<void *(*)(int, int)>(kBMalloc)(kCustomizationSize, 0x47);
+                if (custom) memcpy(custom, second_pick.customization, kCustomizationSize);
+            }
+        }
+        *customization_pointer() = custom;  // the game frees it after use
+        float shifted[4] = {start[0] + row[0] * (group + 1), start[1], start[2] + row[1] * (group + 1), start[3]};
+        g_log.line("cars of players %d to %d: start (%.1f, %.1f, %.1f), car handle %#x", nfsmw::kPlayersPerRound + made + 1, nfsmw::kPlayersPerRound + made + in_group,
+                   shifted[0], shifted[1], shifted[2], first_pick.car_handle);
+        if (in_group == 1) split_mode = 0;  // one car only: the second is made in split screen mode
+        reinterpret_cast<Fn>(g_create_cars)(quick_game, edx, shifted);
+        split_mode = saved_mode;
+    }
 
     player_array() = saved_array;
-    // Players 3 and 4 leave the list of local players (they stay in the list of all players, which keeps their cars): everything the game does
+    // The extra players leave the list of local players (they stay in the list of all players, which keeps their cars): everything the game does
     // for the local players (HUD, camera, view, the pause menu) then does not know them. A HUD of theirs would be a second copy of the HUD of
     // player 1 or 2 (same package) on the same view, and a null one crashes the loops that ask each local player for it.
     player_count_value() = saved_count - extras;
@@ -337,9 +354,8 @@ void log_views() {
 
 void log_players() {
     log_views();
-    void *all[4] = {player_array()[0], player_array()[1], g_extra_players[0], g_extra_players[1]};
-    for (int i = 0; i < 4; ++i) {
-        void *player = all[i];
+    for (int i = 0; i < nfsmw::kMaxPlayers; ++i) {
+        void *player = game_player(i);
         if (!player) continue;
         void **vtable = *reinterpret_cast<void ***>(player);
         const auto call = [&](unsigned slot) { return reinterpret_cast<void *(__fastcall *)(void *, void *)>(vtable[slot])(player, nullptr); };
@@ -355,26 +371,34 @@ void log_players() {
     }
 }
 
-int extra_player_count() { return (g_extra_players[0] ? 1 : 0) + (g_extra_players[1] ? 1 : 0); }
+int extra_player_count() {
+    int count = 0;
+    for (void *player : g_extra_players) count += player ? 1 : 0;
+    return count;
+}
 
-int pick_device(int player) { return player >= 0 && player < 4 && g_picks[player].valid ? g_picks[player].device : -2; }
+int pick_device(int player) { return player >= 0 && player < nfsmw::kMaxPlayers && g_picks[player].valid ? g_picks[player].device : -2; }
 
-bool device_used_in_first_round(int device) { return g_picks[0].valid && (g_picks[0].device == device || g_picks[1].device == device); }
+bool device_used_in_earlier_round(int device) {
+    for (int i = 0; i < g_round * nfsmw::kPlayersPerRound; ++i)
+        if (g_picks[i].valid && g_picks[i].device == device) return true;
+    return false;
+}
 
-// The LocalPlayer of player 1 to 4 (0 to 3), null when there is none (players 1 and 2: the local player list, players 3 and 4: the extra players).
+// The LocalPlayer of a player (0-based), null when there is none (players 1 and 2: the local player list, the others: the extra players).
 void *game_player(int index) {
-    if (index < 0 || index > 3) return nullptr;
-    if (index >= 2) return g_extra_players[index - 2];
+    if (index < 0 || index >= nfsmw::kMaxPlayers) return nullptr;
+    if (index >= nfsmw::kPlayersPerRound) return g_extra_players[index - nfsmw::kPlayersPerRound];
     return index < player_count_value() ? player_array()[index] : nullptr;
 }
 
-void *extra_player(int index) { return index >= 0 && index < 2 ? g_extra_players[index] : nullptr; }
+void *extra_player(int index) { return index >= 0 && index < nfsmw::kMaxExtras ? g_extra_players[index] : nullptr; }
 
-unsigned char *extra_settings(int index) { return index >= 0 && index < 2 ? g_extra_settings[index] : nullptr; }
+unsigned char *extra_settings(int index) { return index >= 0 && index < nfsmw::kMaxExtras ? g_extra_settings[index] : nullptr; }
 
 void lend_view(void *player, bool on) {
-    for (int i = 0; i < 2; ++i)
-        if (player && player == g_extra_players[i]) set_player_port(player, kSetRenderPortSlot, on ? nfsmw::views::kPlayerView[2 + i] : -1);
+    for (int i = 0; i < nfsmw::kMaxExtras; ++i)
+        if (player && player == g_extra_players[i]) set_player_port(player, kSetRenderPortSlot, on ? nfsmw::views::kPlayerView[nfsmw::kPlayersPerRound + i] : -1);
 }
 
 namespace {
@@ -384,7 +408,7 @@ int g_saved_count;
 
 bool extra_ready(int index) {
     float position[4], forward[4], up[4];
-    return index >= 0 && index < 2 && g_extra_players[index] && player_count_value() >= 2 && rigid_body_vectors(g_extra_players[index], position, forward, up);
+    return index >= 0 && index < nfsmw::kMaxExtras && g_extra_players[index] && player_count_value() >= 2 && rigid_body_vectors(g_extra_players[index], position, forward, up);
 }
 
 void make_only_local_player(int index, bool on) {
@@ -405,17 +429,17 @@ void make_only_local_player(int index, bool on) {
 
 int extras_in_race() { return extras_wanted(); }
 
-int race_players() { return !players::split_screen() ? 1 : 2 + extras_wanted(); }
+int race_players() { return !players::split_screen() ? 1 : nfsmw::kPlayersPerRound + extras_wanted(); }
 
 bool player_car_state(int index, float *position, float *forward) {
-    void *player = index < 2 ? (player_count_value() > index ? player_array()[index] : nullptr) : (index < 4 ? g_extra_players[index - 2] : nullptr);
+    void *player = game_player(index);
     float up[4];
     return player && rigid_body_vectors(player, position, forward, up);
 }
 
 void reset() {
     g_round = 0;
-    g_extra_players[0] = g_extra_players[1] = nullptr;
+    for (void *&player : g_extra_players) player = nullptr;
     for (Pick &pick : g_picks) pick.valid = false;
 }
 
@@ -470,8 +494,8 @@ void player_name(int player, char *text, unsigned size) {
 
 void on_press_start_screen(void *screen) {
     g_press_start_player = *reinterpret_cast<int *>(static_cast<char *>(screen) + kPressStartPlayer) & 1;
-    if (g_round != 1) return;
-    const int player = g_press_start_player + 3;
+    if (g_round < 1) return;
+    const int player = g_round * nfsmw::kPlayersPerRound + g_press_start_player + 1;
     const char *package = *reinterpret_cast<const char **>(static_cast<char *>(screen) + kScreenPackage);
     const char *format = reinterpret_cast<const char *(*)(unsigned)>(kGetLocalizedString)(kPlayerTextFormat);
     reinterpret_cast<int (*)(const char *, int, const char *, ...)>(kFePrintfPackage)(package, kPlayerTextObject, format, player);
@@ -491,8 +515,8 @@ constexpr uintptr_t kPressStartSwitchCall = 0x7C2694, kQueuePackageSwitchFn = 0x
 uintptr_t g_queue_package_switch = kQueuePackageSwitchFn;
 
 void __fastcall queue_package_switch(void *feng, void *edx, const char *package, int a, unsigned b, bool c) {
-    if (g_round == 1 && players::split_screen() && player_count::wanted() == 3 && package && strcmp(package, "PressStart.fng") == 0) {
-        g_log.line("second round of three: the first player's car is chosen; the race starts");
+    if (g_round >= 1 && players::split_screen() && players_in_round(g_round) == 1 && package && strcmp(package, "PressStart.fng") == 0) {
+        g_log.line("the last round has one player: their car is chosen; the race starts");
         start_race();
         return;
     }

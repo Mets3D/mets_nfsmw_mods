@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "max_players.h"
 #include "pad.h"
 #include "split_screen_api.h"
 
@@ -15,13 +16,14 @@ constexpr uintptr_t kPlayerToEdit = 0x91CA24;  // UIOptionsScreen::PlayerToEdit:
 constexpr unsigned kOffText = 0x70DFE5C2;      // the game's own "Off"
 constexpr int kMaxSeconds = 10;
 
-constexpr int kPlayers = 4;
-float g_delay[kPlayers] = {3.0f, 3.0f, 3.0f, 3.0f};  // seconds, 0 = never
-float g_opened[kPlayers];                            // what was last accepted (and is in the ini)
+constexpr int kPlayers = nfsmw::kMaxPlayers;
+float g_delay[kPlayers];   // seconds, 0 = never (3 until load)
+float g_opened[kPlayers];  // what was last accepted (and is in the ini)
 
 const char *section_of(int who) {
-    static const char *const names[kPlayers] = {"look_player_1", "look_player_2", "look_player_3", "look_player_4"};
-    return names[who];
+    static char name[kPlayers][16];
+    if (!name[who][0]) snprintf(name[who], sizeof(name[who]), "look_player_%d", who + 1);
+    return name[who];
 }
 // Whose options are open: with split screen support, the player who asked for the pause menu (0 to 3), otherwise the game's own number (0 or 1).
 int editing() {

@@ -7,15 +7,16 @@
 // hand. The device says what the bindings (the Controls menu's) of its source ask for: an XInput controller or the keyboard.
 #pragma once
 
+#include "max_players.h"
 #include "pad.h"
 
 namespace pad::extra_device {
 
 // Makes the device (once) and gives it a source: an XInput controller (0-3), controller_api::kSourceKeyboard or
 // kSourceNone. Returns the port the second player's ActionQueue must read, or -1 when there is no device.
-// More than two players have more devices (slots 1 and 2: players 3 and 4): add_slot does the same for a slot, add() is slot 0. Only slot 0 has
+// More than two players have more devices (slots 1 and up: players 3 and up): add_slot does the same for a slot, add() is slot 0. Only slot 0 has
 // the joystick port -1 mapping of the second player.
-constexpr int kSlots = 3;
+constexpr int kSlots = nfsmw::kMaxPlayers - 1;  // slot 0 is the second player's, slot k player k + 1's
 int add_slot(int slot, int source);
 int add(int source);
 int port();                 // the device's port, or -1 before add()

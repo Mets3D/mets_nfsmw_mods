@@ -20,6 +20,7 @@
 
 #include "events.h"
 #include "hooks.h"
+#include "max_players.h"
 #include "hud_packages.h"
 #include "hud_views.h"
 #include "minimap.h"
@@ -33,14 +34,15 @@ namespace {
 
 constexpr int kHudSplit1 = 3, kHudSplit2 = 4;  // ePlayerHudType
 constexpr const char *kSource = "HUD_Player1.fng";
-constexpr const char *kCopies[] = {"HUD_PlayerB.fng", "HUD_PlayerC.fng", "HUD_PlayerD.fng"};  // for players 2, 3 and 4
-constexpr int kMaxHuds = 4;
+constexpr const char *kCopies[] = {"HUD_PlayerB.fng", "HUD_PlayerC.fng", "HUD_PlayerD.fng", "HUD_PlayerE.fng", "HUD_PlayerF.fng", "HUD_PlayerG.fng", "HUD_PlayerH.fng"};  // for players 2 and up (same length as the source)
+constexpr int kMaxHuds = nfsmw::kMaxPlayers;
+static_assert(sizeof(kCopies) / sizeof(kCopies[0]) >= nfsmw::kMaxPlayers - 1, "a HUD package copy for every player but the first");
 constexpr uintptr_t kMalloc = 0x7C66D0, kMinimapCtor = 0x59D500;
 constexpr unsigned kMinimapSize = 0x338, kHudMinimap = 0x320, kHudCountdown = 0x318;
 constexpr unsigned kPlayerSetHudSlot = 0x24 / 4;  // IPlayer's virtual table
 
 constexpr float kMinimapRise = -75.0f;  // FE units: the minimap sits on the line between the halves of the screen's layout, where the HUD's half ends
-constexpr unsigned kColours[kMaxHuds] = {0x00FF9040, 0x002090FF, 0x0040E060, 0x00C050FF};  // the marker of each player on the minimaps: orange, blue, green, purple
+constexpr unsigned kColours[kMaxHuds] = {0x00FF9040, 0x002090FF, 0x0040E060, 0x00C050FF, 0x00F0E040, 0x0040E0E0, 0x00F060A0, 0x00A0A0A0};  // the marker of each player on the minimaps: orange, blue, green, purple, yellow, cyan, pink, grey
 
 void(__fastcall *g_orig_begin_countdown)(void *, void *);
 bool g_in_countdown = false;
@@ -85,7 +87,7 @@ void hud_filter(int &type, const char *&package) {
         g_countdown_offset = -1;
         g_extra_huds_made = false;
     }
-    if (type != kHudSplit2 || g_copies_used >= 3) return;
+    if (type != kHudSplit2 || g_copies_used >= kMaxHuds - 1) return;
     if (!hud_packages::ensure_alias(kSource, kCopies[g_copies_used])) return;
     package = kCopies[g_copies_used++];
 }

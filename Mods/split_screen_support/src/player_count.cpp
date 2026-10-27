@@ -1,15 +1,18 @@
 /*
- * A "Players" row (2, 3 or 4) in the race options that follow the track select (UIQRTrackOptions, Track_Options.fng) of a split screen
+ * A "Players" row (2 up to [options] max_players, 4 by default) in the race options that follow the track select (UIQRTrackOptions, Track_Options.fng) of a split screen
  * race. The screen builds its rows in Setup (0x7BA7C0), which calls one of SetupCircuit / SetupSprint ... and sets the first row as the
  * cursor's; after it returns our row is added the way nfsmw_custom_menus builds the rows of its pages: an FEToggleWidget (constructor
  * 0x589300, 0x5C bytes) whose virtual table is PODriveCam's (the table those rows use) with Act and Draw replaced, handed to
  * UIWidgetMenu::AddToggleOption (0x588570). The row's texts are language strings registered through nfsmw_custom_menus (without it
  * there is no row, and the race has two players).
- * Left and right change the value: 2, 3 or 4 (with 3 the second round of Press Start / Car Select is for one player: see more_players.cpp).
+ * Left and right change the value: 2 up to max_players (an odd count has a last round of Press Start / Car Select for one player: see more_players.cpp).
  */
 #include "player_count.h"
 
+#include <algorithm>
+
 #include "hooks.h"
+#include "max_players.h"
 #include "patch.h"
 #include "more_players.h"
 #include "players.h"
@@ -27,7 +30,18 @@ constexpr unsigned kPadLeft = 0x9120409E, kPadRight = 0xB5971BF1;
 constexpr int kBlinkSlot = 14, kDrawSlot = 3;
 
 const unsigned kTitleHash = nfsmw::bstring_hash("SPLIT_PLAYERS");
-const unsigned kValueHash[5] = {0, 0, nfsmw::bstring_hash("SPLIT_PLAYERS_2"), nfsmw::bstring_hash("SPLIT_PLAYERS_3"), nfsmw::bstring_hash("SPLIT_PLAYERS_4")};
+// The most players the row offers ([options] max_players, 4 by default: the most that has been played; up to nfsmw::kMaxPlayers).
+int max_players() {
+    static const int value = std::clamp(static_cast<int>(GetPrivateProfileIntA("options", "max_players", 4, g_ini)), 2, nfsmw::kMaxPlayers);
+    return value;
+}
+
+// The language string of the row's value for n players.
+unsigned value_hash(int players) {
+    char name[32];
+    snprintf(name, sizeof(name), "SPLIT_PLAYERS_%d", players);
+    return nfsmw::bstring_hash(name);
+}
 
 int g_wanted = 2;
 bool g_texts = false;
@@ -41,13 +55,13 @@ void set_hash(void *string, unsigned hash) { reinterpret_cast<void (*)(void *, u
 // FEToggleWidget::Draw
 void __fastcall draw(void *self, void *) {
     set_hash(field<void *>(self, kTitle), kTitleHash);
-    set_hash(field<void *>(self, kData), kValueHash[g_wanted]);
+    set_hash(field<void *>(self, kData), value_hash(g_wanted));
 }
 
 // FEToggleWidget::Act(const char *package, uint32 pad message)
 void __fastcall act(void *self, void *, const char *, unsigned data) {
     if (data != kPadLeft && data != kPadRight) return;
-    g_wanted = data == kPadRight ? (g_wanted == 4 ? 2 : g_wanted + 1) : (g_wanted == 2 ? 4 : g_wanted - 1);
+    g_wanted = data == kPadRight ? (g_wanted >= max_players() ? 2 : g_wanted + 1) : (g_wanted <= 2 ? max_players() : g_wanted - 1);
     field<unsigned char>(self, kChanged) = 1;
     void **vtable = field<void **>(self, 0);
     reinterpret_cast<void(__fastcall *)(void *, void *, unsigned)>(vtable[kBlinkSlot])(self, nullptr, data);  // the arrow blinks
@@ -89,9 +103,11 @@ int wanted() { return g_wanted; }
 void register_texts(const nfsmw::custom_menus::Host *host) {
     if (!ini_flag("options", "more_players", false)) return;
     host->register_text(kTitleHash, "Players");
-    host->register_text(kValueHash[2], "2");
-    host->register_text(kValueHash[3], "3");
-    host->register_text(kValueHash[4], "4");
+    for (int players = 2; players <= max_players(); ++players) {
+        char text[8];
+        snprintf(text, sizeof(text), "%d", players);
+        host->register_text(value_hash(players), text);
+    }
     g_texts = true;
 }
 

@@ -7,8 +7,8 @@
 //   int mets_controller_support_extra_device(int source)  a second game input device (own port) for a second local
 //                      player, saying what the bindings of `source` ask for: an XInput controller 0-3, kSourceKeyboard or
 //                      kSourceNone. Returns the port for the player's joystick port (FEDatabase), or -1 when there is none
-//   int mets_controller_support_extra_device_slot(int slot, int source)  the same for more players: slot 0 is the second player's (as above), 1 and 2 are
-//                      the third's and fourth's.
+//   int mets_controller_support_extra_device_slot(int slot, int source)  the same for more players: slot 0 is the second player's (as above), slot k player k + 2's (1-based; up to
+//                      nfsmw::kMaxPlayers - 1 slots).
 //   int mets_controller_support_device_label(int source, char *out, int size)  the name of a device as the Controls menu shows it ("Xbox One S Controller",
 //                      "Keyboard"; source: an XInput controller 0-3 or kSourceKeyboard); 0 when the controller is not known
 //   int mets_controller_support_live_pad()  whose controller bindings the live binding table holds now (0 = the first controller's;

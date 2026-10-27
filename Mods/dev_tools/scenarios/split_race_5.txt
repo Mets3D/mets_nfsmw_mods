@@ -1,0 +1,68 @@
+# split_race_4 with the Players row at 5: three rounds of Press Start and Car Select (players 1 and 2, 3 and 4, then 5 alone, on the keyboard and controllers 0 to 3), a race with five views (a 3 x 3 grid). Set max_players=5 (or more) in [options] of the split screen .ini first.
+# Through the real menus with the Players row set to 4 (see split_race_4_drive), then the race.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 2
+press down 2
+press right 3
+wait 2
+screenshot race_options
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 1
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 2
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+screenshot car_select_3 width=640
+press right 3
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 3
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 4
+wait 2
+press accept
+wait_until racing timeout=240
+wait 6
+log_players
+screenshot five_a width=1280
+wait 3
+screenshot five_b width=1280
+quit

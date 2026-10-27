@@ -18,6 +18,7 @@
 #include "hooks.h"
 #include "hud_players.h"
 #include "hud_views.h"
+#include "max_players.h"
 #include "player_count.h"
 #include "player_settings.h"
 #include "split_screen_support.h"
@@ -37,16 +38,17 @@ constexpr int kHudSplit2 = 4;                  // player 2's HUD in split screen
 constexpr unsigned long long kMinimapFeatures = 0x10000 | 0x4000;
 constexpr unsigned kOnText = 0x417B2604, kOffText = 0x70DFE5C2;  // the game's own "On" and "Off"
 
-constexpr int kPlayers = 4;
-bool g_show[kPlayers] = {true, true, true, true};
+constexpr int kPlayers = nfsmw::kMaxPlayers;
+bool g_show[kPlayers];  // (true until load)
 bool g_opened[kPlayers];
 constexpr int kScaleStep = 10, kMinScale = 40;      // the HUD scale, percent: 40 to 100
-int g_scale[kPlayers] = {100, 100, 100, 100};
+int g_scale[kPlayers];  // (100 until load)
 int g_scale_opened[kPlayers];
 
 const char *section_of(int who) {
-    static const char *const names[kPlayers] = {"player_1", "player_2", "player_3", "player_4"};
-    return names[who];
+    static char name[kPlayers][16];
+    if (!name[who][0]) snprintf(name[who], sizeof(name[who]), "player_%d", who + 1);
+    return name[who];
 }
 // Whose options are open: the player who asked for the pause menu (with more than two players the game's PlayerToEdit only has 0 and 1).
 int editing() {

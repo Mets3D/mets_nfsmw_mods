@@ -23,6 +23,7 @@
 #include "controller_api.h"
 #include "events.h"
 #include "hooks.h"
+#include "max_players.h"
 #include "more_players.h"
 #include "split_screen_support.h"
 
@@ -42,13 +43,14 @@ constexpr int kEveryone = -3, kNormal = -4;  // for give_controls(): every devic
 constexpr int kStartKeys[] = {0x1C, 0x39, 0x9C};  // DirectInput codes: Enter, Space, numpad Enter
 constexpr int kNextDeviceKey = 0x43;               // F9: the Press Start screen takes the next device that has no player (see poll())
 
-bool g_start_was_down[4];  // XInput slots
+constexpr int kXInputSlots = 4;  // the controllers XInput knows
+bool g_start_was_down[kXInputSlots];
 bool g_key_was_down = false, g_next_key_was_down = false;
-bool g_connected[4];
+bool g_connected[kXInputSlots];
 DWORD g_next_scan = 0;
 int g_chosen[2] = {kNotChosen, kNotChosen};  // at the Press Start screens
-int g_race[4] = {kKeyboard, kKeyboard, kKeyboard, kKeyboard};  // in the race
-int g_extra_port[2] = {-1, -1};               // the game input device ports of players 3 and 4
+int g_race[nfsmw::kMaxPlayers];            // in the race (kKeyboard until a race is made)
+int g_extra_port[nfsmw::kMaxExtras];       // the game input device ports of players 3 and up (-1: none)
 bool g_controls_asked = false;                // mets_controller_support was told what reaches the game
 void *g_press_start_screen = nullptr;         // the Press Start screen showing, if any
 int g_pressed_by = kNotChosen;  // the device whose Start the screen is being told about (see press_start)
@@ -61,7 +63,7 @@ void __fastcall hook_press_start(void *screen, void *edx, unsigned message, void
 
 const char *describe(int device) {
     static const char *const names[] = {"controller 0", "controller 1", "controller 2", "controller 3"};
-    return device >= 0 && device < 4 ? names[device] : "the keyboard";
+    return device >= 0 && device < kXInputSlots ? names[device] : "the keyboard";
 }
 
 // The Press Start screen is told that a device let go of Start.
@@ -74,16 +76,16 @@ void press_start(int device) {
 
 bool device_taken(int device) {
     if (g_chosen[0] == device || g_chosen[1] == device) return true;
-    return more_players::round() == 1 && more_players::device_used_in_first_round(device);
+    return more_players::round() >= 1 && more_players::device_used_in_earlier_round(device);
 }
 
 // F9 on a Press Start screen: the player gets the first device that has no player yet (a connected controller, else the keyboard, else a controller
 // that is not connected), so a game can be tested with fewer devices than players.
 int next_free_device() {
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < kXInputSlots; ++i)
         if (g_connected[i] && !device_taken(i)) return i;
     if (!device_taken(kKeyboard)) return kKeyboard;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < kXInputSlots; ++i)
         if (!device_taken(i)) return i;
     return kNotChosen;
 }
@@ -93,7 +95,7 @@ void poll() {
     const bool scan = static_cast<LONG>(now - g_next_scan) >= 0;
     if (scan) g_next_scan = now + 2000;
     int released = kNotChosen;
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < kXInputSlots; ++i) {
         if (!g_connected[i] && !scan) continue;  // asking an empty slot is slow
         xinput::Gamepad p;
         const bool was = g_connected[i];
@@ -165,14 +167,14 @@ void end_second_player() {
 
 // A device that is not `taken`: a connected controller, else the keyboard (which may be the same: nothing else is there).
 int other_device(int taken) {
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < kXInputSlots; ++i)
         if (g_connected[i] && i != taken) return i;
     return kKeyboard;
 }
 
 // A device that is none of those of the first `count` players of the race.
 int free_device(int count) {
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < kXInputSlots; ++i) {
         bool taken = false;
         for (int p = 0; p < count; ++p) taken = taken || g_race[p] == i;
         if (g_connected[i] && !taken) return i;
@@ -184,11 +186,11 @@ int free_device(int count) {
 void start_extra_players() {
     static const api::ExtraDeviceSlotFn slot = api::find_extra_device_slot();
     for (int i = 0; i < more_players::extras_in_race(); ++i) {
-        int device = more_players::pick_device(2 + i);
-        for (int p = 0; p < 2 + i; ++p)
+        int device = more_players::pick_device(nfsmw::kPlayersPerRound + i);
+        for (int p = 0; p < nfsmw::kPlayersPerRound + i; ++p)
             if (device == g_race[p]) device = kNotChosen;  // a device that has a player already
-        if (device == kNotChosen) device = free_device(2 + i);
-        g_race[2 + i] = device;
+        if (device == kNotChosen) device = free_device(nfsmw::kPlayersPerRound + i);
+        g_race[nfsmw::kPlayersPerRound + i] = device;
         g_extra_port[i] = slot ? slot(1 + i, device == kKeyboard ? api::kSourceKeyboard : device) : -1;
         g_log.line("player %d reads %s (%s)", 3 + i, describe(device), g_extra_port[i] >= 0 ? "a game input device of their own" : "no game input device");
     }
@@ -196,7 +198,7 @@ void start_extra_players() {
 
 void end_extra_players() {
     static const api::ExtraDeviceSlotFn slot = api::find_extra_device_slot();
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < nfsmw::kMaxExtras; ++i) {
         if (slot) slot(1 + i, api::kSourceNone);
         g_extra_port[i] = -1;
     }
@@ -273,8 +275,8 @@ void __fastcall hook_press_start(void *screen, void *edx, unsigned message, void
             g_log.line("Press Start: %s already plays player %d; ignored", describe(g_pressed_by), 2 - player);
             return;  // a device that already has a player does nothing: the screen stays
         }
-        if (more_players::round() == 1 && more_players::device_used_in_first_round(g_pressed_by)) {
-            g_log.line("Press Start: %s already plays in the first round; ignored", describe(g_pressed_by));
+        if (more_players::round() >= 1 && more_players::device_used_in_earlier_round(g_pressed_by)) {
+            g_log.line("Press Start: %s already plays in an earlier round; ignored", describe(g_pressed_by));
             return;
         }
         if (player == 0 || player == 1) {
@@ -334,7 +336,7 @@ void set_chosen(const int in[2]) {
     g_chosen[1] = in[1];
 }
 
-int device(int player) { return player >= 0 && player < 4 ? g_race[player] : kKeyboard; }
+int device(int player) { return player >= 0 && player < nfsmw::kMaxPlayers ? g_race[player] : kKeyboard; }
 
 int chosen(int index) { return index >= 0 && index < 2 ? g_chosen[index] : kNotChosen; }
 
@@ -345,7 +347,7 @@ void device_label(int device, char *out, unsigned size) {
     label(device == kKeyboard ? api::kSourceKeyboard : device, out, static_cast<int>(size));
 }
 
-int extra_port(int extra) { return extra >= 0 && extra < 2 ? g_extra_port[extra] : -1; }
+int extra_port(int extra) { return extra >= 0 && extra < nfsmw::kMaxExtras ? g_extra_port[extra] : -1; }
 
 bool read_keyboard(unsigned char *out) {
     static const api::KeyboardStateFn fn = api::find_keyboard_state();
@@ -353,6 +355,8 @@ bool read_keyboard(unsigned char *out) {
 }
 
 void install() {
+    for (int &device : g_race) device = kKeyboard;
+    for (int &port : g_extra_port) port = -1;
     if (!xinput::load(&g_log)) {
         g_log.line("players: no XInput, controllers cannot be told apart");
         return;

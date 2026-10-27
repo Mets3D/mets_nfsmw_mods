@@ -16,6 +16,7 @@
 
 #include "events.h"
 #include "hooks.h"
+#include "max_players.h"
 #include "hud_players.h"
 #include "more_players.h"
 #include "players.h"
@@ -45,12 +46,16 @@ void swap_bytes(unsigned char *a, unsigned char *b) {
 unsigned char *location(int who) {
     if (g_editing >= 0) {
         if (who == g_slot) return more_players::extra_settings(g_editing);
-        if (who == 2 + g_editing) return entry(g_slot);
+        if (who == nfsmw::kPlayersPerRound + g_editing) return entry(g_slot);
     }
     return who <= 1 ? entry(who) : more_players::extra_settings(who - 2);
 }
 
-const char *section_of(int extra) { return extra == 0 ? "player_3" : "player_4"; }
+const char *section_of(int extra) {
+    static char name[nfsmw::kMaxExtras][16];
+    if (!name[extra][0]) snprintf(name[extra], sizeof(name[extra]), "player_%d", extra + nfsmw::kPlayersPerRound + 1);
+    return name[extra];
+}
 
 void save(int extra, const unsigned char *settings) {
     char text[2 * kSettingsSize + 1];

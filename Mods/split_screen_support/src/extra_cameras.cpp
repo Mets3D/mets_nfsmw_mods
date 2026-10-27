@@ -15,6 +15,7 @@
 #include <cstring>
 
 #include "events.h"
+#include "max_players.h"
 #include "hooks.h"
 #include "more_players.h"
 #include "players.h"
@@ -38,7 +39,7 @@ struct Extra {
     void *camera = nullptr, *plat_info = nullptr;
     void *director = nullptr;
 };
-Extra g_extra[2];
+Extra g_extra[nfsmw::kMaxExtras];
 
 uintptr_t view_address(int index) { return kViews + 0x70 * nfsmw::views::kPlayerView[2 + index]; }
 
@@ -93,7 +94,7 @@ void destroy(int index) {
 void create(int index) {
     Extra &e = g_extra[index];
     if (!set_up_view(index)) return;
-    const int view_id = nfsmw::views::kPlayerView[2 + index];
+    const int view_id = nfsmw::views::kPlayerView[nfsmw::kPlayersPerRound + index];
     unsigned char intro[2];
     for (int i = 0; i < 2; ++i) intro[i] = *reinterpret_cast<unsigned char *>(kIntroFlags[i]);
     void *director = reinterpret_cast<void *(__fastcall *)(void *, void *, unsigned, const char *)>(kFastMemAlloc)(reinterpret_cast<void *>(kFastMem), nullptr, kDirectorSize, nullptr);
@@ -129,7 +130,7 @@ void (__cdecl *g_orig_camera_ai_update)(float);
 
 // The game's loop makes the directors of its two views; ours make the others', before the game updates them all.
 void __cdecl hook_camera_ai_update(float dt) {
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < nfsmw::kMaxExtras; ++i) {
         if (g_extra[i].director && !in_game_list(g_extra[i].director)) destroy(i);
         const bool wanted = players::split_screen() && more_players::extra_ready(i);
         if (wanted && !g_extra[i].director) create(i);
@@ -140,7 +141,7 @@ void __cdecl hook_camera_ai_update(float dt) {
 
 // A race is about to load: the directors of the one before are gone with it (before the game makes the new ones, which may take the place of ours).
 void on_world_load() {
-    for (int i = 0; i < 2; ++i) destroy(i);
+    for (int i = 0; i < nfsmw::kMaxExtras; ++i) destroy(i);
 }
 
 }  // namespace

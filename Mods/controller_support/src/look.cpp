@@ -5,6 +5,7 @@
 #include "input.h"
 #include "look.h"
 #include "look_options.h"
+#include "max_players.h"
 #include "view_ids.h"
 
 namespace pad::look {
@@ -34,7 +35,7 @@ struct LookState {
     float idle = 0.0f;
     Vec3 prev_target{};
     bool prev_target_valid = false;
-} g_state[4];  // by player
+} g_state[nfsmw::kMaxPlayers];  // by player
 
 // The look of a player with a device of their own (-1..1 each way): their device's look entries, with the same bindings and dead zone as anybody's.
 void second_stick(int who, float *x, float *y) {
@@ -122,7 +123,7 @@ void apply_look(int who, int mode, bool looking_back, float mover_dt, void *out,
         last_tick = now;
     }
     // The look-back view is orbited like the others; switching between it and the normal view starts from the view's own angle.
-    static bool was_looking_back[4];
+    static bool was_looking_back[nfsmw::kMaxPlayers];
     if (looking_back != was_looking_back[who]) {
         was_looking_back[who] = looking_back;
         reset_look(who);

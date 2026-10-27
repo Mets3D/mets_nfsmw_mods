@@ -13,9 +13,9 @@
  *   screenshot <name> [width=960]      <data folder>/screenshots/<date>-<time>_<scenario>/<name>.png
  *   measure <seconds>                  waits that long and logs the frame rate over it
  *   profile <seconds>                  like measure, and samples the game's thread: where its time goes goes to the log
- *   drive <player 2-4> <gas 0..1> <steer -1..1>   that player's own game input device says that until `drive <player> off` (mets_controller_support)
- *   pause_request <player 2-4> <1|0>   that player's device holds / lets go of the pause button (the pause menu is that player's)
- *   entry <player 2-4> <number> <value -1..1>   that player's device says that for binding entry <number> (15 camera change, 16 look back, 25-28 look
+ *   drive <player 2 and up> <gas 0..1> <steer -1..1>   that player's own game input device says that until `drive <player> off` (mets_controller_support)
+ *   pause_request <player 2 and up> <1|0>   that player's device holds / lets go of the pause button (the pause menu is that player's)
+ *   entry <player 2 and up> <number> <value -1..1>   that player's device says that for binding entry <number> (15 camera change, 16 look back, 25-28 look
  *                                      up/left/down/right...) until it is set back with `entry <player> <number> off`
  *   state                              logs the game's state: flow state, boot screen, view mode, players
  *   log <text>
@@ -43,6 +43,7 @@
 #include "dev_tools.h"
 #include "screenshot.h"
 #include "controller_api.h"
+#include "max_players.h"
 #include "split_screen_api.h"
 
 namespace dev_tools::automation {
@@ -282,20 +283,20 @@ void run(const std::string &line, IDirect3DDevice9 *device) {
         static const auto test_input = nfsmw::controller_api::find_test_input();
         if (!test_input) return quit(2, "drive: mets_controller_support is not loaded");
         const int player = atoi(w[1].c_str());
-        if (player < 2 || player > 4) return quit(2, "drive: players 2 to 4");
+        if (player < 2 || player > nfsmw::kMaxPlayers) return quit(2, "drive: players 2 and up");
         if (w[2] == "off") test_input(player - 2, 0, 0, 0);
         else test_input(player - 2, 1, static_cast<int>(atof(w[2].c_str()) * 1000), w.size() >= 4 ? static_cast<int>(atof(w[3].c_str()) * 1000) : 0);
     } else if (cmd == "entry" && w.size() >= 4) {
         static const auto test_entry = nfsmw::controller_api::find_test_entry();
         if (!test_entry) return quit(2, "entry: mets_controller_support is not loaded");
         const int player = atoi(w[1].c_str());
-        if (player < 2 || player > 4) return quit(2, "entry: players 2 to 4");
+        if (player < 2 || player > nfsmw::kMaxPlayers) return quit(2, "entry: players 2 and up");
         test_entry(player - 2, atoi(w[2].c_str()), w[3] == "off" ? -1 : static_cast<int>(atof(w[3].c_str()) * 1000));
     } else if (cmd == "pause_request" && w.size() >= 3) {
         static const auto test_pause = nfsmw::controller_api::find_test_pause();
         if (!test_pause) return quit(2, "pause_request: mets_controller_support is not loaded");
         const int player = atoi(w[1].c_str());
-        if (player < 2 || player > 4) return quit(2, "pause_request: players 2 to 4");
+        if (player < 2 || player > nfsmw::kMaxPlayers) return quit(2, "pause_request: players 2 and up");
         test_pause(player - 2, atoi(w[2].c_str()));
     } else if (cmd == "press_start" && w.size() >= 2) {
         static const auto press_start = nfsmw::split_screen_api::find_press_start();

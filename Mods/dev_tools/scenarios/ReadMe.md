@@ -28,9 +28,9 @@ One command per line. `#` starts a comment. Arguments are words, or `key=value`.
 | `press <button> [times]` | A menu button press, held for 100 ms as a real press is: `accept`, `back`, `up`, `down`, `left`, `right`, `start`. The next command waits until the presses are done. |
 | `measure <seconds>` | Waits that long and logs the frame rate over it (`measure: N frames in M ms`). |
 | `profile <seconds>` | Like `measure`, and a thread samples the game thread's instruction pointer every millisecond: the log gets the time by module (the game, d3d9, d3dx9, the driver) and by 256-byte block of the game's code (`Tools/re/re.py name <addr>` says which function), and for time spent outside the game the block of the game's code that called in. The game was 28% d3d9, 23% d3dx9 and 24% its own code in a four player race: the cost is draw calls. |
-| `drive <player 2-4> <gas 0..1> [steer -1..1]` | That player's own game input device says that (gas and steering) until `drive <player> off` (needs `mets_controller_support`; player 1 reads every device and cannot be driven this way). |
-| `entry <player 2-4> <binding entry> <value or off>` | That player's device says that value for a binding entry (15 camera change, 16 look back, 25-28 look left / right / up / down) until `off`. |
-| `pause_request <player 2-4> <1 or 0>` | That player's device holds (1) or lets go of (0) the pause button: the pause menu is theirs. |
+| `drive <player 2 and up> <gas 0..1> [steer -1..1]` | That player's own game input device says that (gas and steering) until `drive <player> off` (needs `mets_controller_support`; player 1 reads every device and cannot be driven this way). |
+| `entry <player 2 and up> <binding entry> <value or off>` | That player's device says that value for a binding entry (15 camera change, 16 look back, 25-28 look left / right / up / down) until `off`. |
+| `pause_request <player 2 and up> <1 or 0>` | That player's device holds (1) or lets go of (0) the pause button: the pause menu is theirs. |
 | `log_cars` | Logs the cars of the profile's garage (the Quick Race's car list): index, handle (the first word), and the folder in CARS that has the car's name with its size. The `log_cars` scenario does just that. |
 | `log_players` | Logs every local player of the split screen mod: car, position, render port (needs `nfsmw_split_screen_support`). |
 | `press_start <0-3\|keyboard>` | For the split screen Press Start screens: tells the one that is showing that this device let go of Start (needs `nfsmw_split_screen_support`). |
@@ -57,6 +57,7 @@ Every change of screen is logged (`screen: <package> (frame, ms)`) without a com
 - `split_race_4_ai.txt` is the same with the AI driving players 3 and 4 (set `[player_3] control=improved` and `[player_4] control=vanilla` in `nfsmw_improved_ai_opponents.ini` first): the log and the screenshots show their cars driving off.
 - `split_race_again.txt` is a 2 player race, Quit Race from the pause menu, and a second game from where the game lands: it must be the race options (Track_Options.fng), and the devices of the first game (keyboard, controller 0) must be free again (controllers 1 and 2 play).
 - `split_race_4_perf.txt` is split_race_4 and then the frame rate of fifteen seconds (`measure`) and the log's frame timing; run it with `--resolution WxH` to see how the frame time follows the pixels.
+- `split_race_5.txt` is split_race_4 with the Players row at 5 (`max_players=5` in the split screen .ini): three rounds of Press Start and Car Select (the last for one player), a race with five views.
 - `live.txt` boots to the main menu and waits for lines to be appended.
 
 ## Writing a scenario for another menu path

@@ -16,6 +16,7 @@
 #include <MinHook.h>
 
 #include "hooks.h"
+#include "max_players.h"
 #include "more_players.h"
 #include "patch.h"
 #include "split_screen_support.h"
@@ -25,10 +26,10 @@ namespace split_screen_support::reflections {
 namespace {
 
 constexpr uintptr_t kEnvMapEnabled = 0x9017B8, kUpdateEnvMapCameras = 0x756060, kViews = 0x9195E0;
-constexpr uintptr_t kEnvUpdateCamerasCall = 0x75611D, kEnvUpdateCameras = 0x6DA350, kSetupPerView = 0x6CF400;
+constexpr uintptr_t kSetupPerView = 0x6CF400;
 constexpr int kViewSize = 0x70, kViewActive = 0x08, kViewRenderTarget = 0x60, kTargetSurface = 8, kFirstFace = 18, kFaces = 6;
 constexpr unsigned kFarPlane = 0x466A6000;  // 15000.0f, as eDisplayFrame passes it
-constexpr int kMaxPlayers = 8;
+constexpr int kMaxPlayers = nfsmw::kMaxPlayers;
 
 bool g_split = false;
 int g_player = 0, g_players = 2;     // the pass being drawn, and how many passes there are
@@ -124,34 +125,6 @@ void hook_update_env_map_cameras() {
     rate = saved;
 }
 
-// eEnvMap::UpdateCameras(viewer position, cube map centre) is called by UpdateEnvironmentMapCameras (0x75611D) with the centre at the car the first
-// camera mover of view 1 follows. In the passes of players 3 and later that is the car of player 2 (their views have no mover of the game own), so the
-// centre is moved by the difference between their car and player 2 car. The viewer position comes from view 1 camera, which holds theirs in those passes.
-uintptr_t g_env_update_cameras = kEnvUpdateCameras;
-float g_env_shift[3] = {};
-bool g_env_shift_on = false;
-
-void __fastcall env_update_cameras(void *env_map, void *edx, float *viewer, float *centre) {
-    float moved[4];
-    if (g_env_shift_on) {
-        memcpy(moved, centre, sizeof(moved));
-        for (int i = 0; i < 3; ++i) moved[i] += g_env_shift[i];
-        centre = moved;
-    }
-    reinterpret_cast<void(__fastcall *)(void *, void *, float *, float *)>(g_env_update_cameras)(env_map, edx, viewer, centre);
-}
-
-// The shift (render space) from the car of player 2 to the car of `player` (3rd or later), for the next update.
-void aim_at(int player) {
-    float own[3], own_forward[3], other[3], other_forward[3];
-    g_env_shift_on = more_players::player_car_state(1, own, own_forward) && more_players::player_car_state(player, other, other_forward);
-    if (!g_env_shift_on) return;
-    const float delta[3] = {other[0] - own[0], other[1] - own[1], other[2] - own[2]};
-    g_env_shift[0] = delta[2];  // simulation (x, y, z) -> render (z, -x, y)
-    g_env_shift[1] = -delta[0];
-    g_env_shift[2] = delta[1];
-}
-
 // What the game does once a frame for player 1's views (UpdateEnvironmentMapCameras), and what ___eDisplayFrame's loop does for them.
 void update_for_view1() {
     if (!*reinterpret_cast<int *>(kEnvMapEnabled)) return;
@@ -175,9 +148,7 @@ void begin_pass(IDirect3DDevice9 *device, int player, int player_count) {
     g_player = player < kMaxPlayers ? player : kMaxPlayers - 1;
     g_players = player_count;
     if (player >= 1) {  // player 1's faces were chosen by the game's own call at the start of the frame
-        if (player >= 2) aim_at(player);
         update_for_view1();
-        g_env_shift_on = false;
     }
     // The faces the game draws now need nothing: the others are this player's from the last pass.
     if (g_copies_wanted && g_copy[g_player].valid && *reinterpret_cast<int *>(kEnvMapEnabled)) {
@@ -209,7 +180,6 @@ void install() {
          nfsmw::detour(&hook_update_env_map_cameras), nfsmw::orig(&g_orig_update_env_map_cameras)},
     };
     nfsmw::install_hooks(hooks, 1, g_log, nullptr, "reflections");
-    if (const uintptr_t previous = nfsmw::chain_call(kEnvUpdateCamerasCall, reinterpret_cast<uintptr_t>(&env_update_cameras))) g_env_update_cameras = previous;
 }
 
 }  // namespace split_screen_support::reflections

@@ -27,6 +27,7 @@
 #include "fe_objects.h"
 #include "hooks.h"
 #include "layout.h"
+#include "max_players.h"
 #include "patch.h"
 #include "split_screen_support.h"
 
@@ -37,7 +38,7 @@ namespace {
 using namespace fe;
 
 constexpr uintptr_t kDevice = 0x982BDC;  // IDirect3DDevice9 *
-constexpr int kMaxHuds = 16, kMaxPlayers = 8;
+constexpr int kMaxPlayers = nfsmw::kMaxPlayers, kMaxHuds = 2 * kMaxPlayers;  // (a HUD each, and the one-player HUDs of a minimap)
 
 enum Layout : unsigned char { kScreenLayout, kHalfLayout };  // what the HUD package is made for: the whole screen, or its top half
 
@@ -48,7 +49,11 @@ struct Assignment {
 };
 Assignment g_assigned[kMaxHuds];
 int g_count = 0;
-int g_scale[kMaxPlayers] = {100, 100, 100, 100, 100, 100, 100, 100};
+struct Scales {
+    int percent[kMaxPlayers];
+    Scales() { std::fill(percent, percent + kMaxPlayers, 100); }
+} g_scales;
+int *const g_scale = g_scales.percent;
 
 // The part of the HUD an object is in: a column (left, centre, right) and a row (top, middle, bottom).
 enum Column : unsigned char { kLeft, kCenter, kRight };

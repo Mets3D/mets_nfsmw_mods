@@ -44,6 +44,7 @@
 #include "fixes.h"
 #include "hud_views.h"
 #include "layout.h"
+#include "max_players.h"
 #include "hooks.h"
 #include "patch.h"
 #include "more_players.h"
@@ -216,7 +217,7 @@ bool g_view2_on = false;  // view 2 is on for a split screen race (switch_view2)
 // crashes reading it. Only trading the camera made it worse: the camera and the matrices must stay a pair.
 constexpr uintptr_t kShadowView1 = 0x919C70;
 constexpr size_t kCameraSize = 0x2C0, kPlatInfoSize = 0x1A0;
-constexpr int kExtraPasses = 3;  // the passes after player 1's: players 2, 3 and 4 (the last two with more than two players)
+constexpr int kExtraPasses = nfsmw::kMaxPlayers - 1;  // the passes after player 1's
 void *g_shadow_camera[kExtraPasses] = {};
 void *g_shadow_plat_info[kExtraPasses] = {};
 
@@ -297,12 +298,13 @@ void log_first(IDirect3DDevice9 *, IDirect3DSurface9 *back_buffer, const D3DSURF
 // ---- Where the time of a four player frame goes ([options] frame_timing=1 in the ini): the GPU time of each pass (a timestamp query before the first
 // and after each pass, read two frames later so the reading does not wait) and the CPU time the game spends in each pass call. Every 300 frames the
 // averages go to the log.
-constexpr int kTimedFrames = 3, kTimestamps = 5;
+constexpr int kTimedFrames = 3, kTimestamps = nfsmw::kMaxPlayers + 1;  // a timestamp before the first pass and after each
 IDirect3DQuery9 *g_timestamp[kTimedFrames][kTimestamps] = {};
 IDirect3DQuery9 *g_frequency_query = nullptr;
 unsigned long long g_frequency = 0;
 unsigned g_timed_frame = 0, g_timing_samples = 0;
 double g_gpu_ms[kTimestamps - 1] = {}, g_cpu_ms[kTimestamps - 1] = {};
+int g_timed_passes = 2;  // the passes of the frame being timed
 bool g_timing_on = false, g_timing_failed = false;
 
 double now_ms() {
@@ -352,11 +354,14 @@ void read_timing() {
         if (!old[i] || old[i]->GetData(&value[i], sizeof(value[i]), 0) != S_OK) return;
     for (int pass = 0; pass < kTimestamps - 1; ++pass) g_gpu_ms[pass] += (value[pass + 1] - value[pass]) * 1000.0 / g_frequency;
     if (++g_timing_samples < 300) return;
-    g_log.line("frame timing, per pass (GPU ms / CPU ms, average of %u frames): player 1 %.2f / %.2f, player 2 %.2f / %.2f, player 3 %.2f / %.2f, "
-               "player 4 %.2f / %.2f; the GPU time of the four %.2f ms",
-               g_timing_samples, g_gpu_ms[0] / g_timing_samples, g_cpu_ms[0] / g_timing_samples, g_gpu_ms[1] / g_timing_samples,
-               g_cpu_ms[1] / g_timing_samples, g_gpu_ms[2] / g_timing_samples, g_cpu_ms[2] / g_timing_samples, g_gpu_ms[3] / g_timing_samples,
-               g_cpu_ms[3] / g_timing_samples, (g_gpu_ms[0] + g_gpu_ms[1] + g_gpu_ms[2] + g_gpu_ms[3]) / g_timing_samples);
+    char text[512];
+    int length = snprintf(text, sizeof(text), "frame timing, per pass (GPU ms / CPU ms, average of %u frames):", g_timing_samples);
+    double gpu_total = 0;
+    for (int pass = 0; pass < g_timed_passes && length < static_cast<int>(sizeof(text)); ++pass) {
+        length += snprintf(text + length, sizeof(text) - length, "%s player %d %.2f / %.2f", pass ? "," : "", pass + 1, g_gpu_ms[pass] / g_timing_samples, g_cpu_ms[pass] / g_timing_samples);
+        gpu_total += g_gpu_ms[pass];
+    }
+    g_log.line("%s; the GPU time of all %.2f ms", text, gpu_total / g_timing_samples);
     g_timing_samples = 0;
     for (int i = 0; i < kTimestamps - 1; ++i) g_gpu_ms[i] = g_cpu_ms[i] = 0;
 }
@@ -368,17 +373,19 @@ void read_timing() {
 bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, const D3DSURFACE_DESC &d, int players) {
     const LONG w = d.Width, h = d.Height, qw = w / 2, qh = h / 2;
     const RECT full = {0, 0, w, h};
-    RECT cells[4];
+    RECT cells[nfsmw::kMaxPlayers];
     for (int i = 0; i < players; ++i) cells[i] = layout::cell(i, players, 2 * qw, 2 * qh);
     RECT first_source = full;  // what of player 1's picture goes to the first cell
     if (players == 3) {
         LONG band_top = std::clamp(static_cast<LONG>(kBandCenter * h) - qh / 2, 0L, h - qh);
         first_source = {0, band_top, w, band_top + qh};
     }
-    static const char *const names[4] = {"player 1", "player 2", "player 3", "player 4"};
+    char names[nfsmw::kMaxPlayers][16];
+    for (int i = 0; i < players; ++i) snprintf(names[i], sizeof(names[i]), "player %d", i + 1);
     unsigned *pool = reinterpret_cast<unsigned *>(kFramePool);
     const unsigned pool_start = pool[0];
     const bool timed = g_timing_on && start_timing(device);
+    g_timed_passes = players;
     IDirect3DQuery9 **stamps = g_timestamp[g_timed_frame % kTimedFrames];
     double cpu_start = 0;
     if (timed) {
@@ -444,7 +451,7 @@ void split_frame(IDirect3DDevice9 *device) {
 
     make_shadow_copies();
     if (more_players::extra_player_count() > 0) {
-        const bool ok = multi_view_frame(device, back_buffer, d, 2 + more_players::extra_player_count());
+        const bool ok = multi_view_frame(device, back_buffer, d, nfsmw::kPlayersPerRound + more_players::extra_player_count());
         back_buffer->Release();
         if (!ok) {
             g_failed = true;

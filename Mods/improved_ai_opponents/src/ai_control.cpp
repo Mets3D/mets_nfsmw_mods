@@ -713,8 +713,10 @@ void *driving_ai(int player) {
 
 void install() {
     patch_ai();  // always: the settings can hand a car to the AI at any time
-    g_log.line("ai control: player 1 %s, player 2 %s, player 3 %s, player 4 %s (the ini, Options > AI Driving)", settings::control_name(settings::player(0).control),
-               settings::control_name(settings::player(1).control), settings::control_name(settings::player(2).control), settings::control_name(settings::player(3).control));
+    char text[128] = {};
+    for (int player = 0, length = 0; player < kPlayers && length < static_cast<int>(sizeof(text)); ++player)
+        length += snprintf(text + length, sizeof(text) - length, "%s%d %s", player ? ", " : "", player + 1, settings::control_name(settings::player(player).control));
+    g_log.line("ai control: player %s (the ini, Options > AI Driving)", text);
 }
 
 void frame() { on_frame(); }

@@ -34,7 +34,7 @@ Needs [Custom Menus](../custom_menus/ReadMe.md) (the **Players** row, 2, 3 or 4,
 
 ## 3 or more player split screen TODO:
 - With 3 players, player 3's view is flickering: Every other frame seems to be a slightly different perspective, perhaps different FoV. According to Claude, "Their camera views are rough copies of the game's (the game has no camera for them). No camera settings for them." - This situation needs to improve. I didn't test with 4 players yet.
-- 5 to 9 players (the layout code is for any number, the rest is for two extra players).
+- More than 4 players: the code is sized by one number, `kMaxPlayers` (8, `Mods/common/max_players.h`), and the **Players** row goes up to `max_players` of the [.ini](nfsmw_split_screen_support.ini) (4 by default). A race with 5 players was run (three rounds of Press Start and Car Select, five cameras and HUDs). Left: the picture of 5 to 8 players is a 3 x 3 grid that leaves the bottom third of the screen black (rows x columns for the count, with cells of another shape than the screen's, would use it all); there are 5 devices (4 controllers and the keyboard) and a device is one player; the game's track streamer keeps the track around two places only, so cars far apart pop in (the more players, the more often); 6 or more players and 4 players on one screen have not been looked at for what they cost to draw.
 
 ## To check by hand (built and run by an AI through logs and screenshots only; not seen by a person)
 - Players 3 and 4 now have the game's own camera instead of a copy of ours (see the flicker point above): does the flicker of player 3's view still happen, with 3 and with 4 players, while standing still and while driving?
