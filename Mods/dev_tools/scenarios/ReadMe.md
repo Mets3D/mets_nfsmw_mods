@@ -72,6 +72,8 @@ Every change of screen is logged (`screen: <package> (frame, ms)`) without a com
 - `split_race_4_streaming.txt` is a 4 player race with 4 racers, the cutscene skipped, and the four cars teleported to where a game that showed missing road geometry had them (player 1 far ahead, player 2 in between, players 3 and 4 at the start): a picture of the four views at 3, 8 and 16 seconds. `split_race_4_streaming_hold.txt` is the same and keeps the game open for 15 minutes, to be looked at from outside (the game's memory).
 - `split_race_4_tour.txt` is a 4 player race with 16 racers and the four cars teleported to 9 places of the track, one set every 8 seconds, for 3 minutes: the minimaps and the track streamer load all over the track, and the log of `nfsmw_split_screen_support` has the memory lines (the game's pools, the texture pack slots, the address space).
 - `split_race_4_cars16.txt` is a 4 player race with 16 racers: `log_racers` has the car of every racer and whether it is customized, and a picture of the four views.
+- `split_race_4_minimap.txt` is a 4 player race with the default number of opponents, with pictures of the four views 6, 9 and 12 seconds after the cutscene (the minimaps: are the opponents on them?).
+- `split_race_4_sounds.txt` is a 4 player race with 16 racers, 20 seconds long: the log of nfsmw_split_screen_support says how many engine sound states the opponents' manager has and how many have a car (`engine sounds:` lines).
 - `split_race_5.txt` is split_race_4 with the Players row at 5 (`max_players=5` in the split screen .ini): three rounds of Press Start and Car Select (the last for one player), a race with five views.
 - `live.txt` boots to the main menu and waits for lines to be appended.
 
