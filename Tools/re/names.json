@@ -359,5 +359,15 @@
     "name": "EPause::Dispatch",
     "confidence": "read",
     "note": "the pause request: IsOkayToRequestPauseSimulation, then pushes Pause_Main.fng"
+  },
+  "0x72DD70": {
+    "name": "TrackStreamer::DetermineStreamingSections",
+    "confidence": "read",
+    "note": "finds each position's zone in the loading section list and queues its sections (extra_streaming.cpp hooks it to add the extra places' sections)"
+  },
+  "0x7A3AF0": {
+    "name": "UIQRCarSelect::CommitChangeStartRace",
+    "confidence": "read",
+    "note": "the commit of the car select screen: deletes player 2's temporary profile (DeleteMultiplayerProfile) and calls RaceStarter::StartRace"
   }
 }

@@ -17,6 +17,8 @@
 
 #include <windows.h>
 
+#include <algorithm>
+
 #include "nfsmw_util.h"
 #include "patch.h"
 #include "split_screen_support.h"
@@ -29,7 +31,8 @@ constexpr uintptr_t kSite = 0x664A47, kInitMemoryPoolCall = 0x664A4F, kStreamer 
 constexpr long long kMB = 1048576;
 constexpr long long kKeepBlockMB = 600;  // the largest free block that must be left
 
-int g_wanted_mb = 0, g_keep_mb = 0;
+int g_wanted_mb = 0, g_keep_mb = 0, g_car_extra_mb = 0;
+int g_car_extra_bytes = 0;  // added to the size the game gives the car loader (esi at 0x664A54: `[0x8F7EF0]` KB), read by the stub
 bool g_patched = false;
 
 // What choose_pool_size found (it runs before the log is open).
@@ -75,7 +78,7 @@ int __cdecl choose_pool_size(int game_size) {
         if (!probe) continue;
         const Space after = measure();  // with the block taken
         VirtualFree(probe, 0, MEM_RELEASE);
-        if (after.free_mb >= g_keep_mb && after.largest_mb >= kKeepBlockMB) {
+        if (after.free_mb >= g_keep_mb + g_car_extra_mb && after.largest_mb >= kKeepBlockMB) {
             g_result.chosen_mb = mb;
             g_result.free_after_mb = after.free_mb;
             g_result.largest_after_mb = after.largest_mb;
@@ -105,8 +108,10 @@ struct Early {
         nfsmw::data_file("nfsmw_split_screen_support.ini", ini, sizeof(ini));
         g_wanted_mb = static_cast<int>(GetPrivateProfileIntA("options", "streaming_pool_mb", 512, ini));
         g_keep_mb = static_cast<int>(GetPrivateProfileIntA("options", "streaming_pool_keep_mb", 2400, ini));
+        g_car_extra_mb = std::max(0, static_cast<int>(GetPrivateProfileIntA("options", "car_pool_extra_mb", 256, ini)));
+        g_car_extra_bytes = g_car_extra_mb << 20;
         patch_texture_pack_slots(ini);
-        if (g_wanted_mb <= 0) return;
+        if (g_wanted_mb <= 0 && g_car_extra_mb <= 0) return;
         static const unsigned char expected[8] = {0x03, 0xC6, 0x50, 0xB9, 0xD0, 0xA9, 0x9A, 0x00};  // add eax, esi; push eax; mov ecx, 0x9AA9D0
         nfsmw::Stub stub;
         stub.emit({0x03, 0xC6});                                                    // add eax, esi (the game's size)
@@ -114,6 +119,8 @@ struct Early {
         stub.emit_rel32(0xE8, reinterpret_cast<uintptr_t>(&choose_pool_size));      // call choose_pool_size (cdecl; esi, edi, ebx, ebp are kept)
         stub.emit({0x83, 0xC4, 0x04});                                              // add esp, 4
         stub.emit({0x50});                                                          // push eax (the size)
+        stub.emit({0x03, 0x35});                                                    // add esi, [g_car_extra_bytes]: the car loader's pool (CarLoader::SetMemoryPoolSize, which gets esi next)
+        stub.emit_u32(reinterpret_cast<uintptr_t>(&g_car_extra_bytes));
         stub.emit({0xB9});                                                          // mov ecx, the streamer
         stub.emit_u32(kStreamer);
         stub.emit_rel32(0xE9, kInitMemoryPoolCall);                                 // jmp to the call of InitMemoryPool
@@ -125,6 +132,7 @@ struct Early {
 }  // namespace
 
 void report() {
+    if (g_car_extra_mb > 0) g_log.line("streaming pool: the car loader's pool gets %d MB more than the game's ([options] car_pool_extra_mb)", g_car_extra_mb);
     if (g_wanted_mb <= 0) {
         g_log.line("streaming pool: [options] streaming_pool_mb is 0: the game's own size");
     } else if (!g_patched) {
