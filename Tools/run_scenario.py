@@ -88,8 +88,16 @@ def main():
 
     env = dict(os.environ, NFSMW_SCENARIO=args.scenario)
     ws_ini = game / 'scripts' / 'NFSMostWanted.WidescreenFix.ini'
+    # While the ini is changed for a run, a copy of the real one sits next to it. A run that was cut short (the runner killed, two runs at once) leaves both: the copy is
+    # the real ini, and is put back before anything else (taking the changed ini for the original would keep the 1280x720 window for good).
+    ws_backup = ws_ini.with_name(ws_ini.name + '.run_scenario_backup')
+    if ws_backup.exists():
+        shutil.copyfile(ws_backup, ws_ini)
+        ws_backup.unlink()
+        print(f'{ws_ini.name}: put back from an earlier run that did not finish')
     ws_original = ws_ini.read_bytes() if ws_ini.exists() and not args.fullscreen else None
     if ws_original is not None:
+        ws_backup.write_bytes(ws_original)
         text = ws_original.decode('latin-1')
         res_x, res_y = (int(v) for v in args.resolution.lower().split('x'))
         for key, value in (('WindowedMode', 2), ('ResX', res_x), ('ResY', res_y)):
@@ -107,6 +115,7 @@ def main():
     finally:
         if ws_original is not None:
             ws_ini.write_bytes(ws_original)
+            ws_backup.unlink(missing_ok=True)
     print(f'{verdict} ({time.time() - started:.0f} s)')
 
     keep = ('screen:', 'state:', 'EXCEPTION', 'ACCESS VIOLATION', 'automation: quit', 'automation: the game did not', 'automation: no frame', 'NOT ')
