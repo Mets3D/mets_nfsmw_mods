@@ -201,7 +201,7 @@ void assign(const char *package, int player, int players) {
     }
     a->player = player;
     a->players = players;
-    a->layout = strncmp(package, "HUD_Player", 10) == 0 ? kHalfLayout : kScreenLayout;
+    a->layout = strncmp(package, "HUD_Player", 10) == 0 || strncmp(package, "HUD_Drag_Player", 15) == 0 ? kHalfLayout : kScreenLayout;
     g_log.line("hud: %s is drawn in the cell of player %d of %d (a HUD for %s)", package, player + 1, players, a->layout == kHalfLayout ? "half a screen" : "the screen");
 }
 
