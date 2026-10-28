@@ -91,6 +91,7 @@ void *wide_manager(void *manager) {
 }
 
 constexpr int kMaxOthers = 7;
+constexpr int kMaxAiRacers = 15;  // the most racers a race has (16) less the player
 struct Markers {
     void *minimap;
     unsigned own_rgb;
@@ -100,6 +101,8 @@ struct Markers {
     void *clones[kMaxOthers];  // the markers of the others but the first: copies of the second marker, in its group (the layout has none of the AI racers' markers)
     void *others[kMaxOthers];  // the other players (IPlayer): the first is shown with the minimap's second marker, the rest with its racer markers
     unsigned other_rgb[kMaxOthers];
+    void *ai_clones[kMaxAiRacers];  // the markers of the opponents (the HUD of a split screen race has none): copies of the second marker, made as they are needed
+    bool ai_clone_failed;
 };
 
 Markers g_markers[8];
@@ -115,6 +118,7 @@ void (__fastcall *g_orig_minimap_update)(void *, void *, void *);
 void (__fastcall *g_orig_setup)(void *, void *, void *);
 void (__fastcall *g_orig_tiles)(void *, void *, short *, int);
 void (__fastcall *g_orig_other_marker)(void *, void *);
+void (__fastcall *g_orig_ai_racers)(void *, void *);
 
 // ---- cloning
 bool in_set(void *object, void *set_head) {
@@ -196,6 +200,8 @@ void follow_marker_visibility() {
         if (!own || !(field<unsigned>(own, 0x1C) & 1)) continue;
         for (int k = 1; k < g_markers[i].other_count; ++k)
             if (g_markers[i].clones[k]) field<unsigned>(g_markers[i].clones[k], 0x1C) |= 1;
+        for (void *art : g_markers[i].ai_clones)
+            if (art) field<unsigned>(art, 0x1C) |= 1;
     }
 }
 
@@ -216,26 +222,29 @@ void *parent_of(void *group, void *target, int depth = 0) {
     return nullptr;
 }
 
-// A minimap has one marker for another player; the others are copies of it, in the same group (so the group's visibility is theirs).
-void make_marker_clones(Markers &m) {
-    if (m.clones_made_for == m.other_count) return;
-    m.clones_made_for = m.other_count;
+// A copy of the minimap's marker of another player, in the same group (so the group's visibility is its).
+void *clone_marker(Markers &m) {
     void *marker = field<void *>(m.minimap, 0x94);
     void *package = m.package ? find_package(m.package) : nullptr;
-    if (!marker || !package || !can_clone(marker)) return;
+    if (!marker || !package || !can_clone(marker)) return nullptr;
     void *group = nullptr;
     for (void *o = field<void *>(package, 0x4C); o && !group; o = next_of(o))
         if (is_group(o)) group = parent_of(o, marker);
-    if (!group) return;
-    for (int k = 1; k < m.other_count; ++k) {
-        if (m.clones[k]) continue;
-        void *copy = reinterpret_cast<CloneFn>(vslot(marker, 1))(marker, nullptr, false);
-        if (!copy) continue;
-        finish_clone(marker, copy);
-        reinterpret_cast<void(__fastcall *)(void *, void *, void *)>(0x5B5420)(group, nullptr, copy);  // FEGroup::AddObject
-        m.clones[k] = copy;
-        hud_views::classify_like(copy, marker);
-    }
+    if (!group) return nullptr;
+    void *copy = reinterpret_cast<CloneFn>(vslot(marker, 1))(marker, nullptr, false);
+    if (!copy) return nullptr;
+    finish_clone(marker, copy);
+    reinterpret_cast<void(__fastcall *)(void *, void *, void *)>(0x5B5420)(group, nullptr, copy);  // FEGroup::AddObject
+    hud_views::classify_like(copy, marker);
+    return copy;
+}
+
+// A minimap has one marker for another player; the others are copies of it.
+void make_marker_clones(Markers &m) {
+    if (m.clones_made_for == m.other_count) return;
+    m.clones_made_for = m.other_count;
+    for (int k = 1; k < m.other_count; ++k)
+        if (!m.clones[k]) m.clones[k] = clone_marker(m);
 }
 
 // ---- hooks
@@ -249,6 +258,69 @@ void colour(void *marker, unsigned rgb) {
     if (!marker) return;
     const unsigned alpha = reinterpret_cast<GetColorFn>(0x51A180)(marker) & 0xFF000000u;
     reinterpret_cast<SetColorFn>(0x5157E0)(marker, alpha | rgb);
+}
+
+// The opponents' markers (Minimap::UpdateAiRacerElements 0x57A110 does this for the HUDs that have the objects MMICON_AIRACER_<n>, which the split screen HUD has not; the game's
+// own copy of the update shows none of them): a small copy of the other players' marker for each active racer of the game's list of AI racers (the array of vehicle lists at
+// 0x92CD18, 0x60 bytes each, list 3: pointer to the vehicles at +4, their count at +0xC), in a colour of their own, moved by the minimap's own placing code.
+constexpr uintptr_t kVehicleLists = 0x92CD18, kSetInvisible = 0x514C70;
+constexpr unsigned kAiRacerList = 3, kAiRgb = 0x00E8E8E8;
+constexpr float kAiScale = 0.75f;
+
+// What an object of the minimap is like, for the log (the data: colour as 4 ints, position, size).
+void describe(const char *what, void *object) {
+    if (!object) {
+        g_log.line("minimap: %s: none", what);
+        return;
+    }
+    void *data = field<void *>(object, 0x2C);
+    g_log.line("minimap: %s %p: name %08x, type %d, flags %08x, HUD part %d, colour %d %d %d %d, position (%.1f, %.1f), size (%.1f, %.1f)", what, object, hash_of(object), type_of(object),
+               field<unsigned>(object, 0x1C), hud_views::part_of_object(object), data ? field<int>(data, 0) : -1, data ? field<int>(data, 4) : -1, data ? field<int>(data, 8) : -1,
+               data ? field<int>(data, 0xC) : -1, data ? field<float>(data, 0x1C) : 0.f, data ? field<float>(data, 0x20) : 0.f, data ? field<float>(data, 0x38) : 0.f, data ? field<float>(data, 0x3C) : 0.f);
+}
+
+void update_ai_markers(void *minimap, Markers &m) {
+    static unsigned tick = 0;
+    const bool log = ++tick % 600 == 1;  // about every 10 seconds, for each minimap (the first log of a race is the first frame of it)
+    if (log) g_log.line("minimap: opponents' markers of the minimap %p: map centre (%.1f, %.1f), visible %d", minimap, field<float>(minimap, 0xB8), field<float>(minimap, 0xBC), field<unsigned>(minimap, 0x90) ? 1 : 0);
+    const unsigned char *list = reinterpret_cast<const unsigned char *>(kVehicleLists + kAiRacerList * 0x60);
+    void *const *vehicles = *reinterpret_cast<void *const *const *>(list + 4);
+    const int count = *reinterpret_cast<const int *>(list + 0xC);
+    int shown = 0;
+    for (int i = 0; vehicles && i < count && shown < kMaxAiRacers; ++i) {
+        void *vehicle = vehicles[i];
+        if (!vehicle || !reinterpret_cast<bool(__fastcall *)(void *, void *)>(vslot(vehicle, 0x88 / 4))(vehicle, nullptr)) continue;
+        void *art = m.ai_clones[shown];
+        if (!art && !m.ai_clone_failed) {
+            art = m.ai_clones[shown] = clone_marker(m);
+            if (!art) m.ai_clone_failed = true;  // (no second marker to copy yet, or one that cannot be copied: not tried again until the HUD is made again)
+            else {
+                float *size = &field<float>(field<void *>(art, 0x2C), 0x38);  // the width and height in FEng units (14.5 x 16.5 for the players' arrows)
+                size[0] *= kAiScale;
+                size[1] *= kAiScale;
+                field<unsigned>(art, 0x1C) |= kDirty;
+            }
+        }
+        if (!art) break;
+        void *simable = reinterpret_cast<void *(__fastcall *)(void *, void *)>(vslot(vehicle, 1))(vehicle, nullptr);
+        if (!simable) continue;
+        float position[2] = {}, direction[2] = {};
+        reinterpret_cast<VehicleVectorsFn>(0x579840)(position, direction, simable);
+        reinterpret_cast<ElementArtFn>(0x5675D0)(minimap, nullptr, position, direction, art, false);
+        colour(art, kAiRgb);
+        if (log && shown < 3) {
+            g_log.line("minimap: opponent %d (vehicle %p) at (%.1f, %.1f), heading (%.2f, %.2f)", shown, vehicle, position[0], position[1], direction[0], direction[1]);
+            describe("its marker", art);
+        }
+        ++shown;
+    }
+    if (log) {
+        g_log.line("minimap: %d racers in the list of AI racers, %d markers shown, clone failed %d", count, shown, m.ai_clone_failed);
+        describe("the second player's marker", field<void *>(minimap, 0x94));
+        describe("the first player's clone", m.clones[1]);
+    }
+    for (int k = shown; k < kMaxAiRacers; ++k)
+        if (m.ai_clones[k]) reinterpret_cast<void(__cdecl *)(void *)>(kSetInvisible)(m.ai_clones[k]);
 }
 
 void __fastcall hook_minimap_update(void *self, void *edx, void *player) {
@@ -267,6 +339,12 @@ void __fastcall hook_minimap_update(void *self, void *edx, void *player) {
         reinterpret_cast<ElementArtFn>(0x5675D0)(self, nullptr, position, direction, art, false);
         colour(art, m->other_rgb[k]);
     }
+    update_ai_markers(self, *m);
+}
+
+// The game's update of the opponents' markers walks 8 objects the split screen HUD does not have (and more than 8 racers run past them): update_ai_markers does it.
+void __fastcall hook_ai_racers(void *self, void *edx) {
+    if (!markers_of(self)) g_orig_ai_racers(self, edx);
 }
 
 // Minimap::UpdatePlayer2Element: the second arrow is whatever the last entry of the player list is; it has to be another player.
@@ -432,6 +510,8 @@ void install() {
          nfsmw::orig(&g_orig_minimap_update)},
         {"minimap", "Minimap::UpdatePlayer2Element", 0x594EA0, {0x83, 0xEC, 0x10, 0x56, 0x8B, 0xF1, 0xE8}, true,
          nfsmw::detour(&hook_other_marker), nfsmw::orig(&g_orig_other_marker)},
+        {"minimap", "Minimap::UpdateAiRacerElements", 0x57A110, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8, 0x83}, true, nfsmw::detour(&hook_ai_racers),
+         nfsmw::orig(&g_orig_ai_racers)},
         {"minimap", "Minimap::SetupMinimap", 0x579900, {0x81, 0xEC, 0xAC, 0x00, 0x00, 0x00, 0xA1}, true, nfsmw::detour(&hook_setup),
          nfsmw::orig(&g_orig_setup)},
         {"minimap", "ChoppedMiniMapManager::UncompressMaps", 0x5672F0, {0x51, 0x53, 0x55, 0x56, 0x8B, 0xE9, 0x8B}, true,

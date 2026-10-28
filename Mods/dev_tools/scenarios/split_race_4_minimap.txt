@@ -1,0 +1,60 @@
+# 4 players and the default opponents: the minimaps (are the opponents on them?), a picture of the race after the cutscene.
+# Through the real menus with the Players row set to 4: Press Start and Car Select for players 1 and 2, then again for players 3 and 4
+# (devices: keyboard, controllers 0, 1 and 2), then the race, which has 2 players until the code that makes more exists. The log of
+# nfsmw_split_screen_support says what each round chose.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 4
+press down 2
+press right 2
+wait 1
+screenshot race_options width=640
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until racing timeout=180
+wait 6
+skip_cutscene
+wait 6
+screenshot minimap_6s width=1280
+wait 3
+screenshot minimap_9s width=1280
+wait 3
+screenshot minimap_12s width=1280
+log_racers
+quit

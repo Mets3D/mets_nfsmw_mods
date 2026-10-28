@@ -219,6 +219,11 @@ void classify_as_minimap(void *object) {
     for (void *child = first_child(object); child; child = next_of(child)) classify_as_minimap(child);
 }
 
+int part_of_object(const void *object) {
+    const auto found = g_part.find(object);
+    return found == g_part.end() ? -1 : found->second;
+}
+
 void classify_like(void *object, void *model) {
     const auto found = g_part.find(model);
     if (found != g_part.end()) g_part[object] = found->second;
