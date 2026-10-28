@@ -33,16 +33,12 @@ wait 2
 press_start 0
 wait_until screen=Car_Select.fng timeout=20
 wait 3
-press right 1
-wait 2
 press accept
 wait_until screen=PressStart.fng timeout=20
 wait 2
 press_start 1
 wait_until screen=Car_Select.fng timeout=20
 wait 3
-press right 2
-wait 2
 press accept
 wait_until screen=PressStart.fng timeout=20
 wait 2
@@ -50,8 +46,6 @@ press_start 2
 wait_until screen=Car_Select.fng timeout=20
 wait 3
 screenshot car_select_3 width=640
-press right 3
-wait 2
 press accept
 wait_until racing timeout=180
 wait 9
