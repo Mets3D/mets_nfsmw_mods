@@ -19,6 +19,9 @@
  *                  ExtraOptions patch instead kept mode 0 from switching the views off, in every game.)
  *  missing_wheel   eModel::ReplaceLightMaterial (0x501640): see below.
  *  list_room       see fixes.h: called when the race is about to start.
+ *  drag_options    UIQRTrackSelect::NotificationMessage (0x7C16A0, the accept message): in a split screen game of two a drag race is made at once (AllocCustomRace with one
+ *                  opponent and no cops, SetStartupRace with the Quick Race context) and the game goes to Press Start, so the race options (and the rows of this mod, which
+ *                  also set the race context and its opponents) never show: the `cmp eax, 2` of the race type (0x7C16D1) is made to never be equal.
  */
 #include "fixes.h"
 
@@ -135,7 +138,14 @@ void list_room() {
     give_room(reinterpret_cast<unsigned *>(0x92FDA0), vehicle_caches, 256, "vehicle caches");  // Listable<IVehicleCache>: room for 28
 }
 
+void drag_options() {
+    if (!ini_flag("options", "more_players", false) && !ini_flag("options", "ai_in_split_screen", true)) return;
+    static const unsigned char kExpected[3] = {0x83, 0xF8, 0x02}, kPatched[3] = {0x83, 0xF8, 0x7F};  // cmp eax, 2 (a drag race) -> cmp eax, 0x7F
+    report("drag_options", nfsmw::patch_bytes(0x7C16D1, kExpected, kPatched, 3));
+}
+
 void install() {
+    drag_options();
     missing_wheel();
     scenery_detail();
     shared_device();
