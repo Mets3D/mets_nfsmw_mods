@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <string>
 
+#include "engine_sounds.h"
 #include "events.h"
 #include "extra_streaming.h"
 #include "keys.h"
@@ -110,6 +111,7 @@ void summary(const char *why) {
 void dump(const char *why) {
     summary(why);
     summary_pools();
+    engine_sounds::log_state(why);
     for (int slot = 0; slot < 2; ++slot) {
         const unsigned char *entry = reinterpret_cast<const unsigned char *>(kStreamer + kEntries + slot * kEntrySize);
         const float *place = reinterpret_cast<const float *>(entry);
