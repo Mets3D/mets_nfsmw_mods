@@ -1,6 +1,6 @@
 /*
  * ExitProcess and TerminateProcess (of this process) are logged with the places in the game's code the call came from, and
- * the first three access violations with their registers. The places are values on the stack that point right after a
+ * the first six access violations with their registers, the thread, and the stack. The places are values on the stack that point right after a
  * call instruction in speed.exe's code or in one of our .asi files; the first access violation, the exit code 0xC0000005 and the ExitProcess that
  * followed are how the Direct3D failure of a second full screen copy was found. A thread also watches the TLS directories of our
  * .asi files (see watch_tls).
@@ -41,24 +41,44 @@ std::string where(unsigned long address) {
 
 // Up to 14 values from the stack that look like return addresses (a call right before them), into the game or into one of the mods'
 // .asi files, which the game's own frames hide between them.
+bool follows_call(unsigned long address) {
+    unsigned char before[6];
+    if (!read_memory(reinterpret_cast<const void *>(address - 6), before, sizeof(before))) return false;
+    return before[1] == 0xE8 || (before[0] == 0xFF && before[1] == 0x15) || (before[4] == 0xFF && (before[5] & 0xF8) == 0xD0) ||
+           (before[3] == 0xFF && (before[4] & 0x38) == 0x10);  // call rel32, call [abs], call reg, call [reg+disp8]
+}
+
+// Where the thread that crashed started (its entry function), which says whose thread it is when its stack has none of the game's frames.
+void log_thread() {
+    using QueryFn = LONG(NTAPI *)(HANDLE, int, void *, ULONG, ULONG *);
+    const auto query = reinterpret_cast<QueryFn>(reinterpret_cast<void *>(GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtQueryInformationThread")));
+    unsigned long start = 0;
+    constexpr int kThreadQuerySetWin32StartAddress = 9;
+    if (query && query(GetCurrentThread(), kThreadQuerySetWin32StartAddress, &start, sizeof(start), nullptr) == 0)
+        g_log.line("    thread %lu, started at %#lx %s", GetCurrentThreadId(), start, where(start).c_str());
+    else
+        g_log.line("    thread %lu", GetCurrentThreadId());
+}
+
+// Up to 14 values from the stack that look like return addresses: into the game or into one of our .asi files; and when the stack has
+// none of those (a thread of Windows, Steam, a driver), up to 14 that point into any module.
 void log_game_stack(const unsigned long *sp) {
-    int shown = 0;
     const unsigned long *top = static_cast<const unsigned long *>(reinterpret_cast<NT_TIB *>(NtCurrentTeb())->StackBase);
-    for (int i = 0; sp + i < top && i < 6000 && shown < 14; ++i) {  // d3d9 frames can be big
-        const unsigned long v = sp[i];
-        std::string module;
-        if (v < kCodeStart || v > kCodeEnd) {
-            if (v < 0x10000 || v >= 0x80000000) continue;
-            module = where(v);
-            if (module.compare(0, 5, "nfsmw") != 0) continue;
-        }
-        unsigned char before[6];
-        if (!read_memory(reinterpret_cast<const void *>(v - 6), before, sizeof(before))) continue;
-        if (before[1] == 0xE8 || (before[0] == 0xFF && before[1] == 0x15) || (before[4] == 0xFF && (before[5] & 0xF8) == 0xD0) ||
-            (before[3] == 0xFF && (before[4] & 0x38) == 0x10)) {  // call rel32, call [abs], call reg, call [reg+disp8]
+    for (int any = 0; any < 2; ++any) {
+        int shown = 0;
+        for (int i = 0; sp + i < top && i < 6000 && shown < 14; ++i) {  // d3d9 frames can be big
+            const unsigned long v = sp[i];
+            std::string module;
+            if (v < kCodeStart || v > kCodeEnd) {
+                if (v < 0x10000 || v >= 0x80000000) continue;
+                module = where(v);
+                if (module.empty() || (!any && module.compare(0, 5, "nfsmw") != 0)) continue;
+            }
+            if (!follows_call(v)) continue;
             g_log.line("    stack: %#lx %s", v, module.c_str());
             ++shown;
         }
+        if (shown) return;
     }
 }
 
@@ -160,7 +180,7 @@ LONG CALLBACK exception_logger(EXCEPTION_POINTERS *e) {
     const bool fatal = code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_BREAKPOINT || code == EXCEPTION_ILLEGAL_INSTRUCTION ||
                        code == EXCEPTION_INT_DIVIDE_BY_ZERO || code == EXCEPTION_STACK_OVERFLOW || code == EXCEPTION_PRIV_INSTRUCTION ||
                        code == EXCEPTION_ARRAY_BOUNDS_EXCEEDED;
-    if (!fatal || count++ >= 3) return EXCEPTION_CONTINUE_SEARCH;
+    if (!fatal || count++ >= 6) return EXCEPTION_CONTINUE_SEARCH;  // a harmless one that Windows handles itself uses up a slot
     const CONTEXT *c = e->ContextRecord;
     HMODULE module = nullptr;
     char name[MAX_PATH] = "?";
@@ -184,6 +204,7 @@ LONG CALLBACK exception_logger(EXCEPTION_POINTERS *e) {
         if (!place.empty()) g_log.line("    %s points into %s", r.name, place.c_str());
     }
     check_tls_directories("at the access violation");
+    log_thread();
     log_game_stack(reinterpret_cast<const unsigned long *>(c->Esp));
     return EXCEPTION_CONTINUE_SEARCH;
 }
