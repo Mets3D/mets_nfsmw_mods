@@ -511,13 +511,15 @@ void install_car_select_label() {
     nfsmw::install_hooks(hooks, 1, g_log, nullptr, "car select label");
 }
 
-// UIQRCarSelect::NotificationMessage sends the first player's choice on to the second player's Press Start screen (cFEng::QueuePackageSwitch, one call at
-// 0x7C2694 for all the ways of choosing a car). With three players the first player of the second round is the last one: the race starts instead.
+// UIQRCarSelect::NotificationMessage (0x7C1770) sends the first player's choice on to the second player's Press Start screen (cFEng::QueuePackageSwitch, one
+// call at 0x7C2694 that all the ways of choosing a car jump to, with the screen argument 1: Press Start of the second player), and PAD_BACK of the first player
+// to their own Press Start (argument 0; the second player's Back sets their device free and goes to the second Press Start, argument 1 too) [read]. With
+// three players the first player of the second round is the last one: the race starts instead of the second Press Start, but not when they went back.
 constexpr uintptr_t kPressStartSwitchCall = 0x7C2694, kQueuePackageSwitchFn = 0x525940;
 uintptr_t g_queue_package_switch = kQueuePackageSwitchFn;
 
 void __fastcall queue_package_switch(void *feng, void *edx, const char *package, int a, unsigned b, bool c) {
-    if (g_round >= 1 && players::split_screen() && players_in_round(g_round) == 1 && package && strcmp(package, "PressStart.fng") == 0) {
+    if (g_round >= 1 && players::split_screen() && players_in_round(g_round) == 1 && package && strcmp(package, "PressStart.fng") == 0 && a == 1) {
         g_log.line("the last round has one player: their car is chosen; the race starts");
         start_race();
         return;
