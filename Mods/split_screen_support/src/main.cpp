@@ -41,6 +41,7 @@
 #include "player_count.h"
 #include "player_settings.h"
 #include "players.h"
+#include "race_intro.h"
 #include "split_view.h"
 #include "start_grid.h"
 #include "state_log.h"
@@ -75,6 +76,7 @@ NFSMW_PLUGIN_MAIN() {
         start_grid::install();
         player_settings::install();
     }
+    race_intro::install();
     if (ini_flag("options", "ai_in_split_screen", true)) ai_in_split_screen::install();  // after player_count: its rows come after the Players row
     more_players::install_car_select_label();
     players::install();  // before state_log: the world load log shows its ports

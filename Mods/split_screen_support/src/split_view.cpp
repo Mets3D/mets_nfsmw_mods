@@ -49,6 +49,7 @@
 #include "patch.h"
 #include "more_players.h"
 #include "players.h"
+#include "race_intro.h"
 #include "reflections.h"
 #include "split_screen_support.h"
 
@@ -553,10 +554,10 @@ void draw_single_view(IDirect3DDevice9 *device) {
 
 void hook_display_frame() {
     auto *device = *reinterpret_cast<IDirect3DDevice9 **>(kDevice);
-    const bool two_views = *reinterpret_cast<int *>(kViewMode) == kTwoViews;
+    const bool two_views = *reinterpret_cast<int *>(kViewMode) == kTwoViews && !race_intro::playing();  // (the cutscene of the race is for the whole screen)
     if (!two_views || g_failed || !device || !g_view2_on || !at<void *>(kView1, kViewCamera) ||
         !at<void *>(kView2, kViewCamera)) {
-        if (!two_views && g_canvas) release_canvas();
+        if (!two_views && g_canvas && !race_intro::playing()) release_canvas();
         g_orig_display_frame();
         draw_single_view(device);
         return;

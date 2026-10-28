@@ -1,0 +1,50 @@
+# split_race with pictures while the race starts: the intro cutscene in a split screen race (the game ends it at once; race_intro.cpp lets it play), every 2 seconds, then the race.
+# options > both players' Press Start and car): waits for the race to run for a while, takes a picture, and ends the game.
+# Needs nfsmw_split_screen_support, the auto load (auto_load_alias in nfsmw_dev_tools.ini) and a Quick Race that has Split Screen.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until racing timeout=180
+screenshot intro_1 width=640
+wait 2
+screenshot intro_2 width=640
+wait 2
+screenshot intro_3 width=640
+wait 2
+screenshot intro_4 width=640
+wait 2
+screenshot intro_5 width=640
+wait 2
+screenshot intro_6 width=640
+wait 2
+screenshot intro_7 width=640
+wait 2
+screenshot intro_8 width=640
+wait 2
+state
+quit
