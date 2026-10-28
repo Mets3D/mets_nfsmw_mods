@@ -66,6 +66,8 @@ Every change of screen is logged (`screen: <package> (frame, ms)`) without a com
 - `split_race_2_opponents.txt` is a 2 player race with the Quick Race's opponents (the Opponents row, 3 unless changed): `log_racers` at the start and 25 s later shows the opponents driving off while the players stand still.
 - `split_race_3_same_cars.txt` is `split_race_3` without choosing any car: run `split_race_3` first (it writes `[player_N] car=` into the split screen ini), then this one in a new game: the log must say `Car Select: player N starts on the car they chose before` and the `chose` lines must have the same handles. (Do not deploy with `set_mods.py` in between: it resets the ini.)
 - `split_race_4_again.txt` is a 4 player race (with the Quick Race opponents), quit from the pause menu by player 3, and a second 4 player race from the race options: no exception, racers logged for both (the second race of four once crashed in the vehicle cache list: `fixes::list_room`).
+- `split_race_intro.txt` is a 2 player race with a picture every 2 seconds from the load on: the intro cutscene plays full screen, then the split screen race starts.
+- `split_race_4_intro.txt` is a 4 player race (with the Quick Race opponents) that waits out the cutscene: the cars of the first four stand where it left them (`log_racers` during and after it), the others in rows behind.
 - `split_race_5.txt` is split_race_4 with the Players row at 5 (`max_players=5` in the split screen .ini): three rounds of Press Start and Car Select (the last for one player), a race with five views.
 - `live.txt` boots to the main menu and waits for lines to be appended.
 

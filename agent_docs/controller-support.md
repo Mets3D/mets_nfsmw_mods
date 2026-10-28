@@ -86,5 +86,5 @@ Binding table, devices and queues: see [input-system.md](input-system.md). Marks
   cruising revs 0.7-0.9 of the powerband (a constant 6-12% on the heavy motor hid the events, hence per-effect multipliers).
 - Motors: the light motor is much weaker than the heavy one and on/off chatter faster than about 8 Hz blurs (spin-up + Bluetooth latency): effects use both motors with smooth pulses of
   at most 8 Hz; a level past one motor's maximum spills half its excess into the other. A steady level is re-sent every 0.5 s (Bluetooth pads stop otherwise); changes go out at most
-  every 30 ms, rises of 10% and stopping at once. The rumble stops 250 ms after the game stops updating and when the game loses focus.
+  every 30 ms, rises of 10% and stopping at once. The rumble stops 250 ms after the game stops updating and when the game loses focus. The blown engine pulses for 3 seconds (a split screen race goes on for the other players; a single player race ends).
 - Reference: the decomp's `Misc/Rumble.cpp` has an older envelope-based rumble (crash envelopes 0.8 s and 1.2 s).

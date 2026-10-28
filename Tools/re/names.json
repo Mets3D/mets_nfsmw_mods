@@ -344,5 +344,20 @@
     "name": "Game_InitRacers",
     "confidence": "tested",
     "note": "cdecl(race start: position +0x28, direction +0x34): adds the players and opponents as racers; each opponent a WRoadNav step 7 behind the start, 1.5 m to alternating sides (start_grid.cpp)"
+  },
+  "0x640F00": {
+    "name": "EPlayRaceNIS::EPlayRaceNIS",
+    "confidence": "read",
+    "note": "seven arguments; makes the NISActivity (factory) and calls NISActivity::Load; does nothing when an NIS is running (Singleton<INIS> 0x9885C8) or the scene has no name"
+  },
+  "0x5DC750": {
+    "name": "GRacerInfo::SetStartPosition",
+    "confidence": "read",
+    "note": "thiscall(position, direction) ret 8: +0x170 position, +0x180 direction, where a restart puts the racer back"
+  },
+  "0x62F220": {
+    "name": "EPause::Dispatch",
+    "confidence": "read",
+    "note": "the pause request: IsOkayToRequestPauseSimulation, then pushes Pause_Main.fng"
   }
 }
