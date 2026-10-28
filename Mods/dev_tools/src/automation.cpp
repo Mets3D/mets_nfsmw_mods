@@ -9,6 +9,7 @@
  *   wait_until screen=<package name>   e.g. screen=MainMenu.fng
  *   log_cars                           the cars of the profile's garage (the Quick Race car list), with their folder in CARS and its size
  *   log_players                        every local player's car, position and render port go to the split screen mod's log
+ *   log_racers                         every racer of the race (GRaceStatus, the AI's too): position, direction, and the start position the game saved for it
  *   press_start <0-3|keyboard>         the Press Start screen of the split screen menus is told that device let go of Start
  *   screenshot <name> [width=960]      <data folder>/screenshots/<date>-<time>_<scenario>/<name>.png
  *   measure <seconds>                  waits that long and logs the frame rate over it
@@ -244,6 +245,46 @@ void log_cars() {
     }
 }
 
+// The racers of the running race: GRaceStatus (*0x91E000) has the count at +0x1958 and the GRacerInfos (0x194 bytes) from +0x18; a racer's simable is found
+// by its handle (+0) in the table at 0x92FEB4 (the node's +4), the car's rigid body through the simable's virtual table (+0x54 GetRigidBody; the body's
+// +0x20 / +0x34 position / forward), and +0x170 / +0x180 of the info are the start position and direction that a reset goes back to (SaveStartPosition).
+void log_racers() {
+    constexpr uintptr_t kRaceStatus = 0x91E000, kTable = 0x92FEB4, kTableCount = 0x92FEBC, kSearch = 0x5D51F0;
+    unsigned char *status = *reinterpret_cast<unsigned char **>(kRaceStatus);
+    if (!status) return g_log.line("racers: no race status");
+    const int count = *reinterpret_cast<int *>(status + 0x1958);
+    g_log.line("racers: %d", count);
+    for (int i = 0; i < count; ++i) {
+        const unsigned char *info = status + 0x18 + i * 0x194;
+        const unsigned handle = *reinterpret_cast<const unsigned *>(info);
+        void *simable = nullptr;
+        if (handle) {
+            unsigned char *table = *reinterpret_cast<unsigned char **>(kTable);
+            unsigned char *end = table + *reinterpret_cast<int *>(kTableCount) * 8;
+            unsigned char *node = reinterpret_cast<unsigned char *(__cdecl *)(unsigned char *, unsigned char *, unsigned)>(kSearch)(table, end, handle);
+            if (node) simable = *reinterpret_cast<void **>(node + 4);
+        }
+        const float *start = reinterpret_cast<const float *>(info + 0x170), *start_direction = reinterpret_cast<const float *>(info + 0x180);
+        float position[3] = {}, forward[3] = {};
+        bool found = false;
+        if (simable) {
+            void **simable_vtable = *reinterpret_cast<void ***>(simable);
+            void *body = reinterpret_cast<void *(__fastcall *)(void *, void *)>(simable_vtable[0x54 / 4])(simable, nullptr);
+            if (body) {
+                void **vtable = *reinterpret_cast<void ***>(body);
+                memcpy(position, reinterpret_cast<const float *(__fastcall *)(void *, void *)>(vtable[0x20 / 4])(body, nullptr), sizeof(position));
+                float v[4] = {};
+                reinterpret_cast<void(__fastcall *)(void *, void *, float *)>(vtable[0x34 / 4])(body, nullptr, v);
+                memcpy(forward, v, sizeof(forward));
+                found = true;
+            }
+        }
+        g_log.line("racers: %d: simable %p, %s (%.2f, %.2f, %.2f) forward (%.2f, %.2f, %.2f), saved start (%.2f, %.2f, %.2f) direction (%.2f, %.2f, %.2f)", i, simable,
+                   found ? "at" : "no body", position[0], position[1], position[2], forward[0], forward[1], forward[2], start[0], start[1], start[2], start_direction[0],
+                   start_direction[1], start_direction[2]);
+    }
+}
+
 void read_script() {
     FILE *file = fopen(g_script_path.c_str(), "r");
     if (!file) return;
@@ -314,6 +355,8 @@ void run(const std::string &line, IDirect3DDevice9 *device) {
         g_measuring = true;
     } else if (cmd == "log_cars") {
         log_cars();
+    } else if (cmd == "log_racers") {
+        log_racers();
     } else if (cmd == "state") {
         log_state();
     } else if (cmd == "log") {

@@ -1,0 +1,38 @@
+# split_race.txt up to the race start: where every car stands (log_racers) and a picture
+# From the start to a 2 player split screen race, through the real menus (Main Menu > Quick Race > Split Screen > Circuit > first track >
+# options > both players' Press Start and car): waits for the race to run for a while, takes a picture, and ends the game.
+# Needs nfsmw_split_screen_support, the auto load (auto_load_alias in nfsmw_dev_tools.ini) and a Quick Race that has Split Screen.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until racing timeout=180
+wait 0.5
+log_racers
+log_players
+screenshot grid width=960
+quit

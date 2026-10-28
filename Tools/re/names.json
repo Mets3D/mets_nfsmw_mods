@@ -334,5 +334,15 @@
     "name": "SunOcclusion::Release",
     "confidence": "read",
     "note": "thiscall: releases the four queries at +0x24 (device reset)"
+  },
+  "0x60D820": {
+    "name": "PlaceSplitScreenPlayersAtStart",
+    "confidence": "tested",
+    "note": "called by Game_WarpPlayerToTrigger in split screen mode: players 1 and 2 on the left-most and right-most starting lane (lane type 6, IncLane) of the race start, SetVehicleOnGround and GRacerInfo::ForceStartPosition"
+  },
+  "0x61DBE0": {
+    "name": "Game_InitRacers",
+    "confidence": "tested",
+    "note": "cdecl(race start: position +0x28, direction +0x34): adds the players and opponents as racers; each opponent a WRoadNav step 7 behind the start, 1.5 m to alternating sides (start_grid.cpp)"
   }
 }

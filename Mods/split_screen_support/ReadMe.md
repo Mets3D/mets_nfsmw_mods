@@ -25,16 +25,16 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 
 ## Device Compatibility
 
-- Both players using a keyboard is not supported.
+- Two players using a keyboard is not supported.
 - For supported controllers, see the [Controller Support](../controller_support/ReadMe.md) mod - The game natively supports Xbox controllers, and for everything else, Steam Input is tested and works as a translation layer.
 
 ---
 
 # TODOS
 
-### Attempted Fix Failed
-For these issues, it might be worth looking at the git log of the attempted fix, and considering whether those code changes should be kept or discarded.
-- The car starting positions still fail. We should launch a single-player Quick Race with NPC opponents, and check their starting positions, and figure out how the game determines those, and use the same ones.
+### Needs your testing
+Changes made while you were away, which I could only check through logs and screenshots. Please play them, and delete a line once you have confirmed it (or tell me what is still wrong).
+- **Car starting positions** (3 or more players): the cars of players 3 and up are now put on the road the way the game puts the NPC opponents of a Quick Race (a row of two behind players 1 and 2 for each pair of players, a single car in the middle of its row, rows 7 m apart, following the road's curve), instead of in a straight line 9 m behind. Checked in the log and screenshots for 3, 4 and 5 players on three tracks; I have not driven it. Please look for cars that start inside a wall or a barrier, or off the road, and for cars that overlap, on tracks with a curve at the start. Restart Race (not tried) should put everybody back in the same places.
 
 ### 3 or more player issues:
 These are just issues stemming from 4-player split-screen not being thoroughly playtested yet. Reverting changes is likely not going to help.
@@ -48,7 +48,7 @@ These are just issues stemming from 4-player split-screen not being thoroughly p
 - HUD scale acts funny with the rearview mirror...
 - Would be nice if HUD scale also allowed >100%
 - Exiting a split-screen race should let us switch to a different race type without having to re-select our cars. The UX flow here is just awkward...
-- Would be nice if we remembered the selected car for each player across sessions.
+- Would be nice if we remembered the selected car for each player across sessions. Note that car selection is 2-dimensional: Up and down chooses category of car, from Career, Bonus, and the 3rd cateogry I forget the name of, Custom or whatever. Then left/right to cycle the cars in a given category. So I'm not exactly sure what state the game needs to remember a car, but probably at least those two. If we just store a car by these indexes, I think that is good enough for now, even if that means if a new car is added, the remembered car may shift. Of course, if cars have a unique ID that we can use to remember them accurately, then let's do that, but I sort of doubt this is the case.
 - How about vertical split screen? ;)
 - Port the options from Quick Race to Split Screen: NPC opponents, Difficulty, Catch-Up, Heat Level.
 

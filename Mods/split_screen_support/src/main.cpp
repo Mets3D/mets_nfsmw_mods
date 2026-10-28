@@ -41,6 +41,7 @@
 #include "player_settings.h"
 #include "players.h"
 #include "split_view.h"
+#include "start_grid.h"
 #include "state_log.h"
 
 NFSMW_PLUGIN_DECLARE("NFSMW Split Screen Support", "1.0.0", "Demeter Dzadik")
@@ -70,6 +71,7 @@ NFSMW_PLUGIN_MAIN() {
         more_players::install();
         extra_streaming::install();
         extra_cameras::install();
+        start_grid::install();
         player_settings::install();
     }
     more_players::install_car_select_label();

@@ -1,0 +1,18 @@
+# single_race, and the positions of every racer (the opponents' too) when the race is up and after the countdown: how the game lays out a starting grid.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press accept
+wait_until screen=Quick_Race_Brief.fng timeout=20
+wait 2
+press accept
+wait_until racing timeout=180
+wait 0.5
+log_racers
+wait 8
+log_racers
+state
+quit
