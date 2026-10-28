@@ -2,8 +2,8 @@
 
 usage: python button_pack.py <buttons folder> <out.tpk> <PACK_NAME>
 
-The folder has a prompts.ini ([xbox] and [playstation]: the game's prompt picture = the picture to show instead, a PNG
-of that name in the folder xbox/ or playstation/) and the PNGs themselves, named after what they show (A.png, Cross.png).
+The folder has a prompts.ini ([xbox], [playstation], [switch] and [switch_nintendo_layout]: the game's prompt picture = the picture to show instead, a PNG
+of that name in the folder xbox/, playstation/ or switch/ (a section's folder is its name up to the first '_')) and the PNGs themselves, named after what they show (A.png, Cross.png).
 Each prompt gets its own texture, named <STYLE>_<prompt> (XBOX_PC_KEY_ENTER), made from its picture: a picture several
 prompts share (B for Back, its French twin and Quit) is stored once per prompt, so that the plugin can tell the prompts
 apart again when it switches back to the keyboard keys. The plugin derives the same names from prompts.ini.
@@ -35,12 +35,12 @@ def main(folder, out, pack_name):
     textures, used = [], set()
     for style, prompts in styles.items():
         for prompt, picture in prompts:
-            png = os.path.join(folder, style, picture + '.png')
+            png = os.path.join(folder, style.split('_')[0], picture + '.png')
             if not os.path.exists(png):
-                sys.exit(f'prompts.ini [{style}] {prompt}: there is no {style}/{picture}.png')
+                sys.exit(f'prompts.ini [{style}] {prompt}: there is no {style.split("_")[0]}/{picture}.png')
             used.add(os.path.normpath(png))
             textures.append((f'{style}_{prompt}', png))
-    for style in styles:
+    for style in sorted({s.split('_')[0] for s in styles}):
         for name in sorted(os.listdir(os.path.join(folder, style))):
             if name.lower().endswith('.png') and os.path.normpath(os.path.join(folder, style, name)) not in used:
                 print(f'note: {style}/{name} is not used by any prompt')

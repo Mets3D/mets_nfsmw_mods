@@ -7,8 +7,10 @@
 namespace pad::button_icons {
 
 // Which controller's buttons the prompts show: kOff keeps the keyboard keys.
-enum class Style { kOff, kXbox, kPlayStation, kSwitch };
-const char *style_text(Style style);  // "off", "xbox", "playstation", "switch": the ini's words
+// kSwitch labels the buttons by position, as the other styles do (Accept is the Switch's B, the bottom button). kSwitchNintendoLayout is for a Switch controller whose
+// buttons already arrive as printed (Steam's "Use Nintendo Button Layout", on by default for them): Accept is its A, the right button.
+enum class Style { kOff, kXbox, kPlayStation, kSwitch, kSwitchNintendoLayout };
+const char *style_text(Style style);  // "off", "xbox", "playstation", "switch", "switch_nintendo_layout": the ini's words
 Style parse_style(const char *text, Style fallback);
 
 // The style of a controller that has none of its own (the ini's [buttons] button_prompts), and of a controller that is not XInput.

@@ -29,7 +29,7 @@ Style g_frame_style = Style::kXbox;
 
 // A prompt picture of the game and its controller versions (the texture hashes).
 struct Hashes {
-    unsigned pc, xbox, playstation, nintendo;
+    unsigned pc, xbox, playstation, switch_plain, switch_nintendo_layout;
     std::string screen;  // only on the screens whose package file name has this in it ("L1@WorldMap" in prompts.ini); empty: everywhere
 };
 std::vector<Hashes> g_hashes;
@@ -65,7 +65,7 @@ char __stdcall visit_object(void *object) {
     const bool visible = (field<unsigned>(object, kFlags) & kInvisible) == 0;
     for (const Hashes &h : g_hashes) {
         if (!h.screen.empty() && !strstr(g_package_file, h.screen.c_str())) continue;
-        if (texture != h.pc && texture != h.xbox && texture != h.playstation && texture != h.nintendo) continue;
+        if (texture != h.pc && texture != h.xbox && texture != h.playstation && texture != h.switch_plain && texture != h.switch_nintendo_layout) continue;
         if (visible) {
             if (h.pc == g_quit_key) g_quit_prompt_seen = true;
             if (h.pc == g_back_key || h.pc == g_back_key_french) g_back_prompt_seen = true;
@@ -73,7 +73,7 @@ char __stdcall visit_object(void *object) {
         if (!g_pack_loaded) break;
         const unsigned wanted = !g_frame_pad || g_frame_style == Style::kOff ? h.pc
                               : g_frame_style == Style::kPlayStation ? h.playstation
-                              : g_frame_style == Style::kSwitch ? h.nintendo : h.xbox;
+                              : g_frame_style == Style::kSwitch ? h.switch_plain : g_frame_style == Style::kSwitchNintendoLayout ? h.switch_nintendo_layout : h.xbox;
         if (texture != wanted) {
             texture = wanted;
             field<unsigned>(object, kFlags) |= kTextureChanged;
@@ -122,7 +122,7 @@ void FASTCALL hook_update(void *engine, void *edx, int ticks, unsigned lock) {
 }
 
 const char *style_name(const char *section) {
-    return !_stricmp(section, "xbox") ? "XBOX" : !_stricmp(section, "switch") ? "SWITCH" : "PLAYSTATION";
+    return !_stricmp(section, "xbox") ? "XBOX" : !_stricmp(section, "switch") ? "SWITCH" : !_stricmp(section, "switch_nintendo_layout") ? "SWITCH_NINTENDO_LAYOUT" : "PLAYSTATION";
 }
 
 // The prompts of one style in prompts.ini: the names left of the "=" (the picture on the right is only for the pack).
@@ -148,9 +148,9 @@ void load_prompts() {
     char path[MAX_PATH];
     nfsmw::data_file("nfsmw_controller_buttons.ini", path, sizeof(path));
     const std::vector<std::string> xbox = read_prompts(path, "xbox"), playstation = read_prompts(path, "playstation"),
-                                   nintendo = read_prompts(path, "switch");
+                                   switch_plain = read_prompts(path, "switch"), switch_nintendo_layout = read_prompts(path, "switch_nintendo_layout");
     std::vector<std::string> all = xbox;
-    for (const std::vector<std::string> *other : {&playstation, &nintendo})
+    for (const std::vector<std::string> *other : {&playstation, &switch_plain, &switch_nintendo_layout})
         for (const std::string &p : *other)
             if (std::find(all.begin(), all.end(), p) == all.end()) all.push_back(p);
     const auto has = [](const std::vector<std::string> &list, const std::string &prompt) {
@@ -163,7 +163,8 @@ void load_prompts() {
         const size_t at = prompt.find('@');
         const unsigned pc = nfsmw::texture_hash(prompt.substr(0, at).c_str());
         g_hashes.push_back({pc, has(xbox, prompt) ? hash_in("xbox", prompt) : pc, has(playstation, prompt) ? hash_in("playstation", prompt) : pc,
-                            has(nintendo, prompt) ? hash_in("switch", prompt) : pc, at == std::string::npos ? "" : prompt.substr(at + 1)});
+                            has(switch_plain, prompt) ? hash_in("switch", prompt) : pc, has(switch_nintendo_layout, prompt) ? hash_in("switch_nintendo_layout", prompt) : pc,
+                            at == std::string::npos ? "" : prompt.substr(at + 1)});
     }
     // The ones for a screen come first: they are tried before the same prompt's picture for every screen.
     std::stable_partition(g_hashes.begin(), g_hashes.end(), [](const Hashes &h) { return !h.screen.empty(); });
@@ -176,13 +177,14 @@ void load_prompts() {
 bool quit_prompt_shown() { return g_quit_available; }
 
 const char *style_text(Style style) {
-    return style == Style::kOff ? "off" : style == Style::kXbox ? "xbox" : style == Style::kSwitch ? "switch" : "playstation";
+    return style == Style::kOff ? "off" : style == Style::kXbox ? "xbox" : style == Style::kSwitch ? "switch" : style == Style::kSwitchNintendoLayout ? "switch_nintendo_layout" : "playstation";
 }
 
 Style parse_style(const char *text, Style fallback) {
     if (!_stricmp(text, "off") || !_stricmp(text, "0") || !_stricmp(text, "none")) return Style::kOff;
     if (!_stricmp(text, "playstation") || !_stricmp(text, "ps")) return Style::kPlayStation;
     if (!_stricmp(text, "switch") || !_stricmp(text, "nintendo")) return Style::kSwitch;
+    if (!_stricmp(text, "switch_nintendo_layout")) return Style::kSwitchNintendoLayout;
     if (!_stricmp(text, "xbox")) return Style::kXbox;
     return fallback;
 }

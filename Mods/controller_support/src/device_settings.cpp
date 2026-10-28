@@ -20,13 +20,16 @@ void section_of(int slot, char *out, size_t n) { snprintf(out, n, "controller_%s
 
 // The prompts a controller starts with when none were chosen for it: those of its kind, else [buttons]. Steam's file uses SDL's words for the
 // type: unknown, standard, xbox360, xboxone, ps3, ps4, ps5, switchpro, joyconleft, joyconright, joyconpair, gamecube, steam (Steam Controller,
-// Deck: Xbox letters). Without Steam the vendor says (steam_pads.cpp). "standard" and "unknown" take [buttons].
+// Deck: Xbox letters). Without Steam the vendor says (steam_pads.cpp). "standard" and "unknown" take [buttons]. A Switch controller behind Steam gets
+// Steam's Nintendo button layout by default (A and B, X and Y swapped so the letters are where they are printed): the "Switch (Nintendo Layout)" prompts.
 button_icons::Style suggested_style(int slot) {
     steam_pads::RealDevice device;
     if (!steam_pads::device_of_slot(slot, &device)) return button_icons::default_style();
     const char *type = device.type;
     if (!_strnicmp(type, "ps", 2)) return button_icons::Style::kPlayStation;
-    if (!_strnicmp(type, "switch", 6) || !_strnicmp(type, "joycon", 6) || !_stricmp(type, "gamecube")) return button_icons::Style::kSwitch;
+    if (!_strnicmp(type, "switch", 6) || !_strnicmp(type, "joycon", 6))
+        return device.steam_slot >= 0 ? button_icons::Style::kSwitchNintendoLayout : button_icons::Style::kSwitch;
+    if (!_stricmp(type, "gamecube")) return button_icons::Style::kSwitch;
     if (!_strnicmp(type, "xbox", 4) || !_stricmp(type, "steam")) return button_icons::Style::kXbox;
     static char said[16];
     if (type[0] && _stricmp(type, "standard") && _stricmp(type, "unknown") && strcmp(said, type)) {

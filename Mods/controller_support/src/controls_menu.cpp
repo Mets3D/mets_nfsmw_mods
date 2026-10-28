@@ -23,7 +23,8 @@ const ButtonNames &names_of(Style style) {
     static const ButtonNames kXbox = {{"A", "B", "X", "Y", "LB", "RB", "View", "Menu"}, "LT", "RT"};
     static const ButtonNames kPlayStation = {{"Cross", "Circle", "Square", "Triangle", "L1", "R1", "Share", "Options"}, "L2", "R2"};
     static const ButtonNames kSwitch = {{"B", "A", "Y", "X", "L", "R", "-", "+"}, "ZL", "ZR"};
-    return style == Style::kPlayStation ? kPlayStation : style == Style::kSwitch ? kSwitch : kXbox;
+    static const ButtonNames kSwitchNintendoLayout = {{"A", "B", "X", "Y", "L", "R", "-", "+"}, "ZL", "ZR"};  // the game's A is the Switch's A
+    return style == Style::kPlayStation ? kPlayStation : style == Style::kSwitch ? kSwitch : style == Style::kSwitchNintendoLayout ? kSwitchNintendoLayout : kXbox;
 }
 
 // Controls menu label of a controller binding, for an XInput controller whose buttons are named as in `style`.

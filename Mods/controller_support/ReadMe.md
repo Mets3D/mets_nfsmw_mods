@@ -21,7 +21,8 @@ Download from the [Releases](../../../../releases) page.
 - XInput controllers (xbox controllers and many 3rd-party controllers) are supported with or without SteamInput.
 - Other controllers like PS5 and Switch are supported via Steam Input. To use Steam Input, add `speed.exe` to your Steam Library as a non-Steam game, and then **right click->Properties->Controller->Set "Enable Steam Input" instead of "Use default Settings"**. This is not Steam's default as of 2026 October, you have to do this yourself.
 - PS5 controller was tested fully working, including rumble, deadzone customization, and automatically using PS5 button prompts.
-- Gyro controls: Not tested, but Steam Input can probably do it. Should you though?
+- Nintendo Switch Pro controller also tested and fully working. Steam Input will by default map Nintendo Switch buttons in a way that supports the muscle memory of Nintendo gamers. If your Switch controller is to be used by a gamer who grew up with Xbox or Playstation, you should do two things: 1) In Steam Input, swap the mapping of X/Y and A/B. 2) In the game, set the controller's Prompt Style from "Switch (Nintendo Layout)" to just "Switch". Then your Switch controller will have the same button positions as an Xbox or PS controller.
+- Gyro controls: Tested with Steam Input, it worked with the Switch Pro but not with the DualSense 5. Makes menu navigation annoying, since there's no way to differentiate gyro inputs from regular ones. Unless I make it so that the menu cna only be navigated with the d-pad, but it would be a hassle and I think the gyro is gimmicky so I didn't bother.
 
 ## Car Controls
 
