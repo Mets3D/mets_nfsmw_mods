@@ -9,7 +9,11 @@
  *   wait_until screen=<package name>   e.g. screen=MainMenu.fng
  *   log_cars                           the cars of the profile's garage (the Quick Race car list), with their folder in CARS and its size
  *   log_players                        every local player's car, position and render port go to the split screen mod's log
- *   log_racers                         every racer of the race (GRaceStatus, the AI's too): position, direction, and the start position the game saved for it
+ *   log_racers                         every racer of the race (GRaceStatus, the AI's too): position, direction, and the start position the game saved for it,
+ *                                      and a line to copy into a scenario that puts every car back where it is (teleport)
+ *   teleport <racer> <x> <y> <z> [<fx> <fy> <fz>]   puts that racer's car there (racers are numbered as log_racers prints them, from 0, the players first; the position and
+ *                                      direction are in the units log_racers prints: copy its "teleport" line), stopped; without a direction it keeps the way it faces
+ *   skip_cutscene                      skips the race's intro cutscene the way the skip button does (INIS, the singleton at 0x9885C8, virtual +0x2C); the log says when none is running
  *   press_start <0-3|keyboard>         the Press Start screen of the split screen menus is told that device let go of Start
  *   screenshot <name> [width=960]      <data folder>/screenshots/<date>-<time>_<scenario>/<name>.png
  *   measure <seconds>                  waits that long and logs the frame rate over it
@@ -248,41 +252,73 @@ void log_cars() {
 // The racers of the running race: GRaceStatus (*0x91E000) has the count at +0x1958 and the GRacerInfos (0x194 bytes) from +0x18; a racer's simable is found
 // by its handle (+0) in the table at 0x92FEB4 (the node's +4), the car's rigid body through the simable's virtual table (+0x54 GetRigidBody; the body's
 // +0x20 / +0x34 position / forward), and +0x170 / +0x180 of the info are the start position and direction that a reset goes back to (SaveStartPosition).
+// A car is put somewhere with IVehicle (the simable's interface list, handle 0x4040E0) vtable +0x68 SetVehicleOnGround(position, direction) and +0x94 SetSpeed.
+constexpr uintptr_t kRaceStatus = 0x91E000, kTable = 0x92FEB4, kTableCount = 0x92FEBC, kSearch = 0x5D51F0, kFindInterface = 0x5D59F0;
+constexpr unsigned kVehicleHandle = 0x4040E0;
+
+unsigned char *race_status() { return *reinterpret_cast<unsigned char **>(kRaceStatus); }
+
+void *racer_simable(const unsigned char *info) {
+    const unsigned handle = *reinterpret_cast<const unsigned *>(info);
+    if (!handle) return nullptr;
+    unsigned char *table = *reinterpret_cast<unsigned char **>(kTable);
+    unsigned char *end = table + *reinterpret_cast<int *>(kTableCount) * 8;
+    unsigned char *node = reinterpret_cast<unsigned char *(__cdecl *)(unsigned char *, unsigned char *, unsigned)>(kSearch)(table, end, handle);
+    return node ? *reinterpret_cast<void **>(node + 4) : nullptr;
+}
+
+bool racer_pose(void *simable, float *position, float *forward) {
+    if (!simable) return false;
+    void **simable_vtable = *reinterpret_cast<void ***>(simable);
+    void *body = reinterpret_cast<void *(__fastcall *)(void *, void *)>(simable_vtable[0x54 / 4])(simable, nullptr);
+    if (!body) return false;
+    void **vtable = *reinterpret_cast<void ***>(body);
+    memcpy(position, reinterpret_cast<const float *(__fastcall *)(void *, void *)>(vtable[0x20 / 4])(body, nullptr), 3 * sizeof(float));
+    float v[4] = {};
+    reinterpret_cast<void(__fastcall *)(void *, void *, float *)>(vtable[0x34 / 4])(body, nullptr, v);
+    memcpy(forward, v, 3 * sizeof(float));
+    return true;
+}
+
 void log_racers() {
-    constexpr uintptr_t kRaceStatus = 0x91E000, kTable = 0x92FEB4, kTableCount = 0x92FEBC, kSearch = 0x5D51F0;
-    unsigned char *status = *reinterpret_cast<unsigned char **>(kRaceStatus);
+    unsigned char *status = race_status();
     if (!status) return g_log.line("racers: no race status");
     const int count = *reinterpret_cast<int *>(status + 0x1958);
     g_log.line("racers: %d", count);
+    std::string script;
     for (int i = 0; i < count; ++i) {
         const unsigned char *info = status + 0x18 + i * 0x194;
-        const unsigned handle = *reinterpret_cast<const unsigned *>(info);
-        void *simable = nullptr;
-        if (handle) {
-            unsigned char *table = *reinterpret_cast<unsigned char **>(kTable);
-            unsigned char *end = table + *reinterpret_cast<int *>(kTableCount) * 8;
-            unsigned char *node = reinterpret_cast<unsigned char *(__cdecl *)(unsigned char *, unsigned char *, unsigned)>(kSearch)(table, end, handle);
-            if (node) simable = *reinterpret_cast<void **>(node + 4);
-        }
+        void *simable = racer_simable(info);
         const float *start = reinterpret_cast<const float *>(info + 0x170), *start_direction = reinterpret_cast<const float *>(info + 0x180);
         float position[3] = {}, forward[3] = {};
-        bool found = false;
-        if (simable) {
-            void **simable_vtable = *reinterpret_cast<void ***>(simable);
-            void *body = reinterpret_cast<void *(__fastcall *)(void *, void *)>(simable_vtable[0x54 / 4])(simable, nullptr);
-            if (body) {
-                void **vtable = *reinterpret_cast<void ***>(body);
-                memcpy(position, reinterpret_cast<const float *(__fastcall *)(void *, void *)>(vtable[0x20 / 4])(body, nullptr), sizeof(position));
-                float v[4] = {};
-                reinterpret_cast<void(__fastcall *)(void *, void *, float *)>(vtable[0x34 / 4])(body, nullptr, v);
-                memcpy(forward, v, sizeof(forward));
-                found = true;
-            }
-        }
+        const bool found = racer_pose(simable, position, forward);
         g_log.line("racers: %d: simable %p, %s (%.2f, %.2f, %.2f) forward (%.2f, %.2f, %.2f), saved start (%.2f, %.2f, %.2f) direction (%.2f, %.2f, %.2f)", i, simable,
                    found ? "at" : "no body", position[0], position[1], position[2], forward[0], forward[1], forward[2], start[0], start[1], start[2], start_direction[0],
                    start_direction[1], start_direction[2]);
+        if (found) {
+            char line[200];
+            snprintf(line, sizeof(line), "teleport %d %.3f %.3f %.3f %.4f %.4f %.4f\n", i, position[0], position[1], position[2], forward[0], forward[1], forward[2]);
+            script += line;
+        }
     }
+    if (!script.empty()) g_log.line("racers: to put every car back where it is, in a scenario:\n%s", script.c_str());
+}
+
+// Puts a racer's car at a place, stopped, facing a direction (the way it faces when none is given).
+bool teleport_racer(int index, const float *position, const float *direction) {
+    unsigned char *status = race_status();
+    if (!status || index < 0 || index >= *reinterpret_cast<int *>(status + 0x1958)) return false;
+    void *simable = racer_simable(status + 0x18 + index * 0x194);
+    float current[3] = {}, forward[3] = {};
+    if (!racer_pose(simable, current, forward)) return false;
+    void *interfaces = *reinterpret_cast<void **>(static_cast<char *>(simable) + 4);
+    void *vehicle = reinterpret_cast<void *(__thiscall *)(void *, void *)>(kFindInterface)(interfaces, reinterpret_cast<void *>(kVehicleHandle));
+    if (!vehicle) return false;
+    void **vtable = *static_cast<void ***>(vehicle);
+    reinterpret_cast<void(__thiscall *)(void *, const float *, const float *)>(vtable[0x68 / 4])(vehicle, position, direction ? direction : forward);
+    reinterpret_cast<void(__thiscall *)(void *, float)>(vtable[0x94 / 4])(vehicle, 0.0f);
+    g_log.line("automation: racer %d is now at (%.2f, %.2f, %.2f)", index, position[0], position[1], position[2]);
+    return true;
 }
 
 void read_script() {
@@ -357,6 +393,20 @@ void run(const std::string &line, IDirect3DDevice9 *device) {
         log_cars();
     } else if (cmd == "log_racers") {
         log_racers();
+    } else if (cmd == "skip_cutscene") {
+        void *nis = *reinterpret_cast<void **>(0x9885C8);
+        if (!nis) {
+            g_log.line("automation: skip_cutscene: no cutscene is running");
+        } else {
+            void **vtable = *static_cast<void ***>(nis);
+            reinterpret_cast<void(__thiscall *)(void *)>(vtable[0x2C / 4])(nis);
+            g_log.line("automation: the cutscene is skipped");
+        }
+    } else if (cmd == "teleport" && w.size() >= 5) {
+        const float position[3] = {static_cast<float>(atof(w[2].c_str())), static_cast<float>(atof(w[3].c_str())), static_cast<float>(atof(w[4].c_str()))};
+        const float direction[3] = {w.size() >= 8 ? static_cast<float>(atof(w[5].c_str())) : 0.0f, w.size() >= 8 ? static_cast<float>(atof(w[6].c_str())) : 0.0f,
+                                    w.size() >= 8 ? static_cast<float>(atof(w[7].c_str())) : 0.0f};
+        if (!teleport_racer(atoi(w[1].c_str()), position, w.size() >= 8 ? direction : nullptr)) return quit(2, "teleport: no such racer (or it has no car yet)");
     } else if (cmd == "state") {
         log_state();
     } else if (cmd == "log") {

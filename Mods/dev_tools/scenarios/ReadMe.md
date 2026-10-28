@@ -32,7 +32,9 @@ One command per line. `#` starts a comment. Arguments are words, or `key=value`.
 | `entry <player 2 and up> <binding entry> <value or off>` | That player's device says that value for a binding entry (15 camera change, 16 look back, 25-28 look left / right / up / down) until `off`. |
 | `pause_request <player 2 and up> <1 or 0>` | That player's device holds (1) or lets go of (0) the pause button: the pause menu is theirs. |
 | `log_cars` | Logs the cars of the profile's garage (the Quick Race's car list): index, handle (the first word), and the folder in CARS that has the car's name with its size. The `log_cars` scenario does just that. |
-| `log_racers` | Logs every racer of the race (the AI opponents too, and the extra players of a split screen race): position, forward vector and the start position the game saved for it (what a reset goes back to). |
+| `log_racers` | Logs every racer of the race (the AI opponents too, and the extra players of a split screen race): position, forward vector and the start position the game saved for it (what a reset goes back to). It ends with a block of `teleport` lines (one per racer) that put every car back where it is. |
+| `teleport <racer> <x> <y> <z> [<fx> <fy> <fz>]` | Puts that racer's car there, stopped. Racers are numbered as `log_racers` prints them (from 0, the players first), the position and direction are in the units it prints. Without a direction the car keeps the way it faces. To reproduce a state: note the `teleport` lines of `log_racers` in the log, put them in a scenario. |
+| `skip_cutscene` | Skips the race's intro cutscene as the skip button does (the log says when none is running). |
 | `log_players` | Logs every local player of the split screen mod: car, position, render port (needs `nfsmw_split_screen_support`). |
 | `press_start <0-3\|keyboard>` | For the split screen Press Start screens: tells the one that is showing that this device let go of Start (needs `nfsmw_split_screen_support`). |
 | `screenshot <name> [width=960]` | Saves the back buffer as `scripts/mets_mods/screenshots/<date>-<time>_<scenario>/<name>.png`, at most `width` pixels wide. A 960 px picture costs an AI about 700 tokens to look at. |
@@ -67,7 +69,6 @@ Every change of screen is logged (`screen: <package> (frame, ms)`) without a com
 - `split_race_3_same_cars.txt` is `split_race_3` without choosing any car: run `split_race_3` first (it writes `[player_N] car=` into the split screen ini), then this one in a new game: the log must say `Car Select: player N starts on the car they chose before` and the `chose` lines must have the same handles. (Do not deploy with `set_mods.py` in between: it resets the ini.)
 - `split_race_4_again.txt` is a 4 player race (with the Quick Race opponents), quit from the pause menu by player 3, and a second 4 player race from the race options: no exception, racers logged for both (the second race of four once crashed in the vehicle cache list: `fixes::list_room`).
 - `split_race_intro.txt` is a 2 player race with a picture every 2 seconds from the load on: the intro cutscene plays full screen, then the split screen race starts.
-- `split_race_4_intro.txt` is a 4 player race (with the Quick Race opponents) that waits out the cutscene: the cars of the first four stand where it left them (`log_racers` during and after it), the others in rows behind.
 - `split_race_5.txt` is split_race_4 with the Players row at 5 (`max_players=5` in the split screen .ini): three rounds of Press Start and Car Select (the last for one player), a race with five views.
 - `live.txt` boots to the main menu and waits for lines to be appended.
 
