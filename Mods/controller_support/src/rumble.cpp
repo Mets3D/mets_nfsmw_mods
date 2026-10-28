@@ -304,7 +304,7 @@ struct RumbleState {
     // Carried over.
     bool was_nos, was_shifting, was_blown;
     int was_flat_tires, was_gear;
-    float time, road_phase, tire_phase, nos_time, redline_time, shift_time;
+    float time, road_phase, tire_phase, nos_time, redline_time, shift_time, blown_time;
     float jolt, jolt_hold, jolt_fade;  // crash: level, seconds left at full strength, fade time
     float scrape, scrape_hold;         // sliding along a wall or a car
     int jolt_effect, scrape_effect;    // the effects they belong to
@@ -317,7 +317,7 @@ void clear_rumble_effects() {
     rs().was_nos = rs().was_shifting = rs().was_blown = false;
     rs().was_flat_tires = 0;
     rs().was_gear = -1;
-    rs().jolt = rs().jolt_hold = rs().scrape = rs().scrape_hold = rs().redline_time = 0.0f;
+    rs().jolt = rs().jolt_hold = rs().scrape = rs().scrape_hold = rs().redline_time = rs().blown_time = 0.0f;
     rs().shift_time = 1.0f;
     rs().last.QuadPart = 0;
 }
@@ -376,8 +376,13 @@ void update_rumble() {
     rs().redline_time = pb > 0.985f && rs().throttle > 0.6f ? rs().redline_time + dt : 0.0f;
     if (rs().redline_time > 0.6f) add(E_REV_LIMITER, level[E_REV_LIMITER] * pulse_at(rs().time * 8.0f, 0.4f));
     if (rs().blown) {
-        if (!rs().was_blown) start_jolt(E_ENGINE_BLOWN, 1.0f);
-        add(E_ENGINE_BLOWN, level[E_ENGINE_BLOWN] * pulse_at(rs().time * 2.5f, 0.2f));
+        // A drag race ends with the blown engine, but a split screen race goes on for the other players: the pulses stop after a few seconds.
+        if (!rs().was_blown) {
+            start_jolt(E_ENGINE_BLOWN, 1.0f);
+            rs().blown_time = 0.0f;
+        }
+        rs().blown_time += dt;
+        if (rs().blown_time < 3.0f) add(E_ENGINE_BLOWN, level[E_ENGINE_BLOWN] * pulse_at(rs().time * 2.5f, 0.2f));
     }
     rs().was_blown = rs().blown;
     // Tire blowouts: a bang, then the flat tire thumping once per turn of the wheel (about 2 m).
