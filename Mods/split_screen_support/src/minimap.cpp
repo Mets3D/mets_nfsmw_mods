@@ -22,6 +22,7 @@
 #include "hooks.h"
 #include "max_players.h"
 #include "split_screen_support.h"
+#include "streaming_log.h"
 
 namespace split_screen_support::minimap {
 
@@ -288,6 +289,40 @@ void __fastcall hook_setup(void *self, void *edx, void *player) {
     g_setup_for = nullptr;
 }
 
+// A tile is loaded by allocating its uncompressed size from the main heap (UncompressMaps 0x5672F0: bMalloc(size at +8 of the tile's chunk, flags 0x2000) and a decompress
+// into it, then LoadEmbeddedChunks, which makes the texture pack) and the game does not look at whether the allocation worked: with the heap full a failed one crashed
+// the game (a null TexturePack in AttachTextureTable 0x506090) when four minimaps wanted 13 tiles. A tile that is not loaded yet and would not fit (with 8 MB to spare for the
+// texture packs' own objects) is left out of the list: its map stays black until there is room.
+constexpr unsigned kTileChunks = 0x48, kChunkUncompressedSize = 8, kMarginBytes = 8 << 20;
+
+int drop_tiles_that_do_not_fit(void *manager, short *tiles, int count) {
+    // (bCountFreeMemory says 0 for the main heap, so the largest free block is what there is to go by: a tile after another one takes from it.)
+    int free_bytes = streaming_log::pool_largest(0) - kMarginBytes;
+    int kept = 0;
+    for (int i = 0; i < count; ++i) {
+        bool loaded = false;
+        const int slots = field<int>(manager, kManagerSlotCount);
+        for (int s = 0; s < slots && !loaded; ++s) {
+            unsigned char *slot = static_cast<unsigned char *>(manager) + kManagerSlots + s * kSlotSize;
+            loaded = *reinterpret_cast<int *>(slot) == tiles[i] && *reinterpret_cast<void **>(slot + 4) != nullptr;
+        }
+        if (!loaded) {
+            void *chunk = tiles[i] >= 0 ? field<void *>(manager, kTileChunks + tiles[i] * 4) : nullptr;
+            const int size = chunk ? field<int>(chunk, kChunkUncompressedSize) : 0;
+            if (size > 0) {
+                if (size > free_bytes) {
+                    static int logged = 0;
+                    if (logged++ < 10) g_log.line("minimap: tile %d (%d KB) does not fit the main heap (largest free block %d KB): its map stays black", tiles[i], size >> 10, (free_bytes + kMarginBytes) >> 10);
+                    continue;
+                }
+                free_bytes -= size;
+            }
+        }
+        tiles[kept++] = tiles[i];
+    }
+    return kept;
+}
+
 // The tile streamer unloads every tile that is not in the list. With several minimaps its list is all their lists together (each tile once, as many as it
 // has slots).
 void __fastcall hook_tiles(void *self, void *edx, short *tiles, int count) {
@@ -322,8 +357,10 @@ void __fastcall hook_tiles(void *self, void *edx, short *tiles, int count) {
     static int logged_wanted = 0;
     if (wanted > logged_wanted) {  // the most tiles wanted at once so far
         logged_wanted = wanted;
-        g_log.line("minimap: %d tiles wanted by %d minimaps at once, %d slots%s", wanted, g_tile_set_count, slots, wanted > slots ? ": TOO FEW, some maps stay black" : "");
+        g_log.line("minimap: %d tiles wanted by %d minimaps at once, %d slots%s; the game's memory pools: %s", wanted, g_tile_set_count, slots, wanted > slots ? ": TOO FEW, some maps stay black" : "",
+                   streaming_log::pools_text());
     }
+    n = drop_tiles_that_do_not_fit(self, all, n);
     g_orig_tiles(self, edx, all, n);
 }
 
