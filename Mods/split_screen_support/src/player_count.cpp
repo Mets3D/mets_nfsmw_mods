@@ -103,10 +103,10 @@ int wanted() { return g_wanted; }
 void register_texts(const nfsmw::custom_menus::Host *host) {
     if (!ini_flag("options", "more_players", false)) return;
     host->register_text(kTitleHash, "Players");
+    static char texts[nfsmw::kMaxPlayers + 1][8];  // the host keeps the pointers
     for (int players = 2; players <= max_players(); ++players) {
-        char text[8];
-        snprintf(text, sizeof(text), "%d", players);
-        host->register_text(value_hash(players), text);
+        snprintf(texts[players], sizeof(texts[players]), "%d", players);
+        host->register_text(value_hash(players), texts[players]);
     }
     g_texts = true;
 }
