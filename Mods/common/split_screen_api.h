@@ -11,6 +11,8 @@
 //                      when that is not known (the main menu, a game of one player): the game's own PlayerToEdit (0 or 1) is then right.
 //   void *nfsmw_split_screen_support_player(int index)  the game's LocalPlayer (IPlayer) of player 1 to 4 (index 0 to 3); null when there is none. Players 3 and 4
 //                      are not in the game's list of local players.
+//   int nfsmw_split_screen_support_wide_picture(void *camera_anchor)  1 when the picture of the player whose camera that is (a CameraAnchor, as GetPov gets it) is much
+//                      wider than the screen (two players, the first of three), 0 when it has the screen's proportions (the others), -1 when that is not known.
 //   nfsmw_split_screen_support_press_start(int device)  for automated tests: the Press Start screen that is showing gets "this device let go of
 //                      Start" (device 0-3 = XInput controller, -1 = the keyboard), as if the person had pressed it.
 #pragma once
@@ -47,6 +49,12 @@ using PlayerFn = void *(*)(int index);
 inline PlayerFn find_player() {
     const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
     return module ? reinterpret_cast<PlayerFn>(GetProcAddress(module, "nfsmw_split_screen_support_player")) : nullptr;
+}
+
+using WidePictureFn = int (*)(void *camera_anchor);
+inline WidePictureFn find_wide_picture() {
+    const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
+    return module ? reinterpret_cast<WidePictureFn>(GetProcAddress(module, "nfsmw_split_screen_support_wide_picture")) : nullptr;
 }
 
 using PressStartFn = void (*)(int device);

@@ -7,6 +7,11 @@ namespace split_screen_support::extra_cameras {
 // placed. Returns the view (an eView), or null while the player has no camera.
 void *prepare_pass(int index);
 
+// Whether the picture of the player whose camera is `anchor` (a CameraAnchor) is much wider than the screen: 1 for the half screen bands of two players and of
+// the first of three, 0 for a cell with the screen's proportions (the quarters, a grid), -1 when that is not known (not a split race, no such camera). The game's
+// camera presets for split screen (GetPov) are made for the bands; nfsmw_camera_settings asks (nfsmw_split_screen_support_wide_picture).
+int wide_picture(void *anchor);
+
 void install();
 
 }  // namespace split_screen_support::extra_cameras

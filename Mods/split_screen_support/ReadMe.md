@@ -38,7 +38,6 @@ For these issues, it might be worth looking at the git log of the attempted fix,
 
 ### 3 or more player issues:
 These are just issues stemming from 4-player split-screen not being thoroughly playtested yet. Reverting changes is likely not going to help.
-- IIRC we added some camera offsets in split-screen, but these should only be assigned for players whose screen's aspect ratio becomes extremely wide. In 4-player for example, where players have the same aspect ratio as normal, the camera offsets should not apply.
 - Players 3 and onwards do not have any audio whatsoever.
 - Players 3 and onwards do not get particle effects like sparks whatsoever.
 - Geometry streaming seems inconsistent - Even player 1 and player 2 can end up with geometry that isn't loaded, see screenshot. Notice the zig-zag shape in the top-right, player 2's screen. This happened earlier for player 1 as well. The zig-zag is showing a road whose triangles just don't exist. Driving forward here causes the car to be reset.

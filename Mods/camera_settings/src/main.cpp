@@ -35,6 +35,7 @@
 #include "ini_switch.h"
 #include "nfsmw_util.h"
 #include "custom_menus_api.h"
+#include "split_screen_api.h"
 #include "acceleration.h"
 #include "camera_cycle.h"
 #include "mirror.h"
@@ -337,12 +338,21 @@ Pov *single_player_pov(void *anchor, int type) {
     return p;
 }
 
+// The game's split screen presets are made for the two wide bands. Split Screen (when it is there) says whether the camera's player has one: with 4 players, and for
+// the second and third of three, the picture has the screen's proportions and the single player presets are the right ones. -1 (not known) keeps the game's mode.
+bool wide_picture(void *anchor) {
+    static nfsmw::split_screen_api::WidePictureFn ask = nullptr;
+    if (!ask) ask = nfsmw::split_screen_api::find_wide_picture();  // the mods load in any order: looked for until found
+    return !ask || ask(anchor) != 0;
+}
+
 Pov *FASTCALL hook_getpov(void *self, void *edx, int type) {
     const bool valid = type >= 0 && type < kNumPresets;
-    const bool split = valid && *reinterpret_cast<int *>(kCurrentViewMode) == kViewTwoViews;
+    const bool mode_split = valid && *reinterpret_cast<int *>(kCurrentViewMode) == kViewTwoViews;
+    const bool split = mode_split && wide_picture(self);
     float single[NPARAM];  // the game's single player values: what the page shows and the settings are relative to
     if (split) read_base(*single_player_pov(self, type), type, single);
-    Pov *p = g_orig_getpov(self, edx, type);  // last: the Pov is one buffer of the anchor, and it must hold the mode's own values
+    Pov *p = mode_split && !split ? single_player_pov(self, type) : g_orig_getpov(self, edx, type);  // last: the Pov is one buffer of the anchor, and it must hold the mode's own values
     if (p && valid) {
         g_cur_type = type;
         g_anchor = self;

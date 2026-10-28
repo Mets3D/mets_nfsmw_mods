@@ -15,6 +15,7 @@
 #include <cstring>
 
 #include "events.h"
+#include "layout.h"
 #include "max_players.h"
 #include "hooks.h"
 #include "more_players.h"
@@ -32,7 +33,7 @@ constexpr uintptr_t kSetupLighting = 0x5029F0, kSetupPerView = 0x6CF400;
 constexpr unsigned kFarPlane = 0x466A6000;  // 15000.0f, as eDisplayFrame passes it
 constexpr size_t kDirectorSize = 0x2C8, kCameraSize = 0x2C0, kPlatInfoSize = 0x1A0;
 constexpr int kViewPlatInfo = 0x00, kViewId = 0x04, kViewCamera = 0x40, kViewMoverList = 0x44, kViewRenderTarget = 0x60;
-constexpr int kDirectorAction = 0x20, kActionCubicMover = 0x28, kActionRearViewMover = 0x2C;
+constexpr int kDirectorAction = 0x20, kActionCubicMover = 0x28, kActionRearViewMover = 0x2C, kActionAnchor = 0x30, kActionPlayer = 0x44;
 constexpr uintptr_t kIntroFlags[] = {0x911054, 0x911055};  // bytes the CDActionDrive constructor clears
 
 struct Extra {
@@ -74,6 +75,22 @@ bool in_game_list(void *director) {
     for (unsigned i = 0; list && i < count; ++i)
         if (list[i] == director) return true;
     return false;
+}
+
+// The player (0-based) whose camera is the anchor: the game's list of directors has them all (ours too), each director's action holds the anchor (+0x30) and
+// the player (+0x44).
+int player_of_anchor(void *anchor) {
+    void *const *list = *reinterpret_cast<void *const *const *>(0x911300);
+    const unsigned count = *reinterpret_cast<const unsigned *>(0x911308);
+    for (unsigned i = 0; list && i < count; ++i) {
+        void *action = list[i] ? at<void *>(reinterpret_cast<uintptr_t>(list[i]), kDirectorAction) : nullptr;
+        if (!action || at<void *>(reinterpret_cast<uintptr_t>(action), kActionAnchor) != anchor) continue;
+        void *const player = at<void *>(reinterpret_cast<uintptr_t>(action), kActionPlayer);
+        for (int p = 0; p < nfsmw::kMaxPlayers; ++p)
+            if (player && more_players::game_player(p) == player) return p;
+        return -1;
+    }
+    return -1;
 }
 
 void destroy(int index) {
@@ -158,6 +175,15 @@ void *prepare_pass(int index) {
     reinterpret_cast<void(__fastcall *)(void *, void *)>(kSetupLighting)(reinterpret_cast<void *>(view), nullptr);
     id = saved;
     return reinterpret_cast<void *>(view);
+}
+
+int wide_picture(void *anchor) {
+    const int players = more_players::race_players();
+    if (!players::split_screen() || players < 2) return -1;
+    const int player = player_of_anchor(anchor);
+    if (player < 0 || player >= players) return -1;  // (a camera just made is not in the director's action yet)
+    const RECT cell = layout::cell(player, players, 1000, 1000);  // a square "screen": a cell wider than 1.5 times its height is wider than the screen's own
+    return 2 * (cell.right - cell.left) > 3 * (cell.bottom - cell.top) ? 1 : 0;
 }
 
 void install() {
