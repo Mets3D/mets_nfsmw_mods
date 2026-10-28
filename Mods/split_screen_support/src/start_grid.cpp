@@ -5,7 +5,8 @@
  * starts at the start and walks *backwards* along the road (`IncNavPosition`, 7 m for each opponent), and each opponent stands at the nav's position,
  * 1.5 m to the left or right of it (alternating), facing the way the road goes [tested: lateral 1.500, along 0.000 on four tracks]. The cars of players 3
  * and up were made a straight 9 m behind the first two (`more_players.cpp`), which is not on the road in a curve and not in a lane. Here they are put the
- * same way the opponents are, two to a row (1.5 m to each side of the nav, 7 m for each row), behind the rearmost of players 1 and 2: the start is
+ * same way the opponents are, two to a row (1.5 m to each side of the nav, 7 m for each row), behind the rearmost of the others (players 1 and 2, and the
+ * opponents when the race has them, see ai_in_split_screen.cpp): the start is
  * noted at `Game_InitRacers` and the cars are put on the road at `Game_SaveStartPositions` (0x604E90, once the game has put players 1 and 2 where they
  * stand and before it saves the positions that a reset goes back to). Without a road at the start (the nav is not near it) the straight rows stay.
  */
@@ -58,12 +59,47 @@ void put_on_ground(void *vehicle, const float *position, const float *direction)
     reinterpret_cast<void(__fastcall *)(void *, void *, const float *, const float *)>(vtable[kSetVehicleOnGroundSlot])(vehicle, nullptr, position, direction);
 }
 
-// How far behind the start (along the way the race goes) the rearmost of players 1 and 2 stands.
-float rearmost_of_first_two(const float *start, const float *direction) {
+// The position of a racer's car (GRaceStatus *0x91E000: the count at +0x1958 and the GRacerInfos of 0x194 bytes from +0x18; a racer's simable is found by its
+// handle (+0) in the table at 0x92FEB4, the node's +4; the car's rigid body through the simable's virtual table, +0x54 GetRigidBody, whose +0x20 is the position).
+constexpr uintptr_t kRaceStatus = 0x91E000, kSimableTable = 0x92FEB4, kSimableTableCount = 0x92FEBC, kTableSearch = 0x5D51F0;
+
+void *racer_simable(const unsigned char *info) {
+    const unsigned handle = *reinterpret_cast<const unsigned *>(info);
+    if (!handle) return nullptr;
+    unsigned char *table = *reinterpret_cast<unsigned char **>(kSimableTable);
+    unsigned char *end = table + *reinterpret_cast<int *>(kSimableTableCount) * 8;
+    unsigned char *node = reinterpret_cast<unsigned char *(__cdecl *)(unsigned char *, unsigned char *, unsigned)>(kTableSearch)(table, end, handle);
+    return node ? *reinterpret_cast<void **>(node + 4) : nullptr;
+}
+
+bool simable_position(void *simable, float *position) {
+    void **simable_vtable = *reinterpret_cast<void ***>(simable);
+    void *body = reinterpret_cast<void *(__fastcall *)(void *, void *)>(simable_vtable[0x54 / 4])(simable, nullptr);
+    if (!body) return false;
+    void **vtable = *reinterpret_cast<void ***>(body);
+    memcpy(position, reinterpret_cast<const float *(__fastcall *)(void *, void *)>(vtable[0x20 / 4])(body, nullptr), 3 * sizeof(float));
+    return true;
+}
+
+// How far behind the start (along the way the race goes) the rearmost car stands, not counting the cars of the extra players (players 1 and 2 and the
+// opponents the game made are the racers that count).
+float rearmost_racer(const float *start, const float *direction) {
+    void *extras[nfsmw::kMaxExtras] = {};
+    for (int i = 0; i < nfsmw::kMaxExtras; ++i)
+        if (void *player = more_players::extra_player(i)) {
+            void **vtable = *reinterpret_cast<void ***>(player);
+            extras[i] = reinterpret_cast<void *(__fastcall *)(void *, void *)>(vtable[1])(player, nullptr);  // IPlayer::GetSimable
+        }
+    const unsigned char *status = *reinterpret_cast<unsigned char **>(kRaceStatus);
+    if (!status) return 0;
+    const int count = *reinterpret_cast<const int *>(status + 0x1958);
     float behind = 0;
-    for (int player = 0; player < nfsmw::kPlayersPerRound; ++player) {
-        float position[4], forward[4];
-        if (!more_players::player_car_state(player, position, forward)) continue;
+    for (int i = 0; i < count; ++i) {
+        void *simable = racer_simable(status + 0x18 + i * 0x194);
+        bool extra = false;
+        for (void *e : extras) extra = extra || (e && e == simable);
+        float position[3];
+        if (!simable || extra || !simable_position(simable, position)) continue;
         behind = std::max(behind, (start[0] - position[0]) * direction[0] + (start[2] - position[2]) * direction[2]);
     }
     return behind;
@@ -84,7 +120,7 @@ void place_extras(const float *start, const float *direction) {
         g_log.line("start grid: no road at the start (the nav is at (%.1f, %.1f, %.1f)): the cars of the extra players stay where they were made", position[0], position[1],
                    position[2]);
     } else {
-        const float first_row = rearmost_of_first_two(start, direction) + kRowSpacing;  // metres behind the start
+        const float first_row = rearmost_racer(start, direction) + kRowSpacing;  // metres behind the start
         float row_start[3] = {position[0], position[1], position[2]};
         for (int row = 0; row * 2 < extras; ++row) {
             const float wanted = row == 0 ? first_row : kRowSpacing;
