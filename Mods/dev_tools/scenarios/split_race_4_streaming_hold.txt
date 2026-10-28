@@ -1,0 +1,69 @@
+# split_race_4_streaming, then the game stays open for 15 minutes (to be looked at from outside).
+# Through the real menus with the Players row set to 4: Press Start and Car Select for players 1 and 2, then again for players 3 and 4
+# (devices: keyboard, controllers 0, 1 and 2), then the race, which has 2 players until the code that makes more exists. The log of
+# nfsmw_split_screen_support says what each round chose.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 4
+press down 2
+press right 2
+press down 1
+press left 3
+wait 1
+screenshot race_options width=640
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until racing timeout=180
+wait 6
+skip_cutscene
+wait 8
+log_racers
+teleport 0 452.513 117.609 91.733 -0.7659 -0.0014 0.6429
+teleport 1 641.365 117.448 1838.734 0.5049 -0.0142 -0.8631
+teleport 2 351.281 115.456 2563.359 0.6027 -0.0185 -0.7978
+teleport 3 335.812 115.813 2577.297 0.6249 0.0054 -0.7807
+wait 3
+screenshot streaming_3s width=960
+wait 5
+screenshot streaming_8s width=960
+wait 8
+screenshot streaming_16s width=960
+log_racers
+wait 900
+quit

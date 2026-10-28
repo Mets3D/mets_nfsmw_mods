@@ -267,6 +267,20 @@ void *racer_simable(const unsigned char *info) {
     return node ? *reinterpret_cast<void **>(node + 4) : nullptr;
 }
 
+// The car's name and whether it has a customization record (IVehicle: +0x4C GetVehicleName, +0xC8 GetCustomizations).
+void racer_car(void *simable, char *name, size_t size, bool *customized) {
+    snprintf(name, size, "?");
+    *customized = false;
+    if (!simable) return;
+    void *interfaces = *reinterpret_cast<void **>(static_cast<char *>(simable) + 4);
+    void *vehicle = reinterpret_cast<void *(__thiscall *)(void *, void *)>(kFindInterface)(interfaces, reinterpret_cast<void *>(kVehicleHandle));
+    if (!vehicle) return;
+    void **vtable = *static_cast<void ***>(vehicle);
+    const char *car = reinterpret_cast<const char *(__thiscall *)(void *)>(vtable[0x4C / 4])(vehicle);
+    if (car && !IsBadReadPtr(car, 1)) snprintf(name, size, "%s", car);
+    *customized = reinterpret_cast<void *(__thiscall *)(void *)>(vtable[0xC8 / 4])(vehicle) != nullptr;
+}
+
 bool racer_pose(void *simable, float *position, float *forward) {
     if (!simable) return false;
     void **simable_vtable = *reinterpret_cast<void ***>(simable);
@@ -292,9 +306,12 @@ void log_racers() {
         const float *start = reinterpret_cast<const float *>(info + 0x170), *start_direction = reinterpret_cast<const float *>(info + 0x180);
         float position[3] = {}, forward[3] = {};
         const bool found = racer_pose(simable, position, forward);
-        g_log.line("racers: %d: simable %p, %s (%.2f, %.2f, %.2f) forward (%.2f, %.2f, %.2f), saved start (%.2f, %.2f, %.2f) direction (%.2f, %.2f, %.2f)", i, simable,
-                   found ? "at" : "no body", position[0], position[1], position[2], forward[0], forward[1], forward[2], start[0], start[1], start[2], start_direction[0],
-                   start_direction[1], start_direction[2]);
+        char car[48];
+        bool customized;
+        racer_car(simable, car, sizeof(car), &customized);
+        g_log.line("racers: %d: simable %p, car %s%s, %s (%.2f, %.2f, %.2f) forward (%.2f, %.2f, %.2f), saved start (%.2f, %.2f, %.2f) direction (%.2f, %.2f, %.2f)", i, simable,
+                   car, customized ? " (customized)" : "", found ? "at" : "no body", position[0], position[1], position[2], forward[0], forward[1], forward[2], start[0], start[1], start[2],
+                   start_direction[0], start_direction[1], start_direction[2]);
         if (found) {
             char line[200];
             snprintf(line, sizeof(line), "teleport %d %.3f %.3f %.3f %.4f %.4f %.4f\n", i, position[0], position[1], position[2], forward[0], forward[1], forward[2]);

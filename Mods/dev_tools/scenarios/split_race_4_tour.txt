@@ -1,0 +1,147 @@
+# A tour: 4 players with 16 racers, the four cars are teleported along the track (9 places) every 8 seconds so that the minimaps and the track streamer have to load all over the track; the log of nfsmw_split_screen_support has the memory lines (the pools, the address space) and the tiles the minimaps want.
+# Through the real menus with the Players row set to 4: Press Start and Car Select for players 1 and 2, then again for players 3 and 4
+# (devices: keyboard, controllers 0, 1 and 2), then the race, which has 2 players until the code that makes more exists. The log of
+# nfsmw_split_screen_support says what each round chose.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 4
+press down 2
+press right 2
+press down 1
+press left 4
+wait 1
+screenshot race_options width=640
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until racing timeout=180
+wait 6
+skip_cutscene
+wait 8
+teleport 0 452.513 117.609 91.733
+teleport 1 594.152 117.488 1401.984
+teleport 2 496.323 116.452 2201.046
+teleport 3 452.513 117.609 91.733
+wait 8
+teleport 0 546.939 117.528 965.234
+teleport 1 568.844 116.950 2019.890
+teleport 2 351.281 115.456 2563.359
+teleport 3 546.939 117.528 965.234
+wait 8
+teleport 0 641.365 117.448 1838.734
+teleport 1 423.802 115.954 2382.203
+teleport 2 499.726 117.569 528.483
+teleport 3 641.365 117.448 1838.734
+wait 8
+teleport 0 496.323 116.452 2201.046
+teleport 1 452.513 117.609 91.733
+teleport 2 594.152 117.488 1401.984
+teleport 3 496.323 116.452 2201.046
+wait 8
+teleport 0 351.281 115.456 2563.359
+teleport 1 546.939 117.528 965.234
+teleport 2 568.844 116.950 2019.890
+teleport 3 351.281 115.456 2563.359
+wait 8
+teleport 0 499.726 117.569 528.483
+teleport 1 641.365 117.448 1838.734
+teleport 2 423.802 115.954 2382.203
+teleport 3 499.726 117.569 528.483
+wait 8
+teleport 0 594.152 117.488 1401.984
+teleport 1 496.323 116.452 2201.046
+teleport 2 452.513 117.609 91.733
+teleport 3 594.152 117.488 1401.984
+wait 8
+teleport 0 568.844 116.950 2019.890
+teleport 1 351.281 115.456 2563.359
+teleport 2 546.939 117.528 965.234
+teleport 3 568.844 116.950 2019.890
+wait 8
+teleport 0 423.802 115.954 2382.203
+teleport 1 499.726 117.569 528.483
+teleport 2 641.365 117.448 1838.734
+teleport 3 423.802 115.954 2382.203
+wait 8
+teleport 0 452.513 117.609 91.733
+teleport 1 594.152 117.488 1401.984
+teleport 2 496.323 116.452 2201.046
+teleport 3 452.513 117.609 91.733
+wait 8
+teleport 0 546.939 117.528 965.234
+teleport 1 568.844 116.950 2019.890
+teleport 2 351.281 115.456 2563.359
+teleport 3 546.939 117.528 965.234
+wait 8
+teleport 0 641.365 117.448 1838.734
+teleport 1 423.802 115.954 2382.203
+teleport 2 499.726 117.569 528.483
+teleport 3 641.365 117.448 1838.734
+wait 8
+teleport 0 496.323 116.452 2201.046
+teleport 1 452.513 117.609 91.733
+teleport 2 594.152 117.488 1401.984
+teleport 3 496.323 116.452 2201.046
+wait 8
+teleport 0 351.281 115.456 2563.359
+teleport 1 546.939 117.528 965.234
+teleport 2 568.844 116.950 2019.890
+teleport 3 351.281 115.456 2563.359
+wait 8
+teleport 0 499.726 117.569 528.483
+teleport 1 641.365 117.448 1838.734
+teleport 2 423.802 115.954 2382.203
+teleport 3 499.726 117.569 528.483
+wait 8
+teleport 0 594.152 117.488 1401.984
+teleport 1 496.323 116.452 2201.046
+teleport 2 452.513 117.609 91.733
+teleport 3 594.152 117.488 1401.984
+wait 8
+teleport 0 568.844 116.950 2019.890
+teleport 1 351.281 115.456 2563.359
+teleport 2 546.939 117.528 965.234
+teleport 3 568.844 116.950 2019.890
+wait 8
+teleport 0 423.802 115.954 2382.203
+teleport 1 499.726 117.569 528.483
+teleport 2 641.365 117.448 1838.734
+teleport 3 423.802 115.954 2382.203
+wait 8
+log_players
+quit
