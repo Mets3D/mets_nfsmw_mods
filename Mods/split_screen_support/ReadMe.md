@@ -36,13 +36,13 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 Changes made while you were away, which I could only check through logs and screenshots. Please play them, and delete a line once you have confirmed it (or tell me what is still wrong).
 - **Car starting positions** (3 or more players): the cars of players 3 and up are now put on the road the way the game puts the NPC opponents of a Quick Race (a row of two behind players 1 and 2 for each pair of players, a single car in the middle of its row, rows 7 m apart, following the road's curve), instead of in a straight line 9 m behind. Checked in the log and screenshots for 3, 4 and 5 players on three tracks; I have not driven it. Please look for cars that start inside a wall or a barrier, or off the road, and for cars that overlap, on tracks with a curve at the start. Restart Race (not tried) should put everybody back in the same places.
 - **Cancelling a car selection in the last round** (3 players, or 5, ...): Back on player 3's Car Select now goes back to their Press Start, as it does for the other players, instead of starting the race. Checked with a test run (Back, then choose again and the race starts); try it with a real controller too, and also Back at the player 3 Press Start screen, which I did not look at.
+- **Minimaps with black squares** (players 3 and 4 far from players 1 and 2): the map picture's tile manager had room for 9 tiles, which is two or three minimaps' worth, and now has room for four tiles per player. In a test with the cars 2.4 km apart the minimaps wanted 12 tiles at once and all showed their map. Please drive apart and look at all the minimaps.
 
 ### 3 or more player issues:
 These are just issues stemming from 4-player split-screen not being thoroughly playtested yet. Reverting changes is likely not going to help.
 - Players 3 and onwards do not have any audio whatsoever.
 - Players 3 and onwards do not get particle effects like sparks whatsoever.
 - Geometry streaming seems inconsistent - Even player 1 and player 2 can end up with geometry that isn't loaded, see screenshot. Notice the zig-zag shape in the top-right, player 2's screen. This happened earlier for player 1 as well. The zig-zag is showing a road whose triangles just don't exist. Driving forward here causes the car to be reset.
-- The minimaps can have a similar issue - Player 3 and 4 can end up with black squares, missing chunks, which seems to fix when player 1 or 2 is nearby.
 
 ### Low prio - Nice-to-haves
 - HUD scale acts funny with the rearview mirror...

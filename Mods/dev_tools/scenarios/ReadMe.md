@@ -60,6 +60,8 @@ Every change of screen is logged (`screen: <package> (frame, ms)`) without a com
 - `split_race_4_perf.txt` is split_race_4 and then the frame rate of fifteen seconds (`measure`) and the log's frame timing; run it with `--resolution WxH` to see how the frame time follows the pixels.
 - `single_race_racers.txt` is `single_race` with `log_racers` when the race is up and eight seconds later: where the game puts its NPC opponents (the race is picked at random).
 - `split_race_2_grid.txt`, `split_race_3_grid.txt`, `split_race_4_grid.txt` and `split_race_5_grid.txt` go through the menus up to the start of a split screen race with that many players, then `log_racers`, `log_players` and a screenshot of the start (5 needs `max_players=5`).
+- `split_race_3_cancel.txt` is `split_race_3`, and then player 3 presses Back on their Car Select: the game must be at Press Start (the race must not start); player 3 chooses again and the race starts.
+- `split_race_4_spread.txt` is `split_race_4` and then players 2, 3 and 4 drive (`drive`) away from player 1 for 40 s; `split_race_4_far.txt` has the AI drive them (`control=improved` for `[player_2]` to `[player_4]` in the improved AI's .ini first) for a minute, so the cars are kilometres apart: the log of the split screen mod says how many minimap tiles are wanted at once, and the pictures show the four minimaps.
 - `split_race_5.txt` is split_race_4 with the Players row at 5 (`max_players=5` in the split screen .ini): three rounds of Press Start and Car Select (the last for one player), a race with five views.
 - `live.txt` boots to the main menu and waits for lines to be appended.
 

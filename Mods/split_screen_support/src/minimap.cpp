@@ -6,17 +6,21 @@
  *     list), the rest are copies of that marker (FEObject::Clone) placed by the minimap's own code (UpdateElementArt), each in the colour of its player,
  *     and the minimap's own marker has the colour of its player;
  *   - the map pictures come from a streamer that keeps only the tiles of the minimap that asked last, and all ask every frame, so it is given all the sets at
- *     once.
+ *     once, and it has room for the tiles of every minimap (the game's 9 slots are two or three minimaps' worth; the manager is made bigger).
  * Object layouts are the PC version's, not the decomp's: see agent_docs/split-screen.md.
  */
 #include "minimap.h"
 
+#include <malloc.h>
+
+#include <algorithm>
 #include <cstring>
 
 #include "events.h"
 #include "fe_objects.h"
 #include "hud_views.h"
 #include "hooks.h"
+#include "max_players.h"
 #include "split_screen_support.h"
 
 namespace split_screen_support::minimap {
@@ -56,8 +60,34 @@ struct TileSet {
     short tiles[8];
     int count;
 };
-TileSet g_tile_sets[8];
+TileSet g_tile_sets[nfsmw::kMaxPlayers];
 int g_tile_set_count = 0;
+
+// ChoppedMiniMapManager (the global 0x91CEFC, made by FEManager::Init through 0x579780 before the mods load, 0x1B4 bytes): the number of slots at +4 and the
+// slots (tile, memory, size: 0xC bytes) from +0x148, 9 of them. Each minimap asks for up to 4 tiles (a 2 x 2 piece of the map around its player), so
+// there is room for 4 for each player the mods are made for: the first call that comes with the game's object moves it into a bigger one (every use of
+// the manager reads the global).
+constexpr uintptr_t kManagerGlobal = 0x91CEFC;
+constexpr unsigned kManagerSlotCount = 4, kManagerSlots = 0x148, kSlotSize = 0xC, kGameSlots = 9;
+constexpr int kTilesPerMinimap = 4, kSlots = nfsmw::kMaxPlayers * kTilesPerMinimap;
+void *g_wide_manager = nullptr;
+
+// The manager to ask: the game's, made bigger the first time (its tiles and their table stay as they are).
+void *wide_manager(void *manager) {
+    if (manager == g_wide_manager) return manager;
+    void *&global = *reinterpret_cast<void **>(kManagerGlobal);
+    if (manager != global || field<int>(manager, kManagerSlotCount) != static_cast<int>(kGameSlots)) return manager;
+    const size_t game_size = kManagerSlots + kGameSlots * kSlotSize, size = kManagerSlots + kSlots * kSlotSize;
+    void *wide = _aligned_malloc(size, 16);
+    if (!wide) return manager;
+    memcpy(wide, manager, game_size);
+    memset(static_cast<char *>(wide) + game_size, 0, size - game_size);
+    field<int>(wide, kManagerSlotCount) = kSlots;
+    global = wide;
+    g_wide_manager = wide;
+    g_log.line("minimap: the tile manager has %d slots now (the game's %d)", kSlots, kGameSlots);
+    return wide;
+}
 
 constexpr int kMaxOthers = 7;
 struct Markers {
@@ -258,10 +288,11 @@ void __fastcall hook_setup(void *self, void *edx, void *player) {
     g_setup_for = nullptr;
 }
 
-// The tile streamer unloads every tile that is not in the list. With several minimaps its list is all their lists together (each tile once: the streamer
-// has 9 slots, and more would not fit).
+// The tile streamer unloads every tile that is not in the list. With several minimaps its list is all their lists together (each tile once, as many as it
+// has slots).
 void __fastcall hook_tiles(void *self, void *edx, short *tiles, int count) {
-    if (!g_setup_for || count > 4 || count < 0) {
+    self = wide_manager(self);
+    if (!g_setup_for || count > kTilesPerMinimap || count < 0) {
         if (count == 0) g_tile_set_count = 0;
         g_orig_tiles(self, edx, tiles, count);
         return;
@@ -269,7 +300,7 @@ void __fastcall hook_tiles(void *self, void *edx, short *tiles, int count) {
     TileSet *set = nullptr;
     for (int i = 0; i < g_tile_set_count; ++i)
         if (g_tile_sets[i].minimap == g_setup_for) set = &g_tile_sets[i];
-    if (!set && g_tile_set_count < 8) set = &g_tile_sets[g_tile_set_count++];
+    if (!set && g_tile_set_count < nfsmw::kMaxPlayers) set = &g_tile_sets[g_tile_set_count++];
     if (!set) {
         g_orig_tiles(self, edx, tiles, count);
         return;
@@ -277,14 +308,22 @@ void __fastcall hook_tiles(void *self, void *edx, short *tiles, int count) {
     set->minimap = g_setup_for;
     memcpy(set->tiles, tiles, count * sizeof(short));
     set->count = count;
-    short all[9];
-    int n = 0;
+    const int slots = std::min(field<int>(self, kManagerSlotCount), kSlots);
+    short all[kSlots];
+    int n = 0, wanted = 0;
     for (int s = 0; s < g_tile_set_count; ++s)
-        for (int i = 0; i < g_tile_sets[s].count && n < 9; ++i) {
+        for (int i = 0; i < g_tile_sets[s].count; ++i) {
             bool seen = false;
             for (int k = 0; k < n; ++k) seen = seen || all[k] == g_tile_sets[s].tiles[i];
-            if (!seen) all[n++] = g_tile_sets[s].tiles[i];
+            if (seen) continue;
+            ++wanted;
+            if (n < slots) all[n++] = g_tile_sets[s].tiles[i];
         }
+    static int logged_wanted = 0;
+    if (wanted > logged_wanted) {  // the most tiles wanted at once so far
+        logged_wanted = wanted;
+        g_log.line("minimap: %d tiles wanted by %d minimaps at once, %d slots%s", wanted, g_tile_set_count, slots, wanted > slots ? ": TOO FEW, some maps stay black" : "");
+    }
     g_orig_tiles(self, edx, all, n);
 }
 

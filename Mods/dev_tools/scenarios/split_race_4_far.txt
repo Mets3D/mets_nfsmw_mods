@@ -1,0 +1,63 @@
+# split_race_4 with players 2, 3 and 4 driven by the AI (set control=improved for [player_2] to [player_4] in nfsmw_improved_ai_opponents.ini first) while player 1 stands still: after a minute the cars are far apart, and the minimaps show tiles far apart (the log says how many tiles they want at once).
+# Through the real menus with the Players row set to 4 (see split_race_4_drive), then the race.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 2
+press down 2
+press right 2
+wait 2
+screenshot race_options
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 1
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 2
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+screenshot car_select_3 width=640
+press right 3
+wait 2
+press accept
+wait_until racing timeout=180
+wait 10
+log_players
+wait 30
+screenshot far_a width=1280
+log_players
+wait 30
+screenshot far_b width=1280
+log_players
+quit
