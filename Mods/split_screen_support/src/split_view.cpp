@@ -72,6 +72,32 @@ constexpr float kBandCenter = 0.55f;  // where the band is centred, as a fractio
 
 void (*g_orig_display_frame)();
 
+// How many times the game has drawn its frame (the world, for one player) since the frame began (hook_display_frame resets it): the first drawing is player 1's.
+int g_draws = 0;
+void game_frame() {
+    g_orig_display_frame();
+    ++g_draws;
+}
+
+// VehicleRenderConn::RenderFlares 0x744E20 (static: the view, whether it is a reflection, flags) draws the flares of the cars' lights, and the trails behind them when they use
+// nitro, from the last three places the car was drawn at: the car's own history, moved on one place whenever the function runs for the view with the id 1 or 2. With 3 to 8
+// players the frame is drawn once per player, each with view 1's id: the history moved 3 to 8 times a frame and its three places were all from the same frame, so the trails
+// had no length at all. The drawings after the first leave it alone (the view has an id of nobody's while the function runs; what else the id is for in there is player 1's cop
+// light, once per frame).
+void (__cdecl *g_orig_render_flares)(void *, int, int);
+
+void __cdecl hook_render_flares(void *view, int reflection, int flags) {
+    if (reflection != 0 || g_draws == 0 || !view) {
+        g_orig_render_flares(view, reflection, flags);
+        return;
+    }
+    int &id = *reinterpret_cast<int *>(static_cast<char *>(view) + 0x04);
+    const int saved = id;
+    id = 0x7F;
+    g_orig_render_flares(view, reflection, flags);
+    id = saved;
+}
+
 // eView::SetupPerView (0x6CF400): the widescreen fix corrects the projection's aspect for the views with id 1 and 4 only
 // (at 0x6CF4EA, which it patches), while the game treats ids 1, 2, 4 and 5 alike there. View 2 is drawn like view 1 here, so
 // it gets the id 4, which the fix and the game treat as a main view too, for the call: otherwise player 2's picture is stretched.
@@ -445,7 +471,7 @@ bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, 
         cpu_start = now_ms();
     }
     reflections::begin_pass(device, 0, players);
-    g_orig_display_frame();  // player 1
+    game_frame();  // player 1
     pool[0] = pool_start;
     reflections::end_pass(device, 0);
     if (timed) {
@@ -463,7 +489,7 @@ bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, 
         setup_glow_view();
         if (timed) cpu_start = now_ms();
         reflections::begin_pass(device, pass, players);
-        g_orig_display_frame();
+        game_frame();
         pool[0] = pool_start;
         reflections::end_pass(device, pass);
         if (timed) {
@@ -485,14 +511,14 @@ bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, 
 void split_frame(IDirect3DDevice9 *device) {
     g_device = device;
     IDirect3DSurface9 *back_buffer = nullptr;
-    if (FAILED(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &back_buffer)) || !back_buffer) return g_orig_display_frame();
+    if (FAILED(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &back_buffer)) || !back_buffer) return game_frame();
     D3DSURFACE_DESC d;
     back_buffer->GetDesc(&d);
     if (!g_logged_first) log_first(device, back_buffer, d);
     if (!canvas_fits(d) && !make_canvas(device, d, d.MultiSampleType != D3DMULTISAMPLE_NONE)) {
         back_buffer->Release();
         g_failed = true;
-        return g_orig_display_frame();
+        return game_frame();
     }
     const LONG w = d.Width, h = d.Height, half = h / 2;
     LONG band_top = static_cast<LONG>(kBandCenter * h) - half / 2;
@@ -517,7 +543,7 @@ void split_frame(IDirect3DDevice9 *device) {
     unsigned *pool = reinterpret_cast<unsigned *>(kFramePool);
     const unsigned pool_start = pool[0];
     reflections::begin_pass(device, 0, 2);
-    g_orig_display_frame();  // player 1
+    game_frame();  // player 1
     pool[0] = pool_start;
     reflections::end_pass(device, 0);
     view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(d.Width), static_cast<float>(d.Height), 0);
@@ -526,7 +552,7 @@ void split_frame(IDirect3DDevice9 *device) {
     trade_views(1, kView2);
     setup_glow_view();
     reflections::begin_pass(device, 1, 2);  // reflections around player 2's car
-    g_orig_display_frame();  // player 2
+    game_frame();  // player 2
     reflections::end_pass(device, 1);
     view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(d.Width), static_cast<float>(d.Height), 1);  // with player 2's view still in view 1's place
     trade_views(1, kView2);
@@ -553,12 +579,13 @@ void draw_single_view(IDirect3DDevice9 *device) {
 }
 
 void hook_display_frame() {
+    g_draws = 0;
     auto *device = *reinterpret_cast<IDirect3DDevice9 **>(kDevice);
     const bool two_views = *reinterpret_cast<int *>(kViewMode) == kTwoViews && !race_intro::playing();  // (the cutscene of the race is for the whole screen)
     if (!two_views || g_failed || !device || !g_view2_on || !at<void *>(kView1, kViewCamera) ||
         !at<void *>(kView2, kViewCamera)) {
         if (!two_views && g_canvas && !race_intro::playing()) release_canvas();
-        g_orig_display_frame();
+        game_frame();
         draw_single_view(device);
         return;
     }
@@ -575,10 +602,12 @@ void install() {
     const nfsmw::Hook hooks[] = {
         {"displayframe", "___eDisplayFrame", 0x6DE300, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x81}, false,
          nfsmw::detour(&hook_display_frame), nfsmw::orig(&g_orig_display_frame)},
+        {"renderflares", "VehicleRenderConn::RenderFlares", 0x744E20, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x83}, false, nfsmw::detour(&hook_render_flares),
+         nfsmw::orig(&g_orig_render_flares)},
         {"setupperview", "eView::SetupPerView", 0x6CF400, {0x83, 0xEC, 0x0C, 0x53, 0x55, 0x56, 0x57}, false,
          nfsmw::detour(&hook_setup_per_view), nfsmw::orig(&g_orig_setup_per_view)},
     };
-    nfsmw::install_hooks(hooks, 2, g_log, nullptr, "split view");
+    nfsmw::install_hooks(hooks, 3, g_log, nullptr, "split view");
     reflections::install();
 }
 
