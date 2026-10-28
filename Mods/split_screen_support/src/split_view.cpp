@@ -80,22 +80,26 @@ void game_frame() {
 }
 
 // VehicleRenderConn::RenderFlares 0x744E20 (static: the view, whether it is a reflection, flags) draws the flares of the cars' lights, and the trails behind them when they use
-// nitro, from the last three places the car was drawn at: the car's own history, moved on one place whenever the function runs for the view with the id 1 or 2. With 3 to 8
-// players the frame is drawn once per player, each with view 1's id: the history moved 3 to 8 times a frame and its three places were all from the same frame, so the trails
-// had no length at all. The drawings after the first leave it alone (the view has an id of nobody's while the function runs; what else the id is for in there is player 1's cop
-// light, once per frame).
+// nitro, from the last three places the car was drawn at: the car's own history (CarRenderInfo +0x1280 the index, +0x1190 the matrices, +0x1250 the positions), moved on one place
+// whenever the function runs for the view with the id 1 or 2 (the id is read at 0x744EFF, `mov eax, [eax + 4]`). With 3 to 8 players the frame is drawn once per player, each with
+// view 1's id: the history moved 3 to 8 times a frame and its three places were all from the same frame, so the trails had no length. That read is pointed at `g_history_view`:
+// the view's id in the first drawing of a frame and 0 in the others, which leave the history alone (the id itself is not touched: the flares use it as an index, and a
+// made up one wrote outside their lists and damaged the heap [tested: the debug heap's check of a freed block opened its message box]).
+int g_history_view = 0;
 void (__cdecl *g_orig_render_flares)(void *, int, int);
 
 void __cdecl hook_render_flares(void *view, int reflection, int flags) {
-    if (reflection != 0 || g_draws == 0 || !view) {
-        g_orig_render_flares(view, reflection, flags);
-        return;
-    }
-    int &id = *reinterpret_cast<int *>(static_cast<char *>(view) + 0x04);
-    const int saved = id;
-    id = 0x7F;
+    g_history_view = view && g_draws == 0 ? *reinterpret_cast<int *>(static_cast<char *>(view) + 0x04) : 0;
     g_orig_render_flares(view, reflection, flags);
-    id = saved;
+}
+
+// Points the id read of RenderFlares at g_history_view (`mov eax, [ebp + 8]; mov eax, [eax + 4]` becomes `mov eax, [g_history_view]; nop`).
+bool patch_history_read() {
+    static const unsigned char expected[6] = {0x8B, 0x45, 0x08, 0x8B, 0x40, 0x04};
+    unsigned char patch[6] = {0xA1, 0, 0, 0, 0, 0x90};
+    const uintptr_t address = reinterpret_cast<uintptr_t>(&g_history_view);
+    memcpy(patch + 1, &address, 4);
+    return nfsmw::patch_bytes(0x744EFC, expected, patch, sizeof(patch));
 }
 
 // eView::SetupPerView (0x6CF400): the widescreen fix corrects the projection's aspect for the views with id 1 and 4 only
@@ -607,7 +611,10 @@ void install() {
         {"setupperview", "eView::SetupPerView", 0x6CF400, {0x83, 0xEC, 0x0C, 0x53, 0x55, 0x56, 0x57}, false,
          nfsmw::detour(&hook_setup_per_view), nfsmw::orig(&g_orig_setup_per_view)},
     };
-    nfsmw::install_hooks(hooks, 3, g_log, nullptr, "split view");
+    const nfsmw::HookResult installed = nfsmw::install_hooks(hooks, 3, g_log, nullptr, "split view");
+    // (the hook that sets g_history_view and the patch that reads it go together: without the hook the history would never move)
+    const bool history_patched = installed.ok && installed.created == installed.wanted && patch_history_read();
+    g_log.line("split view: the history of the cars' light trails is moved on once a frame: %s", history_patched ? "yes" : "NOT CHANGED");
     reflections::install();
 }
 
