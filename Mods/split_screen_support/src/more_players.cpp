@@ -193,7 +193,7 @@ void start_race() {
     restore_first_round();
     g_round = 0;
     g_log.line("all %d players chose; the race starts with players 1 and 2 (the others are made after their cars)", wanted_players());
-    fixes::vehicle_cache_room();
+    fixes::list_room();
     original_start_race();
 }
 

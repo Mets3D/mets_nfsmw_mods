@@ -18,7 +18,7 @@
  *                  as mode 1, player 1's view on the whole screen, and split_view.cpp draws the two halves from it. (The
  *                  ExtraOptions patch instead kept mode 0 from switching the views off, in every game.)
  *  missing_wheel   eModel::ReplaceLightMaterial (0x501640): see below.
- *  vehicle_cache_room  see fixes.h: called when the race is about to start.
+ *  list_room       see fixes.h: called when the race is about to start.
  */
 #include "fixes.h"
 
@@ -117,18 +117,22 @@ void use_one_view_scenery_rule(bool one_view) {
     g_log.line("scenery detail: %s rule", one_view ? "the one view" : "the game own (for views a quarter of the screen)");
 }
 
-void vehicle_cache_room() {
-    // UTL::Vector<IVehicleCache *, 16>: the allocator, the buffer, the capacity, the count. 28 entries were seen in a race of four players.
-    static unsigned room[256];
-    unsigned *list = reinterpret_cast<unsigned *>(0x92FDA0);
+// A UTL::Vector with an inline buffer: the allocator at +0, the buffer at +4, the capacity at +8 and the count at +0xC. The allocator hands out the inline
+// buffer however much is asked for (and raises the capacity to a constant), so entries past the inline room overwrite the next object in the exe's data.
+static void give_room(unsigned *list, unsigned *room, unsigned capacity, const char *what) {
     if (list[1] == reinterpret_cast<unsigned>(room)) return;
-    unsigned count = list[3];
-    if (count > 256 || IsBadReadPtr(reinterpret_cast<const void *>(list[1]), count * sizeof(unsigned))) count = 0;  // (a stale buffer holds nothing we can keep)
+    const unsigned count = list[3];
+    if (count > capacity) return;
     memcpy(room, reinterpret_cast<const void *>(list[1]), count * sizeof(unsigned));
     list[1] = reinterpret_cast<unsigned>(room);
-    list[2] = 256;
-    list[3] = count;
-    g_log.line("fix vehicle_cache_room: the list of vehicle caches (%u entries) has a buffer of its own with room for 256", count);
+    list[2] = capacity;
+    g_log.line("fix list_room: the list of %s (%u entries) has a buffer of its own with room for %u", what, count, capacity);
+}
+
+void list_room() {
+    static unsigned huds[64], vehicle_caches[256];
+    give_room(reinterpret_cast<unsigned *>(0x92FD88), huds, 64, "HUDs");                      // Listable<IHud>: room for 2
+    give_room(reinterpret_cast<unsigned *>(0x92FDA0), vehicle_caches, 256, "vehicle caches");  // Listable<IVehicleCache>: room for 28
 }
 
 void install() {
