@@ -48,11 +48,11 @@ These are just issues stemming from 4-player split-screen not being thoroughly p
 - Geometry streaming seems inconsistent - Even player 1 and player 2 can end up with geometry that isn't loaded, see screenshot. Notice the zig-zag shape in the top-right, player 2's screen. This happened earlier for player 1 as well. The zig-zag is showing a road whose triangles just don't exist. Driving forward here causes the car to be reset.
 
 ### Low prio - Nice-to-haves
-- HUD scale acts funny with the rearview mirror...
-- Would be nice if HUD scale also allowed >100%
-- Exiting a split-screen race should let us switch to a different race type without having to re-select our cars. The UX flow here is just awkward...
-- How about vertical split screen? ;)
-- Heat Level (cops) is the one Quick Race option not available in Split Screen yet (the others are above, under "Needs your testing").
+- HUD scale acts funny with the rearview mirror... (not looked at: I could not see what "funny" means in a test run)
+- Would be nice if HUD scale also allowed >100% (not attempted: each HUD is drawn in a viewport of the whole picture at the scale, which cannot be bigger than the screen; it would need a viewport for each corner)
+- Exiting a split-screen race should let us switch to a different race type without having to re-select our cars. The UX flow here is just awkward... (Partly helped by the remembered cars: the Car Select starts on your last car, so it is Press Start + Accept for each player. The Press Start screens are still there: I did not try to skip them.)
+- How about vertical split screen? ;) (not attempted)
+- Heat Level (cops) is the one Quick Race option not available in Split Screen yet (the others are above, under "Needs your testing"). It is not a row of the game: Redux v3's NFSMWRaceFixes adds it in its own code, so it needs that plugin's row class.
 
 ### AI Disclaimer
 
