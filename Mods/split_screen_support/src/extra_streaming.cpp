@@ -5,14 +5,24 @@
  * views 1 and 2. The views of players 3 and 4 (extra_cameras.cpp) are not active, so the world around them was not kept.
  * With three or four players, after the game has done that, the two positions are chosen again among the cars: the pair that keeps every car nearest to
  * one of them (the two-centre of the cars) in the plane of the track. A position of player 1 or 2 keeps the game's own entry (with its speed and
- * direction); for player 3 or 4 the entry is made with PredictStreamingPosition. Cars far enough apart for one to be out of the range of both will
- * see the world pop in around it: the streamer has room for two places.
+ * direction); for player 3 or 4 the entry is made with PredictStreamingPosition.
+ * The cars that have no position of the two get an extra place: the game works out which sections a position wants from its zone (DetermineStreamingSections
+ * 0x72DD70: `CurrentZone` of an entry, in the list of loading sections 0x9A3B70 or the list of drivable sections 0x9A3B60, then AddCurrentStreamingSections
+ * 0x728060 with the entry's number, which sets that bit in the sections' `CurrentlyVisible`), and what the zone is comes from the entry's position and speed
+ * (GetPredictedZone 0x72DB80, which uses nothing else). So an extra place is an entry of our own, its zone worked out the same way (DetermineCurrentZones
+ * 0x72DF20 is hooked: it says "the zones are different" when an extra's zone changes, which makes the game switch zones, and gives the extras' zones a short delay
+ * like its own), and, once DetermineStreamingSections is done, the sections of that zone are added, as the entry of the nearest of the two positions (the
+ * loading priority of a section is from the positions that have its bit; every section in the list loads). 54 sections (213 MB, of a pool of 242 MB) are loaded
+ * for two places, of which 188 MB are the three that every place has (X0, Y0, Z0): each place of its own costs 8 to 18 MB.
+ * The memory the streamer keeps what it has loaded in is its pool: streaming_pool.cpp.
  */
 #include "extra_streaming.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
+#include "hooks.h"
 #include "max_players.h"
 #include "more_players.h"
 #include "patch.h"
@@ -30,6 +40,25 @@ constexpr int kPlaces = 2;  // what the game's track streamer has: two places it
 
 uintptr_t g_update_camera_movers = kUpdateCameraMovers;
 
+constexpr uintptr_t kDetermineStreamingSections = 0x72DD70, kDetermineCurrentZones = 0x72DF20, kAddCurrentStreamingSections = 0x728060, kGetPredictedZone = 0x72DB80,
+                    kGetSectionsToLoad = 0x72C750, kVisibleSectionManager = 0x9A3B50, kLoadingSections = 0x9A3B70, kDrivableSections = 0x9A3B60;
+constexpr unsigned kEntryZone = 0x1E;  // an entry's CurrentZone
+constexpr int kMaxSectionsToLoad = 0x180;
+constexpr int kZoneDelay = 8;  // the frames an extra's new zone must be the prediction before it is taken
+
+// The players that have no position of the streamer's two, and where they are (the entries are the streamer's own layout, 0x64 bytes).
+struct Extra {
+    int player = -1;
+    int slot = 0;                    // the position (0 or 1) whose bit its sections get: the nearest
+    short zone = 0;                  // the zone its sections are for (0: none yet)
+    short pending = 0;
+    int pending_frames = 0;
+    unsigned char entry[kEntrySize] = {};
+};
+Extra g_extras[nfsmw::kMaxPlayers];
+int g_extra_count = 0;
+bool g_extras_changed = false;  // who has an extra place has changed
+
 // The game render space: (x, y, z) of the simulation become (z, -x, y); the streamer works in its x, y plane.
 void to_render(const float *sim, float *out) {
     out[0] = sim[2];
@@ -46,9 +75,79 @@ float distance_squared(const float *a, const float *b) {
 float g_last_position[nfsmw::kMaxPlayers][3];
 bool g_last_known[nfsmw::kMaxPlayers];
 
+// The sections of a zone, as DetermineStreamingSections 0x72DD70 finds them (a loading section lists zones; else the zone is a drivable section with its own list).
+int sections_of_zone(short zone, short *out) {
+    for (void *node = *reinterpret_cast<void **>(kLoadingSections); node != reinterpret_cast<void *>(kLoadingSections); node = *reinterpret_cast<void **>(node)) {
+        const int count = *reinterpret_cast<short *>(static_cast<char *>(node) + 0x18);
+        const short *zones = reinterpret_cast<short *>(static_cast<char *>(node) + 0x1A);
+        for (int i = 0; i < count; ++i)
+            if (zones[i] == zone)
+                return reinterpret_cast<int(__fastcall *)(void *, void *, void *, short *, int)>(kGetSectionsToLoad)(reinterpret_cast<void *>(kVisibleSectionManager), nullptr, node, out,
+                                                                                                                      kMaxSectionsToLoad);
+    }
+    for (void *node = *reinterpret_cast<void **>(kDrivableSections); node != reinterpret_cast<void *>(kDrivableSections); node = *reinterpret_cast<void **>(node)) {
+        if (*reinterpret_cast<short *>(static_cast<char *>(node) + 0xC) != zone) continue;
+        const int count = std::min<int>(*reinterpret_cast<short *>(static_cast<char *>(node) + 0x10), kMaxSectionsToLoad);
+        memcpy(out, static_cast<char *>(node) + 0x12, count * sizeof(short));
+        return count;
+    }
+    return 0;
+}
+
+// Works out the zones of the extra places; true when one of them has changed (or who has a place has).
+bool update_extra_zones() {
+    bool changed = g_extras_changed;
+    g_extras_changed = false;
+    for (int k = 0; k < g_extra_count; ++k) {
+        Extra &extra = g_extras[k];
+        const short predicted = reinterpret_cast<short(__fastcall *)(void *, void *, void *)>(kGetPredictedZone)(reinterpret_cast<void *>(kStreamer), nullptr, extra.entry);
+        if (predicted == extra.zone) {
+            extra.pending_frames = 0;
+        } else if (extra.zone == 0) {
+            extra.zone = predicted;
+            changed = true;
+        } else if (predicted == extra.pending) {
+            if (++extra.pending_frames >= kZoneDelay) {
+                extra.zone = predicted;
+                extra.pending_frames = 0;
+                changed = true;
+            }
+        } else {
+            extra.pending = predicted;
+            extra.pending_frames = 1;
+        }
+    }
+    return changed;
+}
+
+unsigned char(__fastcall *g_orig_determine_zones)(void *, void *, short *);
+unsigned char __fastcall hook_determine_zones(void *self, void *edx, short *zones) {
+    const unsigned char changed = g_orig_determine_zones(self, edx, zones);
+    if (g_extra_count == 0 || !players::split_screen()) return changed;
+    return update_extra_zones() ? 1 : changed;
+}
+
+void(__fastcall *g_orig_determine_sections)(void *, void *);
+void __fastcall hook_determine_sections(void *self, void *edx) {
+    g_orig_determine_sections(self, edx);
+    if (g_extra_count == 0 || !players::split_screen()) return;
+    short sections[kMaxSectionsToLoad];
+    for (int k = 0; k < g_extra_count; ++k) {
+        if (g_extras[k].zone <= 0) continue;
+        const int count = sections_of_zone(g_extras[k].zone, sections);
+        if (count <= 0) continue;
+        reinterpret_cast<void(__fastcall *)(void *, void *, short *, int, int)>(kAddCurrentStreamingSections)(self, nullptr, sections, count, g_extras[k].slot);
+        static int logged = 0;
+        if (logged++ < 20) g_log.line("streaming: the extra place of player %d: zone %d, %d sections", g_extras[k].player + 1, g_extras[k].zone, count);
+    }
+}
+
 void __cdecl update_camera_movers(float dt) {
     reinterpret_cast<void(__cdecl *)(float)>(g_update_camera_movers)(dt);
-    if (!players::split_screen() || more_players::extra_player_count() == 0) return;
+    if (!players::split_screen() || more_players::extra_player_count() == 0) {
+        g_extra_count = 0;
+        return;
+    }
 
     const int count = nfsmw::kPlayersPerRound + more_players::extra_player_count();
     float position[nfsmw::kMaxPlayers][3], forward[nfsmw::kMaxPlayers][3], velocity[nfsmw::kMaxPlayers][3] = {};
@@ -78,6 +177,35 @@ void __cdecl update_camera_movers(float dt) {
                 second = b;
             }
         }
+    // The others have extra places.
+    {
+        int extras = 0;
+        for (int i = 0; i < count; ++i) {
+            if (i == first || i == second) continue;
+            Extra &extra = g_extras[extras++];
+            if (extra.player != i) {
+                extra.player = i;
+                extra.zone = extra.pending = 0;
+                extra.pending_frames = 0;
+                g_extras_changed = true;
+            }
+            extra.slot = distance_squared(position[i], position[first]) <= distance_squared(position[i], position[second]) ? 0 : 1;
+            float *place = reinterpret_cast<float *>(extra.entry);  // position x, y, elevation, velocity x, y, direction x, y: as PredictStreamingPosition makes an entry
+            place[0] = position[i][0];
+            place[1] = position[i][1];
+            place[2] = position[i][2];
+            place[3] = velocity[i][0];
+            place[4] = velocity[i][1];
+            place[5] = forward[i][0];
+            place[6] = forward[i][1];
+            extra.entry[0x1C] = 1;  // set
+            extra.entry[0x1D] = 1;  // following a car
+        }
+        if (g_extra_count != extras) {
+            g_extra_count = extras;
+            g_extras_changed = true;
+        }
+    }
     static int slot_player[kPlaces] = {0, 1};  // whose position each slot has been given
     unsigned char *entries = reinterpret_cast<unsigned char *>(kStreamer) + kEntries;
     if (first == 0 && second == 1) {  // the game's own two
@@ -116,7 +244,24 @@ void __cdecl update_camera_movers(float dt) {
 
 }  // namespace
 
+int extra_places(int *players, int *zones, int *slots, int max) {
+    const int count = std::min(g_extra_count, max);
+    for (int k = 0; k < count; ++k) {
+        players[k] = g_extras[k].player;
+        zones[k] = g_extras[k].zone;
+        slots[k] = g_extras[k].slot;
+    }
+    return count;
+}
+
 void install() {
+    const nfsmw::Hook hooks[] = {
+        {"streamzones", "TrackStreamer::DetermineCurrentZones", kDetermineCurrentZones, {0x51, 0x53, 0x55, 0x8B, 0x6C, 0x24, 0x10}, false, nfsmw::detour(&hook_determine_zones),
+         nfsmw::orig(&g_orig_determine_zones)},
+        {"streamsections", "TrackStreamer::DetermineStreamingSections", kDetermineStreamingSections, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8, 0x81}, false,
+         nfsmw::detour(&hook_determine_sections), nfsmw::orig(&g_orig_determine_sections)},
+    };
+    nfsmw::install_hooks(hooks, 2, g_log, g_ini, "extra streaming");
     if (const uintptr_t previous = nfsmw::chain_call(kUpdateAllCallSite, reinterpret_cast<uintptr_t>(&update_camera_movers)))
         g_update_camera_movers = previous;
     else
