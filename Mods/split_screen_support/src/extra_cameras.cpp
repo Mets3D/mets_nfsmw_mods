@@ -12,6 +12,8 @@
  */
 #include "extra_cameras.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 
 #include "events.h"
@@ -156,6 +158,64 @@ void __cdecl hook_camera_ai_update(float dt) {
     g_orig_camera_ai_update(dt);
 }
 
+// Sound::DistanceToView 0x4BA050 and Sound::IsPrimaryTarget 0x4BA140 look at the camera movers of views 1 and 2 only. They decide whether a one-shot effect (the sparks and
+// debris of a collision, World_OneShotEffect) is made at all (its distance to the nearest view against the effect's cull distance) and whether a collision is heard,
+// so a collision far from players 1 and 2 had neither sparks nor sound, whatever the player who was there saw. The cameras of the extra players count too.
+float (__cdecl *g_orig_distance_to_view)(const float *);
+bool (__cdecl *g_orig_is_primary_target)(unsigned);
+
+// The first camera mover of an extra player's view, or null.
+void *mover_of(int index) {
+    if (!g_extra[index].director) return nullptr;
+    const void *const *list = reinterpret_cast<const void *const *>(view_address(index) + kViewMoverList);
+    return list[0] && list[0] != list ? static_cast<char *>(const_cast<void *>(list[0])) - 4 : nullptr;
+}
+
+float __cdecl hook_distance_to_view(const float *position) {
+    float distance = g_orig_distance_to_view(position);
+    for (int i = 0; i < nfsmw::kMaxExtras; ++i) {
+        void *mover = mover_of(i);
+        const float *camera = mover ? at<const float *>(reinterpret_cast<uintptr_t>(mover), 0x1C) : nullptr;  // (what the game's own copy of this reads)
+        if (!camera) continue;
+        const float *at_ = camera + 0x10;  // the camera's position, +0x40
+        const float dx = at_[0] - position[0], dy = at_[1] - position[1], dz = at_[2] - position[2];
+        const float own = std::sqrt(dx * dx + dy * dy + dz * dz);
+        distance = std::min(distance, own);
+    }
+    return distance;
+}
+
+// EmitterSystem::IsCloseEnough 0x504000 (thiscall: the position, the far clip, whether the group has to be in front of the camera, the cosine of the angle): the particle
+// system makes, keeps and draws the effects that are near its "interest points", the cameras of views 1 and 2 (`UpdateInterestPoints` 0x4FEE70 copies them to two slots of
+// the system's, +0x320 and +0x330; the second only in a two player view mode), and kills the particles of a group that is near none: the sparks and smoke of the cars of the
+// other players stopped when they were away from players 1 and 2. The cameras of the extra players count too (the same test, over all of them).
+bool (__fastcall *g_orig_close_enough)(void *, void *, const float *, float, int, float);
+
+bool __fastcall hook_close_enough(void *self, void *edx, const float *position, float far_clip, int in_front, float cos_angle) {
+    if (g_orig_close_enough(self, edx, position, far_clip, in_front, cos_angle)) return true;
+    for (int i = 0; i < nfsmw::kMaxExtras; ++i) {
+        float point[3], direction[3];
+        if (!camera_pose(i, point, direction)) continue;
+        float to[3] = {position[0] - point[0], position[1] - point[1], position[2] - point[2]};
+        const float distance = std::sqrt(to[0] * to[0] + to[1] * to[1] + to[2] * to[2]);
+        if (!(distance < far_clip)) continue;
+        if (!in_front) return true;
+        if (distance > 0 && (to[0] * direction[0] + to[1] * direction[1] + to[2] * direction[2]) / distance > cos_angle) return true;
+    }
+    return false;
+}
+
+bool __cdecl hook_is_primary_target(unsigned object_id) {
+    if (g_orig_is_primary_target(object_id)) return true;
+    for (int i = 0; i < nfsmw::kMaxExtras; ++i) {
+        void *mover = mover_of(i);
+        if (!mover) continue;
+        void *anchor = reinterpret_cast<void *(__fastcall *)(void *, void *)>((*reinterpret_cast<void ***>(mover))[0x10 / 4])(mover, nullptr);  // CameraMover::GetAnchor
+        if (anchor && at<unsigned>(reinterpret_cast<uintptr_t>(anchor), 0x94) == object_id) return true;  // its world id
+    }
+    return false;
+}
+
 // A race is about to load: the directors of the one before are gone with it (before the game makes the new ones, which may take the place of ours).
 void on_world_load() {
     for (int i = 0; i < nfsmw::kMaxExtras; ++i) destroy(i);
@@ -177,6 +237,17 @@ void *prepare_pass(int index) {
     return reinterpret_cast<void *>(view);
 }
 
+bool camera_pose(int extra, float *position, float *direction) {
+    void *mover = extra >= 0 && extra < nfsmw::kMaxExtras ? mover_of(extra) : nullptr;
+    const float *camera = mover ? at<const float *>(reinterpret_cast<uintptr_t>(mover), 0x1C) : nullptr;
+    if (!camera) return false;
+    memcpy(position, camera + 0x10, 3 * sizeof(float));  // camera +0x40
+    if (direction) memcpy(direction, camera + 0x14, 3 * sizeof(float));  // +0x50: what EmitterSystem::UpdateInterestPoints reads
+    return true;
+}
+
+bool camera_position(int extra, float *position) { return camera_pose(extra, position, nullptr); }
+
 int wide_picture(void *anchor) {
     const int players = more_players::race_players();
     if (!players::split_screen() || players < 2) return -1;
@@ -191,8 +262,14 @@ void install() {
     const nfsmw::Hook hooks[] = {
         {"cameraai", "CameraAI::Update", 0x480E40, {0x6A, 0xFF, 0x68, 0xD2, 0xA5, 0x86, 0x00}, false,
          nfsmw::detour(&hook_camera_ai_update), nfsmw::orig(&g_orig_camera_ai_update)},
+        {"viewdistance", "Sound::DistanceToView", 0x4BA050, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x83}, false, nfsmw::detour(&hook_distance_to_view),
+         nfsmw::orig(&g_orig_distance_to_view)},
+        {"particleviews", "EmitterSystem::IsCloseEnough", 0x504000, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x83}, false, nfsmw::detour(&hook_close_enough),
+         nfsmw::orig(&g_orig_close_enough)},
+        {"primarytarget", "Sound::IsPrimaryTarget", 0x4BA140, {0xA1, 0x94, 0x96, 0x91, 0x00, 0x3D, 0x94}, false, nfsmw::detour(&hook_is_primary_target),
+         nfsmw::orig(&g_orig_is_primary_target)},
     };
-    nfsmw::install_hooks(hooks, 1, g_log, g_ini, "extra cameras");
+    nfsmw::install_hooks(hooks, 4, g_log, g_ini, "extra cameras");
 }
 
 }  // namespace split_screen_support::extra_cameras
