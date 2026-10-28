@@ -74,6 +74,41 @@ unsigned *selected_car(int player) {
 void **customization_pointer() { return reinterpret_cast<void **>(database() + kSplitCustomization); }
 char *car_name() { return reinterpret_cast<char *>(database() + kSplitCarName); }
 
+// ---- the cars the players chose before: `[player_N] car=` in the ini (the handle of the car in the stable of the screen's player: SelectedCar[0] or [1] of the
+// Quick Race settings, which the game sets when a player accepts a car and the Car Select screen starts on). The next Car Select of that player starts on it.
+constexpr unsigned kNoCar = 0x12345678;  // what SelectedCar holds when nothing was chosen
+unsigned g_remembered[nfsmw::kMaxPlayers];
+bool g_remembered_read = false;
+
+void read_remembered() {
+    if (g_remembered_read) return;
+    g_remembered_read = true;
+    for (int player = 0; player < nfsmw::kMaxPlayers; ++player) {
+        char section[16];
+        snprintf(section, sizeof(section), "player_%d", player + 1);
+        g_remembered[player] = static_cast<unsigned>(GetPrivateProfileIntA(section, "car", 0, g_ini));
+    }
+}
+
+void remember(int player, unsigned handle) {
+    read_remembered();
+    if (player < 0 || player >= nfsmw::kMaxPlayers || !handle || handle == kNoCar || g_remembered[player] == handle) return;
+    g_remembered[player] = handle;
+    char section[16], value[16];
+    snprintf(section, sizeof(section), "player_%d", player + 1);
+    snprintf(value, sizeof(value), "%u", handle);
+    WritePrivateProfileStringA(section, "car", value, g_ini);
+}
+
+// Before the Car Select of a player (`slot` 0 or 1 is the screen's player): the car they chose last starts selected. The screen's setup looks the handle up in the
+// player's stable and starts on the first car when it is not there (the stable of the second player is only made by the screen itself, so it cannot be asked yet).
+void preselect_car(int player, int slot) {
+    read_remembered();
+    if (player < 0 || player >= nfsmw::kMaxPlayers || !g_remembered[player]) return;
+    *selected_car(slot) = g_remembered[player];
+    g_log.line("Car Select: player %d starts on the car they chose before (handle %#x)", player + 1, g_remembered[player]);
+}
+
 // What the first player and the second player of the finished round chose goes into g_picks[first] and [first + 1] (`count` 1: the first player only).
 void capture(int first, int count = 2) {
     Pick &p1 = g_picks[first], &p2 = g_picks[first + 1];
@@ -83,6 +118,8 @@ void capture(int first, int count = 2) {
     p2.valid = count > 1;
     p1.car_handle = *selected_car(0);
     p1.device = devices[0];
+    remember(first, *selected_car(0));
+    if (count > 1) remember(first + 1, *selected_car(1));
     // A diagnostic: every player drives this car ([options] test_car_handle: the handle of a car of the profile's garage, test_car: the name of its folder in CARS).
     char test_name[32];
     GetPrivateProfileStringA("options", "test_car", "", test_name, sizeof(test_name), g_ini);
@@ -137,6 +174,10 @@ void start_race() {
     const auto original_start_race = reinterpret_cast<void (*)()>(g_start_race);
     if (!players::split_screen() || player_count::wanted() < 3) {
         g_round = 0;
+        if (players::split_screen()) {
+            remember(0, *selected_car(0));
+            remember(1, *selected_car(1));
+        }
         original_start_race();
         return;
     }
@@ -470,6 +511,7 @@ void format_player_name(int number, int device, char *text, unsigned size) {
 
 void *(*g_orig_create_car_select)(void *);
 void *hook_create_car_select(void *data) {
+    if (players::split_screen()) preselect_car(2 * g_round + g_press_start_player, g_press_start_player);
     void *screen = g_orig_create_car_select(data);
     if (!screen || !players::split_screen()) return screen;
     char text[160];
