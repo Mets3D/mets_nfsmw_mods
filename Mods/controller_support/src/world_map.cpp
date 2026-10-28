@@ -5,6 +5,9 @@
 // velocity. LT and RT zoom continuously (the zoom and pan are set directly, so the game's zoom animation, during which it freezes the
 // cursor, never runs); LB and RB zoom the same way, like a trigger held fully down (the game's own stepped zoom is swallowed).
 // SnapCursor, which locks the cursor onto the markers (races, shops, garages), is replaced by a version that measures from the cursor.
+// The cursor object is both what is drawn and where the game moves and measures from. While the cursor is snapped it is drawn on the marker and its real
+// position is kept here: a tick starts by putting the object back there (restore_real), the game moves it and may unsnap it a snap distance from the
+// marker, and the tick ends by drawing the object on the marker again (show_snapped).
 #include "world_map.h"
 
 #include "hooks.h"
@@ -44,7 +47,8 @@ constexpr float kStickDeadzone = 0.25f;
 constexpr BYTE kTriggerDeadzone = 30;
 constexpr uintptr_t kFindScript = 0x5B1360, kSetScript = 0x5B8400, kSetCenter = 0x525050;
 constexpr unsigned kSnapScript = 0x1CBF71, kUnsnapScript = 0x7EFE8FF4;  // the cursor's scripts for locking onto / leaving a marker
-constexpr unsigned kSnapDistance = 0x174;  // WorldMap member: float, how close the cursor must be to a marker (20)
+constexpr unsigned kSnapDistance = 0x174;  // WorldMap member: float, how close the cursor must be to a marker (20): the game unsnaps it from a marker farther away than this
+constexpr float kSnapRatio = 0.75f;        // a cursor snaps onto a marker closer than this part of it, so that one that has just been unsnapped does not snap again
 using FindScriptFn = void *(FASTCALL *)(void *, void *, unsigned);  // FEObject::FindScript (this, hash)
 using SetScriptFn = void(__attribute__((thiscall)) *)(void *, void *, bool);  // FEObject::SetScript (this, script, bool)
 using SetCenterFn = void(__attribute__((cdecl)) *)(void *, float, float);  // FEngSetCenter
@@ -57,7 +61,14 @@ constexpr DWORD kShoulderHold = 120;
 
 bool g_pad_mode = false;  // the controller moves the cursor (until the mouse does)
 int g_mouse_x = 0, g_mouse_y = 0;  // the pointer when the controller took over
-DWORD g_last_tick = 0;
+double g_last_time = 0;  // seconds, QueryPerformanceCounter
+
+double seconds_now() {
+    LARGE_INTEGER frequency, counter;
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&counter);
+    return static_cast<double>(counter.QuadPart) / static_cast<double>(frequency.QuadPart);
+}
 
 float axis(SHORT v) {
     const float f = v / 32767.0f;
@@ -137,6 +148,11 @@ template <typename F> void for_each_item(void *self, F visit) {
     }
 }
 
+// The centre of a map item's FEObject.
+void item_center(const void *item, float *out) {
+    reinterpret_cast<GetCenterFn>(kGetCenter)(*reinterpret_cast<void *const *>(static_cast<const unsigned char *>(item) + 0xC), &out[0], &out[1]);
+}
+
 // Plays a script of the cursor object from its start (the snapped / unsnapped look).
 void play_cursor_script(void *cursor, unsigned hash) {
     if (!cursor) return;
@@ -154,14 +170,21 @@ bool FASTCALL hook_snap_cursor(void *self, void *edx) {
     float cursor[2] = {0, 0};
     reinterpret_cast<GetCenterFn>(kGetCenter)(cursor_obj, &cursor[0], &cursor[1]);
     const float snap_distance = field<float>(self, kSnapDistance);
+    // The game calls this when the stick gives no velocity, which a slow push does every few frames: a snapped cursor stays snapped until the game unsnaps
+    // it (a snap distance from the marker), or the map moves the marker away (zooming).
+    if (const void *const selected_item = field<void *>(self, kSelectedItem)) {
+        float at[2] = {0, 0};
+        item_center(selected_item, at);
+        if (std::hypot(at[0] - cursor[0], at[1] - cursor[1]) < snap_distance) return false;
+    }
     unsigned char *snap_to = nullptr;
     float best = 1e8f, target[2] = {0, 0};
     for_each_item(self, [&](unsigned char *item) {
         if (item[0x34]) return;  // hidden
         float pos[2] = {0, 0};
-        reinterpret_cast<GetCenterFn>(kGetCenter)(*reinterpret_cast<void **>(item + 0xC), &pos[0], &pos[1]);
+        item_center(item, pos);
         const float d = std::hypot(pos[0] - cursor[0], pos[1] - cursor[1]);
-        if (d < snap_distance && d < best) {
+        if (d < snap_distance * kSnapRatio && d < best) {
             best = d;
             snap_to = item;
             target[0] = pos[0];
@@ -180,6 +203,33 @@ bool FASTCALL hook_snap_cursor(void *self, void *edx) {
     play_cursor_script(cursor_obj, kUnsnapScript);
     selected = nullptr;
     return true;
+}
+
+// The real position of a cursor that is drawn on its marker, and where it was drawn (to tell that nothing else moved the object since).
+bool g_drawn_on_marker = false;
+float g_real[2] = {0, 0}, g_drawn[2] = {0, 0};
+
+void restore_real(void *self) {
+    if (!g_drawn_on_marker) return;
+    g_drawn_on_marker = false;
+    void *const cursor_obj = field<void *>(self, kCursor);
+    float now[2] = {0, 0};
+    reinterpret_cast<GetCenterFn>(kGetCenter)(cursor_obj, &now[0], &now[1]);
+    if (std::fabs(now[0] - g_drawn[0]) < 0.5f && std::fabs(now[1] - g_drawn[1]) < 0.5f) reinterpret_cast<SetCenterFn>(kSetCenter)(cursor_obj, g_real[0], g_real[1]);
+}
+
+void show_snapped(void *self) {
+    void *const selected = field<void *>(self, kSelectedItem);
+    if (!selected) return;
+    void *const cursor_obj = field<void *>(self, kCursor);
+    float marker[2] = {0, 0};
+    item_center(selected, marker);
+    reinterpret_cast<GetCenterFn>(kGetCenter)(cursor_obj, &g_real[0], &g_real[1]);
+    if (std::hypot(marker[0] - g_real[0], marker[1] - g_real[1]) >= field<float>(self, kSnapDistance)) return;  // (the map moved the marker away: the next snap call unsnaps)
+    reinterpret_cast<SetCenterFn>(kSetCenter)(cursor_obj, marker[0], marker[1]);
+    g_drawn[0] = marker[0];
+    g_drawn[1] = marker[1];
+    g_drawn_on_marker = true;
 }
 
 void FASTCALL hook_update(void *self, void *edx) {
@@ -202,14 +252,17 @@ void FASTCALL hook_update(void *self, void *edx) {
         g_pad_mode = false;  // the mouse moved
     }
     if (!g_pad_mode) {
+        g_drawn_on_marker = false;
         g_orig_update(self, edx);
         return;
     }
+    restore_real(self);
 
-    const DWORD now = GetTickCount();
-    float dt = (now - g_last_tick) / 1000.0f;
-    if (g_last_tick == 0 || dt > 0.1f) dt = 0.033f;
-    g_last_tick = now;
+    // Finer than a frame: GetTickCount steps 15.6 ms, so every other frame had dt 0 and no velocity, which the game takes for a released stick.
+    const double now = seconds_now();
+    float dt = static_cast<float>(now - g_last_time);
+    if (g_last_time == 0 || dt > 0.1f) dt = 0.033f;
+    g_last_time = now;
 
     // Not while a vanilla zoom step (LB / RB) is still animating: the streamer's 16-bit counts at +0x44 and +0x70.
     const unsigned char *streamer = field<unsigned char *>(self, kStreamer);
@@ -222,6 +275,7 @@ void FASTCALL hook_update(void *self, void *edx) {
     velocity[1] = -sy * kStickSpeed * dt;  // the stick's up is positive, the screen's y grows downwards
     reinterpret_cast<SetVisibleFn>(kSetVisible)(field<void *>(self, kCursor));
     reinterpret_cast<UpdateCursorFn>(kUpdateCursor)(self, false);
+    show_snapped(self);
 }
 
 }  // namespace
