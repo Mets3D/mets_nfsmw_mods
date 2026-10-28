@@ -314,5 +314,25 @@
     "name": "JoystickDevice::Poll",
     "confidence": "tested",
     "note": "vtable slot 4; 0x7F2927 after its GetDeviceState is our hook site"
+  },
+  "0x6D04E0": {
+    "name": "SunOcclusion::Render",
+    "confidence": "tested",
+    "note": "thiscall (view): the sun in the picture: screen position of the sun in the view, UpdateSunOcclusion, then the sun layers at the intensity of +0x18. this = 0x93E018, called once a pass by ___eDisplayFrame; its state is per call, so a split screen pass needs its own copy"
+  },
+  "0x6D0350": {
+    "name": "SunOcclusion::UpdateOcclusion",
+    "confidence": "read",
+    "note": "thiscall (view array base, x, y): reads the query issued three calls ago (+0x24 ring, +0x14 next, +0x10 ring full) into the intensity +0x18 smoothed by +0x8, then draws a 32 x 32 quad at the sun inside the next occlusion query"
+  },
+  "0x6C00D0": {
+    "name": "SunOcclusion::Init",
+    "confidence": "read",
+    "note": "thiscall: sets the fields (+0x4 1, +0x8 0.5, +0xC 0.9999, +0x18 1.0) and makes the four D3DQUERYTYPE_OCCLUSION queries at +0x24; 0x6C0130 releases them"
+  },
+  "0x6C0130": {
+    "name": "SunOcclusion::Release",
+    "confidence": "read",
+    "note": "thiscall: releases the four queries at +0x24 (device reset)"
   }
 }

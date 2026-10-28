@@ -93,11 +93,13 @@ bool g_reset_hooked = false;
 bool g_logged_first = false;
 
 void release_timing();
+void release_sun_states();
 
 void release_canvas() {
     if (g_canvas) g_canvas->Release();
     g_canvas = nullptr;
     release_timing();  // queries are lost with the device too
+    release_sun_states();
     reflections::release();
 }
 
@@ -237,8 +239,8 @@ void make_shadow_copies() {
 
 // The glow view (4): the game draws a second picture of the world's lights (flares, glows) in it, into a target of its own, which the picture is then lit with. It shares
 // view 1's camera *object* and has matrices of its own, so with view 1's camera traded for another player's it kept drawing the lights of player 1's view into every other
-// player's picture (the second player's sun and headlight glows moved with the first player's camera). It follows view 1's camera, and its matrices are made again for
-// the pass (setup_glow_view).
+// player's picture (the headlight and taillight glows of the second player's picture would be seen from the first player's place). It follows view 1's camera, and its
+// matrices are made again for the pass (setup_glow_view).
 constexpr uintptr_t kGlowView = 0x9197A0;
 constexpr unsigned kFarPlane = 0x466A6000;  // 15000.0f, as eDisplayFrame passes it
 constexpr uintptr_t kSetupPerView = 0x6CF400;
@@ -251,6 +253,53 @@ void setup_glow_view() {
     reinterpret_cast<SetupPerViewFn>(kSetupPerView)(at<void *>(kGlowView, kViewPlatInfo), nullptr, reinterpret_cast<void *>(kGlowView), 0, kFarPlane, 0, 1);
 }
 
+// The sun (sub_6D04E0, called by each pass of ___eDisplayFrame with the object at 0x93E018) is shown as bright as the part of a small quad at its place that is not behind
+// anything, which is counted by four D3D occlusion queries used in turn (the result of the query issued three calls ago, smoothed into the intensity at +0x18).
+// Every pass of a split screen frame is a call, so a pass read the result of the pass before it: the sun was as bright for player 2 as it was for player 1, and
+// drawn (where the view's matrices put it, mirrored when it is behind the camera) when only player 1 could see it. Each pass after the first has a copy of the
+// object with queries of its own, swapped in with the views (trade_views).
+constexpr uintptr_t kSunOcclusion = 0x93E018;
+constexpr size_t kSunStateSize = 0x58;
+constexpr int kSunQueriesAt = 0x24, kSunQueries = 4, kSunReady = 0x10, kSunNext = 0x14, kSunIntensity = 0x18;
+struct SunState {
+    unsigned char bytes[kSunStateSize];
+    bool made = false;
+};
+SunState g_sun_state[nfsmw::kMaxPlayers];
+IDirect3DDevice9 *g_device = nullptr;
+
+IDirect3DQuery9 *&sun_query(unsigned char *state, int i) { return *reinterpret_cast<IDirect3DQuery9 **>(state + kSunQueriesAt + 4 * i); }
+
+void release_sun_states() {
+    for (SunState &state : g_sun_state) {
+        if (!state.made) continue;
+        for (int i = 0; i < kSunQueries; ++i)
+            if (sun_query(state.bytes, i)) sun_query(state.bytes, i)->Release();
+        state.made = false;
+    }
+}
+
+void trade_sun_state(int pass) {
+    unsigned char *game = reinterpret_cast<unsigned char *>(kSunOcclusion);
+    SunState &state = g_sun_state[pass];
+    if (!state.made) {
+        if (!g_device || !sun_query(game, 0)) return;  // (the game has no queries: it does not look)
+        memcpy(state.bytes, game, kSunStateSize);
+        state.bytes[kSunReady] = 0;
+        *reinterpret_cast<int *>(state.bytes + kSunNext) = 0;
+        *reinterpret_cast<float *>(state.bytes + kSunIntensity) = 1.0f;
+        for (int i = 0; i < kSunQueries; ++i) {
+            if (SUCCEEDED(g_device->CreateQuery(D3DQUERYTYPE_OCCLUSION, &sun_query(state.bytes, i)))) continue;
+            sun_query(state.bytes, i) = nullptr;
+            state.made = true;  // releases the ones made
+            release_sun_states();
+            return;
+        }
+        state.made = true;
+    }
+    for (size_t i = 0; i < kSunStateSize; ++i) std::swap(game[i], state.bytes[i]);
+}
+
 // Another player's view for the world pass, or back: view 1 and `other` (view 2 for player 2, the views of extra_cameras.h for players 3 and 4) trade what makes
 // a view what it is. `pass` is the pass (1: player 2, 2: player 3, 3: player 4), which has a shadow camera of its own.
 void trade_views(int pass, uintptr_t other) {
@@ -261,6 +310,7 @@ void trade_views(int pass, uintptr_t other) {
     }
     swap_mover_lists(other);
     follow_with_glow_view();
+    trade_sun_state(pass);
 }
 
 // View 2 on for a split screen race, and off again afterwards (see the top).
@@ -432,6 +482,7 @@ bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, 
 }
 
 void split_frame(IDirect3DDevice9 *device) {
+    g_device = device;
     IDirect3DSurface9 *back_buffer = nullptr;
     if (FAILED(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &back_buffer)) || !back_buffer) return g_orig_display_frame();
     D3DSURFACE_DESC d;

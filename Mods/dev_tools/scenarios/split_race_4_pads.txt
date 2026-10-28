@@ -1,0 +1,60 @@
+# split_race_4 with the devices of a real session: controllers 0 and 1 in the first round, controller 2 and the keyboard in the second (the order that crashed at the race start).
+wait_until main_menu timeout=120
+wait 2
+press right 28
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 1
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 2
+press down 2
+press right 16
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 1
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 2
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press right 3
+wait 2
+press accept
+wait_until racing timeout=180
+wait 1.5
+wait 1.5
+wait 4
+log_players
+wait 6
+log_players
+profile 10
+state
+quit
