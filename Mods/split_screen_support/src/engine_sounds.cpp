@@ -13,6 +13,12 @@
  * The listeners are the cameras of players 1 and 2 (the sound system keeps their positions at 0x914430, 0x10 bytes each, and a car looks for the nearest in UpdateParams); the
  * extra players' cameras are added to that list here (a copy of the game's two and the cameras of the extra players, which the one reading site of UpdateParams is pointed at,
  * with its call of GetClosestPlayerCar), so that an opponent or a player's car near player 3 is heard as near as one near player 1.
+ * Opponents' engine type. `CSTATEMGR_AICar::QueueSlots` 0x4E5C80 gives the opponents the synthesized (Ginsu) engines when there are 2 or fewer, the sampled (AEMS) ones
+ * otherwise (`cmp eax, 2` at 0x4E5CF3). In a split screen race the Ginsu engines of the opponents were silent although every stage that could be logged was as in a single player
+ * race (the state attached, the controllers set, the mixer's outputs and the values handed to the hardware of the same size), while the sampled ones were heard [tested: a race of 2
+ * players and 2 opponents with `[options] ai_sampled_engines` was heard; before, silent]. Why the Ginsu engines fail is not known. The setting makes the limit 0 in a split
+ * screen race. Not the cause: the mix map (both maps hold the same data for the opponents' state), the two player way of working the 3D position out, the limit of 4 states.
+ *
  * The mix itself still has two listeners (the 3D position of each sound is worked out against players 1 and 2): a car far from both of them is quiet.
  */
 #include "engine_sounds.h"
@@ -43,6 +49,8 @@ constexpr uintptr_t kClosestCall = 0x4E63DF, kClosestPlayerCar = 0x4B0790, kList
 constexpr uintptr_t kGameListeners = 0x914430, kGameListenerCount = 0x8EF998, kFindCarState = 0x4B89D0, kStateManagers = 0x911F60, kGameFlowState = 0x925E90;
 constexpr unsigned kContextOffset = 0x228, kHeadState = 0x10, kNextState = 4, kAttached = 0x38;
 constexpr int kContextAiRacer = 1, kSimableWorldIdSlot = 28;  // (ISimable's virtual table: entry 28 is GetWorldID [guess, checked by the log])
+constexpr uintptr_t kGetSfxCtlObject = 0x4D92D0;  // CSTATE_Base::GetSFXCTLObject(int): the state's controller with that object index (4 the engine's, 7 the car's 3D position)
+constexpr unsigned kCtlObjectPosition = 0x28, kCtlObjectDirection = 0x2C, kCtlObjectVelocity = 0x30, kCtlPlayerRef = 0x44;  // SFXCTL_3DObjPos: the pointers to the object's position, direction and velocity; its player
 constexpr int kAiManager = 3, kPlayerManager = 2;
 constexpr uintptr_t kGetSfxObject = 0x4D92A0, kStateDataLoaded = 0x4F2D00, kCarStateList = 0x913DB4, kCarStateCount = 0x913DBC, kResolveCarBanks = 0x4F9020;
 
@@ -82,8 +90,6 @@ void *__cdecl closest_listener(const float *position, bool, int *index) {
 // ---- the extra players' cars as opponents
 bool g_converted[nfsmw::kMaxExtras];
 int g_extra_states = 0;  // the cars of the extra players are opponents to the sound manager: it makes a state for each (read in place of the count of online opponents, which is 0 offline)
-int g_dumps = 0;  // the dumps of this race made so far (15 s, 40 s and 70 s after the world began to load: the cars are driving from about 25 s)
-DWORD g_world_ms = 0;
 
 unsigned world_id_of(void *player) {
     void *simable = reinterpret_cast<void *(__fastcall *)(void *, void *)>((*reinterpret_cast<void ***>(player))[1])(player, nullptr);  // IPlayer::GetSimable
@@ -119,6 +125,8 @@ void hex_line(const char *what, const void *address, unsigned bytes) {
     g_log.line("%s", text);
 }
 
+void *state_ctl(void *state, int index) { return reinterpret_cast<void *(__fastcall *)(void *, void *, int)>(kGetSfxCtlObject)(state, nullptr, index); }
+
 void *state_sfx(void *state, int index) { return reinterpret_cast<void *(__fastcall *)(void *, void *, int)>(kGetSfxObject)(state, nullptr, index); }
 
 const char *manager_name(int m) { return m == 2 ? "players'" : m == 3 ? "opponents'" : m == 4 ? "cops'" : m == 5 ? "traffic's" : "other"; }
@@ -146,10 +154,22 @@ void dump(const char *why) {
         for (unsigned char *st = *reinterpret_cast<unsigned char **>(static_cast<unsigned char *>(mgr) + kHeadState); st && n < 40; st = *reinterpret_cast<unsigned char **>(st + kNextState), ++n) {
             const bool attached = st[kAttached] != 0;
             const void *car = *reinterpret_cast<const void *const *>(st + 0x34);
+            const unsigned char *engine_ctl = static_cast<const unsigned char *>(state_ctl(st, 4)), *position_ctl = static_cast<const unsigned char *>(state_ctl(st, 7));
+            g_log.line("engine sounds: %s state %d %p: controllers engine %p, position %p (car position %p, direction %p, velocity %p, player %d)", manager_name(m), n, st, engine_ctl, position_ctl,
+                       position_ctl ? *reinterpret_cast<void *const *>(position_ctl + kCtlObjectPosition) : nullptr, position_ctl ? *reinterpret_cast<void *const *>(position_ctl + kCtlObjectDirection) : nullptr,
+                       position_ctl ? *reinterpret_cast<void *const *>(position_ctl + kCtlObjectVelocity) : nullptr, position_ctl ? *reinterpret_cast<const int *>(position_ctl + kCtlPlayerRef) : -1);
+            const auto dmix = [](const void *object) { return object ? *reinterpret_cast<void *const *>(static_cast<const unsigned char *>(object) + 0x10) : nullptr; };  // SndBase +0x10: its outputs from the mixer (null: not connected to the mix map, GetDMixOutput says 0)
+            g_log.line("engine sounds: %s state %d %p: mixer outputs of the sfx objects %p %p %p %p, of the engine controller %p, of the position controller %p", manager_name(m), n, st, dmix(state_sfx(st, 0)),
+                       dmix(state_sfx(st, 1)), dmix(state_sfx(st, 2)), dmix(state_sfx(st, 3)), dmix(engine_ctl), dmix(position_ctl));
             g_log.line("engine sounds: %s state %d %p: attached %d, car %p (world id %#x), sfx objects %p %p %p %p, data loaded %d", manager_name(m), n, st, attached, car,
                        attached && car ? *reinterpret_cast<const unsigned *>(static_cast<const unsigned char *>(car) + 0x230) : 0, state_sfx(st, 0), state_sfx(st, 1), state_sfx(st, 2), state_sfx(st, 3),
                        reinterpret_cast<bool(__fastcall *)(void *)>(kStateDataLoaded)(st) ? 1 : 0);
         }
+    }
+    {
+        const unsigned char *sound = *reinterpret_cast<const unsigned char *const *>(0x911FA8);
+        g_log.line("engine sounds: the sound system %p: player mix mode %d, the game's number of listeners %d, players' engine states %p %p, game flow state %d", sound, sound ? *reinterpret_cast<const int *>(sound + 0x64) : -1,
+                   *reinterpret_cast<const int *>(kGameListenerCount), *reinterpret_cast<void *const *>(0x9142D0), *reinterpret_cast<void *const *>(0x9142D4), *reinterpret_cast<const int *>(kGameFlowState));
     }
     hex_line("FinalEngines", reinterpret_cast<void *>(0x9147A4), 0x30);
     hex_line("FinalCopV8Engines", reinterpret_cast<void *>(0x914614), 0x30);
@@ -164,9 +184,7 @@ void (__cdecl *g_orig_resolve_car_banks)();
 // CommitAssets -> ResolveCarBanks: the engines of the cars not yet connected are loaded (4 kinds at the most) and each car's is mapped onto one.
 void __cdecl hook_resolve_car_banks() {
     convert_extras(false);
-    dump("before ResolveCarBanks");
     g_orig_resolve_car_banks();
-    dump("after ResolveCarBanks");
 }
 
 // How many states a manager has and how many of them are attached (a car's sound).
@@ -180,25 +198,35 @@ void count_states(int manager, int *states, int *attached) {
     }
 }
 
-void on_world_load() {
-    for (bool &c : g_converted) c = false;
-    g_extra_states = players::split_screen() ? more_players::extras_in_race() : 0;
-    g_dumps = 0;
-    g_world_ms = GetTickCount();
+// CSTATEMGR_AICar::QueueSlots 0x4E5C80 uses the synthesized (Ginsu) engines for the opponents when there are 2 or fewer (`cmp eax, 2` at 0x4E5CF3), the sampled (AEMS) ones
+// otherwise: in the tests a single player race with 3 or more opponents (AEMS) was heard, and a split screen race with 2 (Ginsu) was not. `[options] ai_sampled_engines` (1) makes
+// the limit 0 in a split screen race, so that the opponents always have the sampled engines.
+constexpr uintptr_t kGinsuLimit = 0x4E5CF5;  // the imm8 of that compare
+bool g_sampled_engines = false;
+
+void set_ginsu_limit(unsigned char limit) {
+    const unsigned char now = *reinterpret_cast<unsigned char *>(kGinsuLimit), expected = now == 2 ? 2 : 0;
+    if ((now == 2 || now == 0) && now != limit) nfsmw::patch_bytes(kGinsuLimit, &expected, &limit, 1);
 }
 
+void on_world_load() {
+    if (g_sampled_engines) set_ginsu_limit(players::split_screen() ? 0 : 2);
+    for (bool &c : g_converted) c = false;
+    g_extra_states = players::split_screen() ? more_players::extras_in_race() : 0;
+}
+
+// The opponents' sound manager attaches an engine to a car within `m_fConnectDistance` (+0x20: 135 m, set by its constructor) of the nearest listener.
+float g_connect_distance = 0;
+
 void on_frame() {
+    if (g_connect_distance > 0) {
+        void *mgr = *reinterpret_cast<void **>(kStateManagers + 4 * kAiManager);
+        if (mgr) *reinterpret_cast<float *>(static_cast<unsigned char *>(mgr) + 0x20) = g_connect_distance;
+    }
     refresh_listeners();
     g_extra_states = players::split_screen() ? more_players::extras_in_race() : 0;
     if (!players::split_screen()) return;
     convert_extras(true);
-    static const DWORD kDumpAt[] = {15000, 40000, 70000};
-    if (g_dumps < 3 && *reinterpret_cast<int *>(kGameFlowState) == 6 && GetTickCount() - g_world_ms >= kDumpAt[g_dumps]) {
-        char why[40];
-        snprintf(why, sizeof(why), "%d s after the race began to load", static_cast<int>(kDumpAt[g_dumps] / 1000));
-        ++g_dumps;
-        dump(why);
-    }
 }
 
 }  // namespace
@@ -206,6 +234,9 @@ void on_frame() {
 void log_state(const char *why) { dump(why); }
 
 void install() {
+    g_sampled_engines = GetPrivateProfileIntA("options", "ai_sampled_engines", 1, g_ini) != 0;
+    g_connect_distance = static_cast<float>(GetPrivateProfileIntA("options", "ai_engine_radius", 0, g_ini));
+    if (g_connect_distance > 0) g_log.line("engine sounds: opponents' engines are attached to cars within %.0f m of a player (the game's 135)", g_connect_distance);
     const int wanted = static_cast<int>(GetPrivateProfileIntA("options", "ai_engine_sounds", 15, g_ini));
     if (wanted > 4 && wanted <= 100) {
         const unsigned char four = 4, limit8 = static_cast<unsigned char>(wanted);
