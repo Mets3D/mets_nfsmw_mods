@@ -39,8 +39,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - Need to test all race types. Never tried tollbooth or speedtrap.
 - Maybe a knocked out player in either lap knockout or drag race should be removed from the screen after a few seconds? Although this would be too jarring if it happened suddenly, and animating a screen re-organization would surely be crazy. But... what if it works? >.>
 - We can open the world-map in split-screen/custom race, but we only see player 1. Bit sad.
-- HUD scale acts funny with the rearview mirror (in single player): The frame scales, but the rendered contents of the mirror do  not.
-- Would be nice if HUD scale also allowed >100% (not attempted: each HUD is drawn in a viewport of the whole picture at the scale, which cannot be bigger than the screen; it would need a viewport for each corner)
+- Would be nice if HUD scale also allowed >100%, so players can opt for proportionally larger HUD in splitscreen especially.
 - How about vertical split screen? ;)
 - Heat Level (cops) is the one Quick Race option not available in Split Screen yet (the others are above, under "Needs your testing"). It is not a row of the game: Redux v3's NFSMWRaceFixes adds it in its own code, so it needs that plugin's row class.
 

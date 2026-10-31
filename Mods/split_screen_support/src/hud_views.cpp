@@ -14,6 +14,9 @@
  * the whole picture at that scale, put where the edge of the layout (of the screen or of its top half) comes to the edge of the cell, and moved inside the
  * screen if it would stick out (the origin then makes up for it). A cell that is half the screen or more shows the HUD as it is (a scale of 100%), a smaller
  * one shows it smaller (layout.h).
+ * The rear view mirror's picture is no FEng object: eDisplayFrame_RenderFrontEnd (0x6E6E40) draws it as one polygon (FE units x 190 to 450, y 19 to 89, the mirror's texture) with
+ * eViewPlatInterface::Render (its call at 0x6E7199) before the menus and HUD, under the HUD's mirror frame (top middle). That call gets the viewport of the
+ * frame's part of player 1's HUD, so the picture scales with the frame.
  */
 #include "hud_views.h"
 
@@ -187,6 +190,20 @@ void classify_object(const Assignment &a, void *object, float offset_x, float of
     g_part[object] = part_at(a.layout, x, y);
 }
 
+// The mirror's polygon: eViewPlatInterface::Render(ePoly *, int, int), cdecl.
+constexpr uintptr_t kMirrorRenderCall = 0x6E7199;
+uintptr_t g_render_poly = 0;
+void __cdecl render_mirror(void *poly, int a, int b) {
+    const Assignment *hud = nullptr;
+    for (int i = 0; i < g_count && !hud; ++i)
+        if (g_assigned[i].player == 0 && g_assigned[i].layout == kScreenLayout) hud = &g_assigned[i];
+    IDirect3DDevice9 *d = device();
+    const bool scaled = hud && d && SUCCEEDED(d->GetViewport(&g_saved));
+    if (scaled) set_viewport(*hud, part_of(kCenter, kTop));
+    reinterpret_cast<void(__cdecl *)(void *, int, int)>(g_render_poly)(poly, a, b);
+    if (scaled) restore_viewport();
+}
+
 }  // namespace
 
 void assign(const char *package, int player, int players) {
@@ -260,6 +277,8 @@ void install() {
         patched += nfsmw::patch_bytes(site, expected, replacement, sizeof(expected)) ? 1 : 0;
     }
     g_log.line("hud views: %d of 4 places in the polygon code point at the HUD's vertical origin", patched);
+    g_render_poly = nfsmw::chain_call(kMirrorRenderCall, reinterpret_cast<uintptr_t>(&render_mirror));
+    if (!g_render_poly) g_log.line("hud views: the call at %#x is not as expected; the rear view mirror's picture keeps its size", static_cast<unsigned>(kMirrorRenderCall));
 }
 
 }  // namespace split_screen_support::hud_views
