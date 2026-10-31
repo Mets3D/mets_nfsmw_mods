@@ -23,6 +23,7 @@ int part_of_object(const void *object);
 
 // A player's HUD scale in percent (30 to 100), relative to the base scale of the player's cell (layout.h: the HUD as the game has it in a cell of half the screen or
 // more, half that in a quarter); a corner keeps its place in the cell.
+constexpr int kMaxScale = 200;  // percent
 void set_scale(int player, int percent);
 int scale(int player);
 

@@ -44,7 +44,7 @@ constexpr unsigned kOnText = 0x417B2604, kOffText = 0x70DFE5C2;  // the game's o
 constexpr int kPlayers = nfsmw::kMaxPlayers;
 bool g_show[kPlayers];  // (true until load)
 bool g_opened[kPlayers];
-constexpr int kScaleStep = 10, kMinScale = 40;      // the HUD scale, percent: 40 to 100
+constexpr int kScaleStep = 10, kMinScale = 40;      // the HUD scale, percent: 40 to hud_views::kMaxScale
 int g_scale[kPlayers];  // (100 until load)
 int g_scale_opened[kPlayers];
 int g_volume_opened[kPlayers];
@@ -77,7 +77,7 @@ unsigned long long __fastcall hook_features(void *self, void *edx, void *player)
 constexpr int kRowMinimap = 0, kRowScale = 1, kRowVolume = 2;
 constexpr opt::Row kRows[] = {
     {opt::kValueRow, "Minimap", 0, "Shows or hides your minimap while you drive."},
-    {opt::kValueRow, "HUD Scale", 0, "How big your HUD is: each corner of it keeps its place and gets smaller."},
+    {opt::kValueRow, "HUD Scale", 0, "How big your HUD is: each corner of it keeps its place and gets smaller or bigger."},
     {opt::kSliderRow, "Split-Screen Volume", 0, "How loud everything near you is in a split screen race: your car, the cars around you, crashes. Every sound is played for the player nearest to it, "
                                                 "so a lower volume also quietens the cars of the others while they are near you."},
 };
@@ -99,7 +99,7 @@ void change(int row, int direction, bool) {
         return;
     }
     int &scale = g_scale[editing()];
-    scale = std::clamp(scale + (direction > 0 ? kScaleStep : -kScaleStep), kMinScale, 100);
+    scale = std::clamp(scale + (direction > 0 ? kScaleStep : -kScaleStep), kMinScale, hud_views::kMaxScale);
     hud_views::set_scale(editing(), scale);  // at once, to be seen behind the menu
 }
 void opened() {
@@ -148,7 +148,7 @@ opt::Page g_page;
 
 void install() {
     for (int who = 0; who < kPlayers; ++who) {
-        g_scale[who] = std::clamp(static_cast<int>(GetPrivateProfileIntA(section_of(who), "hud_scale", 100, g_ini)), kMinScale, 100);
+        g_scale[who] = std::clamp(static_cast<int>(GetPrivateProfileIntA(section_of(who), "hud_scale", 100, g_ini)), kMinScale, hud_views::kMaxScale);
         hud_views::set_scale(who, g_scale[who]);
     }
     for (int who = 0; who < kPlayers; ++who) g_show[who] = GetPrivateProfileIntA(section_of(who), "minimap", 1, g_ini) != 0;
