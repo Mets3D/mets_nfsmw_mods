@@ -32,8 +32,55 @@ constexpr long long kMB = 1048576;
 constexpr long long kKeepBlockMB = 600;  // the largest free block that must be left
 
 int g_wanted_mb = 0, g_keep_mb = 0, g_car_extra_mb = 0;
-int g_car_extra_bytes = 0;  // added to the size the game gives the car loader (esi at 0x664A54: `[0x8F7EF0]` KB), read by the stub
 bool g_patched = false;
+
+// The car loader's memory (CarLoader::SetMemoryPoolSize 0x75C550: bMalloc(size, 7), a pool of its own made in that block) comes out of the track streamer's pool (pool 7), for which
+// it first evicts track sections (TrackStreamer::MakeSpaceInPool). Its size is set when the game starts (0x664A64) and again when each track loads (TrackLoader::LoadHandler,
+// 0x666EEA: `[0x8F7EF0]` KB, 115 MB with Redux v3's HD content) and by 0x75DA62. Sixteen racers of different models fill 115 MB: the data of the cars loaded first is evicted
+// and they are drawn as black frames [tested: 12 MB free in a race of 16]. The size of every call gets `[options] car_pool_extra_mb`, and the block is one of ours, reserved before
+// the track pool's size is chosen (so the address space it leaves counts it), which keeps it out of the track pool; MakeSpaceInPool is not called for it.
+constexpr uintptr_t kSetCarPoolCalls[] = {0x664A64, 0x666EEA, 0x75DA62}, kCarMakeSpaceCall = 0x75C5EC, kCarMallocCall = 0x75C5F4, kCarFreeCall = 0x75C5C8;
+constexpr uintptr_t kCarPoolKB = 0x8F7EF0, kCarPoolKBOther = 0x8F7EF4;
+uintptr_t g_set_car_pool[3] = {}, g_make_space = 0, g_car_malloc = 0, g_car_free = 0;
+void *g_car_block = nullptr;
+int g_car_block_size = 0;
+
+void reserve_car_block() {
+    if (g_car_extra_mb <= 0 || g_car_block) return;
+    const int game_kb = std::max(*reinterpret_cast<int *>(kCarPoolKB), *reinterpret_cast<int *>(kCarPoolKBOther));
+    const int size = (game_kb << 10) + (g_car_extra_mb << 20);
+    g_car_block = VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    if (g_car_block) g_car_block_size = size;
+}
+
+template <int N>
+void __fastcall set_car_pool(void *loader, void *edx, int size) {
+    reinterpret_cast<void(__fastcall *)(void *, void *, int)>(g_set_car_pool[N])(loader, edx, size > 0 ? size + (g_car_extra_mb << 20) : size);
+}
+
+bool __fastcall car_make_space(void *streamer, void *edx, int size, bool flag) {
+    if (g_car_block && size <= g_car_block_size) return true;
+    return reinterpret_cast<bool(__fastcall *)(void *, void *, int, bool)>(g_make_space)(streamer, edx, size, flag);
+}
+
+void *__cdecl car_malloc(int size, int flags) {
+    if (g_car_block && size <= g_car_block_size) return g_car_block;
+    return reinterpret_cast<void *(__cdecl *)(int, int)>(g_car_malloc)(size, flags);
+}
+
+void __cdecl car_free(void *block) {
+    if (block && block == g_car_block) return;  // kept for the next size
+    reinterpret_cast<void(__cdecl *)(void *)>(g_car_free)(block);
+}
+
+void patch_car_pool() {
+    if (g_car_extra_mb <= 0) return;
+    const uintptr_t targets[3] = {reinterpret_cast<uintptr_t>(&set_car_pool<0>), reinterpret_cast<uintptr_t>(&set_car_pool<1>), reinterpret_cast<uintptr_t>(&set_car_pool<2>)};
+    for (int i = 0; i < 3; ++i) g_set_car_pool[i] = nfsmw::chain_call(kSetCarPoolCalls[i], targets[i]);
+    g_make_space = nfsmw::chain_call(kCarMakeSpaceCall, reinterpret_cast<uintptr_t>(&car_make_space));
+    g_car_malloc = nfsmw::chain_call(kCarMallocCall, reinterpret_cast<uintptr_t>(&car_malloc));
+    g_car_free = nfsmw::chain_call(kCarFreeCall, reinterpret_cast<uintptr_t>(&car_free));
+}
 
 // What choose_pool_size found (it runs before the log is open).
 struct Result {
@@ -65,6 +112,7 @@ Space measure() {
 
 // Called by the stub with the size the game would make the pool (bytes); returns the size it is to be.
 int __cdecl choose_pool_size(int game_size) {
+    reserve_car_block();
     g_result.ran = true;
     g_result.game_mb = game_size / kMB;
     g_result.chosen_mb = g_result.game_mb;
@@ -78,7 +126,7 @@ int __cdecl choose_pool_size(int game_size) {
         if (!probe) continue;
         const Space after = measure();  // with the block taken
         VirtualFree(probe, 0, MEM_RELEASE);
-        if (after.free_mb >= g_keep_mb + g_car_extra_mb && after.largest_mb >= kKeepBlockMB) {
+        if (after.free_mb >= g_keep_mb && after.largest_mb >= kKeepBlockMB) {
             g_result.chosen_mb = mb;
             g_result.free_after_mb = after.free_mb;
             g_result.largest_after_mb = after.largest_mb;
@@ -151,12 +199,12 @@ struct Early {
         nfsmw::data_file("nfsmw_split_screen_support.ini", ini, sizeof(ini));
         g_wanted_mb = static_cast<int>(GetPrivateProfileIntA("options", "streaming_pool_mb", 512, ini));
         g_keep_mb = static_cast<int>(GetPrivateProfileIntA("options", "streaming_pool_keep_mb", 2400, ini));
-        g_car_extra_mb = std::max(0, static_cast<int>(GetPrivateProfileIntA("options", "car_pool_extra_mb", 256, ini)));
-        g_car_extra_bytes = g_car_extra_mb << 20;
+        g_car_extra_mb = std::max(0, static_cast<int>(GetPrivateProfileIntA("options", "car_pool_extra_mb", 128, ini)));
         patch_texture_pack_slots(ini);
         patch_audio_pool(ini);
         patch_csis_slots(ini);
         patch_voices(ini);
+        patch_car_pool();
         if (g_wanted_mb <= 0 && g_car_extra_mb <= 0) return;
         static const unsigned char expected[8] = {0x03, 0xC6, 0x50, 0xB9, 0xD0, 0xA9, 0x9A, 0x00};  // add eax, esi; push eax; mov ecx, 0x9AA9D0
         nfsmw::Stub stub;
@@ -165,8 +213,6 @@ struct Early {
         stub.emit_rel32(0xE8, reinterpret_cast<uintptr_t>(&choose_pool_size));      // call choose_pool_size (cdecl; esi, edi, ebx, ebp are kept)
         stub.emit({0x83, 0xC4, 0x04});                                              // add esp, 4
         stub.emit({0x50});                                                          // push eax (the size)
-        stub.emit({0x03, 0x35});                                                    // add esi, [g_car_extra_bytes]: the car loader's pool (CarLoader::SetMemoryPoolSize, which gets esi next)
-        stub.emit_u32(reinterpret_cast<uintptr_t>(&g_car_extra_bytes));
         stub.emit({0xB9});                                                          // mov ecx, the streamer
         stub.emit_u32(kStreamer);
         stub.emit_rel32(0xE9, kInitMemoryPoolCall);                                 // jmp to the call of InitMemoryPool
@@ -178,7 +224,11 @@ struct Early {
 }  // namespace
 
 void report() {
-    if (g_car_extra_mb > 0) g_log.line("streaming pool: the car loader's pool gets %d MB more than the game's ([options] car_pool_extra_mb)", g_car_extra_mb);
+    if (g_car_extra_mb > 0) {
+        const bool redirected = g_set_car_pool[0] && g_set_car_pool[1] && g_set_car_pool[2] && g_make_space && g_car_malloc && g_car_free;
+        g_log.line("streaming pool: the car loader's pool gets %d MB more than the game's ([options] car_pool_extra_mb), in a block of its own: %s", g_car_extra_mb,
+                   !redirected ? "not all of the game's calls are as expected" : g_car_block ? "reserved" : "could not be reserved (it comes from the track pool, as in the game)");
+    }
     if (g_wanted_mb <= 0) {
         g_log.line("streaming pool: [options] streaming_pool_mb is 0: the game's own size");
     } else if (!g_patched) {

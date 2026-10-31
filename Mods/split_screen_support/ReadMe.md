@@ -34,8 +34,6 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 
 # TODOS
 
-- Car skins can still end up going missing (we see only black frames) with 16 cars on the field.
-- Menu flow issue: When hitting Back while selecting a race, it doesn't put us back to the race type, but always puts us on Circuit instead. The same issue is present in Quick Race. Maybe this is something we could include a fix for in the Custom Menus mod?
 - Lap Knockout works weirdly. It doesn't show the option for AI opponents, but it spawns AI opponents anyways. And it seems like players are not getting eliminated. I'm also unsure how the unlimited laps works with this - Do players get eliminated in the first laps, or the final laps?
 - Need to test all race types. Never tried tollbooth or speedtrap.
 - Maybe a knocked out player in either lap knockout or drag race should be removed from the screen after a few seconds? Although this would be too jarring if it happened suddenly, and animating a screen re-organization would surely be crazy. But... what if it works? >.>

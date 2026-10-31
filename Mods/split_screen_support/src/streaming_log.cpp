@@ -150,6 +150,7 @@ void on_frame() {
     if (g_start_line && *reinterpret_cast<int *>(kGameFlowState) == 6 && GetTickCount() - g_last_summary_ms >= 12000) {  // the start of the race, with the cars close together
         g_start_line = false;
         summary("a few seconds into the race");
+        g_log.line("streaming: the car loader has %d MB", *reinterpret_cast<int *>(0x9B2C00 + 0x64) >> 20);
     }
     if (g_frames % 60 != 0 || !players::split_screen() || *reinterpret_cast<int *>(kGameFlowState) != 6) return;
     const int out_of_memory = at<int>(0x28);
