@@ -25,6 +25,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
 ## Other fixes & tweaks
 
 - **Controls screen title icon.** Pause > Options > Controls showed the audio icon as its title icon (a base game bug). It now shows the Controls icon.
+- **Menus remember your choice.** Going Back to a menu, like the Quick Race race type menu, puts you on the entry you picked last time, not the first one (with Redux v3 the race type menu always started on Circuit).
 - **Skippable cutscenes.** All pre-rendered cutscenes can be skipped with Enter / A.
 - **Fewer pop-ups.** Many superfluous menu pop-ups are removed.
 - **Simpler leaving questions.** "Are you sure you want to exit without accepting changes? All changes will be lost." (where Yes lost your changes) and the Controls menu's "Do you wish to keep the modified settings?" both ask "Save changes?" now: Yes keeps the changes and leaves, No loses them and leaves, Back/B stays in the menu.

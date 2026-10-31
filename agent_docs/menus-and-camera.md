@@ -96,6 +96,10 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
 - The main menu's Options layouts (`Options.fng`, `OptionsPCDisplay.fng`, from `FrontB.lzc`: a JDLZ stream of chunks, each 0x30210 chunk a JDLZ-compressed FNG) have one set of hints, each a group of {label string, backing image, hit-box image, key glyph}:
   Defaults 0xD6463100, Accept 0x73DCB662, Back 0xC0A32823 (the pause layouts: 0x3FC72F9D, 0x9502D148, 0x523250E9); the Defaults glyph is `PC_KEY_3` 0x68A29A8C. `OptionsPCDisplay.fng`'s "Basic" hint is the group 0x56E65DA8 [read].
 
+## Last entry of an icon menu (custom_menus `last_button.cpp`)
+- `ScreenButtonData` (0x91CFC0, 50 entries of 12 bytes: package hash, last entry byte at +4, game mode at +8; a record is found only in the exact game mode it was written in, -1 = any) is written by `IconScrollerMenu::NotificationMessage` (`FEngSetLastButton` 0x571EB0 with the 1-based `GetCurrentIndex` on a press, 0 on Back) and read by each menu's `Setup` (`FEngGetLastButton` 0x571E80 -> `IconScroller::SetInitialPos` 0x592C90, vtable +0x40 of the row at menu +0x2C) [read].
+- `FEngGetLastButton` returns the byte in al over the record pointer in eax. With Redux v3 the race type menu's (`UIQRModeSelect`) setup is run by a plugin's code (return address 0x715D3F0A in a test run; Redux's race fixes add race types to that menu) that passes all of eax (0x918303 for entry 3), so the menu started on its first entry. The hook returns the byte zero-extended [tested: Back from Track_Select lands on Drag].
+
 ## FEng and layouts
 - Language strings: a sorted `{hash, char*}` table at `*0x91CF80` (count `*0x91CF78`); merging our entries there makes every text path work. Strings are resolved through
   `(*0x91DD08)->vtbl[0]`. Titles are upper case in `LANGUAGES/English.bin`.

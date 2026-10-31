@@ -47,6 +47,7 @@
 #include "simplify_confirmations.h"
 #include "skip_dialogs.h"
 #include "skip_movies.h"
+#include "last_button.h"
 #include "translations.h"
 #include "texture_pack.h"
 #include "text_guard.h"
@@ -1898,6 +1899,7 @@ void install_hooks() {
     custom_menus::skip_dialogs::install_hooks(g_log, g_ini);
     custom_menus::resume_career::install_hooks(g_log, g_ini);
     custom_menus::skip_movies::install_hooks(g_log, g_ini);
+    custom_menus::last_button::install_hooks(g_log, g_ini);
 }
 
 }  // namespace
