@@ -88,6 +88,7 @@ NFSMW_PLUGIN_MAIN() {
     split_volume::install();
     if (ini_flag("options", "ai_in_split_screen", true)) ai_in_split_screen::install();  // after player_count: its rows come after the Players row
     more_players::install_car_select_label();
+    if (ini_flag("options", "share_player1_cars", true)) more_players::install_shared_stable();
     players::install();  // before state_log: the world load log shows its ports
     state_log::install();
     events::install();

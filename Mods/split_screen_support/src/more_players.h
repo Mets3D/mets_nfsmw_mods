@@ -60,6 +60,9 @@ void player_name(int player, char *text, unsigned size);
 // The Car Select screens of a split screen race say which player and which device (all split screen races, not only those with more than two players).
 void install_car_select_label();
 
+// The second player's Car Select lists the first player's cars (their career and custom cars too), not those of a new profile.
+void install_shared_stable();
+
 void install();
 
 }  // namespace split_screen_support::more_players

@@ -553,6 +553,28 @@ void install_car_select_label() {
     nfsmw::install_hooks(hooks, 1, g_log, nullptr, "car select label");
 }
 
+// The second player's Car Select makes them a temporary profile (CreateMultiplayerProfile 0x5ABA50, called at 0x7C2DC5 by the UIQRCarSelect constructor), a
+// default one: its stable (FEPlayerCarDB, 0x8CC8 bytes at profile + 0x414, plain data: the save game memcpy's it) has no career or custom cars, so their
+// Career and My Cars lists were empty. A new one gets a copy of the first player's stable. The race takes the second player's car by name and customization
+// (DeleteMultiplayerProfile), so a car of the copy needs nothing more.
+constexpr uintptr_t kCreateProfileCall = 0x7C2DC5, kProfiles = 0x10, kStable = 0x414;
+constexpr unsigned kStableSize = 0x8CC8;
+uintptr_t g_create_profile = 0;
+
+void __fastcall create_profile(unsigned char *db, void *edx, int player) {
+    void **profiles = reinterpret_cast<void **>(db + kProfiles);
+    const bool made = player == 1 && !profiles[1];
+    reinterpret_cast<void(__fastcall *)(void *, void *, int)>(g_create_profile)(db, edx, player);
+    if (!made || !profiles[0] || !profiles[1]) return;
+    memcpy(static_cast<char *>(profiles[1]) + kStable, static_cast<char *>(profiles[0]) + kStable, kStableSize);
+    g_log.line("Car Select: the second player has the cars of the first player's profile");
+}
+
+void install_shared_stable() {
+    if (const uintptr_t previous = nfsmw::chain_call(kCreateProfileCall, reinterpret_cast<uintptr_t>(&create_profile))) g_create_profile = previous;
+    else g_log.line("shared stable: the call at %#x is not a call; the second player has the default cars", static_cast<unsigned>(kCreateProfileCall));
+}
+
 // UIQRCarSelect::NotificationMessage (0x7C1770) sends the first player's choice on to the second player's Press Start screen (cFEng::QueuePackageSwitch, one
 // call at 0x7C2694 that all the ways of choosing a car jump to, with the screen argument 1: Press Start of the second player), and PAD_BACK of the first player
 // to their own Press Start (argument 0; the second player's Back sets their device free and goes to the second Press Start, argument 1 too) [read]. With

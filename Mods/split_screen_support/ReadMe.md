@@ -14,6 +14,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - With Custom Menus installed, each player of a split screen race can set their own volume in **Options > Player > Split-Screen Volume** (0% to 100%, saved per player). Every sound of the race is played for the player nearest to it (their engine, tyres, wind, the cars around them, crashes), and that player's setting scales it; music and menus are not touched. So a player who turns it down also quietens the cars of the others while those are near them.
 - Each player can fully control their own camera.
 - The Car Select screen says which player it is for and with which device ("Player 2 - Xbox One S Controller", the name the Controls menu shows).
+- Every player can choose from player 1's cars, including those of their Career and their custom cars (the game gives player 2 only the default cars).
 - Either player can invoke the pause menu, and change their keybinds during a race.
 - Each player's screen renders with its own shadows, reflection cubemap, geometry culling.
 - Performance optimization culling smaller objects is disabled, since it's not needed on modern computers. Can be turned back on in the [.ini](nfsmw_split_screen_support.ini) (`cull_small_objects`).
@@ -33,8 +34,11 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 
 # TODOS
 
-- **Cancelling a car selection in the last round** (3 players, or 5, ...): Back on player 3's Car Select now goes back to their Press Start, as it does for the other players, instead of starting the race. Checked with a test run (Back, then choose again and the race starts); try it with a real controller too, and also Back at the player 3 Press Start screen, which I did not look at.
-- Lap Knockout works weirdly. It doesn't show the option for AI opponents, but it spawns AI opponents anyways. And it seems like players are not getting eliminated.
+- We made it so that at the end of a split-screen race, we are sent back to the race settings menu instead of all the way out into the quick race menu, but this change caused the subsequent Car select screens to have the camera stuck in the position where it would be for the options menu, and doesn't get animated into its usual car select position.
+- Car skins can still end up going missing (we see only black frames) with 16 cars on the field.
+- Menu flow issue: When hitting Back while selecting a race, it doesn't put us back to the race type, but always puts us on Circuit instead. The same issue is present in Quick Race. Maybe this is something we could include a fix for in the Custom Menus mod?
+- Lap Knockout works weirdly. It doesn't show the option for AI opponents, but it spawns AI opponents anyways. And it seems like players are not getting eliminated. I'm also unsure how the unlimited laps works with this - Do players get eliminated in the first laps, or the final laps?
+- Need to test all race types. Never tried tollbooth or speedtrap.
 - Maybe a knocked out player in either lap knockout or drag race should be removed from the screen after a few seconds? Although this would be too jarring if it happened suddenly, and animating a screen re-organization would surely be crazy. But... what if it works? >.>
 - We can open the world-map in split-screen/custom race, but we only see player 1. Bit sad.
 - HUD scale acts funny with the rearview mirror... (not looked at: I could not see what "funny" means in a test run)
