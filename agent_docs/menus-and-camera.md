@@ -111,7 +111,8 @@ Marks: [read] [tested]. Addresses speed.exe 1.3.
 - **Cloning FEng objects at runtime**: `FEGroup::Clone` 0x5C49C0 leaves `FEObject::Cached` (+0x58) uninitialised (invisible clone, crash in `FERenderObject::Clear` 0x591A00): zero it on every clone.
   Copy the object data block (+0x2C colour / pos / size / UVs) from the original. `FEngSetCenter` resets z and hides the object: set Pos.x directly. Give each clone a unique NameHash (+0x10) and
   GUID (+0xC): mouse hit areas are offset by searching parents by name hash (`OffsetCalculatron` 0x5B1B60) and responses target objects by GUID. Rebuild the package mouse list
-  (`FEPackage::BuildMouseObjectStateList` 0x5B88F0) after adding.
+  (`FEPackage::BuildMouseObjectStateList` 0x5B88F0) after adding. All of this is `Mods/common/fe_hint.h` (a hint of our own cloned from "1 Defaults": custom_menus' "2 Help",
+  split_screen_support's "2 Select Car" on the race options, whose layout `Track_Options.fng` has the same PC hint groups [tested: drawn next to Defaults]).
 - Hint bars: the Options layout has console groups (hidden on PC) and PC groups {label, clickable hit-box group with FF_MouseObject (1<<17), key image}: Defaults 0x3FC72F9D, Accept 0x9502D148,
   Back 0x523250E9. The Defaults hint uses texture `CIRCLE` (0x54A68051), drawn as the "1" key; `PC_KEY_1..4/ENTER/ESC/M/Q/T` live in `GLOBAL/GLOBALB.BUN`. Hover is script-driven: the hit-box's
   mouse-over script restarts every frame from the 0xB30D0683 response and posts 0x696851AD (HIGHLIGHT), exit runs script 0xCCFA posting 0x1C8E4190 (UNHIGHLIGHT); both target 0xFFFFFFFC (the whole

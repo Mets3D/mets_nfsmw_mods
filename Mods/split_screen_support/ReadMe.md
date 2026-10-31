@@ -14,6 +14,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - With Custom Menus installed, each player of a split screen race can set their own volume in **Options > Player > Split-Screen Volume** (0% to 100%, saved per player). Every sound of the race is played for the player nearest to it (their engine, tyres, wind, the cars around them, crashes), and that player's setting scales it; music and menus are not touched. So a player who turns it down also quietens the cars of the others while those are near them.
 - Each player can fully control their own camera.
 - The Car Select screen says which player it is for and with which device ("Player 2 - Xbox One S Controller", the name the Controls menu shows).
+- After a race the race options come back: **Accept** starts the next race with the same cars, and **2 Select Car** (X on Xbox, Square on PlayStation) lets the player who pressed it choose another car first. If the number of players is changed, everyone presses Start and chooses a car again.
 - Every player can choose from player 1's cars, including those of their Career and their custom cars (the game gives player 2 only the default cars).
 - Either player can invoke the pause menu, and change their keybinds during a race.
 - Each player's screen renders with its own shadows, reflection cubemap, geometry culling.
@@ -38,10 +39,8 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 - Need to test all race types. Never tried tollbooth or speedtrap.
 - Maybe a knocked out player in either lap knockout or drag race should be removed from the screen after a few seconds? Although this would be too jarring if it happened suddenly, and animating a screen re-organization would surely be crazy. But... what if it works? >.>
 - We can open the world-map in split-screen/custom race, but we only see player 1. Bit sad.
-- HUD scale acts funny with the rearview mirror... (not looked at: I could not see what "funny" means in a test run)
+- HUD scale acts funny with the rearview mirror (in single player): The frame scales, but the rendered contents of the mirror do  not.
 - Would be nice if HUD scale also allowed >100% (not attempted: each HUD is drawn in a viewport of the whole picture at the scale, which cannot be bigger than the screen; it would need a viewport for each corner)
-- Exiting a split-screen race should let us switch to a different race type without having to re-select our cars. The UX flow here is just awkward... (Partly helped by the remembered cars: the Car Select starts on your last car, so it is Press Start + Accept for each player. The Press Start screens are still there: I did not try to skip them.)
-    - Honestly what would be absolutely incredible here... is if we went into split-screen in the menu, and each player could just choose their own car simultaneously... A bit crazy, I know, but I'd like to give it a shot at some point.
 - How about vertical split screen? ;)
 - Heat Level (cops) is the one Quick Race option not available in Split Screen yet (the others are above, under "Needs your testing"). It is not a row of the game: Redux v3's NFSMWRaceFixes adds it in its own code, so it needs that plugin's row class.
 

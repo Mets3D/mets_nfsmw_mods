@@ -13,6 +13,7 @@
  */
 #include "menu_entry.h"
 
+#include "more_players.h"
 #include "patch.h"
 #include "split_screen_support.h"
 
@@ -41,6 +42,7 @@ void __fastcall react(void *, void *, const char *, unsigned message, void *, un
     if (message != kButtonPressed) return;
     *reinterpret_cast<int *>(kQrMode) = 2;
     g_log.line("Split Screen chosen in the Quick Race menu");
+    more_players::forget_cars();  // a new split screen game chooses its cars
 }
 
 void __fastcall add_option_and_ours(void *menu, void *unused, void *option) {

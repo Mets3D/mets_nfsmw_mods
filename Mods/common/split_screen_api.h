@@ -15,6 +15,7 @@
 //                      wider than the screen (two players, the first of three), 0 when it has the screen's proportions (the others), -1 when that is not known.
 //   nfsmw_split_screen_support_press_start(int device)  for automated tests: the Press Start screen that is showing gets "this device let go of
 //                      Start" (device 0-3 = XInput controller, -1 = the keyboard), as if the person had pressed it.
+//   nfsmw_split_screen_support_select_car(int device)  for automated tests: on the race options after a split screen race, that device pressed Select Car (2 / X).
 #pragma once
 
 #include <d3d9.h>
@@ -61,6 +62,12 @@ using PressStartFn = void (*)(int device);
 inline PressStartFn find_press_start() {
     const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
     return module ? reinterpret_cast<PressStartFn>(GetProcAddress(module, "nfsmw_split_screen_support_press_start")) : nullptr;
+}
+
+using SelectCarFn = void (*)(int device);
+inline SelectCarFn find_select_car() {
+    const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
+    return module ? reinterpret_cast<SelectCarFn>(GetProcAddress(module, "nfsmw_split_screen_support_select_car")) : nullptr;
 }
 
 }  // namespace nfsmw::split_screen_api

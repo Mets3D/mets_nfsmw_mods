@@ -41,6 +41,20 @@ inline uintptr_t chain_call(uintptr_t site, uintptr_t new_target) {
     return redirect_call(site, previous, new_target) ? previous : 0;
 }
 
+// Like chain_call, for a tail call: the `jmp rel32` at `site` (a function ending in a jump to another that takes over its stack arguments).
+inline uintptr_t chain_jump(uintptr_t site, uintptr_t new_target) {
+    unsigned char *at = reinterpret_cast<unsigned char *>(site);
+    if (at[0] != 0xE9) return 0;
+    int32_t rel;
+    memcpy(&rel, at + 1, 4);
+    const uintptr_t previous = site + 5 + rel;
+    unsigned char expected[5], replacement[5] = {0xE9};
+    memcpy(expected, at, 5);
+    const int32_t new_rel = static_cast<int32_t>(new_target - (site + 5));
+    memcpy(replacement + 1, &new_rel, 4);
+    return patch_bytes(site, expected, replacement, 5) ? previous : 0;
+}
+
 // Where the `call rel32` at `site` goes now (0 if it is no call).
 inline uintptr_t call_target(uintptr_t site) {
     const unsigned char *at = reinterpret_cast<const unsigned char *>(site);

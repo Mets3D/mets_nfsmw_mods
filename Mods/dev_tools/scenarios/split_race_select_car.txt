@@ -1,0 +1,71 @@
+# A 2 player split screen race, quit, then on the race options (after the race): player 2 (controller 0) and player 1 (the keyboard) each choose another car
+# with Select Car (race_again.cpp), and Accept starts the next race at once with those cars (no Press Start / Car Select).
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until racing timeout=180
+wait 25
+pause_request 2 1
+wait 0.3
+pause_request 2 0
+wait 2
+press right 2
+wait 1
+press accept
+wait 2
+press left
+wait 1
+press accept
+wait_until screen=Track_Options.fng timeout=60
+wait 3
+screenshot options_after_race width=960
+select_car 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+screenshot car_select_player2 width=640
+press right
+wait 3
+press accept
+wait_until screen=Track_Options.fng timeout=30
+wait 3
+select_car keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+screenshot car_select_player1 width=640
+press right
+wait 3
+press accept
+wait_until screen=Track_Options.fng timeout=30
+wait 3
+screenshot options_again width=640
+press accept
+wait_until racing timeout=180
+wait 20
+screenshot race_again width=960
+log_players
+quit

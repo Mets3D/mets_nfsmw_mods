@@ -1,0 +1,90 @@
+# A 4 player split screen race, quit, then on the race options (after the race): player 3 (controller 1) chooses another car with Select Car, player 4
+# (controller 2) opens their Car Select and goes back (their car stays), and Accept starts the next race at once with the four players' cars (race_again.cpp).
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 2
+press down 2
+press right 2
+wait 2
+screenshot race_options
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+screenshot car_select_3 width=640
+press accept
+wait_until racing timeout=180
+wait 25
+pause_request 3 1
+wait 0.3
+pause_request 3 0
+wait 5
+press right
+wait 1
+press right
+wait 2
+screenshot pause width=640
+press accept
+wait 4
+press left
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=60
+wait 3
+screenshot options_after_race width=960
+select_car 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+screenshot car_select_player3 width=640
+press right
+wait 3
+press accept
+wait_until screen=Track_Options.fng timeout=30
+wait 3
+select_car 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+screenshot car_select_player4 width=640
+press right
+wait 2
+press back
+wait_until screen=Track_Options.fng timeout=30
+wait 3
+press accept
+wait_until racing timeout=180
+wait 20
+screenshot race_again width=960
+log_players
+quit

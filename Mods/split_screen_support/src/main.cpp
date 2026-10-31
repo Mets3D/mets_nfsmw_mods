@@ -39,6 +39,7 @@
 #include "menu_entry.h"
 #include "minimap.h"
 #include "minimap_option.h"
+#include "race_again.h"
 #include "more_players.h"
 #include "player_count.h"
 #include "player_settings.h"
@@ -80,6 +81,7 @@ NFSMW_PLUGIN_MAIN() {
         extra_cameras::install();
         start_grid::install();
         player_settings::install();
+        race_again::install();  // (the picks it races with are kept by more_players)
     }
     race_intro::install();
     streaming_log::install();

@@ -15,6 +15,7 @@
  *                                      direction are in the units log_racers prints: copy its "teleport" line), stopped; without a direction it keeps the way it faces
  *   skip_cutscene                      skips the race's intro cutscene the way the skip button does (INIS, the singleton at 0x9885C8, virtual +0x2C); the log says when none is running
  *   press_start <0-3|keyboard>         the Press Start screen of the split screen menus is told that device let go of Start
+ *   select_car <0-3|keyboard>          the race options after a split screen race: that device pressed Select Car (2 / X)
  *   screenshot <name> [width=960]      <data folder>/screenshots/<date>-<time>_<scenario>/<name>.png
  *   measure <seconds>                  waits that long and logs the frame rate over it
  *   profile <seconds>                  like measure, and samples the game's thread: where its time goes goes to the log
@@ -396,6 +397,10 @@ void run(const std::string &line, IDirect3DDevice9 *device) {
         static const auto press_start = nfsmw::split_screen_api::find_press_start();
         if (!press_start) return quit(2, "press_start: nfsmw_split_screen_support is not loaded");
         press_start(w[1] == "keyboard" ? -1 : atoi(w[1].c_str()));
+    } else if (cmd == "select_car" && w.size() >= 2) {
+        static const auto select_car = nfsmw::split_screen_api::find_select_car();
+        if (!select_car) return quit(2, "select_car: nfsmw_split_screen_support is not loaded");
+        select_car(w[1] == "keyboard" ? -1 : atoi(w[1].c_str()));
     } else if (cmd == "screenshot" && w.size() >= 2) {
         const std::string path = g_screenshot_dir + w[1] + ".png";
         if (!screenshot::save(device, path.c_str(), atoi(arg(w, "width", "960").c_str()))) g_log.line("automation: the screenshot failed");

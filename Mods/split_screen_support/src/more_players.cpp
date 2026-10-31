@@ -45,6 +45,7 @@ namespace {
 constexpr uintptr_t kFeDatabase = 0x91CF90, kFEng = 0x91CADC, kGetQuickRaceSettings = 0x56DBE0, kQueuePackageSwitch = 0x525940, kBMalloc = 0x465A70,
                     kBFree = 0x4655F0, kFePrintfPackage = 0x5252D0, kGetLocalizedString = 0x56BC10, kStartRace = 0x57ECA0,
                     kCommitCallSite = 0x7A3B09;  // the call of StartRace in UIQRCarSelect's commit function
+constexpr uintptr_t kDeleteMultiplayerProfile = 0x58FFA0;
 constexpr uintptr_t kSplitMode = 0x988E04;  // 1 in a split screen game: CreatePlayers makes the second player, CreateCars the second car
 constexpr uintptr_t kCreatePlayersCall = 0x6F4EDA, kCreatePlayers = 0x6F2700, kCreateCarsCall = 0x6F4EE5, kCreateCars = 0x6F47A0, kPlayerArray = 0x92D87C,
                     kPlayerCount = 0x92D884;
@@ -65,6 +66,8 @@ struct Pick {
 };
 Pick g_picks[nfsmw::kMaxPlayers];  // the players of all rounds
 int g_round = 0;
+int g_kept = 0;            // the players of the last race, whose picks are kept for the next one (race_again.cpp); 0: none
+int g_change_player = -1;  // the player whose Car Select race_again.cpp opened (their pick is changed, then the race options come back)
 
 unsigned char *database() { return *reinterpret_cast<unsigned char **>(kFeDatabase); }
 unsigned *selected_car(int player) {
@@ -163,6 +166,14 @@ void restore_first_round() {
 
 uintptr_t g_start_race = kStartRace;  // what the commit function called before the redirect: StartRace, or another mod's function that calls it
 
+// The end of a player's Car Select opened from the race options: the race options again (their Setup builds the rows from the settings as they were).
+void end_car_change() {
+    g_change_player = -1;
+    g_round = 0;
+    reinterpret_cast<void(__fastcall *)(void *, void *, const char *, int, int, bool)>(kQueuePackageSwitch)(
+        *reinterpret_cast<void **>(kFEng), nullptr, "Track_Options.fng", 0, 0, false);
+}
+
 // How many players the Players row asked for, and how they are shared among the rounds of Press Start / Car Select (the game's screens know two players, so
 // each round has two, the last one one when the count is odd).
 int wanted_players() { return std::min(player_count::wanted(), nfsmw::kMaxPlayers); }
@@ -172,11 +183,23 @@ int players_in_round(int round) { return std::min(nfsmw::kPlayersPerRound, wante
 // What the car select's commit function (0x7A3AF0) calls instead of RaceStarter::StartRace.
 void start_race() {
     const auto original_start_race = reinterpret_cast<void (*)()>(g_start_race);
+    if (g_change_player >= 0) {  // the second player of a round chose their car (the commit saved its name and customization): back to the race options
+        Pick &p = g_picks[g_change_player];
+        strncpy(p.car, car_name(), sizeof(p.car) - 1);
+        p.car[sizeof(p.car) - 1] = 0;
+        void *custom = *customization_pointer();
+        p.has_customization = custom != nullptr;
+        if (custom) memcpy(p.customization, custom, kCustomizationSize);
+        remember(g_change_player, *selected_car(1));
+        g_log.line("player %d changed their car: \"%s\"", g_change_player + 1, p.car);
+        end_car_change();
+        return;
+    }
     if (!players::split_screen() || player_count::wanted() < 3) {
         g_round = 0;
         if (players::split_screen()) {
-            remember(0, *selected_car(0));
-            remember(1, *selected_car(1));
+            capture(0, 2);
+            g_kept = 2;
         }
         original_start_race();
         return;
@@ -192,6 +215,7 @@ void start_race() {
     }
     restore_first_round();
     g_round = 0;
+    g_kept = wanted_players();
     g_log.line("all %d players chose; the race starts with players 1 and 2 (the others are made after their cars)", wanted_players());
     fixes::list_room();
     original_start_race();
@@ -483,7 +507,7 @@ bool player_car_state(int index, float *position, float *forward) {
 void reset() {
     g_round = 0;
     for (void *&player : g_extra_players) player = nullptr;
-    for (Pick &pick : g_picks) pick.valid = false;
+    for (int i = g_kept; i < nfsmw::kMaxPlayers; ++i) g_picks[i].valid = false;  // (those of the last race are kept for the next: race_again.cpp)
 }
 
 int round() { return g_round; }
@@ -583,12 +607,70 @@ constexpr uintptr_t kPressStartSwitchCall = 0x7C2694, kQueuePackageSwitchFn = 0x
 uintptr_t g_queue_package_switch = kQueuePackageSwitchFn;
 
 void __fastcall queue_package_switch(void *feng, void *edx, const char *package, int a, unsigned b, bool c) {
+    if (g_change_player >= 0 && package && strcmp(package, "PressStart.fng") == 0) {
+        // The first player of a round accepted (Press Start of the second player, 1) or anyone went back (their own Press Start; the second player's Back is 1 too).
+        if (g_change_player % nfsmw::kPlayersPerRound == 0 && a == 1) {
+            g_picks[g_change_player].car_handle = *selected_car(0);
+            remember(g_change_player, *selected_car(0));
+            g_log.line("player %d changed their car: handle %#x", g_change_player + 1, g_picks[g_change_player].car_handle);
+        } else {
+            g_log.line("player %d went back: their car stays", g_change_player + 1);
+        }
+        end_car_change();
+        return;
+    }
     if (g_round >= 1 && players::split_screen() && players_in_round(g_round) == 1 && package && strcmp(package, "PressStart.fng") == 0 && a == 1) {
         g_log.line("the last round has one player: their car is chosen; the race starts");
         start_race();
         return;
     }
     reinterpret_cast<void(__fastcall *)(void *, void *, const char *, int, unsigned, bool)>(g_queue_package_switch)(feng, edx, package, a, b, c);
+}
+
+// ---- the next race with the same cars (race_again.cpp)
+
+bool cars_kept(int players) {
+    if (g_kept < nfsmw::kPlayersPerRound || g_kept != players) return false;
+    for (int i = 0; i < g_kept; ++i)
+        if (!g_picks[i].valid || g_picks[i].device == -2) return false;
+    return true;
+}
+
+int kept_player_of_device(int device) {
+    for (int i = 0; i < g_kept; ++i)
+        if (g_picks[i].valid && g_picks[i].device == device) return i;
+    return -1;
+}
+
+void forget_cars() {
+    if (g_kept) g_log.line("a new split screen game: the cars of the last one are not kept");
+    g_kept = 0;
+    g_change_player = -1;
+}
+
+// The Car Select of one player, as the round they were in had it (screen player 0 or 1, the devices of that round for its label); its Accept and Back come
+// back to the race options (queue_package_switch, start_race).
+void change_car(int player) {
+    if (player < 0 || player >= g_kept) return;
+    g_change_player = player;
+    g_round = player / nfsmw::kPlayersPerRound;
+    g_press_start_player = player % nfsmw::kPlayersPerRound;
+    const int devices[2] = {pick_device(g_round * nfsmw::kPlayersPerRound), pick_device(g_round * nfsmw::kPlayersPerRound + 1)};
+    players::set_chosen(devices);
+    g_log.line("player %d changes their car", player + 1);
+    reinterpret_cast<void(__fastcall *)(void *, void *, const char *, int, int, bool)>(kQueuePackageSwitch)(
+        *reinterpret_cast<void **>(kFEng), nullptr, "Car_Select.fng", g_press_start_player, 0, false);
+}
+
+void start_race_again() {
+    // A second player's Car Select left its temporary profile behind when they went back: it goes as the commit would take it (DeleteMultiplayerProfile
+    // 0x58FFA0 saves a car name and customization, which restore_first_round replaces with the kept ones).
+    reinterpret_cast<void(__fastcall *)(void *, void *, int)>(kDeleteMultiplayerProfile)(database(), nullptr, 1);
+    restore_first_round();
+    g_round = 0;
+    g_log.line("the race starts with the cars of the last one (%d players)", g_kept);
+    if (g_kept > nfsmw::kPlayersPerRound) fixes::list_room();
+    reinterpret_cast<void (*)()>(g_start_race)();
 }
 
 void install() {

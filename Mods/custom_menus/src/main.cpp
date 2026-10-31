@@ -39,6 +39,7 @@
 #include "hooks.h"
 #include "nfsmw_util.h"
 #include "custom_menus_api.h"
+#include "fe_hint.h"
 #include "controls_rows.h"
 #include "cycle_strips.h"
 #include "language.h"
@@ -161,32 +162,7 @@ const auto FEngSetScriptPkg = at<void (*)(const char *pkg, unsigned object, unsi
 }  // namespace game
 
 // Layouts (PC). FEObject: the base of every FEng object.
-namespace fe {
-constexpr unsigned kNext = 0x04;          // FEMinNode: list link (lists of objects, responses, scripts)
-constexpr unsigned kGuid = 0x0C;
-constexpr unsigned kNameHash = 0x10;
-constexpr unsigned kType = 0x18;          // kImage, kString, kGroup
-constexpr unsigned kFlags = 0x1C;
-constexpr unsigned kHandle = 0x24;        // images: texture hash
-constexpr unsigned kData = 0x2C;          // FEObjData*: colour (alpha at +0xC), pivot, position (x at +0x1C), ...
-constexpr unsigned kDataSize = 0x30;
-constexpr unsigned kResponseCount = 0x38;  // message responses; node: MsgID +0xC, count +0x10,
-constexpr unsigned kResponseHead = 0x3C;   //   array +0x14 of {ID, Param, Target}
-constexpr unsigned kScriptCount = 0x48;    // scripts; FEScript: events count +0x24, array +0x28 of
-constexpr unsigned kScriptHead = 0x4C;     //   {EventID, Target, Time}, ID +0x30
-constexpr unsigned kCurrentScript = 0x54;
-constexpr unsigned kCached = 0x58;         // render object built from the data
-constexpr unsigned kChildCount = 0x60;     // FEGroup
-constexpr unsigned kChildHead = 0x64;
-constexpr unsigned kPackageObjects = 0x4C;  // FEPackage: head of its top-level objects
-
-constexpr unsigned kDataAlpha = 0x0C;
-constexpr unsigned kDataPosX = 0x1C;
-
-constexpr int kImage = 1, kString = 2, kGroup = 5;
-constexpr unsigned kMouseObject = 1u << 17;  // hit-box: the package tracks the mouse over it
-constexpr unsigned kDirtyColor = 1u << 23, kDirtyTransform = 1u << 24, kDirty = 1u << 25;
-}  // namespace fe
+namespace fe = nfsmw::fe_hint::fe;
 
 // UIWidgetMenu (option screens) and its rows (FEStatWidget / FEToggleWidget).
 constexpr unsigned kScreenPackage = 0x10;  // const char* package name
@@ -206,18 +182,18 @@ constexpr unsigned kEntryPage = 0x5C;   // ours: the page of an Options menu ent
 // Hashes: FEng objects, messages, scripts, textures, language strings.
 constexpr unsigned kHeaderText = 0x42ADB44C;  // HEADER_TEXT: the title of a screen or message box
 constexpr unsigned kDialogIcon1 = 0x0D4F4069, kDialogIcon2 = 0xFAC88427;  // the message box's exclamation mark
-// The Options layout has two hint bars: console hints (hidden on PC) and the PC hints that are shown, top-level
-// groups of {label string, clickable hit-box group, key image}.
-constexpr unsigned kPcDefaultsHint = 0x3FC72F9D;  // "1 Defaults"
-constexpr unsigned kPcAcceptHint = 0x9502D148;    // "Enter Accept"
-// The main menu's layouts (Options.fng, OptionsPCDisplay.fng) have one set of hints, named differently; the same kinds of objects
-// (label, backing image, hit-box image, key glyph) in a group each.
-constexpr unsigned kMainDefaultsHint = 0xD6463100, kMainAcceptHint = 0x73DCB662;
+// The hint bars and their hashes: see common/fe_hint.h.
+using nfsmw::fe_hint::kButton5Msg;
+using nfsmw::fe_hint::kPcKey2Texture;
+using nfsmw::fe_hint::kScriptHighlight;
+using nfsmw::fe_hint::kScriptUnhighlight;
+using nfsmw::fe_hint::copy_object_state;
+using nfsmw::fe_hint::find_parent;
+using nfsmw::fe_hint::script_id;
 constexpr unsigned kHintName = 0xCA3E00A0;        // our clone's name; its objects get kHintName + 0x100 + i
 constexpr unsigned kHintGuidBase = 0xCA3E2000;
 constexpr unsigned kHelpClickMsg = 0xCA3E0B01;    // what a click on our hint posts to the screen
 
-constexpr unsigned kButton5Msg = 0xC519BFC4;  // __PAD_BUTTON5__: the 1 key (Defaults)
 constexpr unsigned kButtonPressed = 0x0C407210;
 constexpr unsigned kPadLeft = 0x9120409E, kPadRight = 0xB5971BF1;
 constexpr unsigned kPadUp = 0x72619778, kPadDown = 0x911C0A4B;
@@ -227,14 +203,10 @@ constexpr unsigned kExitComplete = 0xE1FDE1D1;  // FEHASH_EXITCOMPLETE: the scre
 constexpr unsigned kDialogMessageNo = 0x34DC1BCF, kDialogMessageYes = 0xD05FC3A3;
 constexpr unsigned kDialogOkText = 0x417B2601;
 constexpr int kDialogInfo = 2;                    // eDialogTitle dialog_info
-constexpr unsigned kEventSetButton = 0x1B3909AA;  // script event that moves the menu cursor
-constexpr unsigned kScriptHighlight = 0x249DB7B7, kScriptUnhighlight = 0x7AB5521A;
 constexpr int kCategoryAudio = 0, kCategoryVideo = 1, kCategoryGameplay = 3, kCategoryPlayer = 4;  // OptionsSettings::CurrentCategory
 // The Player screen's layout (Pause_Options.fng) has 10 row slots. The Video screen's (Pause_PCDisplayOptions.fng, the PC "Advanced Video"
 // one) has 15, and a scroll bar with chevrons, so pages with more rows than the first holds are built on the second.
 
-constexpr unsigned kPcKey1Texture = 0x68A29A8A, kPcKey2Texture = 0x68A29A8B, kPcKey3Texture = 0x68A29A8C, kPcKey4Texture = 0x68A29A8D;
-constexpr unsigned kCircleTexture = 0x54A68051;  // drawn as the 1 key on PC
 
 // ------------------------------------------------------------------------------------------------
 // Pages: what the mods register. Everything we show is a language string of the game (the game's labels, titles and
@@ -992,224 +964,17 @@ void FASTCALL hook_restoredefaults(void *self, void *edx) {
 }
 
 // ------------------------------------------------------------------------------------------------
-// The visible "2 Help" hint: a clone of the layout's own "1 Defaults" hint (FEGroup::Clone), placed one hint to the
-// right. The clone is made on the screen's first tick, after the layout's own setup has run.
+// The visible "2 Help" hint (common/fe_hint.h), made on the screen's first tick, after the layout's own setup has run.
 // ------------------------------------------------------------------------------------------------
-struct HintPair {
-    void *orig;
-    void *copy;
-    bool mirrored;  // runs the original's appear/fade scripts (everything except the hit-box)
-};
-
-struct HelpHint {
-    void *screen;  // the Camera screen it belongs to
-    void *clone;   // root group of the clone
-    void *pkg;
-    int n;
-    HintPair pair[32];
-};
-HelpHint g_hint;
-
-bool in_hint_clone(void *obj) {
-    for (int i = 0; i < g_hint.n; ++i)
-        if (g_hint.pair[i].copy == obj) return true;
-    return false;
-}
-
-void *find_parent(void *container, bool is_pkg, void *target, bool *parent_is_pkg) {
-    void *n = field<void *>(container, is_pkg ? fe::kPackageObjects : fe::kChildHead);
-    for (int i = 0; n && i < 1024; ++i) {
-        if (n == target) {
-            *parent_is_pkg = is_pkg;
-            return container;
-        }
-        if (field<int>(n, fe::kType) == fe::kGroup)
-            if (void *r = find_parent(n, false, target, parent_is_pkg)) return r;
-        n = field<void *>(n, fe::kNext);
-    }
-    return nullptr;
-}
-
-bool is_key_glyph(unsigned tex) {
-    return tex == kPcKey1Texture || tex == kPcKey4Texture || tex == kCircleTexture || tex == kPcKey2Texture || tex == kPcKey3Texture;
-}
-
-// What a clone needs from its original (see below).
-void copy_object_state(void *orig, void *copy) {
-    field<void *>(copy, fe::kCached) = nullptr;
-    void *od = field<void *>(orig, fe::kData);
-    void *cd = field<void *>(copy, fe::kData);
-    const unsigned osz = field<unsigned>(orig, fe::kDataSize), csz = field<unsigned>(copy, fe::kDataSize);
-    const unsigned n = osz < csz ? osz : csz;
-    if (od && cd && od != cd && n >= 0x44 && n <= 0x400) memcpy(cd, od, n);
-    else log_line("  cloned object %p: data not copied (orig %p/%u, copy %p/%u)", copy, od, osz, cd, csz);
-    field<unsigned>(copy, fe::kFlags) |= fe::kDirtyColor | fe::kDirtyTransform | fe::kDirty;
-}
-
-// FEObject's copy constructor leaves a clone broken in two ways: the cached render object holds garbage (the renderer
-// then skips it, and unloading the package crashes in FERenderObject::Clear), and the object data (colour, position,
-// size, UVs) is blank (position 0,0,0 is never drawn). Each cloned object also gets its own name hash and GUID: the
-// mouse code finds a hit-box's screen offset by name (OffsetCalculatron), and responses and script events address
-// objects by GUID, so with the original's names the clone's hit area landed on the Defaults hint.
-void prepare_clone(void *orig, void *copy, int depth, bool mirrored) {
-    if (field<unsigned>(copy, fe::kFlags) & fe::kMouseObject) mirrored = false;  // the hit-box keeps its own hover look
-    if (g_hint.n < 32) {
-        const int i = g_hint.n++;
-        g_hint.pair[i] = {orig, copy, mirrored};
-        field<unsigned>(copy, fe::kNameHash) = i == 0 ? kHintName : kHintName + 0x100 + i;
-        field<unsigned>(copy, fe::kGuid) = kHintGuidBase + i;
-    }
-    copy_object_state(orig, copy);
-
-    const int type = field<int>(copy, fe::kType);
-    if (type == fe::kString) {  // the label
-        constexpr unsigned kHelpText = 0x61D8F34F;  // the game's own "Help"
-        const char *help = nfsmw::language_text(kHelpText);
-        game::FEPrintf(copy, "%s", help ? help : "Help");
-    } else if (type == fe::kImage) {  // the key glyph (the hit-box's backing image keeps its texture)
-        if (is_key_glyph(field<unsigned>(copy, fe::kHandle))) game::FEngSetTextureHash(copy, kPcKey2Texture);
-    } else if (type == fe::kGroup && depth < 4) {
-        void *o = field<void *>(orig, fe::kChildHead);
-        void *c = field<void *>(copy, fe::kChildHead);
-        for (unsigned i = 0, count = field<unsigned>(copy, fe::kChildCount); o && c && i < count && i < 16; ++i) {
-            prepare_clone(o, c, depth + 1, mirrored);
-            o = field<void *>(o, fe::kNext);
-            c = field<void *>(c, fe::kNext);
-        }
-    }
-}
-
-// A click runs the hit-box's message responses. On the clone, the response that posts BUTTON5 (Defaults) posts our
-// own message straight to the screen instead, and responses aimed at one of the original's objects (by GUID) are
-// aimed at the clone's counterpart. Returns {clicks retargeted, targets moved}.
-void retarget_responses(int *clicks, int *targets) {
-    *clicks = *targets = 0;
-    for (int i = 0; i < g_hint.n; ++i) {
-        void *ro = field<void *>(g_hint.pair[i].orig, fe::kResponseHead);
-        void *rc = field<void *>(g_hint.pair[i].copy, fe::kResponseHead);
-        for (unsigned k = 0, n = field<unsigned>(g_hint.pair[i].copy, fe::kResponseCount); rc && k < n && k < 32; ++k) {
-            unsigned *list = field<unsigned *>(rc, 0x14);
-            const unsigned *olist = ro ? field<unsigned *>(ro, 0x14) : nullptr;
-            for (unsigned j = 0, cnt = field<unsigned>(rc, 0x10); list && list != olist && j < cnt && j < 16; ++j) {
-                unsigned *r = list + j * 3;  // {ID, Param, Target}
-                if (r[1] == kButton5Msg && (r[0] == 1 || r[0] == 2)) {
-                    r[0] = 2;  // MR_PostMessageToGame: straight to the screen
-                    r[1] = kHelpClickMsg;
-                    ++*clicks;
-                }
-                for (int m = 0; m < g_hint.n && r[2]; ++m) {
-                    if (r[2] == field<unsigned>(g_hint.pair[m].orig, fe::kGuid)) {
-                        r[2] = field<unsigned>(g_hint.pair[m].copy, fe::kGuid);
-                        ++*targets;
-                        break;
-                    }
-                }
-            }
-            rc = field<void *>(rc, fe::kNext);
-            ro = ro ? field<void *>(ro, fe::kNext) : nullptr;
-        }
-    }
-}
-
-bool responds_to(void *obj, unsigned msg) {
-    void *r = field<void *>(obj, fe::kResponseHead);
-    for (unsigned i = 0, n = field<unsigned>(obj, fe::kResponseCount); r && i < n && i < 32; ++i, r = field<void *>(r, fe::kNext))
-        if (field<unsigned>(r, 0xC) == msg) return true;
-    return false;
-}
-
-// The label's hover look comes from script events, not responses: the hit-box's mouse-over script posts 0x696851AD
-// (label: HIGHLIGHT) and its mouse-exit script posts 0x1C8E4190 (label: UNHIGHLIGHT), both addressed to the whole
-// package. The package hands them to the objects in its message target lists, which name the Defaults label only.
-// So on the clone, such an event is addressed straight to the one clone object that responds to it, and events aimed
-// at one of the original's objects are aimed at the clone's counterpart. (Each cloned script has its own events.)
-int retarget_script_events() {
-    int moved = 0;
-    for (int i = 0; i < g_hint.n; ++i) {
-        void *so = field<void *>(g_hint.pair[i].orig, fe::kScriptHead);
-        void *sc = field<void *>(g_hint.pair[i].copy, fe::kScriptHead);
-        for (unsigned k = 0, n = field<unsigned>(g_hint.pair[i].copy, fe::kScriptCount); sc && k < n && k < 32; ++k) {
-            unsigned *ev = field<unsigned *>(sc, 0x28);
-            const unsigned *oev = so ? field<unsigned *>(so, 0x28) : nullptr;
-            for (unsigned j = 0, cnt = field<unsigned>(sc, 0x24); ev && ev != oev && j < cnt && j < 32; ++j) {
-                const unsigned msg = ev[j * 3];
-                unsigned &target = ev[j * 3 + 1];
-                const unsigned before = target;
-                if (target == 0 || target == 0xFFFFFFFC) {  // to everyone / to the package
-                    int responder = -1, responders = 0;
-                    for (int m = 0; m < g_hint.n; ++m)
-                        if (responds_to(g_hint.pair[m].orig, msg)) {
-                            responder = m;
-                            ++responders;
-                        }
-                    if (responders == 1 && msg != kEventSetButton)
-                        target = field<unsigned>(g_hint.pair[responder].copy, fe::kGuid);
-                } else {
-                    for (int m = 0; m < g_hint.n; ++m)
-                        if (target == field<unsigned>(g_hint.pair[m].orig, fe::kGuid)) {
-                            target = field<unsigned>(g_hint.pair[m].copy, fe::kGuid);
-                            break;
-                        }
-                }
-                moved += target != before;
-            }
-            sc = field<void *>(sc, fe::kNext);
-            so = so ? field<void *>(so, fe::kNext) : nullptr;
-        }
-    }
-    return moved;
-}
+nfsmw::fe_hint::Hint g_hint;
 
 void add_help_hint_unguarded(void *screen) {
-    const char *pkg_name = field<const char *>(screen, kScreenPackage);
-    void *defaults = game::FEngFindGroup(pkg_name, kPcDefaultsHint);
-    void *accept = game::FEngFindGroup(pkg_name, kPcAcceptHint);
-    if (!defaults) {
-        defaults = game::FEngFindGroup(pkg_name, kMainDefaultsHint);
-        accept = game::FEngFindGroup(pkg_name, kMainAcceptHint);
-    }
-    if (!defaults) {
-        log_line("Help hint: the PC Defaults hint group was not found in %s", pkg_name);
-        return;
-    }
-    void *pkg = game::FindPackage(*reinterpret_cast<void **>(game::kFEng), pkg_name);
-    bool parent_is_pkg = false;
-    void *parent = pkg ? find_parent(pkg, true, defaults, &parent_is_pkg) : nullptr;
-    if (!parent) {
-        log_line("Help hint: could not find the Defaults hint's parent");
-        return;
-    }
-    void *clone = game::GroupClone(defaults, 0);
-    if (!clone) {
-        log_line("Help hint: Clone returned null");
-        return;
-    }
-    g_hint.screen = screen;
-    g_hint.n = 0;
-    prepare_clone(defaults, clone, 0, true);
-    int clicks = 0, targets = 0;
-    retarget_responses(&clicks, &targets);
-    const int events = retarget_script_events();
-
-    // One hint further along, with the same gap as between the Accept and Defaults hints. Only x is moved:
-    // FEngSetCenter would also reset z (depth), which hides the object.
-    float dx = 0, dy = 0, ax = 0, ay = 0;
-    game::FEngGetCenter(defaults, &dx, &dy);
-    float spacing = 120.0f;
-    if (accept) {
-        game::FEngGetCenter(accept, &ax, &ay);
-        const float gap = dx - ax;
-        if (gap > 1.0f || gap < -1.0f) spacing = gap;
-    }
-    if (void *data = field<void *>(clone, fe::kData)) field<float>(data, fe::kDataPosX) += spacing;
-
-    if (parent_is_pkg) game::PackageAddObject(parent, clone);
-    else game::GroupAddObject(parent, clone);
-    game::BuildMouseObjectStateList(pkg);  // the package's list of hit-boxes, so the clone's is clickable
-    g_hint.clone = clone;
-    g_hint.pkg = pkg;
-    log_line("Help hint added: %d objects, %d click responses, %d response targets and %d script events retargeted",
-             g_hint.n, clicks, targets, events);
+    constexpr unsigned kHelpText = 0x61D8F34F;  // the game's own "Help"
+    const char *help = nfsmw::language_text(kHelpText);
+    const nfsmw::fe_hint::Look look = {help ? help : "Help", kPcKey2Texture, kHelpClickMsg, kHintName, kHintGuidBase};
+    const char *why = "";
+    if (g_hint.add(screen, field<const char *>(screen, kScreenPackage), look, &why)) log_line("Help hint added: %d objects", g_hint.objects());
+    else log_line("Help hint: %s", why);
 }
 
 void add_help_hint(void *screen) {
@@ -1219,36 +984,9 @@ void add_help_hint(void *screen) {
         g_guard_on = false;
     } else {
         g_guard_on = false;
-        g_hint.n = 0;
-        g_hint.clone = nullptr;
+        g_hint.clear();
         log_line("Help hint: failed (access violation at eip=%#lx, address %#lx); the rest of the screen is unaffected", g_fault_eip,
                  g_fault_address);
-    }
-}
-
-unsigned script_id(void *obj) {
-    void *sc = field<void *>(obj, fe::kCurrentScript);
-    return sc ? field<unsigned>(sc, 0x30) : 0;
-}
-
-// Each frame: run the same script as the original (appear, fade out, ...) and copy its alpha, so the clone looks and
-// animates like the Defaults hint. Hover is the exception: the hit-box and the label's highlight are the clone's own.
-void sync_hint(void *screen) {
-    if (g_hint.screen != screen || !g_hint.clone) return;
-    for (int i = 0; i < g_hint.n; ++i) {
-        const HintPair &p = g_hint.pair[i];
-        if (!p.mirrored) continue;
-        const unsigned id = script_id(p.orig);
-        if (field<int>(p.copy, fe::kType) == fe::kString && (id == kScriptHighlight || id == kScriptUnhighlight)) continue;
-        if (id && id != script_id(p.copy)) game::SetScript(p.copy, id, 1);
-        void *od = field<void *>(p.orig, fe::kData);
-        void *cd = field<void *>(p.copy, fe::kData);
-        if (!od || !cd) continue;
-        const int alpha = field<int>(od, fe::kDataAlpha);
-        if (field<int>(cd, fe::kDataAlpha) != alpha) {
-            field<int>(cd, fe::kDataAlpha) = alpha;
-            field<unsigned>(p.copy, fe::kFlags) |= fe::kDirtyColor | fe::kDirty;
-        }
     }
 }
 
@@ -1447,7 +1185,7 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
     if (g_page) {
         if (self == g_options_screen && (msg == kButton5Msg || msg == kDialogMessageYes))
             log_line("%s: %s", g_page->page->id, msg == kButton5Msg ? "Defaults pressed" : "Defaults confirmed");
-        if (msg == kHelpClickMsg || (msg == kButton5Msg && obj && in_hint_clone(obj))) {
+        if (msg == kHelpClickMsg || (msg == kButton5Msg && obj && g_hint.contains(obj))) {
             if (!g_help_dialog_open) show_help_for_current_row(self);
             return;
         }
@@ -1458,7 +1196,7 @@ void FASTCALL hook_notify(void *self, void *edx, unsigned msg, void *obj, unsign
                 add_help_hint(self);
                 update_scroll_bar(self);
             }
-            sync_hint(self);
+            g_hint.sync(self);
             static bool was_down = false;
             static DWORD last_ms = 0;
             const bool down = (GetAsyncKeyState('2') & 0x8000) || (GetAsyncKeyState(VK_NUMPAD2) & 0x8000) || pad_x_down();
@@ -1688,9 +1426,7 @@ void FASTCALL hook_optmain_setup(void *self, void *edx) {
     g_pending_optmain = nullptr;
     reset_extra();
     g_hint_pending_screen = nullptr;
-    g_hint.screen = nullptr;
-    g_hint.clone = nullptr;
-    g_hint.n = 0;
+    g_hint.clear();
     discover_pages();
     ensure_language_entries();
     const bool paused = game::IsPaused(reinterpret_cast<void *>(game::kGameFlowManager));

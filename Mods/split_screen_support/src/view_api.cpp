@@ -4,6 +4,7 @@
 #include "more_players.h"
 #include "hud_players.h"
 #include "players.h"
+#include "race_again.h"
 #include "split_screen_api.h"
 
 namespace split_screen_support::view_api {
@@ -27,6 +28,10 @@ bool wanted() { return g_count > 0; }
 // For automated tests (nfsmw_dev_tools): the Press Start screen is told that a device (0-3 controller, -1 keyboard) let go of Start.
 extern "C" __declspec(dllexport) void nfsmw_split_screen_support_press_start(int device) {
     split_screen_support::players::tell_press_start(device);
+}
+
+extern "C" __declspec(dllexport) void nfsmw_split_screen_support_select_car(int device) {
+    split_screen_support::race_again::test_select_car(device);
 }
 
 // Whose Player options are open (0 to 3): the player who asked for the pause menu, or -1 when that is not known (the main menu, a game of one player).

@@ -63,6 +63,15 @@ void install_car_select_label();
 // The second player's Car Select lists the first player's cars (their career and custom cars too), not those of a new profile.
 void install_shared_stable();
 
+// The next race with the same cars (race_again.cpp). The picks of every player of a race are kept; `cars_kept` says whether they are there for a race of
+// `players`. `kept_player_of_device`: the player (0-based) a device played, -1 if none. `change_car` opens that player's Car Select, which returns to the race
+// options; `start_race_again` starts the race (from the race options' Accept) with the kept cars and devices. `forget_cars`: a new split screen game.
+bool cars_kept(int players);
+int kept_player_of_device(int device);
+void change_car(int player);
+void start_race_again();
+void forget_cars();
+
 void install();
 
 }  // namespace split_screen_support::more_players
