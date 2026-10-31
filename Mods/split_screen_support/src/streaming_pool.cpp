@@ -102,6 +102,49 @@ void patch_texture_pack_slots(const char *ini) {
     nfsmw::patch_bytes(kTexturePackSlotsPush, expected, patched, sizeof(patched));
 }
 
+// The sound system's memory: `InitializeSoundDriver` (0x4CC3A0) makes one memory pool for all of it, `bMalloc(0x563000 + 0x4000)` (5.4 MB, `and eax, 0x563000` at 0x4CC3A9
+// when sound is on) given to `bInitMemoryPool` as `AudioMemoryPool` [0x8EE558]. The engine banks of the opponents are loaded into it (`EAXAemsManager::InitiateLoad` 0x4CFFA0 fails with
+// -4 when its largest free block is smaller than the bank; `AsyncResidentAllocCB` 0x4CFB20), and so are the Csis middleware's objects, the bank slots' buffers and the mixer's memory.
+// An engine whose bank is not loaded is never initialized (its `InitSFX`, which makes its Csis::CAR object, waits for the bank): with 2 players and 4 opponents none of the
+// opponents had a Csis::CAR object and none was heard, with 3 all were [tested], and a bigger pool of Csis objects taken from the same memory made 2 the most. `[options]
+// audio_pool_mb` (32 by default; 0 = the game's own) is the size.
+constexpr uintptr_t kAudioPoolSize = 0x4CC3AA;
+void patch_audio_pool(const char *ini) {
+    const int mb = static_cast<int>(GetPrivateProfileIntA("options", "audio_pool_mb", 32, ini));
+    if (mb <= 6 || mb > 512) return;
+    const int value = mb * 1048576 - 0x4000;
+    static const unsigned char expected[4] = {0x00, 0x30, 0x56, 0x00};  // the 0x563000 of `and eax, 0x563000`
+    unsigned char patched[4];
+    memcpy(patched, &value, 4);
+    nfsmw::patch_bytes(kAudioPoolSize, expected, patched, sizeof(patched));
+}
+
+// The objects of the Csis middleware: `EAXSND8Wrapper::Initialize` (0x4C40C0) makes one slot pool for everything it allocates (`Csis::System::Alloc` is `bOMalloc(pCsisSlotPools)`:
+// one slot of the pool's size whatever is asked for), `bNewSlotPool(slot size, 0x100, "AUD:Csis SlotPools", AudioMemoryPool)`: 256. Each engine sound takes several (its Csis::CAR object, its
+// class instance ...): 199 of them were in use in a race of 2 players and 14 opponents [tested], and a full pool returns null, which leaves an engine without its Csis::CAR object: silent.
+// `[options] csis_slots` (1024 by default; 0 = the game's own) is the count; the pool is taken from the sound system's memory (above).
+constexpr uintptr_t kCsisSlotsPush = 0x4C411E;
+void patch_csis_slots(const char *ini) {
+    const int slots = static_cast<int>(GetPrivateProfileIntA("options", "csis_slots", 1024, ini));
+    if (slots <= 0x100) return;
+    static const unsigned char expected[5] = {0x68, 0x00, 0x01, 0x00, 0x00};  // push 0x100
+    unsigned char patched[5] = {0x68};
+    memcpy(patched + 1, &slots, 4);
+    nfsmw::patch_bytes(kCsisSlotsPush, expected, patched, sizeof(patched));
+}
+
+// The sound hardware's voices (one playing sample each; an engine plays several): `EAXSND8Wrapper::Initialize` asks for 64 (`push 0x40` at 0x4C4213, `Snd6System::SetVoices(0, 64)`),
+// and the library makes its voice table that big (clamped to its own most, 255 on this machine [tested: logged]). A race of 2 players and 14 opponents used 48 at once [tested].
+// `[options] sound_voices` (128 by default, up to 255; 0 = the game's own) is the count.
+constexpr uintptr_t kVoicesPush = 0x4C4213;
+void patch_voices(const char *ini) {
+    const int voices = static_cast<int>(GetPrivateProfileIntA("options", "sound_voices", 128, ini));
+    if (voices <= 0x40 || voices > 255) return;
+    static const unsigned char expected[2] = {0x6A, 0x40};  // push 0x40 (SetVoices takes the low byte)
+    const unsigned char patched[2] = {0x6A, static_cast<unsigned char>(voices)};
+    nfsmw::patch_bytes(kVoicesPush, expected, patched, sizeof(patched));
+}
+
 struct Early {
     Early() {
         char ini[MAX_PATH];
@@ -111,6 +154,9 @@ struct Early {
         g_car_extra_mb = std::max(0, static_cast<int>(GetPrivateProfileIntA("options", "car_pool_extra_mb", 256, ini)));
         g_car_extra_bytes = g_car_extra_mb << 20;
         patch_texture_pack_slots(ini);
+        patch_audio_pool(ini);
+        patch_csis_slots(ini);
+        patch_voices(ini);
         if (g_wanted_mb <= 0 && g_car_extra_mb <= 0) return;
         static const unsigned char expected[8] = {0x03, 0xC6, 0x50, 0xB9, 0xD0, 0xA9, 0x9A, 0x00};  // add eax, esi; push eax; mov ecx, 0x9AA9D0
         nfsmw::Stub stub;

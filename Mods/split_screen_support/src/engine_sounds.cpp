@@ -5,7 +5,8 @@
  * 0x4F3012 and `mov eax, 4` at 0x4F301C); a car that comes within 135 metres of a player takes a free state (`CSTATEMGR_CarState::UpdateParams` 0x4E6330), so with more than 4
  * opponents the others race without a sound. `[options] ai_engine_sounds` raises that number (15 by default: 16 racers less a player; 4 = the game's own). The engine banks the
  * states play are chosen apart from this (`ResolveCarBanks` keeps at most 4 kinds of engine loaded and maps the others to the nearest kind): more states are more voices of the
- * same few engines.
+ * same few engines. Every engine also needs its bank loaded into the sound system's memory, which the game made too small for more than 5 cars' engines at once (2 players and 3
+ * opponents, 1 player and 4): see `audio_pool_mb` in streaming_pool.cpp, and the Csis objects and voices next to it.
  *
  * Players 3 and up. The engine sound of the players is a different manager (`CSTATEMGR_PlayerCar`, 2 states: `EAXSound::AttachPlayerCars` 0x4C2100 attaches the first two cars
  * with the context 0, "player", of the list of car states and stops there), so the cars of the others are silent. Their car states get the context of an opponent (1) as soon as
@@ -17,7 +18,8 @@
  * otherwise (`cmp eax, 2` at 0x4E5CF3). In a split screen race the Ginsu engines of the opponents were silent although every stage that could be logged was as in a single player
  * race (the state attached, the controllers set, the mixer's outputs and the values handed to the hardware of the same size), while the sampled ones were heard [tested: a race of 2
  * players and 2 opponents with `[options] ai_sampled_engines` was heard; before, silent]. Why the Ginsu engines fail is not known. The setting makes the limit 0 in a split
- * screen race. Not the cause: the mix map (both maps hold the same data for the opponents' state), the two player way of working the 3D position out, the limit of 4 states.
+ * screen race. Not the cause: the mix map (both maps hold the same data for the opponents' state), the two player way of working the 3D position out. (The memory, the cause of
+ * the silence of 4 or more, was not the cause with 2: 3 sampled engines fitted.)
  *
  * The mix itself still has two listeners (the 3D position of each sound is worked out against players 1 and 2): a car far from both of them is quiet.
  */
@@ -38,6 +40,7 @@
 #include "patch.h"
 #include "players.h"
 #include "split_screen_support.h"
+#include "streaming_log.h"
 
 namespace split_screen_support::engine_sounds {
 
@@ -52,6 +55,10 @@ constexpr int kContextAiRacer = 1, kSimableWorldIdSlot = 28;  // (ISimable's vir
 constexpr uintptr_t kGetSfxCtlObject = 0x4D92D0;  // CSTATE_Base::GetSFXCTLObject(int): the state's controller with that object index (4 the engine's, 7 the car's 3D position)
 constexpr unsigned kCtlObjectPosition = 0x28, kCtlObjectDirection = 0x2C, kCtlObjectVelocity = 0x30, kCtlPlayerRef = 0x44;  // SFXCTL_3DObjPos: the pointers to the object's position, direction and velocity; its player
 constexpr int kAiManager = 3, kPlayerManager = 2;
+// The sound system's limits (see streaming_pool.cpp): the memory pool of InitializeSoundDriver (its number at 0x8EE558, its size at 0x912848), the Csis objects' slot pool
+// ([0x911F58]: +0x18 in use, +0x1C the most, +0x2C capacity), the voice table of the Snd6 library (its count in the low byte at 0x9C218C, the table at [0x9C21F4], 0x90 bytes a voice,
+// +0x6D set while it plays).
+constexpr uintptr_t kAudioPool = 0x8EE558, kAudioPoolSize = 0x912848, kCsisSlotPool = 0x911F58, kVoiceCount = 0x9C218C, kVoiceTable = 0x9C21F4;
 constexpr uintptr_t kGetSfxObject = 0x4D92A0, kStateDataLoaded = 0x4F2D00, kCarStateList = 0x913DB4, kCarStateCount = 0x913DBC, kResolveCarBanks = 0x4F9020;
 
 // ---- the listeners
@@ -104,11 +111,6 @@ void convert_extras(bool ready_only) {
         void *player = more_players::extra_player(i);
         const unsigned id = player ? world_id_of(player) : 0;
         unsigned char *state = id ? reinterpret_cast<unsigned char *(__cdecl *)(unsigned)>(kFindCarState)(id) : nullptr;
-        static bool logged_id[nfsmw::kMaxExtras];
-        if (!logged_id[i]) {
-            logged_id[i] = true;
-            g_log.line("engine sounds: the world id of the car of player %d is %#x, its sound state is %p", i + 3, id, state);
-        }
         if (!state) continue;  // (the sound connection of the car is made a little after the car)
         g_converted[i] = true;
         const int before = *reinterpret_cast<int *>(state + kContextOffset);
@@ -171,12 +173,23 @@ void dump(const char *why) {
         g_log.line("engine sounds: the sound system %p: player mix mode %d, the game's number of listeners %d, players' engine states %p %p, game flow state %d", sound, sound ? *reinterpret_cast<const int *>(sound + 0x64) : -1,
                    *reinterpret_cast<const int *>(kGameListenerCount), *reinterpret_cast<void *const *>(0x9142D0), *reinterpret_cast<void *const *>(0x9142D4), *reinterpret_cast<const int *>(kGameFlowState));
     }
+    {
+        const int audio = *reinterpret_cast<const int *>(kAudioPool);
+        const unsigned char *csis = *reinterpret_cast<const unsigned char *const *>(kCsisSlotPool);
+        const unsigned char *voices = *reinterpret_cast<const unsigned char *const *>(kVoiceTable);
+        const int voice_count = *reinterpret_cast<const int *>(kVoiceCount) & 0xFF;
+        int playing = 0;
+        for (int i = 0; voices && i < voice_count; ++i) playing += voices[i * 0x90 + 0x6D] ? 1 : 0;
+        g_log.line("engine sounds: the sound system's memory (pool %d): %d KB, %d KB free, the largest free block %d KB; Csis objects %d of %d (the most %d); voices playing %d of %d", audio,
+                   *reinterpret_cast<const int *>(kAudioPoolSize) >> 10, streaming_log::pool_free(audio) >> 10, streaming_log::pool_largest(audio) >> 10, csis ? *reinterpret_cast<const int *>(csis + 0x18) : -1,
+                   csis ? *reinterpret_cast<const int *>(csis + 0x2C) : -1, csis ? *reinterpret_cast<const int *>(csis + 0x1C) : -1, playing, voice_count);
+    }
     hex_line("FinalEngines", reinterpret_cast<void *>(0x9147A4), 0x30);
     hex_line("FinalCopV8Engines", reinterpret_cast<void *>(0x914614), 0x30);
     hex_line("FinalMapping", reinterpret_cast<void *>(0x914660), 0x70);
     hex_line("EngineToCarMapping", reinterpret_cast<void *>(0x914958), 0x70);
     hex_line("bank slots queued / ginsu flag", reinterpret_cast<void *>(0x911ED4), 8);
-    hex_line("the AEMS manager", reinterpret_cast<void *>(0x912264), 0x134);
+    hex_line("the AEMS manager", reinterpret_cast<void *>(0x912270), 0x130);
 }
 
 void (__cdecl *g_orig_resolve_car_banks)();

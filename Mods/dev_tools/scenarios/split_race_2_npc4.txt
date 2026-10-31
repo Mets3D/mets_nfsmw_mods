@@ -1,0 +1,39 @@
+# 2 players and 2 opponents (the Total Racers row one down from 5): the engine sounds of the opponents are logged by nfsmw_split_screen_support (the `engine sounds:` lines, every 3 s per engine). Nobody drives.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 3
+press down 3
+press right 1
+wait 1
+screenshot options width=640
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until racing timeout=180
+wait 4
+skip_cutscene
+wait 14
+log_racers
+quit
