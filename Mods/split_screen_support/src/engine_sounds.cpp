@@ -21,7 +21,8 @@
  * screen race. Not the cause: the mix map (both maps hold the same data for the opponents' state), the two player way of working the 3D position out. (The memory, the cause of
  * the silence of 4 or more, was not the cause with 2: 3 sampled engines fitted.)
  *
- * The mix itself still has two listeners (the 3D position of each sound is worked out against players 1 and 2): a car far from both of them is quiet.
+ * The mix itself has two listeners (the 3D position of a sound is worked out against the arrays of SndCamera, which hold players 1 and 2): a sound nearest to the car of a player 3 or up
+ * is worked out with that player's camera and car in the place of the second player's for the length of the call (`hook_update_params_3d`), so it is panned and made loud or quiet as that player hears it.
  */
 #include "engine_sounds.h"
 
@@ -119,6 +120,157 @@ void convert_extras(bool ready_only) {
     }
 }
 
+// ---- the mix's listeners
+// The 3D position of a sound is worked out against the data of one of two players (SFXCTL_3DObjPos::UpdateParams 0x4C6250 calls Generate3DParams 0x4B6030, which takes the one whose
+// car is nearer, and UpdateDoppler 0x4BF2E0; both read SndCamera's arrays at index `this+0x44`, 0 or 1, which SndCamera::UpdateCameras 0x4D5D40 fills for the first two players
+// only). A sound nearest to a car of the players 3 and up is worked out here with the data of that player in the place of the second player's: the arrays are swapped for the
+// length of the call.
+struct Block {
+    uintptr_t first;  // the first player's element; the second's follows it
+    unsigned size;
+};
+enum { kCamPos, kCamDir, kCamDir2, kCamPos2, kCarPos2, kCamDirCopy, kAveragedCamPos, kCarOffset, kCarDir2, kCarVel, kCamVel, kCarPos, kCarDir, kBlockCount };
+constexpr Block kBlocks[kBlockCount] = {
+    {0x914430, 16},  // m_CurCamPos
+    {0x914450, 16},  // m_CurCamDir
+    {0x914490, 8},   // the camera's direction, normalized (2D)
+    {0x9144A0, 8},   // the camera's position (2D)
+    {0x9144B0, 8},   // m_WorldCarPos
+    {0x9144C0, 8},   // a copy of the camera's direction
+    {0x9144D0, 8},   // m_AveragedCamPos
+    {0x9144F0, 8},   // the car's position less the camera's
+    {0x914510, 8},   // m_NormCarDir
+    {0x914520, 16},  // m_v3WorldCarVel
+    {0x914540, 16},  // m_v3WorldCamVel
+    {0x914560, 16},  // m_v3WorldCarPos
+    {0x914580, 16},  // m_v3WorldCarDir
+};
+constexpr uintptr_t kSoundSystemPointer = 0x911FA8, kUpdateParams3D = 0x4C6250;
+constexpr unsigned kMixMode = 0x64, kSoundPosition = 0x28;
+
+struct ExtraListener {
+    bool valid = false;
+    unsigned char image[kBlockCount][16];
+    float camera[3];
+    float velocity[3];  // the camera's, from its movement between frames
+    bool have_camera = false;
+    long long time = 0;
+    unsigned uses = 0;  // sounds worked out against it
+};
+ExtraListener g_extra_listener[nfsmw::kMaxExtras];
+int g_valid_extras = 0;
+
+void put(ExtraListener &l, int block, const float *values, int count) {
+    float *to = reinterpret_cast<float *>(l.image[block]);
+    memset(to, 0, 16);
+    for (int i = 0; i < count; ++i) to[i] = values[i];
+}
+
+void normalized(const float *v, float *out) {
+    const float length = std::sqrt(v[0] * v[0] + v[1] * v[1]);
+    out[0] = length > 1e-6f ? v[0] / length : 0.f;
+    out[1] = length > 1e-6f ? v[1] / length : 0.f;
+}
+
+// The car state (EAX_CarState: position at +0x40, direction +0x10, velocity +0x50, as SndCamera::UpdateCameras reads them) of the car of extra player `i`.
+const float *extra_car_state(int i) {
+    if (!more_players::extra_ready(i)) return nullptr;
+    void *player = more_players::extra_player(i);
+    const unsigned id = player ? world_id_of(player) : 0;
+    return id ? reinterpret_cast<const float *>(reinterpret_cast<unsigned char *(__cdecl *)(unsigned)>(kFindCarState)(id)) : nullptr;
+}
+
+// What SndCamera::UpdateCameras 0x4D5D40 makes of a player's camera and car, for the extra player `i`.
+void refresh_extra_listener(int i) {
+    ExtraListener &l = g_extra_listener[i];
+    const unsigned char *car = reinterpret_cast<const unsigned char *>(extra_car_state(i));
+    float camera[3], direction[3];
+    l.valid = false;
+    if (!car || !extra_cameras::camera_pose(i, camera, direction)) {
+        l.have_camera = false;
+        return;
+    }
+    LARGE_INTEGER now, frequency;
+    QueryPerformanceCounter(&now);
+    QueryPerformanceFrequency(&frequency);
+    if (l.have_camera) {
+        const float seconds = static_cast<float>(now.QuadPart - l.time) / static_cast<float>(frequency.QuadPart);
+        if (seconds > 0.0005f && seconds < 0.5f)
+            for (int a = 0; a < 3; ++a) l.velocity[a] = 0.5f * l.velocity[a] + 0.5f * std::min(std::max((camera[a] - l.camera[a]) / seconds, -300.f), 300.f);
+    } else {
+        l.velocity[0] = l.velocity[1] = l.velocity[2] = 0;
+    }
+    memcpy(l.camera, camera, sizeof(camera));
+    l.time = now.QuadPart;
+    l.have_camera = true;
+    const float *position = reinterpret_cast<const float *>(car + 0x40), *forward = reinterpret_cast<const float *>(car + 0x10), *velocity = reinterpret_cast<const float *>(car + 0x50);
+    float camera_direction[2], car_direction[2], offset[2] = {position[0] - camera[0], position[1] - camera[1]};
+    normalized(direction, camera_direction);
+    normalized(forward, car_direction);
+    put(l, kCamPos, camera, 3);
+    put(l, kCamDir, direction, 3);
+    put(l, kCamDir2, camera_direction, 2);
+    put(l, kCamPos2, camera, 2);
+    put(l, kCarPos2, position, 2);
+    put(l, kCamDirCopy, camera_direction, 2);
+    put(l, kAveragedCamPos, camera, 2);
+    put(l, kCarOffset, offset, 2);
+    put(l, kCarDir2, car_direction, 2);
+    put(l, kCarVel, velocity, 3);
+    put(l, kCamVel, l.velocity, 3);
+    put(l, kCarPos, position, 3);
+    put(l, kCarDir, forward, 3);
+    l.valid = true;
+}
+
+void refresh_extra_listeners() {
+    int valid = 0;
+    for (int i = 0; i < nfsmw::kMaxExtras; ++i) {
+        if (players::split_screen() && i < more_players::extras_in_race()) refresh_extra_listener(i);
+        else g_extra_listener[i].valid = g_extra_listener[i].have_camera = false;
+        valid += g_extra_listener[i].valid ? 1 : 0;
+    }
+    g_valid_extras = valid;
+}
+
+// The extra player whose car is the nearest to the sound (nearer than the cars of players 1 and 2), or -1.
+int extra_listener_for(const unsigned char *control) {
+    if (!g_valid_extras) return -1;
+    const unsigned char *sound = *reinterpret_cast<const unsigned char *const *>(kSoundSystemPointer);
+    const float *at = *reinterpret_cast<const float *const *>(control + kSoundPosition);
+    if (!at || !sound || *reinterpret_cast<const int *>(sound + kMixMode) == 0 || *reinterpret_cast<const int *>(kGameListenerCount) < 2) return -1;
+    const auto distance = [at](const float *car) { return (car[0] - at[0]) * (car[0] - at[0]) + (car[1] - at[1]) * (car[1] - at[1]); };
+    const float *game_cars = reinterpret_cast<const float *>(kBlocks[kCarPos2].first);
+    float best = std::min(distance(game_cars), distance(game_cars + 2));
+    int pick = -1;
+    for (int i = 0; i < nfsmw::kMaxExtras; ++i) {
+        if (!g_extra_listener[i].valid) continue;
+        const float d = distance(reinterpret_cast<const float *>(g_extra_listener[i].image[kCarPos2]));
+        if (d < best) {
+            best = d;
+            pick = i;
+        }
+    }
+    return pick;
+}
+
+void(__fastcall *g_orig_update_params_3d)(void *, void *, float);
+
+void __fastcall hook_update_params_3d(void *self, void *edx, float seconds) {
+    const int extra = extra_listener_for(static_cast<const unsigned char *>(self));
+    if (extra < 0) return g_orig_update_params_3d(self, edx, seconds);
+    ExtraListener &l = g_extra_listener[extra];
+    unsigned char saved[kBlockCount][16];
+    for (int b = 0; b < kBlockCount; ++b) {
+        unsigned char *second = reinterpret_cast<unsigned char *>(kBlocks[b].first + kBlocks[b].size);
+        memcpy(saved[b], second, kBlocks[b].size);
+        memcpy(second, l.image[b], kBlocks[b].size);
+    }
+    if (++l.uses == 1) g_log.line("engine sounds: the first sound worked out against the player %d's camera and car", extra + 3);
+    g_orig_update_params_3d(self, edx, seconds);
+    for (int b = 0; b < kBlockCount; ++b) memcpy(reinterpret_cast<void *>(kBlocks[b].first + kBlocks[b].size), saved[b], kBlocks[b].size);
+}
+
 // ---- the log: everything the sound system holds about the cars
 void hex_line(const char *what, const void *address, unsigned bytes) {
     char text[600];
@@ -184,6 +336,12 @@ void dump(const char *why) {
                    *reinterpret_cast<const int *>(kAudioPoolSize) >> 10, streaming_log::pool_free(audio) >> 10, streaming_log::pool_largest(audio) >> 10, csis ? *reinterpret_cast<const int *>(csis + 0x18) : -1,
                    csis ? *reinterpret_cast<const int *>(csis + 0x2C) : -1, csis ? *reinterpret_cast<const int *>(csis + 0x1C) : -1, playing, voice_count);
     }
+    for (int i = 0; i < nfsmw::kMaxExtras; ++i) {
+        const ExtraListener &l = g_extra_listener[i];
+        if (l.valid)
+            g_log.line("engine sounds: the listener of player %d: camera (%.0f, %.0f, %.0f), car (%.0f, %.0f), camera speed (%.0f, %.0f, %.0f), %u sounds worked out against it", i + 3, l.camera[0], l.camera[1], l.camera[2],
+                       reinterpret_cast<const float *>(l.image[kCarPos2])[0], reinterpret_cast<const float *>(l.image[kCarPos2])[1], l.velocity[0], l.velocity[1], l.velocity[2], l.uses);
+    }
     hex_line("FinalEngines", reinterpret_cast<void *>(0x9147A4), 0x30);
     hex_line("FinalCopV8Engines", reinterpret_cast<void *>(0x914614), 0x30);
     hex_line("FinalMapping", reinterpret_cast<void *>(0x914660), 0x70);
@@ -225,6 +383,8 @@ void set_ginsu_limit(unsigned char limit) {
 void on_world_load() {
     if (g_sampled_engines) set_ginsu_limit(players::split_screen() ? 0 : 2);
     for (bool &c : g_converted) c = false;
+    for (ExtraListener &l : g_extra_listener) l.valid = l.have_camera = false;
+    g_valid_extras = 0;
     g_extra_states = players::split_screen() ? more_players::extras_in_race() : 0;
 }
 
@@ -237,6 +397,7 @@ void on_frame() {
         if (mgr) *reinterpret_cast<float *>(static_cast<unsigned char *>(mgr) + 0x20) = g_connect_distance;
     }
     refresh_listeners();
+    refresh_extra_listeners();
     g_extra_states = players::split_screen() ? more_players::extras_in_race() : 0;
     if (!players::split_screen()) return;
     convert_extras(true);
@@ -279,8 +440,10 @@ void install() {
         const nfsmw::Hook hooks[] = {
             {"resolvecarbanks", "CSTATEMGR_CarState::ResolveCarBanks", kResolveCarBanks, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8, 0x6A}, false, nfsmw::detour(&hook_resolve_car_banks),
              nfsmw::orig(&g_orig_resolve_car_banks)},
+            {"sfx3dparams", "SFXCTL_3DObjPos::UpdateParams", kUpdateParams3D, {0x56, 0x8B, 0xF1, 0x8B, 0x46, 0x28, 0x33}, false, nfsmw::detour(&hook_update_params_3d),
+             nfsmw::orig(&g_orig_update_params_3d)},
         };
-        nfsmw::install_hooks(hooks, 1, g_log, g_ini, "engine sounds");
+        nfsmw::install_hooks(hooks, 2, g_log, g_ini, "engine sounds");
         events::on_world_load(&on_world_load);
         events::on_frame(&on_frame);
     }

@@ -40,7 +40,7 @@ Changes made while you were away, which I could only check through logs and scre
 ### 3 or more player issues:
 These are just issues stemming from 4-player split-screen not being thoroughly playtested yet. Reverting changes is likely not going to help.
 
-- Players 3 and onwards have no audio (their cars count as opponents for the sound system and their cameras as listeners, but this was never heard to work: the opponents were silent at the time, see above). Check again now that the opponents have sound.
+- **Sound for players 3 and onwards**: their cars sound like opponents do, and a sound is now heard the way the player nearest to it hears it (panned and made loud or quiet by that player's camera and car; before, only players 1 and 2 counted, so a car near player 3 or 4 and far from both was quiet). Please listen in a 4 player race: drive player 3 or 4 away from the others and check that their own engine, the cars around them and the crashes next to them are heard, and that nothing sounds wrong near players 1 and 2 (it should be as before). Not done: the sounds of the player's own car that only the first two players have (tyre squeal, wind, gear changes).
 
 ### Low prio - Nice-to-haves
 - Lap Knockout works weirdly. It doesn't show the option for AI opponents, but it spawns AI opponents anyways. And it seems like players are not getting eliminated.
