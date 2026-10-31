@@ -17,6 +17,8 @@ int wide_picture(void *anchor);
 bool camera_position(int extra, float *position);
 // The same with the direction the camera looks in (a unit vector).
 bool camera_pose(int extra, float *position, float *direction);
+// The game's Camera object of an extra player (null while it has none).
+void *camera_object(int extra);
 
 void install();
 

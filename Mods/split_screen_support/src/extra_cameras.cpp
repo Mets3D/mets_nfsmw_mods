@@ -248,6 +248,11 @@ bool camera_pose(int extra, float *position, float *direction) {
 
 bool camera_position(int extra, float *position) { return camera_pose(extra, position, nullptr); }
 
+void *camera_object(int extra) {
+    void *mover = extra >= 0 && extra < nfsmw::kMaxExtras ? mover_of(extra) : nullptr;
+    return mover ? at<void *>(reinterpret_cast<uintptr_t>(mover), 0x1C) : nullptr;
+}
+
 int wide_picture(void *anchor) {
     const int players = more_players::race_players();
     if (!players::split_screen() || players < 2) return -1;

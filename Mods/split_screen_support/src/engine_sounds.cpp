@@ -8,9 +8,12 @@
  * same few engines. Every engine also needs its bank loaded into the sound system's memory, which the game made too small for more than 5 cars' engines at once (2 players and 3
  * opponents, 1 player and 4): see `audio_pool_mb` in streaming_pool.cpp, and the Csis objects and voices next to it.
  *
- * Players 3 and up. The engine sound of the players is a different manager (`CSTATEMGR_PlayerCar`, 2 states: `EAXSound::AttachPlayerCars` 0x4C2100 attaches the first two cars
- * with the context 0, "player", of the list of car states and stops there), so the cars of the others are silent. Their car states get the context of an opponent (1) as soon as
- * they exist (before the audio assets are committed, so that their engines are loaded with the opponents'): they then sound like opponents do, whenever they are near a listener.
+ * Players 3 and up. The sounds of the players are a different manager (`CSTATEMGR_PlayerCar`: a state, an `EAXTunerCar`, per player, with the objects of the mask 0x53BFC: the engine
+ * (a dual Ginsu), shifts, turbo, tyres, wind, nitro...; `EnterWorld` makes 2 in a split screen race and `EAXSound::AttachPlayerCars` 0x4C2100 attaches the first two cars with the
+ * context 0, "player", of the list of car states and stops there), so the cars of the others are silent. With `[options] extra_player_sound_set` (1) `EnterWorld` makes a state for
+ * each extra player, the attach loop goes on, and the state's updates run with that player's data in the second player's place (below); the mix map has as many states as the manager.
+ * With 0 their car states get the context of an opponent (1) as soon as they exist (before the audio assets are committed, so that their engines are loaded with the opponents'): they
+ * then sound like opponents do, whenever they are near a listener.
  * The listeners are the cameras of players 1 and 2 (the sound system keeps their positions at 0x914430, 0x10 bytes each, and a car looks for the nearest in UpdateParams); the
  * extra players' cameras are added to that list here (a copy of the game's two and the cameras of the extra players, which the one reading site of UpdateParams is pointed at,
  * with its call of GetClosestPlayerCar), so that an opponent or a player's car near player 3 is heard as near as one near player 1.
@@ -62,6 +65,8 @@ constexpr int kAiManager = 3, kPlayerManager = 2;
 constexpr uintptr_t kAudioPool = 0x8EE558, kAudioPoolSize = 0x912848, kCsisSlotPool = 0x911F58, kVoiceCount = 0x9C218C, kVoiceTable = 0x9C21F4;
 constexpr uintptr_t kGetSfxObject = 0x4D92A0, kStateDataLoaded = 0x4F2D00, kCarStateList = 0x913DB4, kCarStateCount = 0x913DBC, kResolveCarBanks = 0x4F9020;
 
+bool g_player_set = false;  // players 3 and up have the players' sound set (else the opponents')
+
 // ---- the listeners
 constexpr int kListeners = nfsmw::kMaxPlayers;
 float g_listeners[kListeners][4];  // x, y, z (the world's axes) and a pad: the layout of the game's own array
@@ -107,6 +112,7 @@ unsigned world_id_of(void *player) {
 
 // `ready_only`: wait for the race to run (the frame hook); false: as soon as the player has a car (before the audio assets are committed).
 void convert_extras(bool ready_only) {
+    if (g_player_set) return;
     for (int i = 0; i < nfsmw::kMaxExtras; ++i) {
         if (g_converted[i] || (ready_only && !more_players::extra_ready(i))) continue;
         void *player = more_players::extra_player(i);
@@ -147,12 +153,19 @@ constexpr Block kBlocks[kBlockCount] = {
 };
 constexpr uintptr_t kSoundSystemPointer = 0x911FA8, kUpdateParams3D = 0x4C6250;
 constexpr unsigned kMixMode = 0x64, kSoundPosition = 0x28;
+// The players' own sound set for players 3 and up: the players' manager (CSTATEMGR_PlayerCar) makes a state (EAXTunerCar) per player in EnterWorld (2 in a split screen race), and
+// the attach loop of EAXSound (0x4C2100, also the end of MixMapReadyCallback) stops after 2 cars with the context 0.
+constexpr uintptr_t kPlayerEnterWorld = 0x4F2E90, kAttachCap = 0x4C2150, kTunerUpdateParams = 0x4AFD00, kCarProcessUpdate = 0x4E5280, kCreateState = 0x4E5970, kNewSfxCtrl = 0x4EB8E0;
+constexpr unsigned kStateIndex = 0x10, kStateMask = 0x28, kStateManagerType = 0x14;
+constexpr uintptr_t kPlayerCarsArray = 0x9142D0, kCamerasArray = 0x9142AC, kCarSpeedArray = 0x9142C8;
 
 struct ExtraListener {
     bool valid = false;
     unsigned char image[kBlockCount][16];
     float camera[3];
     float velocity[3];  // the camera's, from its movement between frames
+    float car_speed = 0;
+    void *camera_object = nullptr;
     bool have_camera = false;
     long long time = 0;
     unsigned uses = 0;  // sounds worked out against it
@@ -220,6 +233,8 @@ void refresh_extra_listener(int i) {
     put(l, kCamVel, l.velocity, 3);
     put(l, kCarPos, position, 3);
     put(l, kCarDir, forward, 3);
+    l.car_speed = std::sqrt(velocity[0] * velocity[0] + velocity[1] * velocity[1] + velocity[2] * velocity[2]);
+    l.camera_object = extra_cameras::camera_object(i);
     l.valid = true;
 }
 
@@ -254,21 +269,93 @@ int extra_listener_for(const unsigned char *control) {
     return pick;
 }
 
+// The second player's elements of the arrays are the extra player's for the length of a call.
+class SecondSlot {
+public:
+    // `player_car`: the EAXCar that stands for the second player (null: the sound code does not ask for it)
+    SecondSlot(const ExtraListener &l, void *player_car) {
+        for (int b = 0; b < kBlockCount; ++b) {
+            unsigned char *second = reinterpret_cast<unsigned char *>(kBlocks[b].first + kBlocks[b].size);
+            memcpy(m_saved[b], second, kBlocks[b].size);
+            memcpy(second, l.image[b], kBlocks[b].size);
+        }
+        m_car = *player_cars();
+        m_camera = *cameras();
+        m_speed = *speeds();
+        if (player_car) *player_cars() = player_car;
+        if (l.camera_object) *cameras() = l.camera_object;
+        *speeds() = l.car_speed;
+    }
+    ~SecondSlot() {
+        for (int b = 0; b < kBlockCount; ++b) memcpy(reinterpret_cast<void *>(kBlocks[b].first + kBlocks[b].size), m_saved[b], kBlocks[b].size);
+        *player_cars() = m_car;
+        *cameras() = m_camera;
+        *speeds() = m_speed;
+    }
+    SecondSlot(const SecondSlot &) = delete;
+    SecondSlot &operator=(const SecondSlot &) = delete;
+
+private:
+    static void **player_cars() { return reinterpret_cast<void **>(kPlayerCarsArray) + 1; }
+    static void **cameras() { return reinterpret_cast<void **>(kCamerasArray) + 1; }
+    static float *speeds() { return reinterpret_cast<float *>(kCarSpeedArray) + 1; }
+    unsigned char m_saved[kBlockCount][16];
+    void *m_car, *m_camera;
+    float m_speed;
+};
+
 void(__fastcall *g_orig_update_params_3d)(void *, void *, float);
 
 void __fastcall hook_update_params_3d(void *self, void *edx, float seconds) {
     const int extra = extra_listener_for(static_cast<const unsigned char *>(self));
     if (extra < 0) return g_orig_update_params_3d(self, edx, seconds);
     ExtraListener &l = g_extra_listener[extra];
-    unsigned char saved[kBlockCount][16];
-    for (int b = 0; b < kBlockCount; ++b) {
-        unsigned char *second = reinterpret_cast<unsigned char *>(kBlocks[b].first + kBlocks[b].size);
-        memcpy(saved[b], second, kBlocks[b].size);
-        memcpy(second, l.image[b], kBlocks[b].size);
-    }
+    SecondSlot slot(l, nullptr);
     if (++l.uses == 1) g_log.line("engine sounds: the first sound worked out against the player %d's camera and car", extra + 3);
     g_orig_update_params_3d(self, edx, seconds);
-    for (int b = 0; b < kBlockCount; ++b) memcpy(reinterpret_cast<void *>(kBlocks[b].first + kBlocks[b].size), saved[b], kBlocks[b].size);
+}
+
+// ---- the players' sound set for players 3 and up
+void(__fastcall *g_orig_player_enter_world)(void *, void *, int);
+void(__fastcall *g_orig_tuner_update)(void *, void *, float);
+void(__fastcall *g_orig_car_process_update)(void *);
+
+void __fastcall hook_player_enter_world(void *manager, void *edx, int mode) {
+    g_orig_player_enter_world(manager, edx, mode);
+    const int extras = players::split_screen() ? more_players::extras_in_race() : 0;
+    unsigned char *first = *reinterpret_cast<unsigned char **>(static_cast<unsigned char *>(manager) + kHeadState);
+    if (extras <= 0 || !first) return;
+    const int mask = *reinterpret_cast<int *>(first + kStateMask);
+    for (int i = 0; i < extras; ++i) {
+        void *state = reinterpret_cast<void *(__fastcall *)(void *, void *, int, int)>(kCreateState)(manager, nullptr, 0, mask);
+        if (!state) break;
+        reinterpret_cast<void(__fastcall *)(void *, void *, int)>((*reinterpret_cast<void ***>(state))[1])(state, nullptr, mask);  // CSTATE_Base::Setup(mask)
+        for (int control = 0; control < 32; ++control)
+            if ((1 << control) & 0x100) reinterpret_cast<void *(__fastcall *)(void *, void *, int)>(kNewSfxCtrl)(state, nullptr, control);
+        g_log.line("engine sounds: the players' manager got a state (%p) for player %d, index %d", state, i + 3, *reinterpret_cast<int *>(static_cast<unsigned char *>(state) + kStateIndex));
+    }
+}
+
+// The extra player whose sound state this is (the players' manager; its index counts from 0 for player 1), or -1.
+int extra_of_state(const void *state) {
+    const unsigned char *s = static_cast<const unsigned char *>(state);
+    if (!g_player_set || *reinterpret_cast<const int *>(s + kStateManagerType) != kPlayerManager) return -1;
+    const int index = *reinterpret_cast<const int *>(s + kStateIndex) - 2;
+    return index >= 0 && index < nfsmw::kMaxExtras && g_extra_listener[index].valid ? index : -1;
+}
+
+void __fastcall hook_tuner_update(void *self, void *edx, float seconds) {
+    const int extra = extra_of_state(self);
+    if (extra < 0) return g_orig_tuner_update(self, edx, seconds);
+    SecondSlot slot(g_extra_listener[extra], *reinterpret_cast<void **>(static_cast<unsigned char *>(self) + 0x34) ? self : nullptr);
+    g_orig_tuner_update(self, edx, seconds);
+}
+
+void __fastcall hook_car_process_update(void *self) {
+    const int extra = extra_of_state(self);
+    if (extra < 0) return g_orig_car_process_update(self);
+    SecondSlot slot(g_extra_listener[extra], self);
+    g_orig_car_process_update(self);
 }
 
 // ---- the log: everything the sound system holds about the cars
@@ -315,6 +402,10 @@ void dump(const char *why) {
             const auto dmix = [](const void *object) { return object ? *reinterpret_cast<void *const *>(static_cast<const unsigned char *>(object) + 0x10) : nullptr; };  // SndBase +0x10: its outputs from the mixer (null: not connected to the mix map, GetDMixOutput says 0)
             g_log.line("engine sounds: %s state %d %p: mixer outputs of the sfx objects %p %p %p %p, of the engine controller %p, of the position controller %p", manager_name(m), n, st, dmix(state_sfx(st, 0)),
                        dmix(state_sfx(st, 1)), dmix(state_sfx(st, 2)), dmix(state_sfx(st, 3)), dmix(engine_ctl), dmix(position_ctl));
+            if (m == kPlayerManager) {
+                const unsigned char *engine = static_cast<const unsigned char *>(state_sfx(st, 2));  // the Ginsu engine (CARSFX_DualGinsuEng), +8 set by InitSFX, +0x4c by StartupGinsu, +0x28 its Csis object
+                if (engine) g_log.line("engine sounds: players' state %d: Ginsu engine initialized %d, started %d, Csis object %p, index %d", n, engine[8], engine[0x4c], *reinterpret_cast<void *const *>(engine + 0x28), *reinterpret_cast<const int *>(st + kStateIndex));
+            }
             g_log.line("engine sounds: %s state %d %p: attached %d, car %p (world id %#x), sfx objects %p %p %p %p, data loaded %d", manager_name(m), n, st, attached, car,
                        attached && car ? *reinterpret_cast<const unsigned *>(static_cast<const unsigned char *>(car) + 0x230) : 0, state_sfx(st, 0), state_sfx(st, 1), state_sfx(st, 2), state_sfx(st, 3),
                        reinterpret_cast<bool(__fastcall *)(void *)>(kStateDataLoaded)(st) ? 1 : 0);
@@ -341,6 +432,11 @@ void dump(const char *why) {
         if (l.valid)
             g_log.line("engine sounds: the listener of player %d: camera (%.0f, %.0f, %.0f), car (%.0f, %.0f), camera speed (%.0f, %.0f, %.0f), %u sounds worked out against it", i + 3, l.camera[0], l.camera[1], l.camera[2],
                        reinterpret_cast<const float *>(l.image[kCarPos2])[0], reinterpret_cast<const float *>(l.image[kCarPos2])[1], l.velocity[0], l.velocity[1], l.velocity[2], l.uses);
+    }
+    {
+        const unsigned char *sound = *reinterpret_cast<const unsigned char *const *>(kSoundSystemPointer);
+        const unsigned char *master = sound ? *reinterpret_cast<const unsigned char *const *>(sound + 0x84) : nullptr;
+        if (master) hex_line("mix map states per main state (13)", master + 0x38, 13 * 4);
     }
     hex_line("FinalEngines", reinterpret_cast<void *>(0x9147A4), 0x30);
     hex_line("FinalCopV8Engines", reinterpret_cast<void *>(0x914614), 0x30);
@@ -385,7 +481,7 @@ void on_world_load() {
     for (bool &c : g_converted) c = false;
     for (ExtraListener &l : g_extra_listener) l.valid = l.have_camera = false;
     g_valid_extras = 0;
-    g_extra_states = players::split_screen() ? more_players::extras_in_race() : 0;
+    g_extra_states = players::split_screen() && !g_player_set ? more_players::extras_in_race() : 0;
 }
 
 // The opponents' sound manager attaches an engine to a car within `m_fConnectDistance` (+0x20: 135 m, set by its constructor) of the nearest listener.
@@ -398,7 +494,7 @@ void on_frame() {
     }
     refresh_listeners();
     refresh_extra_listeners();
-    g_extra_states = players::split_screen() ? more_players::extras_in_race() : 0;
+    g_extra_states = players::split_screen() && !g_player_set ? more_players::extras_in_race() : 0;
     if (!players::split_screen()) return;
     convert_extras(true);
 }
@@ -437,6 +533,13 @@ void install() {
         const bool states = nfsmw::patch_bytes(kStatesRemoteCount, online, states_address, 4) && nfsmw::patch_bytes(kSlotsRemoteCount, online, states_address, 4);
         g_log.line("engine sounds: the cars of players 3 and up count as opponents%s; the listeners are the cameras of all players%s", states ? "" : " (NOT CHANGED: the count of states)",
                    listeners ? "" : " (NOT CHANGED: the listeners)");
+        g_player_set = GetPrivateProfileIntA("options", "extra_player_sound_set", 1, g_ini) != 0;
+        if (g_player_set) {
+            const unsigned char two = 2, many = 0x40;
+            const bool cap = nfsmw::patch_bytes(kAttachCap, &two, &many, 1);
+            g_log.line("engine sounds: players 3 and up have the players' sounds%s", cap ? "" : " (NOT CHANGED: the attach loop)");
+            g_player_set = cap;
+        }
         const nfsmw::Hook hooks[] = {
             {"resolvecarbanks", "CSTATEMGR_CarState::ResolveCarBanks", kResolveCarBanks, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8, 0x6A}, false, nfsmw::detour(&hook_resolve_car_banks),
              nfsmw::orig(&g_orig_resolve_car_banks)},
@@ -444,6 +547,16 @@ void install() {
              nfsmw::orig(&g_orig_update_params_3d)},
         };
         nfsmw::install_hooks(hooks, 2, g_log, g_ini, "engine sounds");
+        if (g_player_set) {
+            const nfsmw::Hook player_hooks[] = {
+                {"playerenterworld", "CSTATEMGR_PlayerCar::EnterWorld", kPlayerEnterWorld, {0x6A, 0xFF, 0x68, 0x88, 0xD3, 0x86, 0x00}, false, nfsmw::detour(&hook_player_enter_world),
+                 nfsmw::orig(&g_orig_player_enter_world)},
+                {"tunerupdate", "EAXTunerCar::UpdateParams", kTunerUpdateParams, {0x8B, 0x44, 0x24, 0x04, 0x56, 0x50, 0x8B}, false, nfsmw::detour(&hook_tuner_update), nfsmw::orig(&g_orig_tuner_update)},
+                {"carprocess", "EAXCar::ProcessUpdate", kCarProcessUpdate, {0x8B, 0x41, 0x34, 0x85, 0xC0, 0x74, 0x18}, false, nfsmw::detour(&hook_car_process_update),
+                 nfsmw::orig(&g_orig_car_process_update)},
+            };
+            nfsmw::install_hooks(player_hooks, 3, g_log, g_ini, "engine sounds (players' set)");
+        }
         events::on_world_load(&on_world_load);
         events::on_frame(&on_frame);
     }
