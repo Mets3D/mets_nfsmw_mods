@@ -11,6 +11,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 ## Features
 - Each player gets their own minimap and minimap color, not present in the base game. With [Custom Menus](../custom_menus/ReadMe.md) installed, each player can hide their own minimap in **Options > Player > Minimap**.
 - With [Custom Menus](../custom_menus/ReadMe.md) installed, each player can scale their HUD (also in a game with one player) in **Options > Player > HUD Scale** (40% to 100%): each part of the HUD (race info at the top right, speedometer at the bottom right, minimap at the bottom left) shrinks around its own corner of the player's part of the screen.
+- With Custom Menus installed, each player of a split screen race can set their own volume in **Options > Player > Split-Screen Volume** (0% to 100%, saved per player). Every sound of the race is played for the player nearest to it (their engine, tyres, wind, the cars around them, crashes), and that player's setting scales it; music and menus are not touched. So a player who turns it down also quietens the cars of the others while those are near them.
 - Each player can fully control their own camera.
 - The Car Select screen says which player it is for and with which device ("Player 2 - Xbox One S Controller", the name the Controls menu shows).
 - Either player can invoke the pause menu, and change their keybinds during a race.
@@ -32,17 +33,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 
 # TODOS
 
-### Needs your testing
-Changes made while you were away, which I could only check through logs and screenshots. Please play them, and delete a line once you have confirmed it (or tell me what is still wrong).
 - **Cancelling a car selection in the last round** (3 players, or 5, ...): Back on player 3's Car Select now goes back to their Press Start, as it does for the other players, instead of starting the race. Checked with a test run (Back, then choose again and the race starts); try it with a real controller too, and also Back at the player 3 Press Start screen, which I did not look at.
-- **Opponents' engine sounds in split screen** (`audio_pool_mb`, `csis_slots`, `sound_voices`, `ai_sampled_engines`, `ai_engine_sounds`, `ai_engine_radius`): with more than 3 opponents (2 or more after my last change) none of them had an engine sound. The cause: the game's sound memory (5.4 MB) only fits the engine sounds of about 5 cars at once; an engine whose sound data does not fit is never started, silently. It is 32 MB now, and in automated races of 2 players + 14 opponents and of 4 players + 12 every opponent's engine was started (I can only see that, not hear it). Two more limits next to it got room too: the sound middleware's objects (256 → 1024; 199 were in use with 16 cars) and the voices (64 → 128; 48 in use). Please listen: 2 players with 4, 8 and 14 opponents, 4 players with 12, a drag race. `ai_sampled_engines` (sampled instead of synthesized engines for 2 or fewer opponents) stays: the synthesized ones were silent for another reason. `ai_engine_radius` (metres, default the game's 135) is how near a player an opponent has to be to have a sound.
-
-### 3 or more player issues:
-These are just issues stemming from 4-player split-screen not being thoroughly playtested yet. Reverting changes is likely not going to help.
-
-- **Sound for players 3 and onwards**: their cars sound like opponents do, and a sound is now heard the way the player nearest to it hears it (panned and made loud or quiet by that player's camera and car; before, only players 1 and 2 counted, so a car near player 3 or 4 and far from both was quiet). Please listen in a 4 player race: drive player 3 or 4 away from the others and check that their own engine, the cars around them and the crashes next to them are heard, and that nothing sounds wrong near players 1 and 2 (it should be as before). Players 3 and onwards now also have the players' own sounds (the engine heard from inside the car at every rev, tyre squeal, wind, gears; the setting `extra_player_sound_set`): please check that player 3's and 4's own engine sounds like player 1's and 2's (close, with the idle and low revs), and that those sounds are not heard by the others as if they were in the car with them.
-
-### Low prio - Nice-to-haves
 - Lap Knockout works weirdly. It doesn't show the option for AI opponents, but it spawns AI opponents anyways. And it seems like players are not getting eliminated.
 - Maybe a knocked out player in either lap knockout or drag race should be removed from the screen after a few seconds? Although this would be too jarring if it happened suddenly, and animating a screen re-organization would surely be crazy. But... what if it works? >.>
 - We can open the world-map in split-screen/custom race, but we only see player 1. Bit sad.

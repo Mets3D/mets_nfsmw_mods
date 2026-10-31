@@ -29,6 +29,7 @@
 #include "after_race.h"
 #include "ai_in_split_screen.h"
 #include "engine_sounds.h"
+#include "split_volume.h"
 #include "events.h"
 #include "extra_cameras.h"
 #include "extra_streaming.h"
@@ -84,6 +85,7 @@ NFSMW_PLUGIN_MAIN() {
     streaming_log::install();
     skin_slots::install();
     engine_sounds::install();
+    split_volume::install();
     if (ini_flag("options", "ai_in_split_screen", true)) ai_in_split_screen::install();  // after player_count: its rows come after the Players row
     more_players::install_car_select_label();
     players::install();  // before state_log: the world load log shows its ports

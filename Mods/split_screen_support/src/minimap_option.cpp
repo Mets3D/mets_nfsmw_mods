@@ -7,8 +7,8 @@
  * settings, 2 = off) is not per player; this takes the bit out for one player. The second player's minimap (minimap.cpp) asks the same
  * function for its visibility, so it follows too.
  *
- * The page also has the HUD Scale (how big the player's HUD is: hud_views.cpp). Each player's choices are kept in the ini ([player_1] ... [player_4] minimap=0,
- * hud_scale=70). With more than two players the player is the one whose HUD asked for the pause menu (hud_players.cpp), since the game's own numbers only go to 2.
+ * The page also has the HUD Scale (how big the player's HUD is: hud_views.cpp) and, in a split screen race, the Split-Screen Volume (split_volume.cpp). Each player's choices are
+ * kept in the ini ([player_1] ... [player_4] minimap=0, hud_scale=70, sound_volume=50). With more than two players the player is the one whose HUD asked for the pause menu (hud_players.cpp), since the game's own numbers only go to 2.
  */
 #include "minimap_option.h"
 
@@ -22,7 +22,9 @@
 #include "ai_in_split_screen.h"
 #include "player_count.h"
 #include "player_settings.h"
+#include "players.h"
 #include "split_screen_support.h"
+#include "split_volume.h"
 
 namespace split_screen_support::minimap_option {
 
@@ -45,6 +47,7 @@ bool g_opened[kPlayers];
 constexpr int kScaleStep = 10, kMinScale = 40;      // the HUD scale, percent: 40 to 100
 int g_scale[kPlayers];  // (100 until load)
 int g_scale_opened[kPlayers];
+int g_volume_opened[kPlayers];
 
 const char *section_of(int who) {
     static char name[kPlayers][16];
@@ -71,20 +74,28 @@ unsigned long long __fastcall hook_features(void *self, void *edx, void *player)
 }
 
 // ---- the row
-constexpr int kRowMinimap = 0, kRowScale = 1;
+constexpr int kRowMinimap = 0, kRowScale = 1, kRowVolume = 2;
 constexpr opt::Row kRows[] = {
     {opt::kValueRow, "Minimap", 0, "Shows or hides your minimap while you drive."},
     {opt::kValueRow, "HUD Scale", 0, "How big your HUD is: each corner of it keeps its place and gets smaller."},
+    {opt::kSliderRow, "Split-Screen Volume", 0, "How loud everything near you is in a split screen race: your car, the cars around you, crashes. Every sound is played for the player nearest to it, "
+                                                "so a lower volume also quietens the cars of the others while they are near you."},
 };
 
 unsigned value(int row, char *out, unsigned out_size) {
     if (row == kRowMinimap) return g_show[editing()] ? kOnText : kOffText;
-    snprintf(out, out_size, "%d%%", g_scale[editing()]);
+    snprintf(out, out_size, "%d%%", row == kRowScale ? g_scale[editing()] : split_volume::percent(editing()));
     return 0;
 }
+float fill(int row) { return row == kRowVolume ? static_cast<float>(split_volume::percent(editing())) / 100.f : 0.f; }
+bool row_enabled(int row) { return row != kRowVolume || players::split_screen(); }
 void change(int row, int direction, bool) {
     if (row == kRowMinimap) {
         g_show[editing()] = direction > 0;
+        return;
+    }
+    if (row == kRowVolume) {
+        split_volume::set_percent(editing(), split_volume::percent(editing()) + (direction > 0 ? split_volume::kStep : -split_volume::kStep));
         return;
     }
     int &scale = g_scale[editing()];
@@ -95,9 +106,10 @@ void opened() {
     for (int who = 0; who < kPlayers; ++who) {
         g_opened[who] = g_show[who];
         g_scale_opened[who] = g_scale[who];
+        g_volume_opened[who] = split_volume::percent(who);
     }
 }
-bool changed() { return g_show[editing()] != g_opened[editing()] || g_scale[editing()] != g_scale_opened[editing()]; }
+bool changed() { return g_show[editing()] != g_opened[editing()] || g_scale[editing()] != g_scale_opened[editing()] || split_volume::percent(editing()) != g_volume_opened[editing()]; }
 void accept() {
     for (int who = 0; who < kPlayers; ++who) {
         if (g_show[who] != g_opened[who]) {
@@ -112,16 +124,22 @@ void accept() {
             g_log.line("player %d's HUD scale %d%%", who + 1, g_scale[who]);
             g_scale_opened[who] = g_scale[who];
         }
+        if (split_volume::percent(who) != g_volume_opened[who]) {
+            split_volume::save(who);
+            g_volume_opened[who] = split_volume::percent(who);
+        }
     }
 }
 void discard() {
     g_show[editing()] = g_opened[editing()];
     g_scale[editing()] = g_scale_opened[editing()];
+    split_volume::set_percent(editing(), g_volume_opened[editing()]);
     hud_views::set_scale(editing(), g_scale[editing()]);
 }
 void defaults() {
     g_show[editing()] = true;
     g_scale[editing()] = 100;
+    split_volume::set_percent(editing(), 100);
     hud_views::set_scale(editing(), 100);
 }
 opt::Page g_page;
@@ -149,8 +167,8 @@ extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const nfsmw::cu
     char translations[MAX_PATH];
     nfsmw::data_file("translations\\split_screen_support", translations, sizeof(translations));
     host->register_translations(translations);  // before any text is registered
-    g_page = {"split_minimap", "Minimap", "MINIMAP", "MINIMAP", 0, 0, nullptr, 2, kRows, nullptr, opened, value, change, changed, accept,
-              discard, defaults, opt::kPlayerOptions, nullptr, nullptr};
+    g_page = {"split_minimap", "Minimap", "MINIMAP", "MINIMAP", 0, 0, nullptr, 3, kRows, nullptr, opened, value, change, changed, accept,
+              discard, defaults, opt::kPlayerOptions, fill, row_enabled, nullptr};
     host->register_page(&g_page);
     split_screen_support::player_count::register_texts(host);
     split_screen_support::ai_in_split_screen::register_texts(host);

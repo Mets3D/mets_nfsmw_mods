@@ -44,6 +44,7 @@
 #include "patch.h"
 #include "players.h"
 #include "split_screen_support.h"
+#include "split_volume.h"
 #include "streaming_log.h"
 
 namespace split_screen_support::engine_sounds {
@@ -248,25 +249,30 @@ void refresh_extra_listeners() {
     g_valid_extras = valid;
 }
 
-// The extra player whose car is the nearest to the sound (nearer than the cars of players 1 and 2), or -1.
-int extra_listener_for(const unsigned char *control) {
-    if (!g_valid_extras) return -1;
+int g_outer_extra = -1;  // the extra player whose sound state is being updated: its data is in the second slot of the arrays
+
+// The player (0 and 1 are the game's, 2 and up the extras) whose car is the nearest to the sound, as Generate3DParams chooses between the first two, and `*swap`: the extra whose data
+// has to be put in the second slot for the sound to be worked out against it (-1: the arrays are right as they are).
+int listener_for(const unsigned char *control, int *swap) {
+    *swap = -1;
     const unsigned char *sound = *reinterpret_cast<const unsigned char *const *>(kSoundSystemPointer);
     const float *at = *reinterpret_cast<const float *const *>(control + kSoundPosition);
-    if (!at || !sound || *reinterpret_cast<const int *>(sound + kMixMode) == 0 || *reinterpret_cast<const int *>(kGameListenerCount) < 2) return -1;
+    if (!at || !sound || *reinterpret_cast<const int *>(sound + kMixMode) == 0 || *reinterpret_cast<const int *>(kGameListenerCount) < 2) return 0;
     const auto distance = [at](const float *car) { return (car[0] - at[0]) * (car[0] - at[0]) + (car[1] - at[1]) * (car[1] - at[1]); };
     const float *game_cars = reinterpret_cast<const float *>(kBlocks[kCarPos2].first);
-    float best = std::min(distance(game_cars), distance(game_cars + 2));
-    int pick = -1;
+    const float first = distance(game_cars), second = distance(game_cars + 2);
+    int player = second <= first ? (g_outer_extra >= 0 ? 2 + g_outer_extra : 1) : 0;
+    float best = std::min(first, second);
     for (int i = 0; i < nfsmw::kMaxExtras; ++i) {
         if (!g_extra_listener[i].valid) continue;
         const float d = distance(reinterpret_cast<const float *>(g_extra_listener[i].image[kCarPos2]));
         if (d < best) {
             best = d;
-            pick = i;
+            player = 2 + i;
+            *swap = i;
         }
     }
-    return pick;
+    return player;
 }
 
 // The second player's elements of the arrays are the extra player's for the length of a call.
@@ -304,16 +310,236 @@ private:
     float m_speed;
 };
 
+struct OuterExtra {
+    explicit OuterExtra(int extra) : m_before(g_outer_extra) { g_outer_extra = extra; }
+    ~OuterExtra() { g_outer_extra = m_before; }
+    int m_before;
+};
+
 void(__fastcall *g_orig_update_params_3d)(void *, void *, float);
 
 void __fastcall hook_update_params_3d(void *self, void *edx, float seconds) {
-    const int extra = extra_listener_for(static_cast<const unsigned char *>(self));
+    int extra;
+    const int player = listener_for(static_cast<const unsigned char *>(self), &extra);
+    split_volume::note_sound(*reinterpret_cast<const void *const *>(static_cast<const unsigned char *>(self) + 0xC), player);  // the control's output block
     if (extra < 0) return g_orig_update_params_3d(self, edx, seconds);
     ExtraListener &l = g_extra_listener[extra];
     SecondSlot slot(l, nullptr);
     if (++l.uses == 1) g_log.line("engine sounds: the first sound worked out against the player %d's camera and car", extra + 3);
     g_orig_update_params_3d(self, edx, seconds);
 }
+
+// ---- the volume setting on the engines (split_volume.cpp)
+// The engines take their levels from their mixer block (+0x10), which split_volume.cpp scales; scaled there they cut out:
+// - the players' synthesized voices (CARSFX_DualGinsuEng::SetGinsuParams 0x4EEA00) get `_SNDvol(voice, HybridMotor level * mixer volume >> 23)`, a whole number of 0 to 3 in a race;
+// - the sampled engine (a Csis CAR, the players' and the opponents') is played by an AEMS graph (compiled code in the engine bank) that turns its sample players on and off at
+//   ranges of its input level (SNDAEMSI_updaterangetrig 0x819B13), a gate.
+// So for the length of the engine's update the block's volumes are put back as the game has them, and the setting is applied where the levels reach the voices: the synthesized voices'
+// `_SNDvol` 0x81D7EF / `_SNDfxlevel` 0x81E318 (copied here with the setting multiplied into the voice's float volume, `volume / 127` at voice +0x38), and the AEMS graph's
+// `SNDAEMSI_bankvol` 0x81A02F / `optvol` 0x81A259 / `bankfxwet0` 0x81A10A / `optfxwet0` 0x81A2AB (Q15 levels). The graphs run on the sound library's thread, in the walk of the instance
+// list 0x9C1BE8 (0x81F98A, replaced here to know which instance runs); the instance constructor 0x81A86B (first argument: the Csis Class) puts the new instance at the head of that list.
+constexpr uintptr_t kGinsuEngineParams = 0x4EE3E0, kAemsEngineParams = 0x4EDD90;
+constexpr uintptr_t kSndVol = 0x81D7EF, kSndFxLevel = 0x81E318, kSndVoiceGet = 0x81F7CB, kSndPatchKey = 0x8223C3, kSndVoiceGain = 0x8218A0, kSndVoiceApply = 0x81D7A4,
+                    kSndVoiceFxApply = 0x81F264, kSndReady = 0x9C2188, kSndVoices = 0x9C21F4, kSndOneOver127 = 0x890BF0;
+constexpr uintptr_t kAemsTick = 0x81F98A, kAemsConstructor = 0x81A86B, kAemsBankVol = 0x81A02F, kAemsOptVol = 0x81A259, kAemsBankFxWet = 0x81A10A, kAemsOptFxWet = 0x81A2AB;
+constexpr uintptr_t kAemsInstances = 0x9C1BE8, kAemsTickBusy = 0x9C1BF2, kAemsTickMissed = 0x9C1BF1;
+constexpr unsigned kEngineMixerBlock = 0x10, kEnginePositionControl = 0x34, kEngineCsis = 0x28, kGinsuGearboxCsis = 0x30, kControlOutputBlock = 0xC;
+constexpr unsigned kVoiceSize = 0x90, kKeyVoiceCount = 0x23, kKeyVoices = 4, kVoiceVolume = 0x38, kVoiceRamp = 0x30, kVoiceFxSends = 0x64;
+constexpr DWORD kClassGainLife = 500;  // ms: a gain its engine has not renewed for this long is dropped (the engine is gone and its Class may be reused)
+
+// The synthesized voices: the setting while the engine's update runs on the game's thread.
+float g_voice_gain = 1.f;
+DWORD g_voice_gain_thread = 0;
+
+// The graphs: which Csis Class each instance (its list node) is for, and the setting of each engine's Class. Written on the game's thread, read on the sound thread (pointer and
+// float writes; a torn read costs one update of one sound).
+struct InstanceClass {
+    void *volatile node;
+    void *volatile cls;
+};
+constexpr unsigned kInstanceSlots = 4096;
+InstanceClass g_instance_class[kInstanceSlots];
+struct ClassGain {
+    void *volatile cls;
+    volatile float gain;
+    volatile DWORD time;
+};
+ClassGain g_class_gain[nfsmw::kMaxPlayers * 8];
+DWORD g_tick_thread = 0;
+float g_graph_gain = 1.f;  // the running instance's (sound thread)
+
+unsigned slot_of(const void *node) { return (reinterpret_cast<uintptr_t>(node) >> 4) % kInstanceSlots; }
+
+void remember_instance(void *node, void *cls) {
+    for (unsigned n = 0, i = slot_of(node); n < kInstanceSlots; ++n, i = (i + 1) % kInstanceSlots) {
+        if (g_instance_class[i].node && g_instance_class[i].node != node) continue;
+        g_instance_class[i].cls = cls;
+        g_instance_class[i].node = node;
+        return;
+    }
+    for (InstanceClass &e : g_instance_class) e.node = e.cls = nullptr;  // (full of instances long gone)
+    remember_instance(node, cls);
+}
+
+void *class_of_instance(const void *node) {
+    for (unsigned n = 0, i = slot_of(node); n < kInstanceSlots && g_instance_class[i].node; ++n, i = (i + 1) % kInstanceSlots)
+        if (g_instance_class[i].node == node) return g_instance_class[i].cls;
+    return nullptr;
+}
+
+void set_class_gain(void *cls, float gain) {
+    if (!cls) return;
+    const DWORD now = GetTickCount();
+    ClassGain *free_slot = nullptr;
+    for (ClassGain &e : g_class_gain) {
+        if (e.cls == cls) {
+            e.gain = gain;
+            e.time = now;
+            return;
+        }
+        if (!free_slot && (!e.cls || now - e.time > kClassGainLife)) free_slot = &e;
+    }
+    if (!free_slot) return;
+    free_slot->cls = nullptr;
+    free_slot->gain = gain;
+    free_slot->time = now;
+    free_slot->cls = cls;
+}
+
+float gain_of_class(const void *cls) {
+    if (!cls) return 1.f;
+    const DWORD now = GetTickCount();
+    for (const ClassGain &e : g_class_gain)
+        if (e.cls == cls && now - e.time <= kClassGainLife) return e.gain;
+    return 1.f;
+}
+
+void(__cdecl *g_orig_aems_constructor)(void *, void *, void *, void *);
+
+void __cdecl hook_aems_constructor(void *cls, void *a, void *b, void *c) {
+    void *const before = *reinterpret_cast<void *const *>(kAemsInstances);
+    g_orig_aems_constructor(cls, a, b, c);
+    void *const node = *reinterpret_cast<void *const *>(kAemsInstances);
+    if (node && node != before) remember_instance(node, cls);
+}
+
+void(__cdecl *g_orig_aems_tick)();
+
+// SNDAEMS's walk of its instances (0x81F98A), with the setting of each instance's engine at hand.
+void __cdecl hook_aems_tick() {
+    if (*reinterpret_cast<char *>(kAemsTickBusy)) {
+        ++*reinterpret_cast<char *>(kAemsTickMissed);
+        return;
+    }
+    g_tick_thread = GetCurrentThreadId();
+    for (void **node = *reinterpret_cast<void ***>(kAemsInstances); node;) {
+        void **const next = static_cast<void **>(node[0]);
+        g_graph_gain = gain_of_class(class_of_instance(node));
+        reinterpret_cast<void(__cdecl *)(void *)>(node[2])(node[3]);
+        node = next;
+    }
+    g_graph_gain = 1.f;
+}
+
+int graph_level(int level) {
+    if (g_graph_gain >= 1.f || GetCurrentThreadId() != g_tick_thread) return level;
+    static bool logged = false;
+    if (!logged && level > 0) {
+        logged = true;
+        g_log.line("engine sounds: the first engine sample level with a volume setting: %d at %.0f%%", level, g_graph_gain * 100);
+    }
+    return static_cast<int>(static_cast<float>(level) * g_graph_gain);
+}
+
+void(__cdecl *g_orig_bank_vol)(int, int);
+void(__cdecl *g_orig_opt_vol)(void *, int);
+void(__cdecl *g_orig_bank_fx_wet)(int, int);
+void(__cdecl *g_orig_opt_fx_wet)(void *, int);
+void __cdecl hook_bank_vol(int voice, int level) { g_orig_bank_vol(voice, graph_level(level)); }
+void __cdecl hook_opt_vol(void *options, int level) { g_orig_opt_vol(options, graph_level(level)); }
+void __cdecl hook_bank_fx_wet(int voice, int level) { g_orig_bank_fx_wet(voice, graph_level(level)); }
+void __cdecl hook_opt_fx_wet(void *options, int level) { g_orig_opt_fx_wet(options, graph_level(level)); }
+
+int(__cdecl *g_orig_snd_vol)(int, int);
+int(__cdecl *g_orig_snd_fx_level)(int, int, int);
+
+// The voices of a sound handle (a patch: its keys, each with a list of voices), as _SNDvol walks them; -10 or a negative patch as _SNDvol returns.
+template <typename F>
+int for_each_voice(int handle, F &&f) {
+    if (!*reinterpret_cast<const char *>(kSndReady)) return -10;
+    const int patch = reinterpret_cast<int(__cdecl *)(int)>(kSndVoiceGet)(handle);
+    if (patch < 0) return patch;
+    int key = -1;
+    while (reinterpret_cast<int(__cdecl *)(int, int *)>(kSndPatchKey)(patch, &key)) {
+        const unsigned char *k = *reinterpret_cast<unsigned char *const *>(kSndVoices) + key * kVoiceSize;
+        for (int n = 0; n < k[kKeyVoiceCount]; ++n) {
+            const int voice = reinterpret_cast<const short *>(k + kKeyVoices)[n];
+            f(voice, *reinterpret_cast<unsigned char *const *>(kSndVoices) + voice * kVoiceSize);
+        }
+    }
+    return patch;
+}
+
+bool scaling_voices() { return g_voice_gain < 1.f && GetCurrentThreadId() == g_voice_gain_thread; }
+
+int __cdecl hook_snd_vol(int handle, int volume) {
+    if (!scaling_voices()) return g_orig_snd_vol(handle, volume);
+    const float value = static_cast<float>(volume) * *reinterpret_cast<const float *>(kSndOneOver127) * g_voice_gain;
+    return for_each_voice(handle, [value](int voice, unsigned char *v) {
+        *reinterpret_cast<float *>(v + kVoiceRamp) = 0;
+        if (*reinterpret_cast<float *>(v + kVoiceVolume) == value) return;
+        *reinterpret_cast<float *>(v + kVoiceVolume) = value;
+        reinterpret_cast<void(__cdecl *)(int)>(kSndVoiceGain)(voice);
+        reinterpret_cast<void(__cdecl *)(int)>(kSndVoiceApply)(voice);
+    });
+}
+
+int __cdecl hook_snd_fx_level(int handle, int bus, int level) {
+    if (!scaling_voices()) return g_orig_snd_fx_level(handle, bus, level);
+    const float value = static_cast<float>(level) * *reinterpret_cast<const float *>(kSndOneOver127) * g_voice_gain;
+    return for_each_voice(handle, [value, bus](int voice, unsigned char *v) {
+        (*reinterpret_cast<float *const *>(v + kVoiceFxSends))[bus] = value;
+        reinterpret_cast<void(__cdecl *)(int, int)>(kSndVoiceFxApply)(voice, bus);
+    });
+}
+
+void *csis_class(const unsigned char *engine, unsigned offset) {
+    void *const *csis = *reinterpret_cast<void *const *const *>(engine + offset);
+    return csis ? *csis : nullptr;
+}
+
+// An engine's SetEngineParams with the block's volumes as the game has them; `synthesized`: the Ginsu engine (its block also has the synthesized voices' and the gearbox's volumes).
+void engine_params(void *engine, void *edx, void(__fastcall *orig)(void *, void *), bool synthesized) {
+    unsigned char *self = static_cast<unsigned char *>(engine);
+    const unsigned char *position = *reinterpret_cast<const unsigned char *const *>(self + kEnginePositionControl);
+    const float gain = position ? split_volume::gain_of(*reinterpret_cast<const void *const *>(position + kControlOutputBlock)) : 1.f;
+    set_class_gain(csis_class(self, kEngineCsis), gain);
+    if (synthesized) set_class_gain(csis_class(self, kGinsuGearboxCsis), gain);
+    unsigned *block = *reinterpret_cast<unsigned **>(self + kEngineMixerBlock);
+    if (gain >= 1.f || !block) return orig(engine, edx);
+    // The volumes (Q15): [0] bits 16-30 the sampled engine's; Ginsu: [1] bits 0-14 the synthesized voices', bits 16-30 the gearbox's.
+    const unsigned saved[2] = {block[0], block[1]};
+    const auto unscale = [gain](unsigned word, int shift) {
+        if ((word >> shift) & 0x8000) return word;  // (a negative field: the mixer's "silent", -10000)
+        const unsigned volume = std::min(0x7FFFu, static_cast<unsigned>(static_cast<float>((word >> shift) & 0x7FFF) / gain));
+        return (word & ~(0x7FFFu << shift)) | (volume << shift);
+    };
+    if (gain > 0.f) {  // (0: the volumes are 0 already)
+        block[0] = unscale(block[0], 16);
+        if (synthesized) block[1] = unscale(unscale(block[1], 0), 16);
+    }
+    g_voice_gain = synthesized ? gain : 1.f;
+    g_voice_gain_thread = GetCurrentThreadId();
+    orig(engine, edx);
+    g_voice_gain = 1.f;
+    block[0] = saved[0];
+    block[1] = saved[1];
+}
+
+void(__fastcall *g_orig_ginsu_engine_params)(void *, void *);
+void(__fastcall *g_orig_aems_engine_params)(void *, void *);
+void __fastcall hook_ginsu_engine_params(void *engine, void *edx) { engine_params(engine, edx, g_orig_ginsu_engine_params, true); }
+void __fastcall hook_aems_engine_params(void *engine, void *edx) { engine_params(engine, edx, g_orig_aems_engine_params, false); }
 
 // ---- the players' sound set for players 3 and up
 void(__fastcall *g_orig_player_enter_world)(void *, void *, int);
@@ -348,6 +574,7 @@ void __fastcall hook_tuner_update(void *self, void *edx, float seconds) {
     const int extra = extra_of_state(self);
     if (extra < 0) return g_orig_tuner_update(self, edx, seconds);
     SecondSlot slot(g_extra_listener[extra], *reinterpret_cast<void **>(static_cast<unsigned char *>(self) + 0x34) ? self : nullptr);
+    OuterExtra outer(extra);
     g_orig_tuner_update(self, edx, seconds);
 }
 
@@ -355,6 +582,7 @@ void __fastcall hook_car_process_update(void *self) {
     const int extra = extra_of_state(self);
     if (extra < 0) return g_orig_car_process_update(self);
     SecondSlot slot(g_extra_listener[extra], self);
+    OuterExtra outer(extra);
     g_orig_car_process_update(self);
 }
 
@@ -545,8 +773,21 @@ void install() {
              nfsmw::orig(&g_orig_resolve_car_banks)},
             {"sfx3dparams", "SFXCTL_3DObjPos::UpdateParams", kUpdateParams3D, {0x56, 0x8B, 0xF1, 0x8B, 0x46, 0x28, 0x33}, false, nfsmw::detour(&hook_update_params_3d),
              nfsmw::orig(&g_orig_update_params_3d)},
+            {"ginsuengine", "CARSFX_GinsuEngine::SetEngineParams", kGinsuEngineParams, {0x51, 0x56, 0x8B, 0xF1, 0x8A, 0x46, 0x08}, false, nfsmw::detour(&hook_ginsu_engine_params),
+             nfsmw::orig(&g_orig_ginsu_engine_params)},
+            {"aemsengine", "CARSFX_AEMSEngine::SetEngineParams", kAemsEngineParams, {0x83, 0xEC, 0x0C, 0x56, 0x8B, 0xF1, 0x8B}, false, nfsmw::detour(&hook_aems_engine_params),
+             nfsmw::orig(&g_orig_aems_engine_params)},
+            {"sndvol", "_SNDvol", kSndVol, {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x10, 0x80}, false, nfsmw::detour(&hook_snd_vol), nfsmw::orig(&g_orig_snd_vol)},
+            {"sndfxlevel", "_SNDfxlevel", kSndFxLevel, {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C, 0x80}, false, nfsmw::detour(&hook_snd_fx_level), nfsmw::orig(&g_orig_snd_fx_level)},
+            {"aemstick", "SNDAEMS instance walk", kAemsTick, {0x80, 0x3D, 0xF2, 0x1B, 0x9C, 0x00, 0x00}, false, nfsmw::detour(&hook_aems_tick), nfsmw::orig(&g_orig_aems_tick)},
+            {"aemsconstructor", "SNDAEMS instance constructor", kAemsConstructor, {0x56, 0xE8, 0x5A, 0x14, 0x00, 0x00, 0x8B}, false, nfsmw::detour(&hook_aems_constructor),
+             nfsmw::orig(&g_orig_aems_constructor)},
+            {"aemsbankvol", "SNDAEMSI_bankvol", kAemsBankVol, {0x55, 0x8B, 0xEC, 0x8B, 0x45, 0x08, 0x53}, false, nfsmw::detour(&hook_bank_vol), nfsmw::orig(&g_orig_bank_vol)},
+            {"aemsoptvol", "SNDAEMSI_optvol", kAemsOptVol, {0x33, 0xC0, 0x39, 0x44, 0x24, 0x08, 0x7C}, false, nfsmw::detour(&hook_opt_vol), nfsmw::orig(&g_orig_opt_vol)},
+            {"aemsbankfxwet", "SNDAEMSI_bankfxwet0", kAemsBankFxWet, {0x55, 0x8B, 0xEC, 0x56, 0x8B, 0x75, 0x0C}, false, nfsmw::detour(&hook_bank_fx_wet), nfsmw::orig(&g_orig_bank_fx_wet)},
+            {"aemsoptfxwet", "SNDAEMSI_optfxwet0", kAemsOptFxWet, {0x33, 0xC0, 0x39, 0x44, 0x24, 0x08, 0x7C}, false, nfsmw::detour(&hook_opt_fx_wet), nfsmw::orig(&g_orig_opt_fx_wet)},
         };
-        nfsmw::install_hooks(hooks, 2, g_log, g_ini, "engine sounds");
+        nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), g_log, g_ini, "engine sounds");
         if (g_player_set) {
             const nfsmw::Hook player_hooks[] = {
                 {"playerenterworld", "CSTATEMGR_PlayerCar::EnterWorld", kPlayerEnterWorld, {0x6A, 0xFF, 0x68, 0x88, 0xD3, 0x86, 0x00}, false, nfsmw::detour(&hook_player_enter_world),

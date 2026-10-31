@@ -369,5 +369,30 @@
     "name": "UIQRCarSelect::CommitChangeStartRace",
     "confidence": "read",
     "note": "the commit of the car select screen: deletes player 2's temporary profile (DeleteMultiplayerProfile) and calls RaceStarter::StartRace"
+  },
+  "0x81F98A": {
+    "name": "SNDAEMSI_WalkInstances",
+    "confidence": "read",
+    "note": "Calls each AEMS graph instance of the list [0x9C1BE8] (node {next, prev, fn, arg}): fn(arg); on the sound library thread. Replaced by engine_sounds.cpp."
+  },
+  "0x81A86B": {
+    "name": "SNDAEMSI_InstanceConstructor",
+    "confidence": "read",
+    "note": "Csis class constructor client of an AEMS module: cdecl, first argument the Csis Class; allocates the instance, puts its node at the head of [0x9C1BE8], subscribes its member data."
+  },
+  "0x81AB36": {
+    "name": "SNDAEMSI_RelocateModule",
+    "confidence": "read",
+    "note": "Loads an AEMS module bank: relocates the compiled graph code calls to sndaemsfuncs and makes the code pages executable."
+  },
+  "0x8218A0": {
+    "name": "SNDVOICEI_CalcGain",
+    "confidence": "read",
+    "note": "cdecl voice: voice +0x48 = +0x42 * +0x2B * +0x38 (volume float) * constant, then the curves at +0x7C / +0x74 and the master."
+  },
+  "0x81D7A4": {
+    "name": "SNDVOICEI_ApplyGain",
+    "confidence": "read",
+    "note": "cdecl voice: hands the voice gain and fx sends to the platform."
   }
 }

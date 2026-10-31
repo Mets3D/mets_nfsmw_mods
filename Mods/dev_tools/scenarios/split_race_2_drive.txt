@@ -1,0 +1,40 @@
+# 2 players and 2 opponents like split_race_2_npc2, and then player 2 drives (full gas) for 30 s: the engine probe of nfsmw_split_screen_support logs the players' engines (`engine probe:` lines).
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 3
+press down 3
+press left 1
+wait 1
+screenshot options width=640
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until racing timeout=180
+wait 4
+skip_cutscene
+wait 6
+drive 2 1 0
+wait 30
+quit
