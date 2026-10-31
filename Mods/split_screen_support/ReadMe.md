@@ -34,7 +34,6 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 
 # TODOS
 
-- We made it so that at the end of a split-screen race, we are sent back to the race settings menu instead of all the way out into the quick race menu, but this change caused the subsequent Car select screens to have the camera stuck in the position where it would be for the options menu, and doesn't get animated into its usual car select position.
 - Car skins can still end up going missing (we see only black frames) with 16 cars on the field.
 - Menu flow issue: When hitting Back while selecting a race, it doesn't put us back to the race type, but always puts us on Circuit instead. The same issue is present in Quick Race. Maybe this is something we could include a fix for in the Custom Menus mod?
 - Lap Knockout works weirdly. It doesn't show the option for AI opponents, but it spawns AI opponents anyways. And it seems like players are not getting eliminated. I'm also unsure how the unlimited laps works with this - Do players get eliminated in the first laps, or the final laps?
