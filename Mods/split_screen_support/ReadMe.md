@@ -52,8 +52,6 @@ This is a bit of a documentation on what issues were encountered during developm
 
 # TODOS
 - Need to test all race types. Never tried tollbooth or speedtrap.
-- The press START text for players 1 and 2 says "Player x press START button." but for players 3 and 4 it says "Player x press START.". Should be consistent.
-- Also, in a 4-player game when pressing Back from player 3's car select, it goes back all the way to the race options menu instead of the player 3 press START screen.
 - We can open the world-map in split-screen/custom race (I believe only due to some other mod), but we only see player 1. Could we add the same markers that are present on the minimap, in the right places, with the right colors and sizes?
 - Maybe a knocked out player in either lap knockout or drag race should be removed from the screen after a few seconds? Although this would be too jarring if it happened suddenly, and animating a screen re-organization would surely be crazy. But... what if it works? >.>
 - How about vertical split screen? ;) Maybe an option under Gameplay. In 3-player, player 1 would take the entire left side, while players 2 and 3 share the right side.

@@ -54,7 +54,7 @@ constexpr int kAllTypes = 11;
 constexpr float kRowSpacing = 9.0f;  // metres between the two rows of the starting grid
 constexpr unsigned kSelectedCar = 0x10, kSplitCarName = 0x470, kSplitCustomization = 0x46C, kCustomizationSize = 0x198, kPressStartPlayer = 0x2C,
                    kScreenPackage = 0x10;
-constexpr unsigned kPlayerTextObject = 0xB244CF71, kPlayerTextFormat = 0xCF538E1C;  // "Player %d press start": the object and the language string
+constexpr unsigned kPlayerTextObject = 0xB244CF71, kPlayerTextFormat = 0x63F6A01C;  // "Player %d press the START button.": the object and the language string (uiQRPressStart's constructor, 0x7AE580)
 
 struct Pick {
     bool valid = false;
@@ -540,6 +540,8 @@ void format_player_name(int number, int device, char *text, unsigned size) {
 
 void *(*g_orig_create_car_select)(void *);
 void *hook_create_car_select(void *data) {
+    // The screen's own player (ScreenConstructorData +8): the player of the Press Start before it, or of the one it went back from (a Back on the second player's Press Start comes here for the first).
+    if (players::split_screen() && data) g_press_start_player = *reinterpret_cast<int *>(static_cast<char *>(data) + 8) & 1;
     if (players::split_screen()) preselect_car(2 * g_round + g_press_start_player, g_press_start_player);
     void *screen = g_orig_create_car_select(data);
     if (!screen || !players::split_screen()) return screen;
@@ -634,6 +636,34 @@ void __fastcall queue_package_switch(void *feng, void *edx, const char *package,
     reinterpret_cast<void(__fastcall *)(void *, void *, const char *, int, unsigned, bool)>(g_queue_package_switch)(feng, edx, package, a, b, c);
 }
 
+// Back on the Press Start screen of the first player of a later round: the game's screen knows no earlier round and goes out to the race options (Track_Options, or Track_Select for
+// a sprint or a drag race; both are tail jumps of its message handler, 0x7A409F and 0x7A4073 [read]). From the second round on it goes back to the Car Select of the last player of the
+// round before instead, as the second player's Press Start goes back to the first player's Car Select.
+constexpr uintptr_t kPressStartBackToOptions = 0x7A409F, kPressStartBackToSelect = 0x7A4073;
+uintptr_t g_back_to_options = 0, g_back_to_select = 0;
+
+bool step_back_a_round(void *feng) {
+    if (g_round < 1 || !players::split_screen()) return false;
+    --g_round;
+    g_press_start_player = nfsmw::kPlayersPerRound - 1;
+    const int first = g_round * nfsmw::kPlayersPerRound;
+    const int devices[2] = {pick_device(first), pick_device(first + 1)};
+    players::set_chosen(devices);
+    g_log.line("Back on the Press Start of player %d: back to the Car Select of player %d", (g_round + 1) * nfsmw::kPlayersPerRound + 1, first + g_press_start_player + 1);
+    reinterpret_cast<void(__fastcall *)(void *, void *, const char *, int, int, bool)>(kQueuePackageSwitch)(feng, nullptr, "Car_Select.fng", g_press_start_player, 0, false);
+    return true;
+}
+
+void __fastcall press_start_back_to_options(void *feng, void *edx, const char *package, int a, unsigned b, bool c) {
+    if (step_back_a_round(feng)) return;
+    reinterpret_cast<void(__fastcall *)(void *, void *, const char *, int, unsigned, bool)>(g_back_to_options)(feng, edx, package, a, b, c);
+}
+
+void __fastcall press_start_back_to_select(void *feng, void *edx, const char *package, int a, unsigned b, bool c) {
+    if (step_back_a_round(feng)) return;
+    reinterpret_cast<void(__fastcall *)(void *, void *, const char *, int, unsigned, bool)>(g_back_to_select)(feng, edx, package, a, b, c);
+}
+
 // ---- the next race with the same cars (race_again.cpp)
 
 bool cars_kept(int players) {
@@ -681,6 +711,9 @@ void start_race_again() {
 }
 
 void install() {
+    g_back_to_options = nfsmw::chain_jump(kPressStartBackToOptions, reinterpret_cast<uintptr_t>(&press_start_back_to_options));
+    g_back_to_select = nfsmw::chain_jump(kPressStartBackToSelect, reinterpret_cast<uintptr_t>(&press_start_back_to_select));
+    if (!g_back_to_options || !g_back_to_select) g_log.line("more players: the Back jumps of Press Start (%#x, %#x) are not as expected; Back on a later round's Press Start leaves the setup", static_cast<unsigned>(kPressStartBackToOptions), static_cast<unsigned>(kPressStartBackToSelect));
     if (const uintptr_t previous = nfsmw::chain_call(kPressStartSwitchCall, reinterpret_cast<uintptr_t>(&queue_package_switch))) g_queue_package_switch = previous;
     else g_log.line("more players: the call at %#x is not a call; 3 players will ask for a second Press Start", static_cast<unsigned>(kPressStartSwitchCall));
     // The call is redirected, not StartRace hooked: other mods change functions too (see player_count.cpp).
