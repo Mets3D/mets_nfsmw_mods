@@ -276,6 +276,8 @@ void install_early() {
         g_log.line("could not hook ExitProcess / TerminateProcess");
 }
 
+void log_stack(const void *sp) { log_game_stack(static_cast<const unsigned long *>(sp)); }
+
 void install() {
     install_early();
     if (HANDLE watcher = CreateThread(nullptr, 0, watch_tls, nullptr, 0, nullptr)) CloseHandle(watcher);

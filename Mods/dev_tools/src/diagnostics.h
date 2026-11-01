@@ -9,4 +9,7 @@ void install_early();
 // The rest (the TLS watcher), from the main entry; also does install_early if it has not run.
 void install();
 
+// Logs the values on the stack from `sp` up that look like return addresses into the game or the mods ("    stack:" lines).
+void log_stack(const void *sp);
+
 }  // namespace dev_tools::diagnostics
