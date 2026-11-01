@@ -1,4 +1,4 @@
-// The "Players" row of the split screen race options (Track_Options.fng): how many people race, and the "Layout" row under it (see player_count.cpp).
+// The "Players" row of the split screen race options (Track_Options.fng): how many people race (see player_count.cpp).
 #pragma once
 
 #include "custom_menus_api.h"

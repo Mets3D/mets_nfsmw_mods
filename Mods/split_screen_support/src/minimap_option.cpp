@@ -21,6 +21,7 @@
 #include "max_players.h"
 #include "ai_in_split_screen.h"
 #include "player_count.h"
+#include "race_rows.h"
 #include "player_settings.h"
 #include "players.h"
 #include "split_screen_support.h"
@@ -171,5 +172,6 @@ extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const nfsmw::cu
               discard, defaults, opt::kPlayerOptions, fill, row_enabled, nullptr};
     host->register_page(&g_page);
     split_screen_support::player_count::register_texts(host);
+    split_screen_support::race_rows::register_texts(host);
     split_screen_support::ai_in_split_screen::register_texts(host);
 }

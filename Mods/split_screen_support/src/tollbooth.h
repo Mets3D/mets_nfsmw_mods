@@ -10,6 +10,9 @@ bool active();
 // What the racer has left; from the finish on, what they had left at the finish.
 float time_left(int racer);
 
+// The Time row of the split screen race options: the time a split screen tollbooth race starts with and its booths' bonuses, in percent of the game's.
+void set_time_percent(int percent);
+
 // While it lives, the game's questions about the time left are about this racer.
 class Asking {
   public:

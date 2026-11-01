@@ -10,7 +10,8 @@
  *   - a racer whose time is up is knocked out as in a lap knockout (`Game_KnockoutRacer` 0x611440: knockout.cpp stops a player's car and posts the game's message);
  *   - the "+ seconds" message (`HUD.ShowTimeExtension` 0x6113E0 always shows it to the first player) goes to the player who crossed;
  *   - the opponents have clocks too: `IsPlayer` is true for them, in a tollbooth race, so that the script awards them the bonus;
- *   - a racer's clock stops at the finish, and the HUD's "Hurry!" warning (`TimeExtension::SetPlayerLapTime`) is silent for a racer who finished or is out.
+ *   - a racer's clock stops at the finish, and the HUD's "Hurry!" warning (`TimeExtension::SetPlayerLapTime`) is silent for a racer who finished or is out;
+ *   - the Time row of the race options (race_rows.cpp) scales the time the race starts with and every booth's bonus (30% to 300%).
  * The ranking and the results screen are tollbooth_results.cpp. The parts can be left out one by one with the `[hooks]` list of the ini.
  */
 #include "tollbooth.h"
@@ -50,6 +51,7 @@ Clock &clock_of(int racer) {
     return g_clocks[racer];
 }
 
+float g_scale = 1.0f;  // the Time row
 int g_crossing = -1;  // the racer who crossed the booth the script is dealing with
 int g_context = -1;   // the racer the game is asking the time of (-1: nobody in particular)
 
@@ -79,7 +81,7 @@ float time_limit(void *status) {
 
 // What the racer has left: the limit and what they were awarded, less the time that has passed; the same from the finish on.
 float time_left(void *status, int racer) {
-    const float limit = time_limit(status);
+    const float limit = time_limit(status) * g_scale;
     if (limit <= 0.0f || racer < 0 || racer >= racers::count()) return 0.0f;
     Clock &clock = clock_of(racer);
     if (clock.has_frozen) return clock.frozen;
@@ -148,6 +150,7 @@ void __fastcall hook_award(void *status, void *edx, float bonus) {
     int &booths = *reinterpret_cast<int *>(info + kBooths);
     if (booths >= 0 && booths < static_cast<int>(kMaxBooths)) *reinterpret_cast<float *>(info + kBoothTimes + booths * 4) = time_left(status, g_crossing);
     ++booths;
+    bonus *= g_scale;
     clock_of(g_crossing).bonus += bonus;
     g_log.line("tollbooth: racer %d crosses booth %d: +%.1f s, %.1f s left", g_crossing + 1, booths, bonus, time_left(status, g_crossing));
 }
@@ -158,7 +161,7 @@ void __cdecl hook_show_time_extension(float seconds) {
     const int player = player_of_racer(g_crossing);
     if (player < 0) return;
     void *event = reinterpret_cast<void *(*)(unsigned)>(kEventNew)(0x10);
-    if (event) reinterpret_cast<void *(__fastcall *)(void *, void *, void *, float)>(kShowTimeExtensionEvent)(event, nullptr, more_players::game_player(player), seconds);
+    if (event) reinterpret_cast<void *(__fastcall *)(void *, void *, void *, float)>(kShowTimeExtensionEvent)(event, nullptr, more_players::game_player(player), seconds * g_scale);
 }
 
 void __fastcall hook_update_hud(void *player, void *edx, float dt) {
@@ -200,6 +203,8 @@ char __fastcall hook_is_player(void *simable, void *edx) {
 bool active() { return players::split_screen() && reinterpret_cast<bool (*)()>(kIsTollboothRace)(); }
 
 float time_left(int racer) { return time_left(racers::status(), racer); }
+
+void set_time_percent(int percent) { g_scale = static_cast<float>(percent) / 100.0f; }
 
 Asking::Asking(int racer) : previous_(g_context) { g_context = racer; }
 Asking::~Asking() { g_context = previous_; }

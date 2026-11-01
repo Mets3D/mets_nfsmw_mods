@@ -14,6 +14,7 @@
  *   minimap.cpp        a minimap for each player, a colour for each player's marker
  *   minimap_option.cpp the Options > Player > Minimap row: each player can hide their own minimap
  *   player_count.cpp   the "Players" row (2 or 4) of the split screen race options
+ *   race_rows.cpp      its Layout, Start and (tollbooth) Time rows
  *   more_players.cpp   players 3 and 4: a second round of Press Start and Car Select, their picks kept in a table, their cars in the race
  *   standings.cpp      the racers' names of players 3 and 4, the leaderboard of a player ranked below 4
  *   knockout.cpp       a player knocked out of a lap knockout: the car stops and the game's message shows
@@ -54,6 +55,7 @@
 #include "race_again.h"
 #include "more_players.h"
 #include "player_count.h"
+#include "race_rows.h"
 #include "player_settings.h"
 #include "players.h"
 #include "race_intro.h"
@@ -87,6 +89,7 @@ NFSMW_PLUGIN_MAIN() {
     hud_players::install();
     minimap_option::install();
     player_count::install();
+    race_rows::install();  // (its rows come under the Players row)
     more_players::install();
     extra_streaming::install();
     extra_cameras::install();

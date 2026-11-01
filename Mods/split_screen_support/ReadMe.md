@@ -11,7 +11,10 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 ## Features
 Points marked with * require the [Custom Menus](../custom_menus/ReadMe.md) mod to be installed. They're bundled together in the release.
 - 2, 3, and 4 player split-screen.
-- Option to choose vertical or horizontal layout.
+- New race options:
+  - **Layout**: Horizontal or Vertical split screen.
+  - **Start**: Players Front (the game's grid), Players Rear (the opponents start ahead of the players), or Random.
+  - **Time** (Tollbooth races): 30% to 300% of the game's time, both the time you start with and the time each booth adds.
 - AI opponents allowed: Up to 16 total cars in a race.
 - Each player can invoke the pause menu. The "Player Options" menu will affect the player who opened the pause menu. The name of the affected player is displayed in the menu's header.
 - *Each player gets their own minimap and minimap color. Each player can hide their own minimap in **Options > Player > Minimap**.
@@ -55,12 +58,10 @@ This is a bit of a documentation on what issues were encountered during developm
 
 # TODOS
 - The only issue with Speedtrap is that you can't see your standing in the race - I believe the leaderboard HUD is just always disabled in all split-screen modes. I think this is unnecessary because there is a per-player option to disable it anyways.
-- Tollbooth added option idea: "Time Reduction", a percentage value to tweak the difficulty to one's liking.
-- I think mirrors are disabled in split-screen, I wonder why, and if we could lift it, and how bad the performance impact would be.
-- Minor UI issue: Values of race options turn gray after stepping over them.
-- Would be fun to allow customizing some minimap properties: Player 1,2,3,4 colors, AI opponent color, AI opponent size.
-- Idea: Option to change race start layout between the current behaviour (humans first), vs humans in the back, vs randomized.
-- Heat Level (cops) is the one Quick Race option not available in Split Screen yet (the others are above, under "Needs your testing"). It is not a row of the game: Redux v3's NFSMWRaceFixes adds it in its own code, so it needs that plugin's row class.
+- Allow customizing some minimap properties in the .ini: Player 1,2,3,4 colors, AI opponent color, AI opponent size.
+- I think rear-view mirrors are disabled in split-screen, I wonder why, and if we could allow them, and how bad the performance impact would be. If it's bad, we can add Options->Gameplay->"Split Screen Mirrors": "Allowed"/"Disabled"
+- Minor UI issue: Values of race options turn gray after stepping over them. Fix probably belows in Custom Menus mod.
+- Heat Level (cops) is the one Quick Race option not available in Split Screen yet. It is not a row of the base game: Redux v3's NFSMWRaceFixes adds it in its own code. Should check its code to see if we should just duplicate it, or only have this functionality when that mod is also present.
 
 ### AI Disclaimer
 

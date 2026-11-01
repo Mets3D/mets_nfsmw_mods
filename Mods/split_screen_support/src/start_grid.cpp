@@ -21,6 +21,9 @@
  * same nav as `Game_InitRacers`). Without a road at the start (the nav is not near it) nothing is changed.
  * A tollbooth race is the exception: the game's cutscene for it (IntroNisToll01) leaves the first two racers 1.6 m apart (the cars of a two player race stand on each
  * other), so its cars ignore the cutscene's poses and stand in rows across the selectable lanes of the road at the start (`start_lanes`, `plan_lane_grid`).
+ * Who stands where (the Start row of the race options, race_rows.cpp): the places above are slots, slot k racer k (the players first) for Players Front; Players Rear
+ * puts the players in the slots furthest behind the start and the opponents in front of them; Random shuffles everybody. The choice is made once for each race, so a
+ * restart puts everybody back in the same slots.
  */
 #include "start_grid.h"
 
@@ -29,6 +32,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <numeric>
+#include <random>
 #include <vector>
 
 #include "ai_in_split_screen.h"
@@ -36,6 +41,7 @@
 #include "racers.h"
 #include "hooks.h"
 #include "max_players.h"
+#include "more_players.h"
 #include "players.h"
 #include "split_screen_support.h"
 
@@ -115,6 +121,32 @@ struct Pose {
 };
 Pose g_cutscene_poses[kCutsceneRacers];
 bool g_have_poses = false;  // the cutscene of this race has ended and the first four racers' poses are noted
+
+Start g_start_choice = Start::kPlayersFront;
+std::vector<int> g_racer_of_slot;  // this race's racer in each slot; made at the first placement of the race
+
+// `depth`: how far behind the start each slot is.
+void assign_slots(int count, const std::vector<float> &depth) {
+    g_racer_of_slot.resize(count);
+    std::iota(g_racer_of_slot.begin(), g_racer_of_slot.end(), 0);
+    if (!players::split_screen() || g_start_choice == Start::kPlayersFront) return;
+    if (g_start_choice == Start::kRandom) {
+        std::mt19937 random(GetTickCount());
+        std::shuffle(g_racer_of_slot.begin(), g_racer_of_slot.end(), random);
+    } else {
+        std::vector<int> slots(count);
+        std::iota(slots.begin(), slots.end(), 0);
+        std::stable_sort(slots.begin(), slots.end(), [&](int a, int b) { return depth[a] < depth[b]; });
+        const int humans = std::min(more_players::race_players(), count);
+        int next = 0;
+        for (int r = humans; r < count; ++r) g_racer_of_slot[slots[next++]] = r;
+        for (int r = 0; r < humans; ++r) g_racer_of_slot[slots[next++]] = r;
+    }
+    char text[160];
+    int length = 0;
+    for (int k = 0; k < count && length < static_cast<int>(sizeof(text)) - 8; ++k) length += snprintf(text + length, sizeof(text) - length, " %d", g_racer_of_slot[k] + 1);
+    g_log.line("start grid: %s, the racers of the slots front to back in the game's order:%s", g_start_choice == Start::kRandom ? "random" : "players rear", text);
+}
 
 // A racer's position (its simable's rigid body: virtual +0x54 GetRigidBody, whose virtual +0x20 gives the position).
 bool racer_pose(const unsigned char *info, Pose &pose);
@@ -283,16 +315,27 @@ void place_racers(const float *start, const float *direction) {
     const unsigned char *status = *reinterpret_cast<unsigned char **>(kRaceStatus);
     if (!status) return;
     const int count = *reinterpret_cast<const int *>(status + 0x1958);
-    if (g_have_poses && !(players::split_screen() && race_type(status) == kRaceTollbooth)) {  // the first four racers go back to where the cutscene left them (the game moved players 1 and 2 to the starting lanes)
+    const bool poses = g_have_poses && !(players::split_screen() && race_type(status) == kRaceTollbooth);
+    std::vector<Placement> placements = plan_placements(status, count, start, direction);
+    if (static_cast<int>(g_racer_of_slot.size()) != count) {
+        std::vector<float> depth(count, 0.0f);
+        const float length = hypotf(direction[0], direction[2]);
+        for (int k = 0; poses && length > 0.01f && k < count && k < kCutsceneRacers; ++k)
+            depth[k] = ((start[0] - g_cutscene_poses[k].position[0]) * direction[0] + (start[2] - g_cutscene_poses[k].position[2]) * direction[2]) / length;
+        for (const Placement &p : placements) depth[p.racer] = p.behind;
+        assign_slots(count, depth);
+    }
+    if (poses) {  // the first four slots are where the cutscene left its racers (the game moved players 1 and 2 to the starting lanes)
         for (int k = 0; k < count && k < kCutsceneRacers; ++k) {
-            void *vehicle = vehicle_of(racers::simable(status + 0x18 + k * 0x194));
+            const unsigned char *info = status + 0x18 + g_racer_of_slot[k] * 0x194;
+            void *vehicle = vehicle_of(racers::simable(info));
             if (!vehicle) continue;
             put_on_ground(vehicle, g_cutscene_poses[k].position, g_cutscene_poses[k].forward);
-            set_start_position(status + 0x18 + k * 0x194, g_cutscene_poses[k].position, g_cutscene_poses[k].forward);
+            set_start_position(info, g_cutscene_poses[k].position, g_cutscene_poses[k].forward);
         }
     }
-    std::vector<Placement> placements = plan_placements(status, count, start, direction);
     if (placements.empty()) return;
+    for (Placement &p : placements) p.racer = g_racer_of_slot[p.racer];
     std::sort(placements.begin(), placements.end(), [](const Placement &a, const Placement &b) { return a.behind < b.behind; });
     unsigned char *nav = static_cast<unsigned char *>(_aligned_malloc(kNavSize, 16));
     if (!nav) return;
@@ -360,6 +403,7 @@ void hook_init_racers(void *race_start) {
     g_start_known = race_start != nullptr;
     g_cutscene.known = false;
     g_have_poses = false;
+    g_racer_of_slot.clear();
     if (!race_start) return;
     memcpy(g_start, static_cast<char *>(race_start) + kMarkerPosition, sizeof(g_start));
     memcpy(g_direction, static_cast<char *>(race_start) + kMarkerDirection, sizeof(g_direction));
@@ -395,6 +439,8 @@ void hook_restore_start_positions() {
 }  // namespace
 
 void cutscene_over() { cutscene_over_impl(); }
+
+void set_start(Start start) { g_start_choice = start; }
 
 void install() {
     const nfsmw::Hook hooks[] = {
