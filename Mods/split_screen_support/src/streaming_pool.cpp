@@ -216,6 +216,50 @@ void patch_render_contexts() {
     g_render_contexts_patched = nfsmw::patch_bytes(kRenderAllocPush, alloc_expected, alloc, 5) && nfsmw::patch_bytes(kRenderClearCount, clear_expected, clear, 5);
 }
 
+// The sound manager's list of the banks it has loaded: 48 entries of 0x68 bytes (stSndDataLoadParams) at 0x912858, the count at the manager's +0xA0 (0x912310). AddBankListing
+// 0x4CA7C0 writes at the count with no check of the end, and another object follows the table, so the 49th bank listed in a race made `Clear` of the next AddBankListing work on
+// that object and crash in FastMem::Free (EAXCar::Attach -> SetupLoadData -> LoadAsset -> QueueFileLoad, when a 4 player race with 12 opponents began after two races
+// of 4 players [tested: the stack of the crash, the entry's address 0x913bd8 = the table's 48th]). The count is a race's own: LoadInGameSoundBanks 0x4D1630 zeroes the table
+// (rep stosd of 0x4E0 dwords) and resets the count (ResetBankLoadParams 0x4D12D0), UnLoadInGameSoundBanks 0x4D17F0 unloads every listing at its end. So the table is moved to
+// an array of ours with 120 entries: 22 immediates are its address (the table, or a member of an entry: +8, +0x24, +0x28, +0x39, or the second entry), one is its end (the compaction
+// loop of RemoveBankListing), and the capacity is in five more (RemoveBankListing's and UnloadSndData's compares of the index, the zeroing's count, and the static constructor and
+// destructor of the array, whose counts are bytes of a push: 127 at most). Nothing else addresses it: the scan of the executable for every 4 bytes in the table's range found these.
+// The sound library has a table of its own for the banks it holds, `SetMaxBanks(0x20)` of them (8 bytes each, made at its start; the free one is searched for at 0x823E0B): a listing
+// past 32 would be a bank it cannot hold, so that is raised to the same 120.
+constexpr unsigned kBankTable = 0x912858, kBankEntry = 0x68, kBankListings = 120;
+alignas(16) unsigned char g_bank_table[kBankListings * kBankEntry];
+bool g_bank_listings_patched = false;
+struct Immediate {
+    uintptr_t at;
+    unsigned size, expected, replacement;
+};
+void patch_bank_listings() {
+    const unsigned base = reinterpret_cast<unsigned>(g_bank_table);
+    static const struct {
+        uintptr_t at;
+        unsigned value;
+    } addresses[] = {{0x4AF487, 0x912860}, {0x4AF4E1, 0x912891}, {0x4CA7CE, 0x912858}, {0x4CA7E7, 0x912858}, {0x4CE9E6, 0x912858}, {0x4CE9EF, 0x91287C}, {0x4CFAD0, 0x912858},
+                     {0x4CFAE0, 0x9128C0}, {0x4D0263, 0x912858}, {0x4D0358, 0x912860}, {0x4D0383, 0x912891}, {0x4D0AC5, 0x912858}, {0x4D0C70, 0x912860}, {0x4D174F, 0x912858},
+                     {0x4DC74E, 0x91287C}, {0x4DC75E, 0x912880}, {0x4DEB08, 0x912880}, {0x4DFB23, 0x912880}, {0x4EE07B, 0x91287C}, {0x4EE08A, 0x912880}, {0x88561F, 0x912858},
+                     {0x88E19A, 0x912858}};
+    Immediate sites[sizeof(addresses) / sizeof(addresses[0]) + 7];
+    size_t count = 0;
+    for (const auto &a : addresses) sites[count++] = {a.at, 4, a.value, a.value - kBankTable + base};
+    sites[count++] = {0x4CFAF9, 4, 0x913BD8, base + kBankListings * kBankEntry};  // the end, in the compaction loop of RemoveBankListing
+    sites[count++] = {0x4CFADB, 1, 0x2F, kBankListings - 1};                       // RemoveBankListing: cmp edi, 47
+    sites[count++] = {0x4D0A75, 1, 0x30, kBankListings};                           // UnloadSndData: cmp edi, 48
+    sites[count++] = {0x4D174A, 4, 0x4E0, kBankListings * kBankEntry / 4};         // LoadInGameSoundBanks: the zeroing's dwords
+    sites[count++] = {0x88561B, 1, 0x30, kBankListings};                           // the static constructor: push 48
+    sites[count++] = {0x88E196, 1, 0x30, kBankListings};                           // the static destructor
+    sites[count++] = {0x4C4148, 1, 0x20, kBankListings};                           // EAXSND8Wrapper::Initialize: Snd::System::SetMaxBanks(32)
+    for (size_t i = 0; i < count; ++i)
+        if (memcmp(reinterpret_cast<const void *>(sites[i].at), &sites[i].expected, sites[i].size) != 0) return;  // (all or none)
+    g_bank_listings_patched = true;
+    for (size_t i = 0; i < count; ++i)
+        g_bank_listings_patched &= nfsmw::patch_bytes(sites[i].at, reinterpret_cast<const unsigned char *>(&sites[i].expected),
+                                                      reinterpret_cast<const unsigned char *>(&sites[i].replacement), sites[i].size);
+}
+
 struct Early {
     Early() {
         char ini[MAX_PATH];
@@ -229,6 +273,7 @@ struct Early {
         patch_voices();
         patch_car_pool();
         patch_render_contexts();
+        patch_bank_listings();
         if (g_wanted_mb <= 0 && g_car_extra_mb <= 0) return;
         static const unsigned char expected[8] = {0x03, 0xC6, 0x50, 0xB9, 0xD0, 0xA9, 0x9A, 0x00};  // add eax, esi; push eax; mov ecx, 0x9AA9D0
         nfsmw::Stub stub;
@@ -253,6 +298,7 @@ void report() {
     const unsigned block = render ? *reinterpret_cast<const unsigned *>(render - 0x10) : 0;
     g_log.line("menus: %s; the renderer's object is %s", g_render_contexts_patched ? "1024 render contexts (the game's 180)" : "the game's 180 render contexts (the code is not as expected)",
                !render ? "not made yet" : block == kRenderArray + kRenderContexts * kRenderContextSize ? "the bigger one" : "the game's size");
+    g_log.line("sound: %s", g_bank_listings_patched ? "room for 120 loaded sound banks (the game's 48)" : "the game's 48 loaded sound banks (the code is not as expected)");
     if (g_car_extra_mb > 0) {
         const bool redirected = g_set_car_pool[0] && g_set_car_pool[1] && g_set_car_pool[2] && g_make_space && g_car_malloc && g_car_free;
         g_log.line("streaming pool: the car loader's pool gets %d MB more than the game's (8 MB for each racer of [options] max_racers), in a block of its own: %s", g_car_extra_mb,

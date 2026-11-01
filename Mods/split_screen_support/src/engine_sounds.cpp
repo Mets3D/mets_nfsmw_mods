@@ -707,7 +707,13 @@ void set_ginsu_limit(unsigned char limit) {
     if ((now == 2 || now == 0) && now != limit) nfsmw::patch_bytes(kGinsuLimit, &expected, &limit, 1);
 }
 
+// The count of the sound manager's list of loaded banks (EAXAemsManager +0xA0, 0x912310): the most of a race, for the log (streaming_pool.cpp moved the list to a bigger table).
+constexpr uintptr_t kBankListingCount = 0x912310;
+int g_bank_listings_most = 0;
+
 void on_world_load() {
+    if (g_bank_listings_most > 0) g_log.line("sound: the last race had %d banks loaded at most (the game's table held 48)", g_bank_listings_most);
+    g_bank_listings_most = 0;
     if (g_sampled_engines) set_ginsu_limit(players::split_screen() ? 0 : 2);
     for (bool &c : g_converted) c = false;
     for (ExtraListener &l : g_extra_listener) l.valid = l.have_camera = false;
@@ -716,6 +722,7 @@ void on_world_load() {
 }
 
 void on_frame() {
+    g_bank_listings_most = std::max(g_bank_listings_most, *reinterpret_cast<int *>(kBankListingCount));
     refresh_listeners();
     refresh_extra_listeners();
     g_extra_states = players::split_screen() && !g_player_set ? more_players::extras_in_race() : 0;

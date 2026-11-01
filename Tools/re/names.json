@@ -175,6 +175,11 @@
     "confidence": "read",
     "note": "thiscall: projection from the view's camera and render target size; reads [view+0x60]"
   },
+  "0x823e0b": {
+    "name": "Snd::System::FindFreeBank",
+    "confidence": "guess",
+    "note": "the sound library's search of its table of banks ([0x9C21F8], 8 bytes each, made with the SetMaxBanks option [0x9C2044] of them) for an entry that is 0; none free = the bank load fails"
+  },
   "0x84AB40": {
     "name": "DirtySock::ReceiveThread",
     "confidence": "guess",
