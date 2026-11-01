@@ -19,7 +19,7 @@ wait_until screen=Track_Options.fng timeout=20
 wait 4
 press down 2
 press right 2
-press down 2
+press down 3
 press left 4
 wait 1
 screenshot race_options width=640

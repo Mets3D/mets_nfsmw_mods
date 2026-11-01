@@ -14,7 +14,7 @@ wait 2
 press accept
 wait_until screen=Track_Options.fng timeout=20
 wait 3
-press down 4
+press down 5
 press right 11
 wait 1
 screenshot options width=640
