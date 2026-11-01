@@ -59,10 +59,6 @@ This is a bit of a documentation on what issues were encountered during developm
 
 ---
 
-# TODOS
-- Suspected memory leak causing increased memory usage when new races are started, likely related to car skins because we run out of memory faster if we have more cars in the race. Not able to consistently reproduce yet.
-- Minor UI issue: Values of race options turn a darker shade (not functionally grayed out, just a different font color) after stepping over them. Fix probably belows in Custom Menus mod.
-
 ### AI Disclaimer
 
 The code was written by Claude (Sonnet & Opus). Testing, design, and this page, were hand-made.

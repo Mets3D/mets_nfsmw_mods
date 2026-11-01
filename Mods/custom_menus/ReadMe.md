@@ -30,6 +30,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
 - **Fewer pop-ups.** Many superfluous menu pop-ups are removed.
 - **Simpler leaving questions.** "Are you sure you want to exit without accepting changes? All changes will be lost." (where Yes lost your changes) and the Controls menu's "Do you wish to keep the modified settings?" both ask "Save changes?" now: Yes keeps the changes and leaves, No loses them and leaves, Back/B stays in the menu.
 - **Cycling strip menus.** Strip menus like the pause menu now loop, eg. pressing left on the left-most icon jumps to the right-most icon, and vice versa.
+- **Steady option values.** In the race options (Quick Race), the values turned darker once the cursor had been on their row and stayed dark (a base game bug); they keep their colour now.
 - **Skip Career Menu.** You can go straight from the main menu into your career, without having an in-between menu which has the same functionality as the "Alias Manager".
 
 ## Mod Compatibility
