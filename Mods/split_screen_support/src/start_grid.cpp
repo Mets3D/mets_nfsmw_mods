@@ -23,7 +23,10 @@
  * other), so its cars ignore the cutscene's poses and stand in rows across the selectable lanes of the road at the start (`start_lanes`, `plan_lane_grid`).
  * Who stands where (the Start row of the race options, race_rows.cpp): the places above are slots, slot k racer k (the players first) for Players Front; Players Rear
  * puts the players in the slots furthest behind the start and the opponents in front of them; Random shuffles everybody. The choice is made once for each race, so a
- * restart puts everybody back in the same slots.
+ * restart puts everybody back in the same slots. While the intro cutscene is still to come (race_intro::expected) everybody stands as for Players Front, because the cutscene
+ * moves the first four racers into its grid, over whoever stands there; the choice is made when it is over, and saves the places a restart goes back to.
+ * The cutscene moves the first four racers only; the opponents after them would stand in its scene (and get bumped by its cars), so while it plays they are out of the
+ * world (`IVehicle::Deactivate`, as the game takes out a knocked out opponent) and come back (`Activate`) at their saved start places when it is over.
  */
 #include "start_grid.h"
 
@@ -43,6 +46,7 @@
 #include "max_players.h"
 #include "more_players.h"
 #include "players.h"
+#include "race_intro.h"
 #include "split_screen_support.h"
 
 namespace split_screen_support::start_grid {
@@ -54,6 +58,8 @@ constexpr uintptr_t kInitRacers = 0x61DBE0, kSaveStartPositions = 0x604E90, kRoa
 constexpr unsigned kMarkerPosition = 0x28, kMarkerDirection = 0x34;  // the argument of Game_InitRacers
 constexpr unsigned kNavType = 0x78, kNavPosition = 0x98, kNavForward = 0xBC, kNavSize = 0x400;  // WRoadNav (PC): 0x78 is set to 2 as Game_InitRacers does
 constexpr unsigned kVehicleInterface = 0x4040E0, kSetVehicleOnGroundSlot = 0x68 / 4;  // IVehicle's handle for Find, and its SetVehicleOnGround(position, direction)
+constexpr unsigned kActivateSlot = 0x80 / 4, kDeactivateSlot = 0x84 / 4;              // IVehicle
+constexpr unsigned kSavedPosition = 0x170, kSavedDirection = 0x180;                  // GRacerInfo: where a restart puts the racer
 constexpr float kFrontRowBehind = 2.75f;  // metres behind the start: the front row of the game's grid
 constexpr float kRowSpacing = 7.5f;       // between rows
 constexpr float kHalfWidth = 1.65f;       // each car of a row is this far from the road's line (a row is 3.3 m wide)
@@ -123,6 +129,7 @@ Pose g_cutscene_poses[kCutsceneRacers];
 bool g_have_poses = false;  // the cutscene of this race has ended and the first four racers' poses are noted
 
 Start g_start_choice = Start::kPlayersFront;
+std::vector<int> g_hidden;  // the racers out of the world while the intro cutscene plays
 std::vector<int> g_racer_of_slot;  // this race's racer in each slot; made at the first placement of the race
 
 // `depth`: how far behind the start each slot is.
@@ -317,7 +324,16 @@ void place_racers(const float *start, const float *direction) {
     const int count = *reinterpret_cast<const int *>(status + 0x1958);
     const bool poses = g_have_poses && !(players::split_screen() && race_type(status) == kRaceTollbooth);
     std::vector<Placement> placements = plan_placements(status, count, start, direction);
-    if (static_cast<int>(g_racer_of_slot.size()) != count) {
+    // The cutscene is still to come and moves the first four racers into its own grid: whoever stands in those places now would be under them. Until it is over everybody
+    // stands as for Players Front, and the Start row's choice is made after it, which also saves the places a restart goes back to.
+    std::vector<int> front_order;
+    if (race_intro::expected()) {
+        front_order.resize(count);
+        std::iota(front_order.begin(), front_order.end(), 0);
+        if (players::split_screen() && g_start_choice != Start::kPlayersFront) g_log.line("start grid: the intro cutscene is to come: the racers stand in the order of Players Front until it is over");
+    }
+    const std::vector<int> &racer_of_slot = front_order.empty() ? g_racer_of_slot : front_order;
+    if (front_order.empty() && static_cast<int>(g_racer_of_slot.size()) != count) {
         std::vector<float> depth(count, 0.0f);
         const float length = hypotf(direction[0], direction[2]);
         for (int k = 0; poses && length > 0.01f && k < count && k < kCutsceneRacers; ++k)
@@ -327,7 +343,7 @@ void place_racers(const float *start, const float *direction) {
     }
     if (poses) {  // the first four slots are where the cutscene left its racers (the game moved players 1 and 2 to the starting lanes)
         for (int k = 0; k < count && k < kCutsceneRacers; ++k) {
-            const unsigned char *info = status + 0x18 + g_racer_of_slot[k] * 0x194;
+            const unsigned char *info = status + 0x18 + racer_of_slot[k] * 0x194;
             void *vehicle = vehicle_of(racers::simable(info));
             if (!vehicle) continue;
             put_on_ground(vehicle, g_cutscene_poses[k].position, g_cutscene_poses[k].forward);
@@ -335,7 +351,7 @@ void place_racers(const float *start, const float *direction) {
         }
     }
     if (placements.empty()) return;
-    for (Placement &p : placements) p.racer = g_racer_of_slot[p.racer];
+    for (Placement &p : placements) p.racer = racer_of_slot[p.racer];
     std::sort(placements.begin(), placements.end(), [](const Placement &a, const Placement &b) { return a.behind < b.behind; });
     unsigned char *nav = static_cast<unsigned char *>(_aligned_malloc(kNavSize, 16));
     if (!nav) return;
@@ -381,7 +397,42 @@ void place_racers(const float *start, const float *direction) {
     _aligned_free(nav);
 }
 
+void call_vehicle(void *vehicle, unsigned slot) { reinterpret_cast<void(__fastcall *)(void *, void *)>((*reinterpret_cast<void ***>(vehicle))[slot])(vehicle, nullptr); }
+
+bool is_human(int racer) {
+    for (int p = 0; p < nfsmw::kMaxPlayers; ++p)
+        if (racers::of_player(more_players::game_player(p)) == racer) return true;
+    return false;
+}
+
+void hide_extras() {
+    const unsigned char *status = *reinterpret_cast<unsigned char **>(kRaceStatus);
+    const int count = status ? *reinterpret_cast<const int *>(status + 0x1958) : 0;
+    for (int k = kCutsceneRacers; k < count; ++k) {
+        void *vehicle = vehicle_of(racers::simable(status + 0x18 + k * 0x194));
+        if (!vehicle || is_human(k)) continue;  // (a player's camera and HUD follow their car)
+        call_vehicle(vehicle, kDeactivateSlot);
+        g_hidden.push_back(k);
+    }
+    if (!g_hidden.empty()) g_log.line("start grid: %d opponents after the first four are out of the world while the intro cutscene plays", static_cast<int>(g_hidden.size()));
+}
+
+void bring_back() {
+    const unsigned char *status = *reinterpret_cast<unsigned char **>(kRaceStatus);
+    for (const int k : g_hidden) {
+        const unsigned char *info = status ? status + 0x18 + k * 0x194 : nullptr;
+        void *vehicle = info ? vehicle_of(racers::simable(info)) : nullptr;
+        if (!vehicle) continue;
+        call_vehicle(vehicle, kActivateSlot);
+        const float *position = reinterpret_cast<const float *>(info + kSavedPosition);
+        if (position[0] || position[1] || position[2]) put_on_ground(vehicle, position, reinterpret_cast<const float *>(info + kSavedDirection));
+    }
+    if (!g_hidden.empty()) g_log.line("start grid: the %d opponents are back", static_cast<int>(g_hidden.size()));
+    g_hidden.clear();
+}
+
 void cutscene_over_impl() {
+    bring_back();
     const unsigned char *status = *reinterpret_cast<unsigned char **>(kRaceStatus);
     if (!status || !g_start_known) return;
     const int count = *reinterpret_cast<const int *>(status + 0x1958);
@@ -404,6 +455,7 @@ void hook_init_racers(void *race_start) {
     g_cutscene.known = false;
     g_have_poses = false;
     g_racer_of_slot.clear();
+    g_hidden.clear();  // (the cars of the race before are gone)
     if (!race_start) return;
     memcpy(g_start, static_cast<char *>(race_start) + kMarkerPosition, sizeof(g_start));
     memcpy(g_direction, static_cast<char *>(race_start) + kMarkerDirection, sizeof(g_direction));
@@ -424,6 +476,7 @@ void hook_place_split_screen_players() {
 
 // What a restart does: every racer goes back to its saved position. Logged, for the bug reports about cars that start in the wrong places.
 void hook_restore_start_positions() {
+    bring_back();  // (a restart while the cutscene played)
     const unsigned char *status = *reinterpret_cast<unsigned char **>(kRaceStatus);
     const int count = status ? *reinterpret_cast<const int *>(status + 0x1958) : 0;
     for (int k = 0; k < count; ++k) {
@@ -437,6 +490,8 @@ void hook_restore_start_positions() {
 }
 
 }  // namespace
+
+void cutscene_plays() { hide_extras(); }
 
 void cutscene_over() { cutscene_over_impl(); }
 

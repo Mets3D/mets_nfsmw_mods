@@ -60,8 +60,9 @@ This is a bit of a documentation on what issues were encountered during developm
 ---
 
 # TODOS
+- Rear-view Mirror in horizontal layout needs to have a default scale of 50%.
+- Might want to expose the "Allow Mirror in Split-Screen" in the video settings.
 - Suspected memory leak causing increased memory usage when new races are started, likely related to car skins because we run out of memory faster if we have more cars in the race.
-- When using the Players Rear or Random car starting layouts, the player cars are still shown at the front for the intro cutscene, resulting in other cars appearing on top of them. It would be better if we always laid out the cars with "Players Front" at first for the sake of the cutscene, but after the cutscene is done, we re-order them according to the real value of the setting, and save those positions as the race start positions (to reset to when restarting the race).
 - Minor UI issue: Values of race options turn a darker shade (not functionally grayed out, just a different font color) after stepping over them. Fix probably belows in Custom Menus mod.
 
 ### AI Disclaimer

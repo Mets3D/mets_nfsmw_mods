@@ -11,6 +11,8 @@
 
 #include <windows.h>
 
+#include <cstring>
+
 #include "hooks.h"
 #include "split_screen_support.h"
 #include "start_grid.h"
@@ -20,10 +22,12 @@ namespace split_screen_support::race_intro {
 namespace {
 
 constexpr uintptr_t kNisPlay = 0x604B80, kActivityLoad = 0x6F51F0, kActivityPlay = 0x6F5750, kOnTask = 0x6F58D0, kSplitScreenFlag = 0x988E04, kNisSingleton = 0x9885C8;
-constexpr unsigned kTaskState = 0x2EC;
+constexpr unsigned kTaskState = 0x2EC, kActivityState = 0x2AC, kStateEnded = 7;
+constexpr uintptr_t kNoScenes = 0x91E140;  // NIS_Play posts MNISComplete at once when this byte is set
 
 bool g_let_it_play = true;
 bool g_playing = false;
+bool g_expected = false;
 
 void (__cdecl *g_orig_nis_play)(void *, const char *, const char *, int, const char *, const char *);
 void(__fastcall *g_orig_load)(void *, void *, int, int, int, int);
@@ -34,6 +38,8 @@ const char *text(const char *s) { return !s ? "(none)" : IsBadReadPtr(s, 1) ? "(
 
 void __cdecl hook_nis_play(void *instance, const char *scene, const char *kind, int c, const char *d, const char *e) {
     g_log.line("cutscene: the race asks for \"%.40s\" (%.20s)", text(scene), text(kind));
+    const bool split = *reinterpret_cast<int *>(kSplitScreenFlag) == 1;
+    if (scene && !strcmp(text(kind), "Intro") && !*reinterpret_cast<unsigned char *>(kNoScenes) && (g_let_it_play || !split)) g_expected = true;
     g_orig_nis_play(instance, scene, kind, c, d, e);
 }
 
@@ -44,11 +50,13 @@ void __fastcall hook_load(void *self, void *edx, int a, int b, int c, int d) {
     if (saved == 1 && g_let_it_play) flag = 0;
     g_orig_load(self, edx, a, b, c, d);
     flag = saved;
+    if (*reinterpret_cast<const int *>(static_cast<const char *>(self) + kActivityState) == kStateEnded) g_expected = false;  // (it ended at once: nothing will move the cars)
 }
 
 void __fastcall hook_play(void *self, void *edx) {
     g_playing = true;
     g_log.line("cutscene: plays");
+    if (g_expected) start_grid::cutscene_plays();
     g_orig_play(self, edx);
 }
 
@@ -56,15 +64,20 @@ void __fastcall hook_play(void *self, void *edx) {
 unsigned char __fastcall hook_on_task(void *self, void *edx, void *task, float dt) {
     const unsigned char result = g_orig_on_task(self, edx, task, dt);
     const int state = *reinterpret_cast<const int *>(static_cast<const char *>(self) + kTaskState);
-    if (g_playing && (state == 6 || state == 7)) {
-        g_playing = false;
-        g_log.line("cutscene: over");
-        start_grid::cutscene_over();
+    if (state == 6 || state == 7) {
+        const bool was_playing = g_playing;
+        g_playing = g_expected = false;
+        if (was_playing) {
+            g_log.line("cutscene: over");
+            start_grid::cutscene_over();
+        }
     }
     return result;
 }
 
 }  // namespace
+
+bool expected() { return g_expected; }
 
 bool playing() { return g_playing && *reinterpret_cast<void **>(kNisSingleton) != nullptr; }
 
