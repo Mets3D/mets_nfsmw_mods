@@ -45,6 +45,7 @@ A diagnosis that needs one fact gets one targeted line, not a dump; a flooded lo
 behind a one-shot trigger: a test run costs the user more than a few hundred log lines, and guessing which part to log in successive runs is the most expensive way to find out.
 
 ## Token economy (the user's session budget is small)
+- **A game run is expensive** (a scenario takes 1 to 3 minutes of the user's time, a bad launch 5 to 10, and each guess needs a build and a deploy first): before iterating by running, get the answer from what already exists: the code of the feature the game or another of our mods already has (a toggle shows what it controls), a disassembly, one dump of the whole structure. Never try candidates one by one.
 - Short answers: what changed, what to test, what is uncertain. No recaps of the whole task. But while working (especially anything that launches the game, which the user sees on their desktop) say in one line what you are about to do and why before each step, and report what each result showed as it comes in; the user follows along live and must never have to ask what is going on.
 - Targeted reads and greps; disassemble only the bytes you need (a list of relocations or a whole function dump is almost never needed).
 - Record a finding once: `agent_docs/<subject>.md` for data / flow / gotchas, `Tools/re/names.json` for a function. Do not write chronological notes about solved problems.

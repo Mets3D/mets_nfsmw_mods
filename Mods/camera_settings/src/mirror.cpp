@@ -99,6 +99,17 @@ unsigned FASTCALL hook_add_toggle(void *screen, void *edx, void *widget, int ena
 
 }  // namespace
 
+// The Mirror setting of the view, else the game's rule (hidden in the views outside the car), and the Rearview option in either case: what the game's own
+// check comes to for a view, without the conditions of the moment (pause, looking back) and of the single player HUD.
+bool wanted(int cam) {
+    keep_rearview_on();
+    void *database = *reinterpret_cast<void **>(kFEDatabase);
+    void *settings = database ? field<void *>(database, kSettings) : nullptr;
+    if (!settings || !field<unsigned char>(settings, kRearviewOn)) return false;
+    const int shown = mirror_override(cam);
+    return shown >= 0 ? shown == 1 : !outside_view(cam);
+}
+
 // NFSMWHDReflections' ForceEnableMirror replaces the `je` at 0x595DDD (the first of the compares of CurCam 2-6 in ShouldRearViewMirrorBeVisible,
 // which hide the mirror in the outside views) by `jmp +0x14`, over all of them. main.cpp's early entry turns the option off in its ini, which
 // works when our plugin is loaded first; if that patch is there anyway, the original bytes are put back (the game's behaviour, which

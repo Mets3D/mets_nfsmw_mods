@@ -26,7 +26,7 @@ It was my goal to integrate this mod into the original game's design as if it wa
   - Tilt: How much the camera tilts with the car.
   - Acceleration: How much the camera's forward/backward distance reacts to acceleration and braking.
   - Speed FoV: Additional FoV / "vertigo effect" based on your speed. This behaviour is not present in the vanilla game.
-  - Mirror: Whether a rear-view mirror is visible in this view. (The vanilla game's "Player -> Rearview Mirror" option is removed.)
+  - Mirror: Whether a rear-view mirror is visible in this view, in split screen too (each player has one). (The vanilla game's "Player -> Rearview Mirror" option is removed.)
   - Enabled: Whether this camera view is used by the Next/Previous Camera View hotkeys.
 - You can hold Shift or LB to change values with smaller increments.
 - In a [Split Screen](../split_screen_support/ReadMe.md) match, each player can control the position and active camera type of their own camera, but the camera settings are NOT per-player. Hard-coded offsets are applied to those players whose aspect ratio is wider than normal because of the split screen.

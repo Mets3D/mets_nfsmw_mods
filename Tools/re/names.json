@@ -459,5 +459,25 @@
     "name": "GRacerInfo::IsRankedAfter",
     "confidence": "read",
     "note": "thiscall (other GRacerInfo*): true when this racer should come after the other; CalculateRankings (0x5FDE80) swaps neighbours while it is true. Both finished: the longer race time (+0x14C timer) is after; finished before unfinished; then knocked out / blown / totalled by their timers, then by lap and progress"
+  },
+  "0x566170": {
+    "name": "RadarDetector::Update",
+    "confidence": "tested",
+    "note": "virtual (IPlayer *): also what shows the rear view mirror's housing in the single player HUD, with FEng scripts: in the view mode of the mirror (eGetCurrentViewMode() 2) with the Rearview option on it sets script 0x5079C8F8 on its group at +0x50 (9ee06631, the inner group of 7fac287b: two mirrored images 128 x 87), else script 0x16A259; the radar's own group (+0x38, 062743f5) and +0x4C (839e7d77) get others. Setting those scripts on a copy of the group in a split screen HUD shows the frame (hud_copies.cpp)"
+  },
+  "0x6BCFA0": {
+    "name": "eCreateMirrorTargets",
+    "confidence": "read",
+    "note": "makes the rear view mirror's render target: CreateTexture(w [0x8F9008], h [0x8F900C], 1, D3DUSAGE_RENDERTARGET, format [0x8F9000]) into [0x982A7C], its surface into [0x982A80], a depth surface (format [0x8F9004]) into [0x982A84]; the eRenderTarget 0x93DB0C (view 3's) holds the surfaces at +8 and +0xC. 256 x 256 in the exe's data, 720 x 240 A8R8G8B8 in the test install (the log says; something changes it)"
+  },
+  "0x476690": {
+    "name": "RearViewMirrorCameraMover::Update",
+    "confidence": "tested",
+    "note": "virtual slot 2 (float dt): nothing unless the Rearview option (options settings +0x39) is on; puts the camera at +0x1C behind the anchor at +0x80 looking back (Camera::SetCameraMatrix, ApplyCameraShake for the view id at +0x10). The mover is 0x90 bytes: CameraMover::CameraMover 0x470890 (thiscall, view id or -1, type 5), then the vtable 0x894E48 and the anchor written by the CDActionDrive constructor. Made with the view id -1 it is in no view's list (mirrors.cpp moves its own)"
+  },
+  "0x595D40": {
+    "name": "FEngHud::ShouldRearViewMirrorBeVisible",
+    "confidence": "read",
+    "note": "cdecl (view id) -> bool: false while paused, with the HUD hidden, looking back, for CurCam 2-6 (the Rearview option off too) and unless HUD_SingleRace.fng is pushed; only MaybeChangeViewMode calls it (the view mode 2 needs it). The mirror's housing is not shown by it but by RadarDetector::Update 0x566170"
   }
 }

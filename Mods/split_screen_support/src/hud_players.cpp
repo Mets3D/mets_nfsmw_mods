@@ -23,7 +23,7 @@
 #include "events.h"
 #include "hooks.h"
 #include "max_players.h"
-#include "hud_leaderboard.h"
+#include "hud_copies.h"
 #include "hud_packages.h"
 #include "hud_views.h"
 #include "minimap.h"
@@ -158,14 +158,14 @@ void hud_made(void *hud, int type, const char *package, void *player, int number
     hud_views::classify(package);
     if (void *minimap = *reinterpret_cast<void **>(static_cast<char *>(hud) + kHudMinimap)) minimap::for_each_object(minimap, &hud_views::classify_as_minimap);
     set_markers();
-    hud_leaderboard::attach(hud, package, index, number);
+    hud_copies::attach(hud, package, index, number);
 }
 
 int g_updating = -1;  // the player whose HUD the game is updating
 int g_pause_requester = -1;
 
 void hud_destroy(void *hud) {
-    hud_leaderboard::detach(hud);
+    hud_copies::detach(hud);
     const int index = index_of(hud);
     if (index < 0) return;
     for (int i = index; i + 1 < g_hud_count; ++i) g_huds[i] = g_huds[i + 1];
@@ -180,6 +180,7 @@ void hud_destroy(void *hud) {
 
 void hud_before_update(void *hud, void *player) {
     g_updating = index_of(hud);
+    hud_copies::update(hud, g_updating);
     more_players::lend_view(player, true);
 }
 void hud_after_update(void *, void *player) {

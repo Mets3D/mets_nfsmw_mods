@@ -21,6 +21,9 @@ bool camera_pose(int extra, float *position, float *direction);
 // The game's Camera object of an extra player (null while it has none).
 void *camera_object(int extra);
 
+// The CameraAnchor and the CubicCameraMover of the game's camera director of a player (0-based, any of them): false while the player has none.
+bool player_camera(int player, void **anchor, void **mover);
+
 void install();
 
 }  // namespace split_screen_support::extra_cameras

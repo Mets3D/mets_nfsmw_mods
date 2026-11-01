@@ -1,4 +1,5 @@
 /*
+ * Parts of the single player HUD that the split screen HUDs lack, copied into each of them: the leaderboard, and the housing of the rear view mirror.
  * The leaderboard of a split screen HUD. Every FEngHud makes a LeaderBoard (0x59F0E0, 0x278 bytes, at FEngHud +0x2FC) and the game turns it on in a race when the
  * player's Leaderboard setting is on, but the split screen packages (HUD_Player1.fng ...) have none of its objects (LeaderBoardGroup, LBData_n, LeaderText_n,
  * LBBacking_n, OL_ICON_n): it shows nothing. The single player race HUD (HUD_SingleRace.fng) has them. So that package is pushed once for the race (every object
@@ -7,8 +8,10 @@
  * the resources (fonts, textures) of the original: an object's Handle and UserParam are what the source package's resource requests gave it, so that package stays
  * until the race's HUDs go (popped right after the copies were made, the game crashed on one of its freed objects in FEngine::ProcessObjectMessage).
  * The copy sits under the race information and is drawn with it (its part of the HUD, hud_views.cpp).
+ * The mirror's housing (the frame around the picture mirrors.cpp draws) is copied the same way and stays where the single player HUD has it (top middle, as the picture is);
+ * its inner group is faded in and out by the scripts RadarDetector::Update 0x566170 sets in the single player HUD.
  */
-#include "hud_leaderboard.h"
+#include "hud_copies.h"
 
 #include <cstdint>
 
@@ -16,9 +19,10 @@
 #include "fe_objects.h"
 #include "hud_views.h"
 #include "max_players.h"
+#include "mirrors.h"
 #include "split_screen_support.h"
 
-namespace split_screen_support::hud_leaderboard {
+namespace split_screen_support::hud_copies {
 
 namespace {
 
@@ -29,11 +33,15 @@ constexpr uintptr_t kFEng = 0x91CADC, kPushPackage = 0x516990, kPopPackage = 0x5
 constexpr unsigned kHudLeaderBoard = 0x2FC, kHudOuter = 8, kLeaderBoardSize = 0x278;  // FEngHud: the LeaderBoard, its UTL::COM::Object (the "outer" of its elements)
 constexpr unsigned kObjectHandle = 0x24, kObjectUserParam = 0x28;                       // FEObject: the resource
 constexpr unsigned kGroupHash = 0x5ED609A1, kRaceInformation = 0xB1C5ED0D;            // LeaderBoardGroup; RaceInformationGroup
+constexpr unsigned kHousing = 0x7FAC287B, kHousingInner = 0x9EE06631;                 // the mirror's housing; its group that is faded in and out
+constexpr unsigned kScriptMirrorOn = 0x5079C8F8, kScriptMirrorOff = 0x16A259;
+constexpr uintptr_t kSetVisible = 0x514CC0, kSetScript = 0x514D10, kIsScriptSet = 0x514DA0;  // FEngSetVisible, FEngSetScript, FEngIsScriptSet (an FEObject)
 constexpr float kOffsetX = 149.0f, kOffsetY = 36.0f;  // from the race information group to the copy: right edges aligned, the top just under it (the board is drawn at 3/4 of its place)
 constexpr int kPriority = 0x66;                                                        // as the HUD pushes its own package
 constexpr const char *kSource = "HUD_SingleRace.fng";
 
-void *g_huds[nfsmw::kMaxPlayers];  // the HUD whose package got the copy, for each player
+void *g_huds[nfsmw::kMaxPlayers];     // the HUD whose package got the copies, for each player
+void *g_housing[nfsmw::kMaxPlayers];  // the inner group of the copy of the mirror's housing
 bool g_source_pushed = false;      // HUD_SingleRace.fng was pushed for the copies: popped when the last of those HUDs goes
 
 void *fe_engine() { return *reinterpret_cast<void **>(kFEng); }
@@ -55,6 +63,13 @@ void copy_resources(void *original, void *copy, int depth = 0) {
     for (; o && c; o = next_of(o), c = next_of(c)) copy_resources(o, c, depth + 1);
 }
 
+// A copy and everything in it visible (the source package's objects are all hidden).
+void show(void *object, int depth = 0) {
+    reinterpret_cast<void(__cdecl *)(void *)>(kSetVisible)(object);
+    if (!is_group(object) || depth > 8) return;
+    for (void *child = first_child(object); child; child = next_of(child)) show(child, depth + 1);
+}
+
 // Where an object is in its package: its own position plus its groups'.
 void absolute_position(void *package, void *object, float &x, float &y) {
     x = position_x(object);
@@ -74,14 +89,14 @@ void absolute_position(void *package, void *object, float &x, float &y) {
 void dump(void *o, int depth) {
     void *data = field<void *>(o, 0x2C);
     if (!data || depth > 4) return;
-    g_log.line("dump: %*s%08x type %d pos (%.0f, %.0f) size (%.2f, %.2f) flags %08x", depth * 2, "", hash_of(o), type_of(o), position_x(o), position_y(o), field<float>(data, 0x38),
-               field<float>(data, 0x3C), field<unsigned>(o, 0x1C));
+    g_log.line("dump: %*s%08x type %d pos (%.0f, %.0f) size (%.2f, %.2f) flags %08x alpha %d", depth * 2, "", hash_of(o), type_of(o), position_x(o), position_y(o), field<float>(data, 0x38),
+               field<float>(data, 0x3C), field<unsigned>(o, 0x1C), field<int>(data, 0xC));
     if (is_group(o))
         for (void *c = first_child(o); c; c = next_of(c)) dump(c, depth + 1);
 }
 
-// The leaderboard's group of the single player HUD, copied into `package` (top level), or null.
-void *copy_group(const char *package) {
+// A group of the single player HUD (by the hash of its name), copied into `package` (top level), or null.
+void *copy_group(const char *package, unsigned hash) {
     void *target = find_package(package);
     if (!target) return nullptr;
     void *engine = fe_engine();
@@ -91,7 +106,7 @@ void *copy_group(const char *package) {
         reinterpret_cast<void(__cdecl *)(const char *, bool)>(kSetAllVisibility)(kSource, false);
     }
     void *source = find_package(kSource);
-    void *group = source ? find_object(kSource, kGroupHash) : nullptr;
+    void *group = source ? find_object(kSource, hash) : nullptr;
     void *copy = nullptr;
     if (group) {
         float x, y;
@@ -104,12 +119,12 @@ void *copy_group(const char *package) {
             position_y(copy) = y;
             reinterpret_cast<void(__fastcall *)(void *, void *, void *)>(kPackageAddObject)(target, nullptr, copy);
             if (ini_flag("diagnostics", "dump_hud", false)) {
-                g_log.line("dump: the leaderboard copied into %s (at %.0f, %.0f in %s)", package, x, y, kSource);
+                g_log.line("dump: %08x copied into %s (at %.0f, %.0f in %s)", hash, package, x, y, kSource);
                 dump(copy, 0);
             }
         }
     }
-    if (!copy) g_log.line("hud: no leaderboard for %s (%s)", package, !source ? "the single player HUD could not be pushed" : !group ? "it has no leaderboard" : "the copy failed");
+    if (!copy) g_log.line("hud: no copy of %08x for %s (%s)", hash, package, !source ? "the single player HUD could not be pushed" : !group ? "it has no such group" : "the copy failed");
     return copy;
 }
 
@@ -135,8 +150,15 @@ void place(const char *package, void *copy) {
 
 void attach(void *hud, const char *package, int player, int number) {
     if (!hud || !package || player < 0 || player >= nfsmw::kMaxPlayers || !fe_engine()) return;
+    if (mirrors::enabled() && !find_object(package, kHousing)) {
+        if (void *housing = copy_group(package, kHousing)) {
+            hud_views::classify_new(package, housing);
+            show(housing);
+        }
+    }
+    g_housing[player] = find_object(package, kHousingInner);
     if (!find_object(package, kGroupHash)) {
-        void *copy = copy_group(package);
+        void *copy = copy_group(package, kGroupHash);
         if (!copy) return;
         place(package, copy);
     }
@@ -150,11 +172,20 @@ void attach(void *hud, const char *package, int player, int number) {
     g_log.line("hud: player %d's leaderboard is in %s (%p)", player + 1, package, board);
 }
 
+// What RadarDetector::Update does for the single player HUD: the script that fades the housing in or out, unless it is the one set.
+void update(void *hud, int player) {
+    if (player < 0 || player >= nfsmw::kMaxPlayers || g_huds[player] != hud || !g_housing[player]) return;
+    const unsigned script = mirrors::shown(player) ? kScriptMirrorOn : kScriptMirrorOff;
+    if (!reinterpret_cast<bool(__cdecl *)(void *, unsigned)>(kIsScriptSet)(g_housing[player], script))
+        reinterpret_cast<void(__cdecl *)(void *, unsigned, bool)>(kSetScript)(g_housing[player], script, true);
+}
+
 void detach(void *hud) {
     for (int i = 0; i < nfsmw::kMaxPlayers; ++i)
         if (g_huds[i] == hud) {
             delete_leaderboard(hud);  // (before the package's objects go)
             g_huds[i] = nullptr;
+            g_housing[i] = nullptr;
         }
     for (void *other : g_huds)
         if (other) return;
@@ -162,4 +193,4 @@ void detach(void *hud) {
     g_source_pushed = false;
 }
 
-}  // namespace split_screen_support::hud_leaderboard
+}  // namespace split_screen_support::hud_copies

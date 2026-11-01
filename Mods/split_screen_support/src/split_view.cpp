@@ -45,6 +45,8 @@
 #include "hud_views.h"
 #include "layout.h"
 #include "max_players.h"
+#include "mirrors.h"
+#include "mover_list.h"
 #include "hooks.h"
 #include "patch.h"
 #include "more_players.h"
@@ -132,6 +134,7 @@ void release_canvas() {
     release_timing();  // queries are lost with the device too
     release_sun_states();
     reflections::release();
+    mirrors::release();
 }
 
 template <typename T>
@@ -212,31 +215,9 @@ void clear_screen(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer) {
     if (old_depth) old_depth->Release();
 }
 
-// A view's camera movers are an intrusive circular list whose head node (next, prev) sits in the view (+0x44). The game asks
-// the view's first mover which car it follows and whether that car's inside is seen (bumper view: not), so this list is part of
-// what makes a view what it is. The two lists trade places node by node: every node points back to its list's head.
-struct ListNode {
-    ListNode *next, *prev;
-};
-constexpr int kViewMoverList = 0x44;
-
+// The movers of view 1 and `other` trade places (mover_list.h): the game asks the view's first mover which car it follows.
 void swap_mover_lists(uintptr_t other) {
-    auto *a = reinterpret_cast<ListNode *>(kView1 + kViewMoverList);
-    auto *b = reinterpret_cast<ListNode *>(other + kViewMoverList);
-    const ListNode from_a = *a, from_b = *b;
-    const bool a_empty = from_a.next == a, b_empty = from_b.next == b;
-    if (b_empty) a->next = a->prev = a;
-    else {
-        *a = from_b;
-        a->next->prev = a;
-        a->prev->next = a;
-    }
-    if (a_empty) b->next = b->prev = b;
-    else {
-        *b = from_a;
-        b->next->prev = b;
-        b->prev->next = b;
-    }
+    swap_lists(reinterpret_cast<ListNode *>(kView1 + kViewMoverList), reinterpret_cast<ListNode *>(other + kViewMoverList));
 }
 
 bool g_view2_on = false;  // view 2 is on for a split screen race (switch_view2)
@@ -253,12 +234,6 @@ constexpr size_t kCameraSize = 0x2C0, kPlatInfoSize = 0x1A0;
 constexpr int kExtraPasses = nfsmw::kMaxPlayers - 1;  // the passes after player 1's
 void *g_shadow_camera[kExtraPasses] = {};
 void *g_shadow_plat_info[kExtraPasses] = {};
-
-void *copy_of(void *original, size_t size) {
-    void *copy = original ? VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE) : nullptr;
-    if (copy) memcpy(copy, original, size);
-    return copy;
-}
 
 void make_shadow_copies() {
     for (int i = 0; i < kExtraPasses; ++i) {
@@ -490,7 +465,9 @@ bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, 
     bool ok = true;
     if (!empty(0)) {  // (somebody races: some pass draws the frame)
         reflections::begin_pass(device, 0, players);
+        const bool mirror = mirrors::begin_pass(device, 0);
         game_frame();  // player 1
+        if (mirror) mirrors::end_pass(0);
         pool[0] = pool_start;
         reflections::end_pass(device, 0);
         view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(w), static_cast<float>(h), 0);
@@ -510,7 +487,9 @@ bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, 
         setup_glow_view();
         if (timed) cpu_start = now_ms();
         reflections::begin_pass(device, pass, players);
+        const bool mirror = mirrors::begin_pass(device, pass);
         game_frame();
+        if (mirror) mirrors::end_pass(pass);
         pool[0] = pool_start;
         reflections::end_pass(device, pass);
         if (timed) {
@@ -525,6 +504,7 @@ bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, 
         for (int i = players + 1; i < kTimestamps; ++i) stamps[i]->Issue(D3DISSUE_END);  // the passes there are not: no time
         ++g_timed_frame;
     }
+    mirrors::finish_frame();
     const RECT canvas_part = {0, 0, 2 * qw, 2 * qh};
     return ok && copy(device, g_canvas, canvas_part, back_buffer, canvas_part, "to the screen");
 }

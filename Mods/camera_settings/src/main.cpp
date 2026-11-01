@@ -613,6 +613,9 @@ int mirror_override(int cam) {
 
 }  // namespace camera_settings
 
+// For nfsmw_split_screen_support (common/camera_settings_api.h): whether the rear view mirror is wanted in a camera view.
+extern "C" __declspec(dllexport) int nfsmw_camera_settings_mirror_wanted(int cam) { return camera_settings::mirror::wanted(cam) ? 1 : 0; }
+
 // Called by nfsmw_custom_menus when the Options menu first opens.
 extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const opt::Host *host) {
     g_rows[0] = {opt::kCameraSelectorRow, "", 0, kHelp[NPARAM]};

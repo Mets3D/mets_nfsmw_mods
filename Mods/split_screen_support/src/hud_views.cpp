@@ -31,6 +31,7 @@
 #include "hooks.h"
 #include "layout.h"
 #include "max_players.h"
+#include "mirrors.h"
 #include "patch.h"
 #include "split_screen_support.h"
 
@@ -232,7 +233,23 @@ void classify_object(const Assignment &a, void *object, float offset_x, float of
 // The mirror's polygon: eViewPlatInterface::Render(ePoly *, int, int), cdecl.
 constexpr uintptr_t kMirrorRenderCall = 0x6E7199;
 uintptr_t g_render_poly = 0;
+// A split screen race: the polygon once for each player who has a mirror (mirrors.cpp), in the top middle of their HUD. False when none has (a game of one player).
+bool render_player_mirrors(void *poly, int a, int b) {
+    IDirect3DDevice9 *d = device();
+    bool any = false;
+    for (int i = 0; i < g_count && d; ++i) {
+        const Assignment &hud = g_assigned[i];
+        if (hud.players < 2 || !mirrors::bind(hud.player) || FAILED(d->GetViewport(&g_saved))) continue;
+        set_viewport(hud, part_of(kCenter, kTop));
+        if (!g_no_cell) reinterpret_cast<void(__cdecl *)(void *, int, int)>(g_render_poly)(poly, a, b);
+        restore_viewport();
+        any = true;
+    }
+    return any;
+}
+
 void __cdecl render_mirror(void *poly, int a, int b) {
+    if (render_player_mirrors(poly, a, b)) return;
     const Assignment *hud = nullptr;
     for (int i = 0; i < g_count && !hud; ++i)
         if (g_assigned[i].player == 0 && g_assigned[i].layout == kScreenLayout) hud = &g_assigned[i];
@@ -301,6 +318,10 @@ void set_tree(void *object, unsigned char part, int depth = 0) {
         for (void *child = first_child(object); child; child = next_of(child)) set_tree(child, part, depth + 1);
 }
 }  // namespace
+
+void classify_new(const char *package, void *object) {
+    if (const Assignment *a = find(package); a && object) classify_object(*a, object, 0.0f, 0.0f, 0);
+}
 
 void classify_tree_like(void *object, void *model) {
     const int part = object && model ? part_of_tree(model) : -1;

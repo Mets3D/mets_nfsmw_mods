@@ -11,18 +11,19 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 ## Features
 Points marked with * require the [Custom Menus](../custom_menus/ReadMe.md) mod to be installed. They're bundled together in the release.
 - 2, 3, and 4 player split-screen.
-- New race options:
+- **Race options**:
   - **Layout**: Horizontal or Vertical split screen.
   - **Start**: Starting position of player cars: Players Front / Players Rear / Random.
   - **AI opponents**: Up to 16 total cars in a race (including players).
   - **Tollbooth: Time**: Make tollbooth races harder or easier by tweaking the available time.
-- New Player Options:
+- **Player Options**:
   - Each player can invoke the pause menu. The "Player Options" menu will affect the player who opened the pause menu. The name of the affected player is displayed in the menu's header.
   - **Minimap On/Off**: Each player can toggle their own minimap.
   - **HUD Scale**: Each player can scale their own HUD.
   - **Split-Screen Volume**: Each player can tweak how much their screen contributes to the game's audio.
+  - **Leaderboard On/Off**: This option already existed, but the game's split-screen HUD didn't include the leaderboard. This mod brings it back, as it's important for Speedtrap races, but can be disabled if you want to free up screen space.
 - Tollbooth races are supported: Each player has their own clock, if you run out of time you get knocked out, starting positions work for up to 16 cars (although above 4 it gets unfair), and the end-of-race summary screen shows your remaining time.
-- Each player has the leaderboard of the single-player HUD (the game's split screen HUD has none), under their race information, following the per-player Leaderboard option.
+- Rear-View Mirrors are allowed to render in split-screen, one for each player.
 - If a player is eliminated, their screen disappears, one of the neighbouring players takes up the available screen space. The eliminated player's resources are freed, their screen no longer rendered, their audio muted.
 
 ## Non-features
@@ -59,7 +60,6 @@ This is a bit of a documentation on what issues were encountered during developm
 ---
 
 # TODOS
-- No rear-view mirrors in split screen. I asked Claude to implement it, and it came back with the tremendous conclusion that Mirror is disabled in split-screen, therefore nothing can be done. This was Opus set to High effort. What an absolute joke.
 - Suspected memory leak causing increased memory usage when new races are started, likely related to car skins because we run out of memory faster if we have more cars in the race.
 - When using the Players Rear or Random car starting layouts, the player cars are still shown at the front for the intro cutscene, resulting in other cars appearing on top of them. It would be better if we always laid out the cars with "Players Front" at first for the sake of the cutscene, but after the cutscene is done, we re-order them according to the real value of the setting, and save those positions as the race start positions (to reset to when restarting the race).
 - Minor UI issue: Values of race options turn a darker shade (not functionally grayed out, just a different font color) after stepping over them. Fix probably belows in Custom Menus mod.

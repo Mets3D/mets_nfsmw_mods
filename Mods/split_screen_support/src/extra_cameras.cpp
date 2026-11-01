@@ -18,6 +18,7 @@
 
 #include "events.h"
 #include "layout.h"
+#include "mirrors.h"
 #include "max_players.h"
 #include "hooks.h"
 #include "more_players.h"
@@ -51,12 +52,6 @@ T &at(uintptr_t base, int offset) {
     return *reinterpret_cast<T *>(base + offset);
 }
 
-void *copy_of(void *original, size_t size) {
-    void *copy = original ? VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE) : nullptr;
-    if (copy) memcpy(copy, original, size);
-    return copy;
-}
-
 // The view gets a camera and PlatInfo (copies of view 2's) and view 1's render target, which the per view setup reads the size of.
 bool set_up_view(int index) {
     Extra &e = g_extra[index];
@@ -79,19 +74,24 @@ bool in_game_list(void *director) {
     return false;
 }
 
-// The player (0-based) whose camera is the anchor: the game's list of directors has them all (ours too), each director's action holds the anchor (+0x30) and
-// the player (+0x44).
-int player_of_anchor(void *anchor) {
+// The action of the director (CDActionDrive) whose field at `offset` (kActionAnchor, kActionPlayer) is `value`, or null: the game's list of directors has them all
+// (ours too).
+void *action_with(int offset, void *value) {
     void *const *list = *reinterpret_cast<void *const *const *>(0x911300);
     const unsigned count = *reinterpret_cast<const unsigned *>(0x911308);
-    for (unsigned i = 0; list && i < count; ++i) {
+    for (unsigned i = 0; value && list && i < count; ++i) {
         void *action = list[i] ? at<void *>(reinterpret_cast<uintptr_t>(list[i]), kDirectorAction) : nullptr;
-        if (!action || at<void *>(reinterpret_cast<uintptr_t>(action), kActionAnchor) != anchor) continue;
-        void *const player = at<void *>(reinterpret_cast<uintptr_t>(action), kActionPlayer);
-        for (int p = 0; p < nfsmw::kMaxPlayers; ++p)
-            if (player && more_players::game_player(p) == player) return p;
-        return -1;
+        if (action && at<void *>(reinterpret_cast<uintptr_t>(action), offset) == value) return action;
     }
+    return nullptr;
+}
+
+// The player (0-based) whose camera is the anchor, or -1.
+int player_of_anchor(void *anchor) {
+    void *action = action_with(kActionAnchor, anchor);
+    void *const player = action ? at<void *>(reinterpret_cast<uintptr_t>(action), kActionPlayer) : nullptr;
+    for (int p = 0; p < nfsmw::kMaxPlayers; ++p)
+        if (player && more_players::game_player(p) == player) return p;
     return -1;
 }
 
@@ -156,6 +156,7 @@ void __cdecl hook_camera_ai_update(float dt) {
         else if (!wanted && g_extra[i].director) destroy(i);
     }
     g_orig_camera_ai_update(dt);
+    mirrors::update(dt);
 }
 
 // Sound::DistanceToView 0x4BA050 and Sound::IsPrimaryTarget 0x4BA140 look at the camera movers of views 1 and 2 only. They decide whether a one-shot effect (the sparks and
@@ -251,6 +252,14 @@ bool camera_position(int extra, float *position) { return camera_pose(extra, pos
 void *camera_object(int extra) {
     void *mover = extra >= 0 && extra < nfsmw::kMaxExtras ? mover_of(extra) : nullptr;
     return mover ? at<void *>(reinterpret_cast<uintptr_t>(mover), 0x1C) : nullptr;
+}
+
+bool player_camera(int player, void **anchor, void **mover) {
+    void *action = action_with(kActionPlayer, more_players::game_player(player));
+    if (!action) return false;
+    *anchor = at<void *>(reinterpret_cast<uintptr_t>(action), kActionAnchor);
+    *mover = at<void *>(reinterpret_cast<uintptr_t>(action), kActionCubicMover);
+    return *anchor != nullptr;
 }
 
 float picture_shape(void *anchor) {

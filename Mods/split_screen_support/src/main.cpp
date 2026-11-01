@@ -17,7 +17,8 @@
  *   race_rows.cpp      its Layout, Start and (tollbooth) Time rows
  *   more_players.cpp   players 3 and 4: a second round of Press Start and Car Select, their picks kept in a table, their cars in the race
  *   standings.cpp      the racers' names of players 3 and 4, the leaderboard of a player ranked below 4
- *   hud_leaderboard.cpp the leaderboard of a split screen HUD (a copy of the single player HUD package holds its objects)
+ *   hud_copies.cpp    the leaderboard and the mirror's housing of a split screen HUD (copies of the single player HUD package's)
+ *   mirrors.cpp        a rear view mirror for each player
  *   knockout.cpp       a player knocked out of a lap knockout: the car stops and the game's message shows
  *   tollbooth.cpp      a clock for each racer of a tollbooth race; a racer whose time is up is knocked out
  *   tollbooth_results.cpp the end of a tollbooth race: the finish message, the order of the racers and the results screen
@@ -56,6 +57,7 @@
 #include "race_again.h"
 #include "more_players.h"
 #include "player_count.h"
+#include "mirrors.h"
 #include "race_rows.h"
 #include "player_settings.h"
 #include "players.h"
@@ -94,6 +96,7 @@ NFSMW_PLUGIN_MAIN() {
     more_players::install();
     extra_streaming::install();
     extra_cameras::install();
+    mirrors::install();
     start_grid::install();
     player_settings::install();
     race_again::install();  // (the picks it races with are kept by more_players)

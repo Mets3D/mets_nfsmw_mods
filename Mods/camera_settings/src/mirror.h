@@ -6,6 +6,9 @@
 
 namespace camera_settings::mirror {
 
+// Whether the mirror is wanted in the camera view `cam` (PlayerSettings::CurCam), for the split screen, which draws one for each player.
+bool wanted(int cam);
+
 // FEngHud::ShouldRearViewMirrorBeVisible (the mirror's frame, and with MaybeChangeViewMode the view it draws) and
 // CubicCameraMover::OutsidePOV as MaybeChangeViewMode asks it.
 void install_hooks(nfsmw::Logger &log, const char *ini);
