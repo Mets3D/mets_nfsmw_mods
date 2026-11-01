@@ -140,6 +140,25 @@ void dump_memory(const char *label, const unsigned char *at, size_t size) {
     }
 }
 
+// What a register points to, for a crash in code that is not ours (a mod walking the game's lists meets a record that is not as it expects): 0x80 bytes of it, and the
+// text the words in it point to (names of the things the record is about).
+void dump_target(const char *label, unsigned long value) {
+    if (value < 0x10000) return;
+    char name[16];
+    snprintf(name, sizeof(name), "[%s]", label);
+    const unsigned char *at = reinterpret_cast<const unsigned char *>(value);
+    dump_memory(name, at, 0x80);
+    unsigned long words[0x20];
+    if (!read_memory(at, words, sizeof(words))) return;
+    for (int i = 0; i < 0x20; ++i) {
+        char text[25] = {};
+        if (words[i] < 0x10000 || !read_memory(reinterpret_cast<const void *>(words[i]), text, 24)) continue;
+        int length = 0;
+        while (length < 24 && text[length] >= 0x20 && text[length] < 0x7F) ++length;
+        if (length >= 4) g_log.line("    %s+%#x -> \"%.*s\"", name, i * 4, length, text);
+    }
+}
+
 // The TLS directory of a module as it is in memory now (false if its header or directory can't be read).
 bool read_tls_directory(Watched &w, unsigned long *callbacks) {
     IMAGE_DOS_HEADER dos;
@@ -221,6 +240,10 @@ LONG CALLBACK exception_logger(EXCEPTION_POINTERS *e) {
         const std::string place = where(r.value);
         if (!place.empty()) g_log.line("    %s points into %s", r.name, place.c_str());
     }
+    const std::string crash_place = where(c->Eip);
+    const bool foreign = !crash_place.empty() && crash_place.compare(0, 9, "speed.exe") != 0 && crash_place.compare(0, 5, "nfsmw") != 0 && crash_place.compare(0, 4, "mets") != 0;
+    if (foreign)  // (a mod of somebody else's)
+        for (const auto &r : regs) dump_target(r.name, r.value);
     check_tls_directories("at the access violation");
     log_thread();
     // The top of the stack as it is: the arguments of the function that failed are there (the size bWareMalloc was asked for when it gave up).

@@ -271,8 +271,43 @@ void register_texts(const nfsmw::custom_menus::Host *host) {
     g_opponents_texts = true;
 }
 
+// GRacerInfo::CreateVehicle(default car key) 0x5E8E60 makes a racer's car from the racer's character (its attributes 0xF833C06F, the name of the car, and 0x416A8409, the name
+// of a preset ride) and gives 0 when it cannot: the racer then has no car at all (the restart log's "(no body)"). The failure is logged, the names with it.
+constexpr uintptr_t kCreateVehicle = 0x5E8E60, kGetAttributePointer = 0x454810;
+constexpr unsigned kCharacterCar = 0xF833C06F, kCharacterPreset = 0x416A8409;
+void *(__fastcall *g_orig_create_vehicle)(void *, void *, unsigned);
+
+const char *character_text(void *racer_info, unsigned key, char *out, size_t size) {
+    snprintf(out, size, "?");
+    void *character = *reinterpret_cast<void **>(static_cast<char *>(racer_info) + 4);
+    if (!character) return out;
+    const void *const *attribute = static_cast<const void *const *>(
+        reinterpret_cast<const void *(__fastcall *)(void *, void *, unsigned, unsigned)>(kGetAttributePointer)(static_cast<char *>(character) + 4, nullptr, key, 0));
+    const char *text = attribute ? static_cast<const char *>(*attribute) : nullptr;
+    if (text && !IsBadReadPtr(text, 1)) snprintf(out, size, "%.30s", text);
+    else snprintf(out, size, "-");
+    return out;
+}
+
+void *__fastcall hook_create_vehicle(void *racer_info, void *edx, unsigned default_car) {
+    void *vehicle = g_orig_create_vehicle(racer_info, edx, default_car);
+    if (vehicle) return vehicle;
+    const unsigned char *status = *reinterpret_cast<unsigned char **>(kRaceStatusPointer);
+    const long index = status ? (static_cast<unsigned char *>(racer_info) - (status + 0x18)) / 0x194 : -1;
+    char car[32], preset[32];
+    const char *has_character = *reinterpret_cast<void **>(static_cast<char *>(racer_info) + 4) ? "" : " (no character)";
+    g_log.line("racer %ld: NO CAR MADE (car \"%s\", preset \"%s\"%s)", index + 1, character_text(racer_info, kCharacterCar, car, sizeof(car)),
+               character_text(racer_info, kCharacterPreset, preset, sizeof(preset)), has_character);
+    return vehicle;
+}
+
 void install() {
     option_row::make_vtable(g_opponents_vtable, &opponents_act, &opponents_draw);
+    const nfsmw::Hook create_vehicle[] = {
+        {"aicreatevehicle", "GRacerInfo::CreateVehicle", kCreateVehicle, {0x64, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x6A}, false, nfsmw::detour(&hook_create_vehicle),
+         nfsmw::orig(&g_orig_create_vehicle)},
+    };
+    nfsmw::install_hooks(create_vehicle, 1, g_log, g_ini, "AI in split screen");
     const nfsmw::Hook hooks[] = {
         {"aitoggles", "UIWidgetMenu::AddToggleOption", kAddToggleOption, {0x83, 0xEC, 0x08, 0x56, 0x8B, 0xF1, 0x8B}, false, nfsmw::detour(&hook_add_toggle),
          nfsmw::orig(&g_orig_add_toggle)},
