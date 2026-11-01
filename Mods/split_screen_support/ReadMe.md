@@ -21,7 +21,7 @@ Points marked with * require the [Custom Menus](../custom_menus/ReadMe.md) mod t
   - **Minimap On/Off**: Each player can toggle their own minimap.
   - **HUD Scale**: Each player can scale their own HUD.
   - **Split-Screen Volume**: Each player can tweak how much their screen contributes to the game's audio.
-  - **Leaderboard On/Off**: This option already existed, but the game's split-screen HUD didn't include the leaderboard. This mod brings it back, as it's important for Speedtrap races, but can be disabled if you want to free up screen space.
+  - **Leaderboard On/Off**: This option already existed, but the game's split-screen HUD didn't include the leaderboard. This mod brings it back, as it's important for Speedtrap races, but can be disabled if you want to free up screen space. Drag races don't show it.
 - Tollbooth races are supported: Each player has their own clock, if you run out of time you get knocked out, starting positions work for up to 16 cars (although above 4 it gets unfair), and the end-of-race summary screen shows your remaining time.
 - Rear-View Mirrors are allowed to render in split-screen, one for each player.
 - If a player is eliminated, their screen disappears, one of the neighbouring players takes up the available screen space. The eliminated player's resources are freed, their screen no longer rendered, their audio muted.
@@ -60,7 +60,6 @@ This is a bit of a documentation on what issues were encountered during developm
 ---
 
 # TODOS
-- Leaderboards should not be drawn in drag races. They don't really have a good place in the UI, and they aren't really needed either.
 - Suspected memory leak causing increased memory usage when new races are started, likely related to car skins because we run out of memory faster if we have more cars in the race. Not able to consistently reproduce yet.
 - Minor UI issue: Values of race options turn a darker shade (not functionally grayed out, just a different font color) after stepping over them. Fix probably belows in Custom Menus mod.
 

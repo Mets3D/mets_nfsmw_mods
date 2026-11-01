@@ -45,6 +45,7 @@ constexpr int kPriority = 0x66;                                                 
 constexpr const char *kSource = "HUD_SingleRace.fng";
 
 void *g_huds[nfsmw::kMaxPlayers];            // the HUD whose package got the copies, for each player
+bool g_boards[nfsmw::kMaxPlayers];        // and its LeaderBoard is the one made here
 char g_packages[nfsmw::kMaxPlayers][48];  // the package of a player's HUD (the copy of the mirror's housing is looked up by it every frame: the package may go before the HUD)
 bool g_source_pushed = false;             // HUD_SingleRace.fng was pushed for the copies: popped when the last of those HUDs goes
 
@@ -164,7 +165,7 @@ void fade_housings() {
 
 }  // namespace
 
-void attach(void *hud, const char *package, int player, int number) {
+void attach(void *hud, const char *package, int player, int number, bool leaderboard) {
     if (!hud || !package || player < 0 || player >= nfsmw::kMaxPlayers || !fe_engine()) return;
     snprintf(g_packages[player], sizeof(g_packages[player]), "%s", package);
     if (!find_object(package, kHousing)) {
@@ -173,6 +174,8 @@ void attach(void *hud, const char *package, int player, int number) {
             show(housing);
         }
     }
+    g_huds[player] = hud;
+    if (!leaderboard) return;  // (the HUD keeps the game's LeaderBoard, which finds none of its objects and shows nothing)
     if (!find_object(package, kGroupHash)) {
         void *copy = copy_group(package, kGroupHash);
         if (!copy) return;
@@ -184,7 +187,7 @@ void attach(void *hud, const char *package, int player, int number) {
                                                                                                                          package, number)
                          : nullptr;
     *reinterpret_cast<void **>(static_cast<char *>(hud) + kHudLeaderBoard) = board;
-    g_huds[player] = hud;
+    g_boards[player] = true;
     g_log.line("hud: player %d's leaderboard is in %s (%p)", player + 1, package, board);
 }
 
@@ -193,7 +196,8 @@ void install() { events::on_frame(&fade_housings); }
 void detach(void *hud) {
     for (int i = 0; i < nfsmw::kMaxPlayers; ++i)
         if (g_huds[i] == hud) {
-            delete_leaderboard(hud);  // (before the package's objects go)
+            if (g_boards[i]) delete_leaderboard(hud);  // (before the package's objects go)
+            g_boards[i] = false;
             g_huds[i] = nullptr;
             g_packages[i][0] = 0;
         }

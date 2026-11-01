@@ -49,9 +49,10 @@ struct Family {
     int first, second;
     const char *source;
     const char *const *copies;
-    bool minimap;  // the HUD has a minimap (the second type is given one when it is a copy)
+    bool minimap;      // the HUD has a minimap (the second type is given one when it is a copy)
+    bool leaderboard;  // the HUD gets the single player HUD's leaderboard (hud_copies.cpp)
 };
-const Family kFamilies[] = {{kHudSplit1, kHudSplit2, kSource, kCopies, true}, {kHudDrag1, kHudDrag2, kDragSource, kDragCopies, false}};
+const Family kFamilies[] = {{kHudSplit1, kHudSplit2, kSource, kCopies, true, true}, {kHudDrag1, kHudDrag2, kDragSource, kDragCopies, false, false}};
 const Family *family_of(int type) {
     for (const Family &f : kFamilies)
         if (type == f.first || type == f.second) return &f;
@@ -158,7 +159,7 @@ void hud_made(void *hud, int type, const char *package, void *player, int number
     hud_views::classify(package);
     if (void *minimap = *reinterpret_cast<void **>(static_cast<char *>(hud) + kHudMinimap)) minimap::for_each_object(minimap, &hud_views::classify_as_minimap);
     set_markers();
-    hud_copies::attach(hud, package, index, number);
+    hud_copies::attach(hud, package, index, number, family->leaderboard);
 }
 
 int g_updating = -1;  // the player whose HUD the game is updating
