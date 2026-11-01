@@ -45,7 +45,7 @@ namespace {
 
 constexpr uintptr_t kFillCustomRace = 0x56DD20, kSetNumOpponentsCall = 0x7AB500, kSetNumOpponents = 0x5DCE60;
 constexpr uintptr_t kAddToggleOption = option_row::kAddToggleOption, kSetupCallSite = 0x7BF73D, kInitRacersOpponents = 0x61DC8D, kGetRaceType = 0x5FAA20, kSetNumLaps = 0x5E9A70;
-constexpr uintptr_t kFeDatabase = 0x91CF90, kGetQuickRaceSettings = 0x56DBE0, kNumLapsVtable = 0x8B788C, kDisableWidget = 0x589440;
+constexpr uintptr_t kFeDatabase = 0x91CF90, kGetQuickRaceSettings = 0x56DBE0, kNumLapsVtable = 0x8B788C, kDisableWidget = 0x589440, kEnableWidget = 0x589410;
 constexpr unsigned kScreenRace = 0x128;  // the screen's GRaceParameters
 constexpr int kRaceKnockout = 3, kAllTypes = 11;  // GRace::Type
 constexpr unsigned kSettingsLaps = 4;             // RaceSettings: laps
@@ -57,11 +57,14 @@ void *g_seen[32];
 int g_seen_count = 0;
 bool g_collecting = false;
 void *g_laps_widget = nullptr;  // the Laps row of the screen that was built last
+void *g_skill_widget = nullptr, *g_catch_up_widget = nullptr;  // its Difficulty and Catch Up rows
 unsigned (__fastcall *g_orig_add_toggle)(void *, void *, void *, int);
 
 unsigned __fastcall hook_add_toggle(void *self, void *edx, void *widget, int a) {
     if (g_collecting && g_seen_count < 32) g_seen[g_seen_count++] = *reinterpret_cast<void **>(widget);
     if (g_collecting && *reinterpret_cast<uintptr_t *>(widget) == kNumLapsVtable) g_laps_widget = widget;
+    if (g_collecting && *reinterpret_cast<uintptr_t *>(widget) == kRows[1]) g_skill_widget = widget;
+    if (g_collecting && *reinterpret_cast<uintptr_t *>(widget) == kRows[2]) g_catch_up_widget = widget;
     return g_orig_add_toggle(self, edx, widget, a);
 }
 
@@ -71,7 +74,11 @@ bool has_row(uintptr_t vtable) {
     return false;
 }
 
-void add_row(void *screen, uintptr_t vtable) { option_row::add(screen, reinterpret_cast<void **>(vtable)); }
+void add_row(void *screen, uintptr_t vtable) {
+    void *widget = option_row::add(screen, reinterpret_cast<void **>(vtable));
+    if (vtable == kRows[1]) g_skill_widget = widget;
+    if (vtable == kRows[2]) g_catch_up_widget = widget;
+}
 
 // ---- the AI Opponents row: in a split screen race it takes the place of the Opponents row
 constexpr int kMaxRacers = 16;        // GRaceStatus has room for 16 racers (0x194 bytes each from +0x18, the count at +0x1958)
@@ -106,6 +113,26 @@ void sync_knockout_laps() {
     option_row::redraw(g_laps_widget);
 }
 
+// Without opponents the Difficulty and Catch Up rows do nothing: greyed out (the widget's Disable, as the game's Laps row), and back when there are some. The rows are
+// only touched when that changes: Enable plays the row's unhighlight script again, which left the rows' values dimmer than the other rows' when it was done to rows that had
+// never been disabled.
+bool g_ai_rows_disabled = false;
+
+void sync_ai_rows() {
+    if (!g_opponents_row || (ai_opponents() == 0) == g_ai_rows_disabled) return;
+    g_ai_rows_disabled = ai_opponents() == 0;
+    for (void *widget : {g_skill_widget, g_catch_up_widget}) {
+        if (!widget) continue;
+        reinterpret_cast<void(__fastcall *)(void *, void *)>(ai_opponents() == 0 ? kDisableWidget : kEnableWidget)(widget, nullptr);
+        option_row::redraw(widget);
+    }
+}
+
+void sync_rows() {
+    sync_knockout_laps();
+    sync_ai_rows();
+}
+
 void __fastcall opponents_draw(void *self, void *) { option_row::set_texts(self, kOpponentsTitleHash, opponents_hash(ai_opponents())); }
 
 void __fastcall opponents_act(void *self, void *, const char *, unsigned data) {
@@ -114,7 +141,7 @@ void __fastcall opponents_act(void *self, void *, const char *, unsigned data) {
     g_opponents = data == option_row::kPadRight ? (opponents >= most ? 0 : opponents + 1) : (opponents <= 0 ? most : opponents - 1);
     option_row::value_changed(self, data);
     g_log.line("race options: %d AI opponents (%d players)", g_opponents, player_count::wanted());
-    sync_knockout_laps();
+    sync_rows();
 }
 
 // ---- the screen's constructor calls Setup (or what another mod put there) through this
@@ -125,7 +152,8 @@ void __fastcall setup_and_rows(void *screen, void *edx) {
     g_seen_count = 0;
     g_opponents_row = false;
     g_opponents_widget = nullptr;  // (the screen that had it is gone)
-    g_laps_widget = nullptr;
+    g_laps_widget = g_skill_widget = g_catch_up_widget = nullptr;
+    g_ai_rows_disabled = false;
     g_knockout_screen = false;
     g_collecting = true;
     reinterpret_cast<SetupFn>(g_setup)(screen, edx);
@@ -146,7 +174,7 @@ void __fastcall setup_and_rows(void *screen, void *edx) {
             ++added;
         }
     if (added) option_row::refresh(screen);
-    sync_knockout_laps();
+    sync_rows();
     g_log.line("AI in split screen: the race options had %d rows, %d AI rows added%s", had, added,
                !g_knockout_screen ? "" : g_laps_widget ? "; lap knockout: the Laps row follows the racers" : "; lap knockout: NO Laps row found");
 }
@@ -224,7 +252,7 @@ void racers_made() { g_making_racers = false; }
 void players_changed() {
     g_opponents = ai_opponents();  // (the players and the opponents are never more than 16)
     if (g_opponents_row && g_opponents_widget) opponents_draw(g_opponents_widget, nullptr);
-    sync_knockout_laps();
+    sync_rows();
 }
 
 void register_texts(const nfsmw::custom_menus::Host *host) {

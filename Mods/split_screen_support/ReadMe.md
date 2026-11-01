@@ -52,7 +52,6 @@ This is a bit of a documentation on what issues were encountered during developm
 
 # TODOS
 - Need to test all race types. Never tried tollbooth or speedtrap.
-- The AI difficulty and catch-up options should be grayed out when AI opponents is set to 0.
 - The press START text for players 1 and 2 says "Player x press START button." but for players 3 and 4 it says "Player x press START.". Should be consistent.
 - Also, in a 4-player game when pressing Back from player 3's car select, it goes back all the way to the race options menu instead of the player 3 press START screen.
 - We can open the world-map in split-screen/custom race (I believe only due to some other mod), but we only see player 1. Could we add the same markers that are present on the minimap, in the right places, with the right colors and sizes?
