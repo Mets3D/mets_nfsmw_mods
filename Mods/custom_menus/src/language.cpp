@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "nfsmw_util.h"
+#include "patch.h"
 
 namespace custom_menus::language {
 
@@ -59,6 +60,30 @@ const char *native_name(int id) {
         case 13: return "Suomi";
         default: return nullptr;
     }
+}
+
+// ---- the save system's strings (memcard/LOCALE_<LANGUAGE>.loc)
+// SetCurrentLanguage (at start-up, and when the row changes the language) has MemoryCard load them (0x518260, a call at 0x57E836), and that function never checks that the file
+// is there: bFileSize / bOpen fail, nothing is read into the buffer, and the first message of the save system (UIMemcardBoot, MemoryCard::GetLocaleString) reads the section table
+// from whatever the buffer held and crashes. A Redux v3 install has the files of English and Russian only, so any other language crashed at the next start-up. A language
+// without its file gets the English one (the save system's messages are in English then, which the game's own English was all along).
+constexpr uintptr_t kLoadLocaleCall = 0x57E836, kGetLanguageName = 0x56B7E0, kMemoryCard = 0x91CB20;
+constexpr int kEnglish = 0, kOwnNameFirst = 14, kOwnNameLast = 15;  // (these build a different file name: left as they are)
+uintptr_t g_load_locale = 0;
+
+bool locale_file_exists(int language) {
+    const char *name = reinterpret_cast<const char *(__cdecl *)(int)>(kGetLanguageName)(language);
+    if (!name) return true;
+    const std::string path = std::string("memcard/LOCALE_") + name + ".loc";
+    return GetFileAttributesA(path.c_str()) != INVALID_FILE_ATTRIBUTES;
+}
+
+void __cdecl load_locale(int language) {
+    if (language != kEnglish && (language < kOwnNameFirst || language > kOwnNameLast) && !locale_file_exists(language)) {
+        if (g_log) g_log->line("language: no save system file (memcard/LOCALE_*.loc) for language %d: the English one is loaded", language);
+        language = kEnglish;
+    }
+    reinterpret_cast<void(__cdecl *)(int)>(g_load_locale)(language);
 }
 
 // The languages the game has a file for.
@@ -163,6 +188,19 @@ void defaults() {}  // the language is not one of the player's options to reset
 opt::Page g_page;
 
 }  // namespace
+
+void install_locale_fallback(nfsmw::Logger *log) {
+    g_log = log;
+    g_load_locale = nfsmw::chain_call(kLoadLocaleCall, reinterpret_cast<uintptr_t>(&load_locale));
+    if (!g_load_locale) {
+        log->line("language: the call at %#x is not as expected: a language without its save system file crashes the game", static_cast<unsigned>(kLoadLocaleCall));
+        return;
+    }
+    // The language may be set already (the plugin was loaded late): load the strings again if the file of that language is missing.
+    const int now = current();
+    if (now >= 0 && *reinterpret_cast<void **>(kMemoryCard) && !locale_file_exists(now)) load_locale(now);
+    log->line("language: the save system's strings fall back to English when a language has no file (language %d now)", now);
+}
 
 void provide(const opt::Host *host, nfsmw::Logger *log, void (*changed_fn)()) {
     g_log = log;

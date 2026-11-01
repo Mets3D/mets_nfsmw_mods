@@ -1647,6 +1647,7 @@ NFSMW_PLUGIN_MAIN() {
     nfsmw::data_file("nfsmw_custom_menus.ini", g_ini, sizeof(g_ini));
     nfsmw::xinput::load(&g_log);
     custom_menus::slider_meter::init(&g_log);
+    custom_menus::language::install_locale_fallback(&g_log);
     install_hooks();
     return NFSMW_OK;
 }

@@ -434,5 +434,15 @@
     "name": "Game_AllHumanPlayersDone",
     "confidence": "read",
     "note": "Lua binding: true when every human racer (driver class, IVehicle vtable +0x58) has a flag +0x1C knocked out / +0x1D totaled / +0x1E engine blown / +0x1F busted / +0x21 finished"
+  },
+  "0x518260": {
+    "name": "MemoryCard::LoadLocale",
+    "confidence": "read",
+    "note": "cdecl (language): loads memcard/LOCALE_<GetLanguageName>.loc into the MemoryCard's buffer (+0x10); never checks that the file exists (a missing one leaves the buffer as it was and MemoryCard::GetLocaleString crashes); one caller, SetCurrentLanguage (0x57E836); languages 14 and 15 build another name"
+  },
+  "0x7F0F48": {
+    "name": "LocaleFile::GetString",
+    "confidence": "guess",
+    "note": "cdecl (file, id): the string of a .loc file by id (the section table at +0x10, count at section +0xC); MemoryCard::GetLocaleString calls it with [MemoryCard + 0x10]"
   }
 }
