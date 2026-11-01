@@ -35,7 +35,7 @@ This is a bit of a documentation on what issues were encountered during developm
 - Races start with the intro cutscenes just like in single-player.
 - All 16 cars spawn in correct places, whether the race has a 2-row (2x2) or a 1-row (1x4) layout.
 - Knockout races work: You cannot specify lap count, it is determined by total racers. When you get knocked out, you no longer control your car, but you can still open the pause menu.
-- AI opponents appear on the minimap.
+- All opponents including AI opponents appear on the minimap and also the world map.
 
 ## Mod Compatibility
 
@@ -52,7 +52,6 @@ This is a bit of a documentation on what issues were encountered during developm
 
 # TODOS
 - Need to test all race types. Never tried tollbooth or speedtrap.
-- We can open the world-map in split-screen/custom race (I believe only due to some other mod), but we only see player 1. Could we add the same markers that are present on the minimap, in the right places, with the right colors and sizes?
 - Maybe a knocked out player in either lap knockout or drag race should be removed from the screen after a few seconds? Although this would be too jarring if it happened suddenly, and animating a screen re-organization would surely be crazy. But... what if it works? >.>
 - How about vertical split screen? ;) Maybe an option under Gameplay. In 3-player, player 1 would take the entire left side, while players 2 and 3 share the right side.
 - Heat Level (cops) is the one Quick Race option not available in Split Screen yet (the others are above, under "Needs your testing"). It is not a row of the game: Redux v3's NFSMWRaceFixes adds it in its own code, so it needs that plugin's row class.

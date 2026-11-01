@@ -276,6 +276,8 @@ void __fastcall hook_begin_countdown(void *self, void *edx) {
 int player_of_hud(void *hud) { return index_of(hud); }
 int pause_requester() { return g_pause_requester; }
 
+unsigned player_colour(int player) { return kColours[player < 0 ? 0 : player >= kMaxHuds ? kMaxHuds - 1 : player]; }
+
 void install() {
     const nfsmw::Hook hooks[] = {
         {"pause", "EPause::EPause", 0x623A90, {0x8B, 0x54, 0x24, 0x08, 0x8B, 0xC1, 0x8B}, false, nfsmw::detour(&hook_epause), nfsmw::orig(&g_orig_epause)},

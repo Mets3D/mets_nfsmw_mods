@@ -10,6 +10,9 @@ int player_of_hud(void *hud);
 // with 1 and 2. -1 when it is not known (use the settings index).
 int pause_requester();
 
+// The colour (0xRRGGBB) of a player's marker on the minimaps (and the world map), 0-based.
+unsigned player_colour(int player);
+
 void install();
 
 }  // namespace split_screen_support::hud_players
