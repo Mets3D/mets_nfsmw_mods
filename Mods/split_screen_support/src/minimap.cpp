@@ -17,6 +17,7 @@
 #include <cstring>
 
 #include "events.h"
+#include "fe_clone.h"
 #include "fe_objects.h"
 #include "hud_views.h"
 #include "hooks.h"
@@ -44,7 +45,6 @@ void shift(void *o, float dy) {
 }
 
 // ---- the game's functions
-using CloneFn = void *(__fastcall *)(void *, void *, bool);
 using VehicleVectorsFn = void(__cdecl *)(float *, float *, void *);
 using ElementArtFn = void(__fastcall *)(void *, void *, float *, float *, void *, bool);
 using GetColorFn = unsigned(__cdecl *)(void *);
@@ -144,39 +144,6 @@ bool has_descendant(void *object, void *target, int depth = 0) {
     return false;
 }
 
-// The game's Clone makes the object and its scripts but not its data (finish_clone does that), and only images, groups and multi
-// images have no pointers in their data; scripts are needed because Clone reads the current one without a check.
-bool can_clone(void *object, int depth = 0) {
-    const int type = field<int>(object, 0x18);
-    if (type != 1 && type != 5 && type != 12) {  // image, group, multi image: no pointers in their data
-        g_log.line("minimap: object %08x has type %d, cloning it is not safe", field<unsigned>(object, 0x10), type);
-        return false;
-    }
-    if (!field<void *>(object, 0x54)) {
-        g_log.line("minimap: object %08x has no script, cloning it is not safe", field<unsigned>(object, 0x10));
-        return false;
-    }
-    if (!is_group(object) || depth > 8) return true;
-    for (void *c = first_child(object); c; c = next_of(c))
-        if (!can_clone(c, depth + 1)) return false;
-    return true;
-}
-
-// FEObject::Clone leaves the object's data zeroed (alpha 0: invisible) and a multi image's texture fields unset. The copy also has
-// new GUIDs, may lack the name hash (packages keep only the hash) and must not inherit a render cache.
-void finish_clone(void *original, void *copy, int depth = 0) {
-    field<unsigned>(copy, 0x10) = field<unsigned>(original, 0x10);
-    const unsigned size = field<unsigned>(original, 0x30);
-    if (field<unsigned>(copy, 0x30) == size && field<void *>(original, 0x2C) && field<void *>(copy, 0x2C))
-        memcpy(field<void *>(copy, 0x2C), field<void *>(original, 0x2C), size);
-    if (field<int>(original, 0x18) == 12) memcpy(static_cast<char *>(copy) + 0x60, static_cast<char *>(original) + 0x60, 0x18);  // textures, texture flags
-    field<void *>(copy, 0x58) = nullptr;
-    field<unsigned>(copy, 0x1C) |= kDirty;
-    if (!is_group(original) || depth > 8) return;
-    void *o = first_child(original), *c = first_child(copy);
-    for (; o && c; o = next_of(o), c = next_of(c)) finish_clone(o, c, depth + 1);
-}
-
 // A player's own marker is at the map's centre (the game only sets that in AdjustForWidescreen, which is not always called).
 void place_marker(void *minimap) {
     void *marker = field<void *>(minimap, 0x90);
@@ -211,29 +178,17 @@ void pin_placed() {
         if (position_y(g_placed[i].object) != g_placed[i].y) shift(g_placed[i].object, g_placed[i].y - position_y(g_placed[i].object));
 }
 
-// The group that has `target` as a child (anywhere below `group`).
-void *parent_of(void *group, void *target, int depth = 0) {
-    if (depth > 8) return nullptr;
-    for (void *c = first_child(group); c; c = next_of(c)) {
-        if (c == target) return group;
-        if (is_group(c))
-            if (void *found = parent_of(c, target, depth + 1)) return found;
-    }
-    return nullptr;
-}
-
 // A copy of the minimap's marker of another player, in the same group (so the group's visibility is its).
 void *clone_marker(Markers &m) {
     void *marker = field<void *>(m.minimap, 0x94);
     void *package = m.package ? find_package(m.package) : nullptr;
-    if (!marker || !package || !can_clone(marker)) return nullptr;
+    if (!marker || !package) return nullptr;
     void *group = nullptr;
     for (void *o = field<void *>(package, 0x4C); o && !group; o = next_of(o))
         if (is_group(o)) group = parent_of(o, marker);
     if (!group) return nullptr;
-    void *copy = reinterpret_cast<CloneFn>(vslot(marker, 1))(marker, nullptr, false);
+    void *copy = clone_object(marker);
     if (!copy) return nullptr;
-    finish_clone(marker, copy);
     reinterpret_cast<void(__fastcall *)(void *, void *, void *)>(0x5B5420)(group, nullptr, copy);  // FEGroup::AddObject
     hud_views::classify_like(copy, marker);
     return copy;
