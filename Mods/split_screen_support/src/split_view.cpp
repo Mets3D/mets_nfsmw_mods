@@ -176,7 +176,7 @@ bool canvas_fits(const D3DSURFACE_DESC &screen) {
 
 bool copy(IDirect3DDevice9 *device, IDirect3DSurface9 *from, const RECT &from_rect, IDirect3DSurface9 *to,
           const RECT &to_rect, const char *what) {
-    const bool stretch = (from_rect.bottom - from_rect.top) != (to_rect.bottom - to_rect.top);
+    const bool stretch = (from_rect.bottom - from_rect.top) != (to_rect.bottom - to_rect.top) || (from_rect.right - from_rect.left) != (to_rect.right - to_rect.left);
     const HRESULT hr = device->StretchRect(from, &from_rect, to, &to_rect, stretch ? D3DTEXF_LINEAR : D3DTEXF_NONE);
     if (SUCCEEDED(hr)) return true;
     g_log.line("split view: StretchRect (%s) failed: %#lx", what, static_cast<unsigned long>(hr));
@@ -447,22 +447,35 @@ void read_timing() {
     for (int i = 0; i < kTimestamps - 1; ++i) g_gpu_ms[i] = g_cpu_ms[i] = 0;
 }
 
-// Three or four players: every pass is the whole picture, shrunk into its cell of the canvas (a quadrant has the screen's aspect: nothing is cropped), except
-// the first player's with three players, who has the top half: a band of the picture, as with two. The cells are those of layout.h: with four players
-// player 1 is the top left, player 2 the top right, players 3 and 4 the bottom row; with three player 1 has the top half and players 2 and 3 the bottom
-// row. The HUD and menus are drawn over this by the game as if for the screen in two halves.
+// What of a player's picture (the whole screen's) goes into a cell: all of it for a cell of the screen's proportions, a band of it for a wider one (centred at
+// kBandCenter, as with two players), the middle for a narrower one.
+RECT picture_part(const RECT &cell, LONG w, LONG h) {
+    const long long cell_w = cell.right - cell.left, cell_h = cell.bottom - cell.top;
+    if (cell_w <= 0 || cell_h <= 0) return {0, 0, w, h};
+    if (cell_w * h > cell_h * w) {
+        const LONG band = static_cast<LONG>(w * cell_h / cell_w);
+        const LONG top = std::clamp(static_cast<LONG>(kBandCenter * h) - band / 2, 0L, h - band);
+        return {0, top, w, top + band};
+    }
+    const LONG part = static_cast<LONG>(h * cell_w / cell_h), left = (w - part) / 2;
+    return {left, 0, left + part, h};
+}
+
+// Every pass is the whole picture, shrunk into its cell of the canvas (a quadrant has the screen's aspect: nothing is cropped); a wider cell (the halves of
+// two players, the first player's of three, who has the top half, a cell that grew into the cell of a player who is out) gets a band of the picture, a narrower
+// one its middle. The cells are those of layout.h: with four players player 1 is the top left, player 2 the top right, players 3 and 4 the bottom row; with
+// three player 1 has the top half and players 2 and 3 the bottom row. An empty cell (a player who is out) gets no pass. The HUD and menus are drawn over this by
+// the game as if for the screen in two halves.
 bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, const D3DSURFACE_DESC &d, int players) {
     const LONG w = d.Width, h = d.Height, qw = w / 2, qh = h / 2;
-    const RECT full = {0, 0, w, h};
     RECT cells[nfsmw::kMaxPlayers];
+    layout::update(players);
     for (int i = 0; i < players; ++i) cells[i] = layout::cell(i, players, 2 * qw, 2 * qh);
-    RECT first_source = full;  // what of player 1's picture goes to the first cell
-    if (players == 3) {
-        LONG band_top = std::clamp(static_cast<LONG>(kBandCenter * h) - qh / 2, 0L, h - qh);
-        first_source = {0, band_top, w, band_top + qh};
-    }
+    const auto empty = [&](int i) { return cells[i].right <= cells[i].left || cells[i].bottom <= cells[i].top; };
     char names[nfsmw::kMaxPlayers][16];
     for (int i = 0; i < players; ++i) snprintf(names[i], sizeof(names[i]), "player %d", i + 1);
+    // The game's per-frame memory (matrices of the flares and headlights, ...) is sized for one drawing: each pass reuses what the one before took, which is dead
+    // once its picture is drawn.
     unsigned *pool = reinterpret_cast<unsigned *>(kFramePool);
     const unsigned pool_start = pool[0];
     const bool timed = g_timing_on && start_timing(device);
@@ -474,17 +487,21 @@ bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, 
         stamps[0]->Issue(D3DISSUE_END);
         cpu_start = now_ms();
     }
-    reflections::begin_pass(device, 0, players);
-    game_frame();  // player 1
-    pool[0] = pool_start;
-    reflections::end_pass(device, 0);
+    bool ok = true;
+    if (!empty(0)) {  // (somebody races: some pass draws the frame)
+        reflections::begin_pass(device, 0, players);
+        game_frame();  // player 1
+        pool[0] = pool_start;
+        reflections::end_pass(device, 0);
+        view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(w), static_cast<float>(h), 0);
+        ok = copy(device, back_buffer, picture_part(cells[0], w, h), g_canvas, cells[0], names[0]);
+    }
     if (timed) {
         g_cpu_ms[0] += now_ms() - cpu_start;
         stamps[1]->Issue(D3DISSUE_END);
     }
-    view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(w), static_cast<float>(h), 0);
-    bool ok = copy(device, back_buffer, first_source, g_canvas, cells[0], names[0]);
     for (int pass = 1; pass < players && ok; ++pass) {
+        if (empty(pass)) continue;
         const bool extra = pass >= 2;
         const uintptr_t other = extra ? reinterpret_cast<uintptr_t>(extra_cameras::prepare_pass(pass - 2)) : kView2;
         if (!other) continue;  // no camera yet: the quadrant keeps what it had
@@ -502,7 +519,7 @@ bool multi_view_frame(IDirect3DDevice9 *device, IDirect3DSurface9 *back_buffer, 
         }
         view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(w), static_cast<float>(h), pass);  // with the player's view in view 1's place
         trade_views(pass, other);
-        ok = copy(device, back_buffer, full, g_canvas, cells[pass], names[pass]);
+        ok = copy(device, back_buffer, picture_part(cells[pass], w, h), g_canvas, cells[pass], names[pass]);
     }
     if (timed) {
         for (int i = players + 1; i < kTimestamps; ++i) stamps[i]->Issue(D3DISSUE_END);  // the passes there are not: no time
@@ -524,45 +541,8 @@ void split_frame(IDirect3DDevice9 *device) {
         g_failed = true;
         return game_frame();
     }
-    const LONG w = d.Width, h = d.Height, half = h / 2;
-    LONG band_top = static_cast<LONG>(kBandCenter * h) - half / 2;
-    if (band_top < 0) band_top = 0;
-    if (band_top > h - half) band_top = h - half;
-    const RECT source = {0, band_top, w, band_top + half};
-    const RECT top = {0, 0, w, half}, bottom = {0, half, w, 2 * half};
-
     make_shadow_copies();
-    if (more_players::extra_player_count() > 0) {
-        const bool ok = multi_view_frame(device, back_buffer, d, nfsmw::kPlayersPerRound + more_players::extra_player_count());
-        back_buffer->Release();
-        if (!ok) {
-            g_failed = true;
-            release_canvas();
-            g_log.line("split view: turned off for this session");
-        }
-        return;
-    }
-    // The game's per-frame memory (matrices of the flares and headlights, ...): the frame is drawn twice, and the pool is
-    // sized for one drawing: the second pass reuses what the first one took, which is dead once its picture is drawn.
-    unsigned *pool = reinterpret_cast<unsigned *>(kFramePool);
-    const unsigned pool_start = pool[0];
-    reflections::begin_pass(device, 0, 2);
-    game_frame();  // player 1
-    pool[0] = pool_start;
-    reflections::end_pass(device, 0);
-    view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(d.Width), static_cast<float>(d.Height), 0);
-    bool ok = copy(device, back_buffer, source, g_canvas, top, "player 1");
-    clear_screen(device, back_buffer);
-    trade_views(1, kView2);
-    setup_glow_view();
-    reflections::begin_pass(device, 1, 2);  // reflections around player 2's car
-    game_frame();  // player 2
-    reflections::end_pass(device, 1);
-    view_api::draw(device, at<void *>(kView1, kViewPlatInfo), static_cast<float>(d.Width), static_cast<float>(d.Height), 1);  // with player 2's view still in view 1's place
-    trade_views(1, kView2);
-    ok = ok && copy(device, back_buffer, source, g_canvas, bottom, "player 2");
-    const RECT both = {0, 0, w, 2 * half};
-    ok = ok && copy(device, g_canvas, both, back_buffer, both, "to the screen");
+    const bool ok = multi_view_frame(device, back_buffer, d, nfsmw::kPlayersPerRound + more_players::extra_player_count());
     back_buffer->Release();
     if (!ok) {
         g_failed = true;

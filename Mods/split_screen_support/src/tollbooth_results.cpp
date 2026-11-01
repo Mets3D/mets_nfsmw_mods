@@ -81,7 +81,7 @@ void __fastcall hook_draw(void *stat, void *edx) {
     if (!tollbooth::active()) return;
     const unsigned char *info = *reinterpret_cast<unsigned char **>(static_cast<unsigned char *>(stat) + kStatRacer);
     const int racer = racers::index_of(info);
-    if (racer < 0 || !info[racers::kFinished] || info[racers::kKnockedOut] || info[0x1D] || info[0x1E]) return;  // (the flags the game's row checks: totalled, engine blown)
+    if (racer < 0 || !info[racers::kFinished] || racers::out(info)) return;  // (the flags the game's row checks)
     int ticks = static_cast<int>(tollbooth::time_left(racer) * *reinterpret_cast<float *>(kTicksPerSecond) + *reinterpret_cast<float *>(kRounding));
     char text[32] = {};
     reinterpret_cast<void(__fastcall *)(int *, void *, char *, int)>(kPrintToString)(&ticks, nullptr, text, 0);

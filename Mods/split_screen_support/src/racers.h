@@ -12,7 +12,10 @@ namespace split_screen_support::racers {
 constexpr int kMax = 16;  // the game's race state keeps the racers in tables of 16 (GRaceStatus: the GRacerInfos, then the count; lap times, check times...): more needs them moved
 constexpr unsigned kInfoSize = 0x194;
 // GRacerInfo (the PC layout)
-constexpr unsigned kKnockedOut = 0x1C, kFinished = 0x21;  // bytes
+constexpr unsigned kKnockedOut = 0x1C, kTotalled = 0x1D, kEngineBlown = 0x1E, kFinished = 0x21;  // bytes
+
+// Out of the race: knocked out, totalled or with a blown engine.
+inline bool out(const unsigned char *racer) { return racer[kKnockedOut] || racer[kTotalled] || racer[kEngineBlown]; }
 
 // [options] max_racers: how many cars a race has at most, players and opponents (4 up to kMax). The memory and the slots for customized paint and engine sounds that more
 // racers need are made at start-up from this one number. `ini` is the path of the ini (g_ini; the parts that start before it is known read the file themselves).
@@ -55,6 +58,13 @@ inline int index_of_simable(void *racer_simable) {
     unsigned char *s = status();
     if (!s || !racer_simable) return -1;
     return index_of(reinterpret_cast<unsigned char *(__fastcall *)(void *, void *, void *)>(kGetRacerInfo)(s, nullptr, racer_simable));
+}
+
+// The racer of a player's pointer (an IPlayer), -1 when it is none.
+inline int of_player(void *player) {
+    constexpr unsigned kPlayerGetSimable = 1;  // IPlayer virtual table slot
+    if (!player) return -1;
+    return index_of_simable(reinterpret_cast<void *(__fastcall *)(void *, void *)>((*reinterpret_cast<void ***>(player))[kPlayerGetSimable])(player, nullptr));
 }
 
 }  // namespace split_screen_support::racers

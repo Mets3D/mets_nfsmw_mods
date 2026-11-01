@@ -8,7 +8,7 @@
  *   fixes.cpp          the changes that let the race load and show
  *   split_view.cpp     the screen in two (or four): the world drawn once per player, each player's shadow map
  *   reflections.cpp    the car reflection cube map of each player (a copy of its six faces per player)
- *   layout.h           where each player's picture goes (a grid of cells)
+ *   layout.h/.cpp      where each player's picture goes (a grid of cells; the cells of players who are out slide away)
  *   hud_views.cpp      each player's HUD package drawn into their cell of the screen
  *   hud_players.cpp    a HUD with a minimap for each of four players (copies of HUD_Player1.fng made by hud_packages.cpp)
  *   minimap.cpp        a minimap for each player, a colour for each player's marker

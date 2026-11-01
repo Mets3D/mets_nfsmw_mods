@@ -94,6 +94,7 @@ void reset_transform() {
 bool g_modified = false;                 // the viewport is a part of the screen, and g_saved is what it was
 const Assignment *g_current = nullptr;   // the HUD being drawn
 int g_viewport_part = -1;                // the part the viewport was last set for
+bool g_no_cell = false;                  // the player's cell has no width now (layout.h: they are out): their HUD is not drawn
 D3DVIEWPORT9 g_saved;
 
 void(__fastcall *g_orig_begin)(void *, void *, void *);
@@ -114,6 +115,7 @@ IDirect3DDevice9 *device() { return *reinterpret_cast<IDirect3DDevice9 **>(kDevi
 void restore_viewport() {
     g_current = nullptr;
     g_viewport_part = -1;
+    g_no_cell = false;
     if (!g_modified) return;
     g_modified = false;
     reset_transform();
@@ -136,8 +138,10 @@ void set_viewport(const Assignment &a, unsigned char part) {
         return;
     }
     const RECT cell = layout::cell(a.player, a.players, width, height);
+    g_no_cell = cell.right <= cell.left || cell.bottom <= cell.top;
+    if (g_no_cell) return;
     const float percent = static_cast<float>(g_scale[a.player < kMaxPlayers ? a.player : 0]);
-    const float factor = std::clamp(percent / 100.0f, 0.3f, kMaxScale / 100.0f) * layout::hud_base_scale(cell, width, height);
+    const float factor = std::clamp(percent / 100.0f, 0.3f, kMaxScale / 100.0f) * layout::hud_scale(a.player, a.players, width, height);
     const float picture_width = width * factor, picture_height = height * factor;
     const Column column = static_cast<Column>(part & 3);
     const Row row = static_cast<Row>(part >> 2);
@@ -187,9 +191,10 @@ void __fastcall hook_end(void *self, void *edx, void *package) {
 
 void __fastcall hook_render_object(void *self, void *edx, void *object) {
     if (g_current && object) {
+        if (g_no_cell) return;
         const auto found = g_part.find(object);
         if (found != g_part.end()) {
-            if (found->second == kHidden) return;
+            if (found->second == kHidden || (found->second == kDivider && layout::changed(g_current->players))) return;
             if (found->second != g_viewport_part) set_viewport(*g_current, found->second);
         }
     }

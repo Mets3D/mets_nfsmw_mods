@@ -17,6 +17,7 @@ Points marked with * require the [Custom Menus](../custom_menus/ReadMe.md) mod t
 - *Each player can scale their HUD (also in a game with one player) in **Options > Player > HUD Scale**.
 - *Each player can set their own volume in **Options > Player > Split-Screen Volume**.
 - Tollbooth races are supported: Each player has their own clock, if you run out of time you get knocked out, starting positions work for up to 16 cars (although above 4 it gets unfair), and the end-of-race summary screen shows your remaining time.
+- If a player is eliminated, their screen disappears, one of the neighbouring players takes up the available screen space. The eliminated player's resources are freed, their screen no longer rendered, their audio muted.
 
 ## Non-features
 This is a bit of a documentation on what issues were encountered during development. Things you should take for granted, but other mods that aren't paying enough attention might miss.
@@ -54,7 +55,8 @@ This is a bit of a documentation on what issues were encountered during developm
 # TODOS
 - The only issue with Speedtrap is that you can't see your standing in the race - I believe the leaderboard HUD is just always disabled in all split-screen modes. I think this is unnecessary because there is a per-player option to disable it anyways.
 - Tollbooth added option idea: "Time Reduction", a percentage value to tweak the difficulty to one's liking.
-- Maybe a knocked out player (which can happen in knockout, drag, tollbooth) should be removed from the screen after a few seconds? Although this would be too jarring if it happened suddenly, and animating a screen re-organization would surely be crazy. But... what if it works? >.>
+- I think if we skip the intro cinematic, the cars end up starting the race in whatever position they happened to be in in the moment of the skip. Not good!
+- I think mirrors are disabled in split-screen, I wonder why, and if we could lift it, and how bad the performance impact would be.
 - Minor UI issue: Values of race options turn gray after stepping over them.
 - Would be fun to allow customizing some minimap properties: Player 1,2,3,4 colors, AI opponent color, AI opponent size.
 - Idea: Option to change race start layout between the current behaviour (humans first), vs humans in the back, vs randomized.

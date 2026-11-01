@@ -23,6 +23,7 @@
 #include <cstring>
 
 #include "hooks.h"
+#include "layout.h"
 #include "max_players.h"
 #include "more_players.h"
 #include "patch.h"
@@ -162,12 +163,16 @@ void __cdecl update_camera_movers(float dt) {
         memcpy(g_last_position[i], position[i], sizeof(g_last_position[i]));
         g_last_known[i] = true;
     }
+    // A player who is out and whose cell is gone (layout.h) needs no track: the places are for the others.
+    bool kept[nfsmw::kMaxPlayers];
+    for (int i = 0; i < count; ++i) kept[i] = layout::presence(i) > 0.0f;
     int first = 0, second = 1;
     float best = 3.0e38f;
     for (int a = 0; a < count; ++a)
         for (int b = a + 1; b < count; ++b) {
             float worst = 0;
             for (int i = 0; i < count; ++i) {
+                if (!kept[i]) continue;
                 const float nearest = std::min(distance_squared(position[i], position[a]), distance_squared(position[i], position[b]));
                 worst = std::max(worst, nearest);
             }
@@ -181,7 +186,7 @@ void __cdecl update_camera_movers(float dt) {
     {
         int extras = 0;
         for (int i = 0; i < count; ++i) {
-            if (i == first || i == second) continue;
+            if (i == first || i == second || !kept[i]) continue;
             Extra &extra = g_extras[extras++];
             if (extra.player != i) {
                 extra.player = i;

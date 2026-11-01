@@ -11,8 +11,9 @@
 //                      when that is not known (the main menu, a game of one player): the game's own PlayerToEdit (0 or 1) is then right.
 //   void *nfsmw_split_screen_support_player(int index)  the game's LocalPlayer (IPlayer) of player 1 to 4 (index 0 to 3); null when there is none. Players 3 and 4
 //                      are not in the game's list of local players.
-//   int nfsmw_split_screen_support_wide_picture(void *camera_anchor)  1 when the picture of the player whose camera that is (a CameraAnchor, as GetPov gets it) is much
-//                      wider than the screen (two players, the first of three), 0 when it has the screen's proportions (the others), -1 when that is not known.
+//   float nfsmw_split_screen_support_picture_shape(void *camera_anchor)  the shape of the picture of the player whose camera that is (a CameraAnchor, as GetPov gets
+//                      it) against the screen's, width over height: 2 for the bands of two players (and the first of three), 1 for the screen's proportions (four
+//                      players), 0.5 for two side by side, in between while the cells slide after a player is out; 0 when that is not known.
 //   nfsmw_split_screen_support_press_start(int device)  for automated tests: the Press Start screen that is showing gets "this device let go of
 //                      Start" (device 0-3 = XInput controller, -1 = the keyboard), as if the person had pressed it.
 //   nfsmw_split_screen_support_select_car(int device)  for automated tests: on the race options after a split screen race, that device pressed Select Car (2 / X).
@@ -52,10 +53,10 @@ inline PlayerFn find_player() {
     return module ? reinterpret_cast<PlayerFn>(GetProcAddress(module, "nfsmw_split_screen_support_player")) : nullptr;
 }
 
-using WidePictureFn = int (*)(void *camera_anchor);
-inline WidePictureFn find_wide_picture() {
+using PictureShapeFn = float (*)(void *camera_anchor);
+inline PictureShapeFn find_picture_shape() {
     const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
-    return module ? reinterpret_cast<WidePictureFn>(GetProcAddress(module, "nfsmw_split_screen_support_wide_picture")) : nullptr;
+    return module ? reinterpret_cast<PictureShapeFn>(GetProcAddress(module, "nfsmw_split_screen_support_picture_shape")) : nullptr;
 }
 
 using PressStartFn = void (*)(int device);

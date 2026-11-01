@@ -25,6 +25,7 @@
 #include <nfsmw_sdk/nfsmw_sdk.h>
 #include <MinHook.h>
 
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
@@ -338,33 +339,55 @@ Pov *single_player_pov(void *anchor, int type) {
     return p;
 }
 
-// The game's split screen presets are made for the two wide bands. Split Screen (when it is there) says whether the camera's player has one: with 4 players, and for
-// the second and third of three, the picture has the screen's proportions and the single player presets are the right ones. -1 (not known) keeps the game's mode.
-bool wide_picture(void *anchor) {
-    static nfsmw::split_screen_api::WidePictureFn ask = nullptr;
-    if (!ask) ask = nfsmw::split_screen_api::find_wide_picture();  // the mods load in any order: looked for until found
-    return !ask || ask(anchor) != 0;
+// The game's split screen presets are made for the two wide bands of two players (a picture twice as wide as the screen's shape), the single player ones for the
+// screen's shape. Split Screen (when it is there) says the shape of the camera's player's picture: 4 players, and the second and third of three, have the screen's
+// proportions and the single player presets; in between the two shapes (the cells slide when a player is out of the race) the values are blended. A picture
+// narrower than the screen (two players side by side) shows only the middle of what the camera sees: the single player values with a wider FoV. 0 (not known)
+// keeps the game's mode.
+float picture_shape(void *anchor) {
+    static nfsmw::split_screen_api::PictureShapeFn ask = nullptr;
+    if (!ask) ask = nfsmw::split_screen_api::find_picture_shape();  // the mods load in any order: looked for until found
+    return ask ? ask(anchor) : 0.0f;
+}
+constexpr float kNarrowFov = 15.0f;  // degrees added for a picture half as wide as the screen's shape
+
+// The game's split screen values of `p`, `t` of the way from the single player values `single` (0: those, 1: the split screen ones).
+void blend(Pov *p, const Pov &single, float t) {
+    const auto mix = [t](float a, float b) { return a + (b - a) * t; };
+    p->lag = mix(single.lag, p->lag);
+    p->height = mix(single.height, p->height);
+    p->lat_offset = mix(single.lat_offset, p->lat_offset);
+    p->angle = deg_to_ang(mix(ang_to_deg(single.angle), ang_to_deg(p->angle)));
+    p->fov = deg_to_ang(mix(get_field(single, P_FOV), get_field(*p, P_FOV)));
 }
 
 Pov *FASTCALL hook_getpov(void *self, void *edx, int type) {
     const bool valid = type >= 0 && type < kNumPresets;
     const bool mode_split = valid && *reinterpret_cast<int *>(kCurrentViewMode) == kViewTwoViews;
-    const bool split = mode_split && wide_picture(self);
+    const float shape = mode_split ? picture_shape(self) : 1.0f;
+    const float split = !mode_split ? 0.0f : shape > 0.0f ? std::clamp(shape - 1.0f, 0.0f, 1.0f) : 1.0f;  // how far toward the game's split screen values
+    Pov single_pov{};  // (a copy: the Pov is one buffer of the anchor)
+    if (split > 0.0f) single_pov = *single_player_pov(self, type);
+    Pov *p = mode_split && split <= 0.0f ? single_player_pov(self, type) : g_orig_getpov(self, edx, type);  // last: the buffer must hold the mode's own values
+    if (p && split > 0.0f && split < 1.0f) blend(p, single_pov, split);
     float single[NPARAM];  // the game's single player values: what the page shows and the settings are relative to
-    if (split) read_base(*single_player_pov(self, type), type, single);
-    Pov *p = mode_split && !split ? single_player_pov(self, type) : g_orig_getpov(self, edx, type);  // last: the Pov is one buffer of the anchor, and it must hold the mode's own values
+    if (split > 0.0f) read_base(single_pov, type, single);
     if (p && valid) {
         g_cur_type = type;
         g_anchor = self;
-        float now[NPARAM];  // the game's values for this mode
+        float now[NPARAM];  // the game's values for this picture
         read_base(*p, type, now);
-        if (!split) memcpy(single, now, sizeof(now));
+        if (split <= 0.0f) memcpy(single, now, sizeof(now));
+        if (shape > 0.0f && shape < 1.0f) {
+            now[P_FOV] += kNarrowFov * std::min(1.0f, 2.0f * (1.0f - shape));
+            apply_field(p, P_FOV, now[P_FOV]);
+        }
         if (!g_have_base[type] || memcmp(single, g_base[type], sizeof(single)) != 0) {
             static unsigned logged = 0;
             if (logged++ < 200)
                 log_line("base %-9s fov=%.1f height=%.3f lag=%.3f pitch=%.1f%s",
                          kPresetName[type], single[P_FOV], single[P_HEIGHT], single[P_LAG], single[P_ANGLE],
-                         split ? " (single player; split screen has its own)" : "");
+                         split > 0.0f ? " (single player; split screen has its own)" : "");
             memcpy(g_base[type], single, sizeof(single));
             g_have_base[type] = true;
         }

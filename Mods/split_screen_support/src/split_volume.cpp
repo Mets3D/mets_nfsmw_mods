@@ -14,6 +14,7 @@
 #include <unordered_map>
 
 #include "hooks.h"
+#include "layout.h"
 #include "max_players.h"
 #include "players.h"
 #include "split_screen_support.h"
@@ -96,7 +97,7 @@ float gain_of(const void *block) {
 
 void note_sound(const void *block, int player) {
     if (!block || !players::split_screen()) return;
-    g_gain[block] = {static_cast<float>(percent(player)) / 100.f, g_round};
+    g_gain[block] = {static_cast<float>(percent(player)) / 100.f * layout::presence(player), g_round};  // (a player who is out falls silent as their cell goes)
 }
 
 void install() {

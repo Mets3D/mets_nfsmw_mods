@@ -14,35 +14,29 @@
 #include "more_players.h"
 #include "patch.h"
 #include "players.h"
+#include "racers.h"
 #include "split_screen_support.h"
 
 namespace split_screen_support::knockout {
 
 namespace {
 
-constexpr uintptr_t kKnockOutCall = 0x61146A, kKnockOut = 0x600210, kForceStop = 0x5E9240, kGetRacerInfo = 0x5E8B20, kRaceStatus = 0x91E000, kEventNew = 0x627400,
+constexpr uintptr_t kKnockOutCall = 0x61146A, kKnockOut = 0x600210, kForceStop = 0x5E9240, kEventNew = 0x627400,
                     kShowRaceOverMessage = 0x625160;
-constexpr unsigned kKnockedOutFlag = 0x1C;  // GRacerInfo: knocked out
-constexpr unsigned kPlayerGetSimable = 1;   // IPlayer virtual table slot
 
 uintptr_t g_knock_out = kKnockOut;  // what the call goes to (another mod may have redirected it)
 
 // The player (0-based) whose racer this is, -1 for an opponent.
 int player_of(void *racer) {
-    void *status = *reinterpret_cast<void **>(kRaceStatus);
-    if (!status) return -1;
-    for (int i = 0; i < nfsmw::kMaxPlayers; ++i) {
-        void *player = more_players::game_player(i);
-        if (!player) continue;
-        void *simable = reinterpret_cast<void *(__fastcall *)(void *, void *)>((*reinterpret_cast<void ***>(player))[kPlayerGetSimable])(player, nullptr);
-        if (simable && reinterpret_cast<void *(__fastcall *)(void *, void *, void *)>(kGetRacerInfo)(status, nullptr, simable) == racer) return i;
-    }
+    const int index = racers::index_of(static_cast<unsigned char *>(racer));
+    for (int i = 0; i < nfsmw::kMaxPlayers && index >= 0; ++i)
+        if (racers::of_player(more_players::game_player(i)) == index) return i;
     return -1;
 }
 
 void __fastcall hook_knock_out(void *racer, void *edx) {
     reinterpret_cast<void(__fastcall *)(void *, void *)>(g_knock_out)(racer, edx);
-    if (!players::split_screen() || !*(static_cast<unsigned char *>(racer) + kKnockedOutFlag)) return;
+    if (!players::split_screen() || !static_cast<unsigned char *>(racer)[racers::kKnockedOut]) return;
     const int player = player_of(racer);
     if (player < 0) return;
     reinterpret_cast<void(__fastcall *)(void *, void *)>(kForceStop)(racer, nullptr);

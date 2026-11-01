@@ -35,7 +35,6 @@ constexpr uintptr_t kGetRaceTimeRemaining = 0x5FE090, kAwardBonusTime = 0x5FE600
 constexpr uintptr_t kIsTollboothRace = 0x50E1B0, kGetTimeLimit = 0x5FC260, kGetRaceTimeElapsed = 0x5E3060, kKnockoutRacer = 0x611440, kEventNew = 0x627400,
                     kShowTimeExtensionEvent = 0x6252D0;
 constexpr unsigned kRaceParameters = 0x1968, kBooths = 0x30, kBoothTimes = 0x34, kMaxBooths = 16;  // GRaceStatus; GRacerInfo
-constexpr unsigned kPlayerGetSimable = 1;                                                         // IPlayer virtual table slot
 constexpr unsigned kLocalPlayerInterface = 0x2C, kInterfaceGetSimable = 3;                         // LocalPlayer::UpdateHud asks the object at this + 0x2C (virtual slot 3)
 
 struct Clock {
@@ -64,17 +63,10 @@ void(__fastcall *g_orig_time_extension_update)(void *, void *, void *);
 char(__fastcall *g_orig_is_player)(void *, void *);
 void(__fastcall *g_orig_set_lap_time)(void *, void *, float);
 
-// The racer of a player's pointer (an IPlayer), -1 when it is none.
-int racer_of_player(void *player) {
-    if (!player) return -1;
-    void *simable = reinterpret_cast<void *(__fastcall *)(void *, void *)>((*reinterpret_cast<void ***>(player))[kPlayerGetSimable])(player, nullptr);
-    return racers::index_of_simable(simable);
-}
-
 // The player (0-based) of a racer, -1 for an opponent.
 int player_of_racer(int racer) {
     for (int i = 0; i < nfsmw::kMaxPlayers; ++i)
-        if (racer_of_player(more_players::game_player(i)) == racer && racer >= 0) return i;
+        if (racers::of_player(more_players::game_player(i)) == racer && racer >= 0) return i;
     return -1;
 }
 
@@ -112,7 +104,7 @@ float __fastcall hook_remaining(void *status, void *edx) {
     float most = 0.0f;
     bool any_player = false;
     for (int i = 0; i < nfsmw::kMaxPlayers; ++i) {
-        const int racer = racer_of_player(more_players::game_player(i));
+        const int racer = racers::of_player(more_players::game_player(i));
         if (racer < 0) continue;
         any_player = true;
         if (!knocked_out(racer)) most = std::max(most, time_left(status, racer));
@@ -183,7 +175,7 @@ void __fastcall hook_update_hud(void *player, void *edx, float dt) {
 
 void __fastcall hook_time_extension_update(void *self, void *edx, void *player) {
     const int context = g_context;
-    g_context = active() ? racer_of_player(player) : -1;
+    g_context = active() ? racers::of_player(player) : -1;
     g_orig_time_extension_update(self, edx, player);
     g_context = context;
 }

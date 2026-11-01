@@ -40,8 +40,8 @@ extern "C" __declspec(dllexport) int nfsmw_split_screen_support_options_player()
 // The LocalPlayer (IPlayer) of player 1 to 4 (0 to 3), null when there is none.
 extern "C" __declspec(dllexport) void *nfsmw_split_screen_support_player(int index) { return split_screen_support::more_players::game_player(index); }
 
-// Whether the picture of the camera anchor's player is much wider than the screen (1), has its proportions (0), or that is not known (-1).
-extern "C" __declspec(dllexport) int nfsmw_split_screen_support_wide_picture(void *anchor) { return split_screen_support::extra_cameras::wide_picture(anchor); }
+// The shape of the picture of the camera anchor's player against the screen's (width over height; 1 the screen's own, 0 not known).
+extern "C" __declspec(dllexport) float nfsmw_split_screen_support_picture_shape(void *anchor) { return split_screen_support::extra_cameras::picture_shape(anchor); }
 
 extern "C" __declspec(dllexport) void nfsmw_split_screen_support_log_players() { split_screen_support::more_players::log_players(); }
 

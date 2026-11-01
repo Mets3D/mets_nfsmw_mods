@@ -253,13 +253,14 @@ void *camera_object(int extra) {
     return mover ? at<void *>(reinterpret_cast<uintptr_t>(mover), 0x1C) : nullptr;
 }
 
-int wide_picture(void *anchor) {
+float picture_shape(void *anchor) {
     const int players = more_players::race_players();
-    if (!players::split_screen() || players < 2) return -1;
+    if (!players::split_screen() || players < 2) return 0.0f;
     const int player = player_of_anchor(anchor);
-    if (player < 0 || player >= players) return -1;  // (a camera just made is not in the director's action yet)
-    const RECT cell = layout::cell(player, players, 1000, 1000);  // a square "screen": a cell wider than 1.5 times its height is wider than the screen's own
-    return 2 * (cell.right - cell.left) > 3 * (cell.bottom - cell.top) ? 1 : 0;
+    if (player < 0 || player >= players) return 0.0f;  // (a camera just made is not in the director's action yet)
+    const RECT cell = layout::cell(player, players, 10000, 10000);  // a square "screen": the cell's width over its height is its shape against the screen's
+    if (cell.right <= cell.left || cell.bottom <= cell.top) return 1.0f;
+    return static_cast<float>(cell.right - cell.left) / static_cast<float>(cell.bottom - cell.top);
 }
 
 void install() {

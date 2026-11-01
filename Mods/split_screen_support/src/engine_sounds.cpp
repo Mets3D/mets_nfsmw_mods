@@ -39,6 +39,7 @@
 #include "events.h"
 #include "hooks.h"
 #include "extra_cameras.h"
+#include "layout.h"
 #include "max_players.h"
 #include "more_players.h"
 #include "patch.h"
@@ -92,6 +93,7 @@ void *__cdecl closest_listener(const float *position, bool, int *index) {
     float best = 1e30f;
     *index = 0;
     for (int i = 0; i < g_listener_count; ++i) {  // (the game's: the cars of the players of the race, index 0 when there are none)
+        if (layout::presence(i) <= 0.0f) continue;  // a player who is out, whose cell is gone (the listeners are the players in order)
         const float dx = g_listeners[i][0] - position[0], dy = g_listeners[i][1] - position[1], dz = g_listeners[i][2] - position[2];
         const float distance = dx * dx + dy * dy + dz * dz;
         if (distance < best) {
