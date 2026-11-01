@@ -444,5 +444,10 @@
     "name": "LocaleFile::GetString",
     "confidence": "guess",
     "note": "cdecl (file, id): the string of a .loc file by id (the section table at +0x10, count at section +0xC); MemoryCard::GetLocaleString calls it with [MemoryCard + 0x10]"
+  },
+  "0x5FFD80": {
+    "name": "GRaceStatus::ResetRaceTimers",
+    "confidence": "read",
+    "note": "thiscall: clears the per-racer time tables (+0x19BC, +0x1C3C), sets the race clock to the start time and stops it ([+0x1978] = 0), clears the time bonus (+0x1980), the time-is-up flag (+0x1989) and +0x1984, +0x1988, +0x198C; callers: the GRaceStatus constructor and the race start (0x602010)"
   }
 }

@@ -17,6 +17,7 @@
  *   more_players.cpp   players 3 and 4: a second round of Press Start and Car Select, their picks kept in a table, their cars in the race
  *   standings.cpp      the racers' names of players 3 and 4, the leaderboard of a player ranked below 4
  *   knockout.cpp       a player knocked out of a lap knockout: the car stops and the game's message shows
+ *   tollbooth.cpp      a clock for each racer of a tollbooth race; a racer whose time is up is knocked out
  *   race_end.cpp       the end of a race: every player gets the race-over message, the results wait a few seconds
  *   world_map.cpp      the world map shows every player and the opponents, in the colours of the minimaps
  *   extra_streaming.cpp the track streamer's two positions chosen among four cars
@@ -36,6 +37,7 @@
 #include "split_volume.h"
 #include "knockout.h"
 #include "race_end.h"
+#include "tollbooth.h"
 #include "standings.h"
 #include "world_map.h"
 #include "events.h"
@@ -98,6 +100,7 @@ NFSMW_PLUGIN_MAIN() {
     split_volume::install();
     standings::install();
     knockout::install();
+    tollbooth::install();
     race_end::install();
     world_map::install();
     if (ini_flag("options", "ai_in_split_screen", true)) ai_in_split_screen::install();  // after player_count: its rows come after the Players row
