@@ -12,6 +12,9 @@ int pause_requester();
 
 // The colour (0xRRGGBB) of a player's marker on the minimaps (and the world map), 0-based.
 unsigned player_colour(int player);
+// The opponents' markers: their colour, and their size as a part of a player's marker ([minimap] opponent_color, opponent_size in the ini).
+unsigned opponent_colour();
+float opponent_size();
 
 void install();
 

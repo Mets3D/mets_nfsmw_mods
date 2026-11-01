@@ -25,8 +25,7 @@ constexpr uintptr_t kAddPlayerCar = 0x530F40, kGetVehicleVectors = 0x579840, kCo
                     kFindObjectByHash = 0x5B8550, kGetColor = 0x51A180, kSetColor = 0x5157E0, kVehicleLists = 0x92CD18;
 constexpr unsigned kIconHash = 0xDD9EF5FF, kMapPackage = 0x10, kMapItems = 0x154, kItemSize = 0x38;
 constexpr int kPlayerCarItem = 1;  // eWorldMapItemType
-constexpr unsigned kAiRacerList = 3, kAiRgb = 0x00E8E8E8;
-constexpr float kAiScale = 0.75f;  // as on the minimap
+constexpr unsigned kAiRacerList = 3;
 constexpr int kMaxOpponents = 16;
 
 void (__fastcall *g_orig_add_player_car)(void *, void *);
@@ -104,7 +103,7 @@ void __fastcall hook_add_player_car(void *map, void *edx) {
         void *vehicle = vehicles[i];
         if (!vehicle || !reinterpret_cast<bool(__fastcall *)(void *, void *)>(virtual_entry(vehicle, 0x88 / 4))(vehicle, nullptr)) continue;
         void *simable = reinterpret_cast<void *(__fastcall *)(void *, void *)>(virtual_entry(vehicle, 1))(vehicle, nullptr);
-        void *copy = simable ? make_icon(package, icon, kAiRgb, kAiScale) : nullptr;
+        void *copy = simable ? make_icon(package, icon, hud_players::opponent_colour(), hud_players::opponent_size()) : nullptr;
         if (!copy) {
             ++failed;
             break;

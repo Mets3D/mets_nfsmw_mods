@@ -16,6 +16,7 @@
  */
 #include "hud_players.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 
@@ -62,7 +63,19 @@ constexpr unsigned kPlayerSetHudSlot = 0x24 / 4;  // IPlayer's virtual table
 constexpr unsigned kHudFeatures = 0x18;            // FEngHud: the 64 bits of what the HUD shows (FEngHud::SetHudFeatures)
 
 constexpr float kMinimapRise = -75.0f;  // FE units: the minimap sits on the line between the halves of the screen's layout, where the HUD's half ends
-constexpr unsigned kColours[kMaxHuds] = {0x00FF9040, 0x002090FF, 0x0040E060, 0x00C050FF, 0x00F0E040, 0x0040E0E0, 0x00F060A0, 0x00A0A0A0};  // the marker of each player on the minimaps: orange, blue, green, purple, yellow, cyan, pink, grey
+// The marker of each player on the minimaps: orange, blue, green, purple, yellow, cyan, pink, grey; [minimap] player_N_color in the ini (RRGGBB) changes them.
+unsigned g_colours[kMaxHuds] = {0x00FF9040, 0x002090FF, 0x0040E060, 0x00C050FF, 0x00F0E040, 0x0040E0E0, 0x00F060A0, 0x00A0A0A0};
+unsigned g_opponent_colour = 0x00E8E8E8;
+float g_opponent_size = 0.75f;  // of a player's marker
+
+// An RRGGBB colour of the ini's [minimap], or `fallback`.
+unsigned ini_colour(const char *key, unsigned fallback) {
+    char text[16];
+    GetPrivateProfileStringA("minimap", key, "", text, sizeof(text), g_ini);
+    char *end = nullptr;
+    const unsigned long value = strtoul(text[0] == '#' ? text + 1 : text, &end, 16);
+    return text[0] && end && *end == 0 ? static_cast<unsigned>(value & 0xFFFFFF) : fallback;
+}
 
 void(__fastcall *g_orig_begin_countdown)(void *, void *);
 bool g_in_countdown = false;
@@ -94,9 +107,9 @@ void set_markers() {
         for (int j = 0; j < g_hud_count; ++j)
             if (j != i) {
                 others[count] = g_players[j];
-                colours[count++] = kColours[j];
+                colours[count++] = g_colours[j];
             }
-        minimap::set_markers(minimap, g_packages[i], kColours[i], others, colours, count);
+        minimap::set_markers(minimap, g_packages[i], g_colours[i], others, colours, count);
     }
 }
 
@@ -276,9 +289,18 @@ void __fastcall hook_begin_countdown(void *self, void *edx) {
 int player_of_hud(void *hud) { return index_of(hud); }
 int pause_requester() { return g_pause_requester; }
 
-unsigned player_colour(int player) { return kColours[player < 0 ? 0 : player >= kMaxHuds ? kMaxHuds - 1 : player]; }
+unsigned player_colour(int player) { return g_colours[player < 0 ? 0 : player >= kMaxHuds ? kMaxHuds - 1 : player]; }
+unsigned opponent_colour() { return g_opponent_colour; }
+float opponent_size() { return g_opponent_size; }
 
 void install() {
+    for (int i = 0; i < kMaxHuds; ++i) {
+        char key[24];
+        snprintf(key, sizeof(key), "player_%d_color", i + 1);
+        g_colours[i] = ini_colour(key, g_colours[i]);
+    }
+    g_opponent_colour = ini_colour("opponent_color", g_opponent_colour);
+    g_opponent_size = std::clamp(static_cast<int>(GetPrivateProfileIntA("minimap", "opponent_size", 75, g_ini)), 25, 200) / 100.0f;
     const nfsmw::Hook hooks[] = {
         {"pause", "EPause::EPause", 0x623A90, {0x8B, 0x54, 0x24, 0x08, 0x8B, 0xC1, 0x8B}, false, nfsmw::detour(&hook_epause), nfsmw::orig(&g_orig_epause)},
         {"countdown", "Countdown::BeginCountdown", 0x567F10, {0x68, 0x00, 0x05, 0x8A, 0x00, 0x6A, 0x08}, false, nfsmw::detour(&hook_begin_countdown),

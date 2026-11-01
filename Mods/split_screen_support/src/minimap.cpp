@@ -19,6 +19,7 @@
 #include "events.h"
 #include "fe_clone.h"
 #include "fe_objects.h"
+#include "hud_players.h"
 #include "hud_views.h"
 #include "hooks.h"
 #include "max_players.h"
@@ -219,8 +220,7 @@ void colour(void *marker, unsigned rgb) {
 // own copy of the update shows none of them): a small copy of the other players' marker for each active racer of the game's list of AI racers (the array of vehicle lists at
 // 0x92CD18, 0x60 bytes each, list 3: pointer to the vehicles at +4, their count at +0xC), in a colour of their own, moved by the minimap's own placing code.
 constexpr uintptr_t kVehicleLists = 0x92CD18, kSetInvisible = 0x514C70;
-constexpr unsigned kAiRacerList = 3, kAiRgb = 0x00E8E8E8;
-constexpr float kAiScale = 0.75f;
+constexpr unsigned kAiRacerList = 3;
 
 // What an object of the minimap is like, for the log (the data: colour as 4 ints, position, size).
 void describe(const char *what, void *object) {
@@ -251,8 +251,8 @@ void update_ai_markers(void *minimap, Markers &m) {
             if (!art) m.ai_clone_failed = true;  // (no second marker to copy yet, or one that cannot be copied: not tried again until the HUD is made again)
             else {
                 float *size = &field<float>(field<void *>(art, 0x2C), 0x38);  // the width and height in FEng units (14.5 x 16.5 for the players' arrows)
-                size[0] *= kAiScale;
-                size[1] *= kAiScale;
+                size[0] *= hud_players::opponent_size();
+                size[1] *= hud_players::opponent_size();
                 field<unsigned>(art, 0x1C) |= kDirty;
             }
         }
@@ -262,7 +262,7 @@ void update_ai_markers(void *minimap, Markers &m) {
         float position[2] = {}, direction[2] = {};
         reinterpret_cast<VehicleVectorsFn>(0x579840)(position, direction, simable);
         reinterpret_cast<ElementArtFn>(0x5675D0)(minimap, nullptr, position, direction, art, false);
-        colour(art, kAiRgb);
+        colour(art, hud_players::opponent_colour());
         if (log && shown < 3) {
             g_log.line("minimap: opponent %d (vehicle %p) at (%.1f, %.1f), heading (%.2f, %.2f)", shown, vehicle, position[0], position[1], direction[0], direction[1]);
             describe("its marker", art);

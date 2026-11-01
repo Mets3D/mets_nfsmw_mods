@@ -17,7 +17,7 @@ Points marked with * require the [Custom Menus](../custom_menus/ReadMe.md) mod t
   - **Time** (Tollbooth races): 30% to 300% of the game's time, both the time you start with and the time each booth adds.
 - AI opponents allowed: Up to 16 total cars in a race.
 - Each player can invoke the pause menu. The "Player Options" menu will affect the player who opened the pause menu. The name of the affected player is displayed in the menu's header.
-- *Each player gets their own minimap and minimap color. Each player can hide their own minimap in **Options > Player > Minimap**.
+- *Each player gets their own minimap and minimap color. Each player can hide their own minimap in **Options > Player > Minimap**. The players' colours and the opponents' colour and marker size can be changed in the [.ini](nfsmw_split_screen_support.ini) (`[minimap]`).
 - *Each player can scale their HUD (also in a game with one player) in **Options > Player > HUD Scale**.
 - *Each player can set their own volume in **Options > Player > Split-Screen Volume**.
 - Tollbooth races are supported: Each player has their own clock, if you run out of time you get knocked out, starting positions work for up to 16 cars (although above 4 it gets unfair), and the end-of-race summary screen shows your remaining time.
@@ -58,7 +58,6 @@ This is a bit of a documentation on what issues were encountered during developm
 
 # TODOS
 - The only issue with Speedtrap is that you can't see your standing in the race - I believe the leaderboard HUD is just always disabled in all split-screen modes. I think this is unnecessary because there is a per-player option to disable it anyways.
-- Allow customizing some minimap properties in the .ini: Player 1,2,3,4 colors, AI opponent color, AI opponent size.
 - I think rear-view mirrors are disabled in split-screen, I wonder why, and if we could allow them, and how bad the performance impact would be. If it's bad, we can add Options->Gameplay->"Split Screen Mirrors": "Allowed"/"Disabled"
 - Minor UI issue: Values of race options turn gray after stepping over them. Fix probably belows in Custom Menus mod.
 - Heat Level (cops) is the one Quick Race option not available in Split Screen yet. It is not a row of the base game: Redux v3's NFSMWRaceFixes adds it in its own code. Should check its code to see if we should just duplicate it, or only have this functionality when that mod is also present.
