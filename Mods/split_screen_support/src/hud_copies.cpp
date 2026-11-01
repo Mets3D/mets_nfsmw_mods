@@ -9,12 +9,16 @@
  * until the race's HUDs go (popped right after the copies were made, the game crashed on one of its freed objects in FEngine::ProcessObjectMessage).
  * The copy sits under the race information and is drawn with it (its part of the HUD, hud_views.cpp).
  * The mirror's housing (the frame around the picture mirrors.cpp draws) is copied the same way and stays where the single player HUD has it (top middle, as the picture is);
- * its inner group is faded in and out by the scripts RadarDetector::Update 0x566170 sets in the single player HUD.
+ * its inner group is faded in and out by the scripts RadarDetector::Update 0x566170 sets in the single player HUD. Nothing of the game's does that for the copy, and a
+ * HUD does not update while the pause menu is up (the game takes the rest of the HUD away then, as the features of the HUD go), so every frame sets the script, which
+ * is the off one while paused.
  */
 #include "hud_copies.h"
 
 #include <cstdint>
+#include <cstdio>
 
+#include "events.h"
 #include "fe_clone.h"
 #include "fe_objects.h"
 #include "hud_views.h"
@@ -40,9 +44,9 @@ constexpr float kOffsetX = 149.0f, kOffsetY = 36.0f;  // from the race informati
 constexpr int kPriority = 0x66;                                                        // as the HUD pushes its own package
 constexpr const char *kSource = "HUD_SingleRace.fng";
 
-void *g_huds[nfsmw::kMaxPlayers];     // the HUD whose package got the copies, for each player
-void *g_housing[nfsmw::kMaxPlayers];  // the inner group of the copy of the mirror's housing
-bool g_source_pushed = false;      // HUD_SingleRace.fng was pushed for the copies: popped when the last of those HUDs goes
+void *g_huds[nfsmw::kMaxPlayers];            // the HUD whose package got the copies, for each player
+char g_packages[nfsmw::kMaxPlayers][48];  // the package of a player's HUD (the copy of the mirror's housing is looked up by it every frame: the package may go before the HUD)
+bool g_source_pushed = false;             // HUD_SingleRace.fng was pushed for the copies: popped when the last of those HUDs goes
 
 void *fe_engine() { return *reinterpret_cast<void **>(kFEng); }
 
@@ -146,17 +150,29 @@ void place(const char *package, void *copy) {
                position_x(copy), position_y(copy), x, y, hud_views::part_of_object(first_child(copy)), hud_views::part_of_object(first_child(info)));
 }
 
+// What RadarDetector::Update does for the single player HUD: the script that fades the housing in or out, unless it is the one set.
+void fade_housings() {
+    for (int player = 0; player < nfsmw::kMaxPlayers; ++player) {
+        if (!g_packages[player][0] || !find_package(g_packages[player])) continue;
+        void *housing = find_object(g_packages[player], kHousingInner);
+        if (!housing) continue;
+        const unsigned script = mirrors::shown(player) ? kScriptMirrorOn : kScriptMirrorOff;
+        if (!reinterpret_cast<bool(__cdecl *)(void *, unsigned)>(kIsScriptSet)(housing, script))
+            reinterpret_cast<void(__cdecl *)(void *, unsigned, bool)>(kSetScript)(housing, script, true);
+    }
+}
+
 }  // namespace
 
 void attach(void *hud, const char *package, int player, int number) {
     if (!hud || !package || player < 0 || player >= nfsmw::kMaxPlayers || !fe_engine()) return;
-    if (mirrors::enabled() && !find_object(package, kHousing)) {
+    snprintf(g_packages[player], sizeof(g_packages[player]), "%s", package);
+    if (!find_object(package, kHousing)) {
         if (void *housing = copy_group(package, kHousing)) {
-            hud_views::classify_new(package, housing);
+            hud_views::classify_as_mirror(housing);
             show(housing);
         }
     }
-    g_housing[player] = find_object(package, kHousingInner);
     if (!find_object(package, kGroupHash)) {
         void *copy = copy_group(package, kGroupHash);
         if (!copy) return;
@@ -172,20 +188,14 @@ void attach(void *hud, const char *package, int player, int number) {
     g_log.line("hud: player %d's leaderboard is in %s (%p)", player + 1, package, board);
 }
 
-// What RadarDetector::Update does for the single player HUD: the script that fades the housing in or out, unless it is the one set.
-void update(void *hud, int player) {
-    if (player < 0 || player >= nfsmw::kMaxPlayers || g_huds[player] != hud || !g_housing[player]) return;
-    const unsigned script = mirrors::shown(player) ? kScriptMirrorOn : kScriptMirrorOff;
-    if (!reinterpret_cast<bool(__cdecl *)(void *, unsigned)>(kIsScriptSet)(g_housing[player], script))
-        reinterpret_cast<void(__cdecl *)(void *, unsigned, bool)>(kSetScript)(g_housing[player], script, true);
-}
+void install() { events::on_frame(&fade_housings); }
 
 void detach(void *hud) {
     for (int i = 0; i < nfsmw::kMaxPlayers; ++i)
         if (g_huds[i] == hud) {
             delete_leaderboard(hud);  // (before the package's objects go)
             g_huds[i] = nullptr;
-            g_housing[i] = nullptr;
+            g_packages[i][0] = 0;
         }
     for (void *other : g_huds)
         if (other) return;

@@ -5,6 +5,7 @@
  * camera, PlatInfo, texture and list of movers (the game leaves the car of the first mover in view 3's list out of the mirror), which view 3 is given for the player's
  * pass (split_view.cpp): the same call of ___eDisplayFrame draws the player's mirror. hud_views.cpp draws the polygon once for each player, hud_copies.cpp gives each HUD
  * the frame. More in agent_docs/split-screen.md.
+ * The ini's allow_rear_view_mirror is also a row of Options > Advanced Video (a page of nfsmw_custom_menus, at the end of this file).
  */
 #include "mirrors.h"
 
@@ -14,6 +15,7 @@
 #include <utility>
 
 #include "camera_settings_api.h"
+#include "custom_menus_api.h"
 #include "events.h"
 #include "extra_cameras.h"
 #include "max_players.h"
@@ -36,6 +38,7 @@ constexpr size_t kMoverSize = 0x90, kCameraSize = 0x2C0, kPlatInfoSize = 0x1A0;
 constexpr unsigned kFarPlane = 0x466A6000;                                   // 15000.0f, as eDisplayFrame passes it
 constexpr int kSettingsOfPlayer = 5, kCurCam = 0x0C, kLookBack = 0x30 / 4;   // IPlayer vtable: its PlayerSettings (CurCam at +0xC); CubicCameraMover vtable: looking back
 constexpr int kOptions = 0x10, kRearviewOn = 0x39;                           // FEDatabase: the options settings; their Rearview option
+constexpr uintptr_t kShouldPauseSimulation = 0x525B20;                       // FEManager::ShouldPauseSimulation(bool), cdecl: what the game's mirror asks too
 constexpr int kEffectSetTexture = 0xD0 / 4, kEffectParameters = 0x44, kEffect = 0x48, kTextureHandle = 0x22C;  // ID3DXEffect vtable; the fields of [kEffectUser]
 
 struct Mirror {
@@ -125,6 +128,8 @@ int cur_cam(void *player) {
     return settings ? at<int>(settings, kCurCam) : -1;
 }
 
+bool paused() { return reinterpret_cast<bool(__cdecl *)(bool)>(kShouldPauseSimulation)(true); }
+
 bool looking_back(void *cubic_mover) {
     return cubic_mover && reinterpret_cast<unsigned short(__fastcall *)(void *, void *)>((*reinterpret_cast<void ***>(cubic_mover))[kLookBack])(cubic_mover, nullptr) > 0;
 }
@@ -144,8 +149,6 @@ void on_frame() {
 
 }  // namespace
 
-bool enabled() { return g_enabled; }
-
 void update(float dt) {
     const bool racing = g_enabled && players::split_screen();
     const int players = more_players::race_players();
@@ -163,7 +166,7 @@ void update(float dt) {
 
 bool begin_pass(IDirect3DDevice9 *device, int player) {
     set_view_on(false);
-    if (player < 0 || player >= nfsmw::kMaxPlayers || !g_mirror[player].shown || !make_texture(device, g_mirror[player])) return false;
+    if (!shown(player) || !make_texture(device, g_mirror[player])) return false;
     Mirror &m = g_mirror[player];
     trade(m);
     // The matrices and lighting the game makes for each view it draws. (View 3 keeps its id: the per view setup treats it as the mirror.)
@@ -185,7 +188,7 @@ void finish_frame() {
     set_view_on(g_view_on);
 }
 
-bool shown(int player) { return player >= 0 && player < nfsmw::kMaxPlayers && g_mirror[player].shown; }
+bool shown(int player) { return player >= 0 && player < nfsmw::kMaxPlayers && g_mirror[player].shown && !paused(); }
 
 // The game sets the mirror's texture on the effect it draws the polygon with (kEffectUser) just before; this sets the player's instead.
 bool bind(int player) {
@@ -206,6 +209,38 @@ void release() {
         m.surface = nullptr;
         m.texture = nullptr;
     }
+}
+
+// ---- Options > Advanced Video: Allow Mirror in Split-Screen (the ini's allow_rear_view_mirror, at once)
+namespace {
+
+namespace opt = nfsmw::custom_menus;
+
+constexpr unsigned kOnText = 0x417B2604, kOffText = 0x70DFE5C2;  // the game's own "On" and "Off"
+constexpr opt::Row kRows[] = {
+    {opt::kValueRow, "Allow Mirror in Split-Screen", 0,
+     "Gives every player of a split screen race a rear view mirror in the camera views that have one. It costs another picture of the world for each player."},
+};
+bool g_opened_enabled = true;
+
+void opened() { g_opened_enabled = g_enabled; }
+unsigned value(int, char *, unsigned) { return g_enabled ? kOnText : kOffText; }
+void change(int, int direction, bool) { g_enabled = direction > 0; }
+bool changed() { return g_enabled != g_opened_enabled; }
+void accept() {
+    WritePrivateProfileStringA("options", "allow_rear_view_mirror", g_enabled ? "1" : "0", g_ini);
+    g_log.line("mirrors: %s", g_enabled ? "allowed" : "not allowed");
+    g_opened_enabled = g_enabled;
+}
+void discard() { g_enabled = g_opened_enabled; }
+void defaults() { g_enabled = true; }
+opt::Page g_page;
+
+}  // namespace
+
+void register_page(const nfsmw::custom_menus::Host *host) {
+    g_page = {"split_mirror", "Mirror", "MIRROR", "MIRROR", 0, 0, nullptr, 1, kRows, nullptr, opened, value, change, changed, accept, discard, defaults, opt::kAdvancedVideoOptions, nullptr, nullptr, nullptr};
+    host->register_page(&g_page);
 }
 
 void install() {

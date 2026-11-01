@@ -1,4 +1,9 @@
 {
+  "0x525b20": {
+    "name": "FEManager::ShouldPauseSimulation",
+    "confidence": "read",
+    "note": "cdecl (bool) -> bool: the pause menu (or another screen that stops the simulation) is up; ShouldRearViewMirrorBeVisible asks it with true, so does the split screen's mirror (mirrors.cpp)"
+  },
   "0x585320": {
     "name": "cFEngRender::GenerateRenderContext",
     "confidence": "read",

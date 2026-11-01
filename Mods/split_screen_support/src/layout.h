@@ -37,6 +37,11 @@ RECT cell(int player, int players, long width, long height);
 // scaled by the cell's width as a part of the screen's.
 float hud_scale(int player, int players, long width, long height);
 
+// How big the rear view mirror is in the player's cell now, before the player's own HUD Scale: the HUD's scale, but also no bigger than the cell's height as a
+// part of the screen's (the picture of the mirror is wide and sits at the top: in the rows of the Horizontal layout, whose cells are as wide as the screen and
+// half as tall, it is half the size it has with the whole screen; the cell growing or shrinking when a player is out takes the mirror with it).
+float mirror_scale(int player, int players, long width, long height);
+
 // How much of their place on the screen the player still has: 1 while they race (and for a player who is out, until their cell goes), 0 once it is gone. What is
 // only for this player (their sounds, the track streamed around them, their picture) fades or stops with it.
 float presence(int player);

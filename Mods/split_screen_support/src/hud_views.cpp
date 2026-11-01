@@ -16,7 +16,7 @@
  * smaller (layout.h).
  * The rear view mirror's picture is no FEng object: eDisplayFrame_RenderFrontEnd (0x6E6E40) draws it as one polygon (FE units x 190 to 450, y 19 to 89, the mirror's texture) with
  * eViewPlatInterface::Render (its call at 0x6E7199) before the menus and HUD, under the HUD's mirror frame (top middle). That call gets the viewport of the
- * frame's part of player 1's HUD, so the picture scales with the frame.
+ * frame's part of each player's HUD, so the picture scales with the frame. That part, kMirror, is the HUD's top middle at the mirror's size (layout::mirror_scale).
  */
 #include "hud_views.h"
 
@@ -64,6 +64,8 @@ enum Column : unsigned char { kLeft, kCenter, kRight };
 enum Row : unsigned char { kTop, kMiddle, kBottom };
 constexpr unsigned char part_of(Column column, Row row) { return static_cast<unsigned char>(column | (row << 2)); }
 constexpr unsigned char kHidden = 0xFF, kDivider = 0xFE;  // not drawn; drawn as the screen has it
+constexpr unsigned char kMirrorBit = 0x10;                // the top middle, at the size of the rear view mirror (layout::mirror_scale)
+constexpr unsigned char kMirror = part_of(kCenter, kTop) | kMirrorBit;
 std::unordered_map<const void *, unsigned char> g_part;
 constexpr unsigned kDividerLine = 0x92D6630D;  // the line between the two halves of the screen of the split screen HUD
 
@@ -142,10 +144,11 @@ void set_viewport(const Assignment &a, unsigned char part) {
     g_no_cell = cell.right <= cell.left || cell.bottom <= cell.top;
     if (g_no_cell) return;
     const float percent = static_cast<float>(g_scale[a.player < kMaxPlayers ? a.player : 0]);
-    const float factor = std::clamp(percent / 100.0f, 0.3f, kMaxScale / 100.0f) * layout::hud_scale(a.player, a.players, width, height);
+    const float cell_scale = part & kMirrorBit ? layout::mirror_scale(a.player, a.players, width, height) : layout::hud_scale(a.player, a.players, width, height);
+    const float factor = std::clamp(percent / 100.0f, 0.3f, kMaxScale / 100.0f) * cell_scale;
     const float picture_width = width * factor, picture_height = height * factor;
     const Column column = static_cast<Column>(part & 3);
-    const Row row = static_cast<Row>(part >> 2);
+    const Row row = static_cast<Row>((part & ~kMirrorBit) >> 2);
     const float layout_bottom = a.layout == kHalfLayout ? kLayoutHeight / 2 : kLayoutHeight;  // the layout spans y 0 to this
 
     // The picture's place (pixels of the screen; it may stick out of the cell and of the screen).
@@ -240,7 +243,7 @@ bool render_player_mirrors(void *poly, int a, int b) {
     for (int i = 0; i < g_count && d; ++i) {
         const Assignment &hud = g_assigned[i];
         if (hud.players < 2 || !mirrors::bind(hud.player) || FAILED(d->GetViewport(&g_saved))) continue;
-        set_viewport(hud, part_of(kCenter, kTop));
+        set_viewport(hud, kMirror);
         if (!g_no_cell) reinterpret_cast<void(__cdecl *)(void *, int, int)>(g_render_poly)(poly, a, b);
         restore_viewport();
         any = true;
@@ -292,6 +295,13 @@ void classify_as_minimap(void *object) {
     for (void *child = first_child(object); child; child = next_of(child)) classify_as_minimap(child);
 }
 
+void classify_as_mirror(void *object) {
+    if (!object) return;
+    g_part[object] = kMirror;
+    if (!is_group(object)) return;
+    for (void *child = first_child(object); child; child = next_of(child)) classify_as_mirror(child);
+}
+
 int part_of_object(const void *object) {
     const auto found = g_part.find(object);
     return found == g_part.end() ? -1 : found->second;
@@ -318,10 +328,6 @@ void set_tree(void *object, unsigned char part, int depth = 0) {
         for (void *child = first_child(object); child; child = next_of(child)) set_tree(child, part, depth + 1);
 }
 }  // namespace
-
-void classify_new(const char *package, void *object) {
-    if (const Assignment *a = find(package); a && object) classify_object(*a, object, 0.0f, 0.0f, 0);
-}
 
 void classify_tree_like(void *object, void *model) {
     const int part = object && model ? part_of_tree(model) : -1;

@@ -180,7 +180,6 @@ void hud_destroy(void *hud) {
 
 void hud_before_update(void *hud, void *player) {
     g_updating = index_of(hud);
-    hud_copies::update(hud, g_updating);
     more_players::lend_view(player, true);
 }
 void hud_after_update(void *, void *player) {

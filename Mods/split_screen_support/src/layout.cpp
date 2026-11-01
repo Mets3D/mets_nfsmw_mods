@@ -162,6 +162,12 @@ float hud_scale(int player, int players, long width, long height) {
     return width > 0 ? std::min(1.0f, static_cast<float>(now.right - now.left) / static_cast<float>(width)) : 1.0f;
 }
 
+float mirror_scale(int player, int players, long width, long height) {
+    const RECT now = cell(player, players, width, height);
+    if (width <= 0 || height <= 0) return 1.0f;
+    return std::min(hud_scale(player, players, width, height), static_cast<float>(now.bottom - now.top) / static_cast<float>(height));
+}
+
 float presence(int player) {
     if (player < 0 || player >= g_players) return 1.0f;
     return eased(g_share[player]) * eased(g_line_share[line_of(player, g_players)]);

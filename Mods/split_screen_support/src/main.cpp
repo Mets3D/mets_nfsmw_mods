@@ -49,6 +49,7 @@
 #include "extra_cameras.h"
 #include "extra_streaming.h"
 #include "fixes.h"
+#include "hud_copies.h"
 #include "hud_players.h"
 #include "hud_views.h"
 #include "menu_entry.h"
@@ -90,6 +91,7 @@ NFSMW_PLUGIN_MAIN() {
     minimap::install();
     hud_views::install();
     hud_players::install();
+    hud_copies::install();
     minimap_option::install();
     player_count::install();
     race_rows::install();  // (its rows come under the Players row)
