@@ -195,6 +195,27 @@ void patch_voices() {
     nfsmw::patch_bytes(kVoicesPush, expected, patched, sizeof(patched));
 }
 
+// The render contexts of the menus and HUDs: `cFEngRender` (made once by `FEManager::Init`: `malloc(0x7BD0)` at 0x54EB2D, the object at [0x91CFA8]) ends in RContexts[180] (0xB0
+// bytes each from +0x10, cleared by its constructor 0x591AF0: `mov ecx, 0x1EF0` dwords at 0x591B35), and `cFEngRender::GenerateRenderContext` 0x585320 fills one for every group
+// drawn in a frame (the index is FEngine +0xD4, a 16 bit counter that `FEngine::Render` sets to 0 before all the packages) with no check of the end. Four split screen HUDs with
+// their leaderboard and mirror frame copies, the pause menu and Options > Video went past 180 and wrote over the heap after the object [tested: dev_tools' heap watch caught
+// GenerateRenderContext and MakeRenderMatrix writing into the package manager's entries; the game then crashed in the manager's walks of its list]. Everything indexes the
+// array from +0x10 and nothing follows it, so a bigger object is a bigger array: 1024 contexts (176 KB).
+constexpr uintptr_t kRenderAllocPush = 0x54EB2D, kRenderClearCount = 0x591B35, kRender = 0x91CFA8;
+constexpr unsigned kRenderContexts = 1024, kRenderContextSize = 0xB0, kRenderArray = 0x10;
+bool g_render_contexts_patched = false;
+void patch_render_contexts() {
+    static const unsigned char alloc_expected[5] = {0x68, 0xD0, 0x7B, 0x00, 0x00};  // push 0x7BD0
+    static const unsigned char clear_expected[5] = {0xB9, 0xF0, 0x1E, 0x00, 0x00};  // mov ecx, 0x1EF0
+    if (memcmp(reinterpret_cast<const void *>(kRenderAllocPush), alloc_expected, 5) != 0 || memcmp(reinterpret_cast<const void *>(kRenderClearCount), clear_expected, 5) != 0)
+        return;  // (both or neither)
+    const unsigned size = kRenderArray + kRenderContexts * kRenderContextSize, dwords = kRenderContexts * kRenderContextSize / 4;
+    unsigned char alloc[5] = {0x68}, clear[5] = {0xB9};
+    memcpy(alloc + 1, &size, 4);
+    memcpy(clear + 1, &dwords, 4);
+    g_render_contexts_patched = nfsmw::patch_bytes(kRenderAllocPush, alloc_expected, alloc, 5) && nfsmw::patch_bytes(kRenderClearCount, clear_expected, clear, 5);
+}
+
 struct Early {
     Early() {
         char ini[MAX_PATH];
@@ -207,6 +228,7 @@ struct Early {
         patch_csis_slots();
         patch_voices();
         patch_car_pool();
+        patch_render_contexts();
         if (g_wanted_mb <= 0 && g_car_extra_mb <= 0) return;
         static const unsigned char expected[8] = {0x03, 0xC6, 0x50, 0xB9, 0xD0, 0xA9, 0x9A, 0x00};  // add eax, esi; push eax; mov ecx, 0x9AA9D0
         nfsmw::Stub stub;
@@ -226,6 +248,11 @@ struct Early {
 }  // namespace
 
 void report() {
+    // (the size of the object's block, from the debug heap's header before it: whether the game made it after the patch)
+    const unsigned char *render = *reinterpret_cast<const unsigned char *const *>(kRender);
+    const unsigned block = render ? *reinterpret_cast<const unsigned *>(render - 0x10) : 0;
+    g_log.line("menus: %s; the renderer's object is %s", g_render_contexts_patched ? "1024 render contexts (the game's 180)" : "the game's 180 render contexts (the code is not as expected)",
+               !render ? "not made yet" : block == kRenderArray + kRenderContexts * kRenderContextSize ? "the bigger one" : "the game's size");
     if (g_car_extra_mb > 0) {
         const bool redirected = g_set_car_pool[0] && g_set_car_pool[1] && g_set_car_pool[2] && g_make_space && g_car_malloc && g_car_free;
         g_log.line("streaming pool: the car loader's pool gets %d MB more than the game's (8 MB for each racer of [options] max_racers), in a block of its own: %s", g_car_extra_mb,

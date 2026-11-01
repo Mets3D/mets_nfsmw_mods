@@ -1,0 +1,68 @@
+# The crash reported 2026-11-01: a tollbooth race with 4 players and 12 AI opponents, the intro cutscene skipped, then the pause menu's Options > Video (player 3 pauses, after the countdown: player 1's Escape cannot be sent): the game
+# crashed in FEPackageManager's walks of its package list (an entry overwritten). Turn on [diagnostics] watch_fe_packages in nfsmw_dev_tools.ini to see who writes it.
+# Only crashed with 4 players and 12 AI, not with 2 players and 2 AI.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press left
+press accept
+wait 3
+press right 3
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 3
+press down
+press left
+press down 4
+press left 4
+wait 1
+screenshot race_options width=640
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 1
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 2
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until racing timeout=240
+wait 4
+skip_cutscene
+wait 12
+pause_request 3 1
+wait 0.3
+pause_request 3 0
+wait 2
+press left
+wait 1
+press accept
+wait 3
+press right
+press accept
+wait 4
+screenshot video_options width=640
+wait 4
+quit

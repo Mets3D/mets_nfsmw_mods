@@ -61,6 +61,7 @@ This is a bit of a documentation on what issues were encountered during developm
 
 # TODOS
 - Rear-view Mirror in horizontal layout needs to have a default scale of 50%.
+- Mirrors are drawing even in pause menu, and in fact their frame draw on top of the pause menu.
 - Might want to expose the "Allow Mirror in Split-Screen" in the video settings.
 - Suspected memory leak causing increased memory usage when new races are started, likely related to car skins because we run out of memory faster if we have more cars in the race.
 - Minor UI issue: Values of race options turn a darker shade (not functionally grayed out, just a different font color) after stepping over them. Fix probably belows in Custom Menus mod.
