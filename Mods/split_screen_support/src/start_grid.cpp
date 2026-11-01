@@ -33,6 +33,7 @@
 
 #include "ai_in_split_screen.h"
 #include "race_end.h"
+#include "racers.h"
 #include "hooks.h"
 #include "max_players.h"
 #include "players.h"
@@ -95,18 +96,7 @@ void put_on_ground(void *vehicle, const float *position, const float *direction)
     reinterpret_cast<void(__fastcall *)(void *, void *, const float *, const float *)>(vtable[kSetVehicleOnGroundSlot])(vehicle, nullptr, position, direction);
 }
 
-// A racer's simable (GRaceStatus *0x91E000: the count at +0x1958 and the GRacerInfos of 0x194 bytes from +0x18; a racer's simable is found by its handle (+0) in the
-// table at 0x92FEB4, the node's +4).
-constexpr uintptr_t kRaceStatus = 0x91E000, kSimableTable = 0x92FEB4, kSimableTableCount = 0x92FEBC, kTableSearch = 0x5D51F0;
-
-void *racer_simable(const unsigned char *info) {
-    const unsigned handle = *reinterpret_cast<const unsigned *>(info);
-    if (!handle) return nullptr;
-    unsigned char *table = *reinterpret_cast<unsigned char **>(kSimableTable);
-    unsigned char *end = table + *reinterpret_cast<int *>(kSimableTableCount) * 8;
-    unsigned char *node = reinterpret_cast<unsigned char *(__cdecl *)(unsigned char *, unsigned char *, unsigned)>(kTableSearch)(table, end, handle);
-    return node ? *reinterpret_cast<void **>(node + 4) : nullptr;
-}
+constexpr uintptr_t kRaceStatus = 0x91E000;  // (the racers: racers.h)
 
 // GRacerInfo::SetStartPosition(position, direction): where a restart puts the racer back.
 void set_start_position(const unsigned char *info, const float *position, const float *direction) {
@@ -129,7 +119,7 @@ bool g_have_poses = false;  // the cutscene of this race has ended and the first
 // A racer's position (its simable's rigid body: virtual +0x54 GetRigidBody, whose virtual +0x20 gives the position).
 bool racer_pose(const unsigned char *info, Pose &pose);
 bool racer_position(const unsigned char *info, float *position) {
-    void *simable = racer_simable(info);
+    void *simable = racers::simable(info);
     if (!simable) return false;
     void **simable_vtable = *reinterpret_cast<void ***>(simable);
     void *body = reinterpret_cast<void *(__fastcall *)(void *, void *)>(simable_vtable[0x54 / 4])(simable, nullptr);
@@ -140,7 +130,7 @@ bool racer_position(const unsigned char *info, float *position) {
 }
 
 bool racer_pose(const unsigned char *info, Pose &pose) {
-    void *simable = racer_simable(info);
+    void *simable = racers::simable(info);
     if (!simable) return false;
     void **simable_vtable = *reinterpret_cast<void ***>(simable);
     void *body = reinterpret_cast<void *(__fastcall *)(void *, void *)>(simable_vtable[0x54 / 4])(simable, nullptr);
@@ -295,7 +285,7 @@ void place_racers(const float *start, const float *direction) {
     const int count = *reinterpret_cast<const int *>(status + 0x1958);
     if (g_have_poses && !(players::split_screen() && race_type(status) == kRaceTollbooth)) {  // the first four racers go back to where the cutscene left them (the game moved players 1 and 2 to the starting lanes)
         for (int k = 0; k < count && k < kCutsceneRacers; ++k) {
-            void *vehicle = vehicle_of(racer_simable(status + 0x18 + k * 0x194));
+            void *vehicle = vehicle_of(racers::simable(status + 0x18 + k * 0x194));
             if (!vehicle) continue;
             put_on_ground(vehicle, g_cutscene_poses[k].position, g_cutscene_poses[k].forward);
             set_start_position(status + 0x18 + k * 0x194, g_cutscene_poses[k].position, g_cutscene_poses[k].forward);
@@ -334,7 +324,7 @@ void place_racers(const float *start, const float *direction) {
             const float length = hypotf(forward[0], forward[2]);
             const float facing[3] = {-forward[0], -forward[1], -forward[2]};
             const float left[3] = {-facing[2] / length, 0, facing[0] / length};
-            void *vehicle = vehicle_of(racer_simable(status + 0x18 + placements[i].racer * 0x194));
+            void *vehicle = vehicle_of(racers::simable(status + 0x18 + placements[i].racer * 0x194));
             if (!vehicle) continue;
             const float offset = placements[i].lateral - (placements[i].from_start ? base_lateral : 0.0f);
             const float car[3] = {position[0] + left[0] * offset, position[1], position[2] + left[2] * offset};
