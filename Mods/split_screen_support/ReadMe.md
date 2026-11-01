@@ -11,6 +11,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen
 ## Features
 Points marked with * require the [Custom Menus](../custom_menus/ReadMe.md) mod to be installed. They're bundled together in the release.
 - 2, 3, and 4 player split-screen.
+- Option to choose vertical or horizontal layout.
 - AI opponents allowed: Up to 16 total cars in a race.
 - Each player can invoke the pause menu. The "Player Options" menu will affect the player who opened the pause menu. The name of the affected player is displayed in the menu's header.
 - *Each player gets their own minimap and minimap color. Each player can hide their own minimap in **Options > Player > Minimap**.
@@ -55,12 +56,10 @@ This is a bit of a documentation on what issues were encountered during developm
 # TODOS
 - The only issue with Speedtrap is that you can't see your standing in the race - I believe the leaderboard HUD is just always disabled in all split-screen modes. I think this is unnecessary because there is a per-player option to disable it anyways.
 - Tollbooth added option idea: "Time Reduction", a percentage value to tweak the difficulty to one's liking.
-- I think if we skip the intro cinematic, the cars end up starting the race in whatever position they happened to be in in the moment of the skip. Not good!
 - I think mirrors are disabled in split-screen, I wonder why, and if we could lift it, and how bad the performance impact would be.
 - Minor UI issue: Values of race options turn gray after stepping over them.
 - Would be fun to allow customizing some minimap properties: Player 1,2,3,4 colors, AI opponent color, AI opponent size.
 - Idea: Option to change race start layout between the current behaviour (humans first), vs humans in the back, vs randomized.
-- How about vertical split screen? ;) Maybe an option under Gameplay. In 3-player, player 1 would take the entire left side, while players 2 and 3 share the right side.
 - Heat Level (cops) is the one Quick Race option not available in Split Screen yet (the others are above, under "Needs your testing"). It is not a row of the game: Redux v3's NFSMWRaceFixes adds it in its own code, so it needs that plugin's row class.
 
 ### AI Disclaimer

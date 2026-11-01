@@ -194,7 +194,7 @@ void __fastcall hook_render_object(void *self, void *edx, void *object) {
         if (g_no_cell) return;
         const auto found = g_part.find(object);
         if (found != g_part.end()) {
-            if (found->second == kHidden || (found->second == kDivider && layout::changed(g_current->players))) return;
+            if (found->second == kHidden || (found->second == kDivider && !layout::game_halves(g_current->players))) return;
             if (found->second != g_viewport_part) set_viewport(*g_current, found->second);
         }
     }

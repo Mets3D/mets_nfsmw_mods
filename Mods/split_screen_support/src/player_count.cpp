@@ -4,13 +4,16 @@
  * cursor's; after it returns our row is added (option_row.h). The row's texts are language strings registered through nfsmw_custom_menus (without it
  * there is no row, and the race has two players).
  * Left and right change the value: 2 up to max_players (an odd count has a last round of Press Start / Car Select for one player: see more_players.cpp).
+ * Under it a "Layout" row: Horizontal (the game's: the players' pictures in rows) or Vertical (in columns; layout.h), kept in the ini ([race_options] layout).
  */
 #include "player_count.h"
 
 #include <algorithm>
+#include <cstring>
 
 #include "ai_in_split_screen.h"
 #include "hooks.h"
+#include "layout.h"
 #include "max_players.h"
 #include "more_players.h"
 #include "option_row.h"
@@ -42,6 +45,20 @@ void *g_vtable[option_row::kSlots];
 
 void __fastcall draw(void *self, void *) { option_row::set_texts(self, kTitleHash, value_hash(g_wanted)); }
 
+const unsigned kLayoutTitleHash = nfsmw::bstring_hash("SPLIT_LAYOUT"), kHorizontalHash = nfsmw::bstring_hash("SPLIT_LAYOUT_HORIZONTAL"),
+               kVerticalHash = nfsmw::bstring_hash("SPLIT_LAYOUT_VERTICAL");
+void *g_layout_vtable[option_row::kSlots];
+
+void __fastcall layout_draw(void *self, void *) { option_row::set_texts(self, kLayoutTitleHash, layout::vertical() ? kVerticalHash : kHorizontalHash); }
+
+void __fastcall layout_act(void *self, void *, const char *, unsigned data) {
+    if (data != option_row::kPadLeft && data != option_row::kPadRight) return;
+    layout::set_vertical(!layout::vertical());
+    WritePrivateProfileStringA("race_options", "layout", layout::vertical() ? "vertical" : "horizontal", g_ini);
+    option_row::value_changed(self, data);
+    g_log.line("race options: layout %s", layout::vertical() ? "vertical" : "horizontal");
+}
+
 void __fastcall act(void *self, void *, const char *, unsigned data) {
     if (data != option_row::kPadLeft && data != option_row::kPadRight) return;
     g_wanted = data == option_row::kPadRight ? (g_wanted >= max_players() ? 2 : g_wanted + 1) : (g_wanted <= 2 ? max_players() : g_wanted - 1);
@@ -64,8 +81,9 @@ void __fastcall setup_and_row(void *screen, void *edx) {
     g_log.line("race options built: split screen %d, texts %d", players::split_screen(), g_texts);
     if (!players::split_screen() || !g_texts) return;
     option_row::add(screen, g_vtable);
+    option_row::add(screen, g_layout_vtable);
     option_row::refresh(screen);
-    g_log.line("race options: the Players row was added");
+    g_log.line("race options: the Players and Layout rows were added");
 }
 
 }  // namespace
@@ -74,6 +92,9 @@ int wanted() { return g_wanted; }
 
 void register_texts(const nfsmw::custom_menus::Host *host) {
     host->register_text(kTitleHash, "Players");
+    host->register_text(kLayoutTitleHash, "Layout");
+    host->register_text(kHorizontalHash, "Horizontal");
+    host->register_text(kVerticalHash, "Vertical");
     static char texts[nfsmw::kMaxPlayers + 1][8];  // the host keeps the pointers
     for (int players = 2; players <= max_players(); ++players) {
         snprintf(texts[players], sizeof(texts[players]), "%d", players);
@@ -84,6 +105,10 @@ void register_texts(const nfsmw::custom_menus::Host *host) {
 
 void install() {
     option_row::make_vtable(g_vtable, &act, &draw);
+    option_row::make_vtable(g_layout_vtable, &layout_act, &layout_draw);
+    char layout_name[16];
+    GetPrivateProfileStringA("race_options", "layout", "horizontal", layout_name, sizeof(layout_name), g_ini);
+    layout::set_vertical(_stricmp(layout_name, "vertical") == 0);
     // The call is redirected, not the function hooked: other mods change functions too, and a hook on Setup was never reached.
     if (const uintptr_t previous = nfsmw::chain_call(kSetupCallSite, reinterpret_cast<uintptr_t>(&setup_and_row))) {
         g_setup = previous;

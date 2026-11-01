@@ -21,8 +21,8 @@ void classify_like(void *object, void *model);
 // The part of the HUD (and so the viewport) an object was given: -1 when it has none, 255 hidden, 254 the divider. For the log.
 int part_of_object(const void *object);
 
-// A player's HUD scale in percent (30 to 100), relative to the base scale of the player's cell (layout.h: the HUD as the game has it in a cell of half the screen or
-// more, half that in a quarter); a corner keeps its place in the cell.
+// A player's HUD scale in percent (30 to 100), relative to the base scale of the player's cell (layout.h: the HUD as the game has it in a cell as wide as the screen,
+// half that in a cell half as wide); a corner keeps its place in the cell.
 constexpr int kMaxScale = 200;  // percent
 void set_scale(int player, int percent);
 int scale(int player);

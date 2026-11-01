@@ -17,9 +17,11 @@ namespace {
 constexpr float kWaitSeconds = 3.0f;   // after a player is out (their "Totalled" or "Knocked Out" message), before their cell goes
 constexpr float kSlideSeconds = 1.2f;  // the slide
 
-// How much of its home size a cell has in its row (its width), and a row among the rows (its height): 1 its home, 0 none. Linear in time; eased when used.
+bool g_vertical = false;
+
+// How much of its home size a cell has along its line, and a line across the lines: 1 its home, 0 none. Linear in time; eased when used.
 int g_players = 0;  // of the race the shares are for
-float g_share[nfsmw::kMaxPlayers], g_row_share[nfsmw::kMaxPlayers];
+float g_share[nfsmw::kMaxPlayers], g_line_share[nfsmw::kMaxPlayers];
 float g_out_for[nfsmw::kMaxPlayers];  // seconds since the player went out, -1 while they race
 LARGE_INTEGER g_last = {};
 
@@ -28,18 +30,36 @@ bool is_out(int player) {
     return info && racers::out(info);
 }
 
-int row_of(int player, int players) {
+// The line of a player (a row, or a column when vertical), and the place in it.
+int line_of(int player, int players) {
     if (players <= 2) return player;
     if (players == 3) return player == 0 ? 0 : 1;
-    return player / grid_size(players);
+    return g_vertical ? player % grid_size(players) : player / grid_size(players);
 }
 
-int row_count(int players) { return row_of(players - 1, players) + 1; }
+int place_in_line(int player, int players) {
+    if (players <= 2) return 0;
+    if (players == 3) return player == 0 ? 0 : player - 1;
+    return g_vertical ? player / grid_size(players) : player % grid_size(players);
+}
+
+int line_count(int players) {
+    if (players <= 3) return players == 1 ? 1 : 2;
+    return grid_size(players);
+}
+
+// A cell from its span along its line and across the lines.
+struct Span {
+    long lo, hi;
+};
+Span along(const RECT &r) { return g_vertical ? Span{r.top, r.bottom} : Span{r.left, r.right}; }
+Span across(const RECT &r) { return g_vertical ? Span{r.left, r.right} : Span{r.top, r.bottom}; }
+RECT make(Span a, Span c) { return g_vertical ? RECT{c.lo, a.lo, c.hi, a.hi} : RECT{a.lo, c.lo, a.hi, c.hi}; }
 
 void reset(int players) {
     g_players = players;
     for (int i = 0; i < nfsmw::kMaxPlayers; ++i) {
-        g_share[i] = g_row_share[i] = 1.0f;
+        g_share[i] = g_line_share[i] = 1.0f;
         g_out_for[i] = -1.0f;
     }
 }
@@ -50,11 +70,22 @@ void slide(float &share, float target, float step) { share = target < share ? st
 
 bool moved() {
     for (int i = 0; i < g_players; ++i)
-        if (g_share[i] < 1.0f || g_row_share[i] < 1.0f) return true;
+        if (g_share[i] < 1.0f || g_line_share[i] < 1.0f) return true;
     return false;
 }
 
 }  // namespace
+
+bool vertical() { return g_vertical; }
+void set_vertical(bool on) { g_vertical = on; }
+
+RECT home_cell(int player, int players, long width, long height) {
+    if (players <= 1) return {0, 0, width, height};
+    const long main = g_vertical ? height : width, cross = g_vertical ? width : height;
+    const int line = line_of(player, players), lines = line_count(players), place = place_in_line(player, players);
+    const int places = players == 2 ? 1 : players == 3 ? (player == 0 ? 1 : 2) : grid_size(players);
+    return make({main * place / places, main * (place + 1) / places}, {cross * line / lines, cross * (line + 1) / lines});
+}
 
 void update(int players) {
     LARGE_INTEGER now, frequency;
@@ -75,9 +106,9 @@ void update(int players) {
     if (!anybody_out) return reset(players);  // (a new race, or the race restarted)
     if (!anybody_racing) return;               // the race is over: the screen stays as it is
 
-    const int rows = row_count(players);
-    bool gone[nfsmw::kMaxPlayers] = {}, row_racing[nfsmw::kMaxPlayers] = {}, row_gone[nfsmw::kMaxPlayers];
-    std::fill(row_gone, row_gone + rows, true);
+    const int lines = line_count(players);
+    bool gone[nfsmw::kMaxPlayers] = {}, line_racing[nfsmw::kMaxPlayers] = {}, line_gone[nfsmw::kMaxPlayers];
+    std::fill(line_gone, line_gone + lines, true);
     for (int i = 0; i < players; ++i) {
         if (!out[i]) {
             g_out_for[i] = -1.0f;
@@ -88,59 +119,54 @@ void update(int players) {
             g_out_for[i] += seconds;
         }
         gone[i] = out[i] && g_out_for[i] >= kWaitSeconds;
-        row_racing[row_of(i, players)] |= !out[i];
-        row_gone[row_of(i, players)] &= gone[i];
+        line_racing[line_of(i, players)] |= !out[i];
+        line_gone[line_of(i, players)] &= gone[i];
     }
     const float step = seconds / kSlideSeconds;
     for (int i = 0; i < players; ++i)
-        if (row_racing[row_of(i, players)]) slide(g_share[i], gone[i] ? 0.0f : 1.0f, step);  // (a row with nobody racing keeps its cells while it closes)
-    for (int r = 0; r < rows; ++r) slide(g_row_share[r], row_gone[r] ? 0.0f : 1.0f, step);  // (somebody races: some row stays)
+        if (line_racing[line_of(i, players)]) slide(g_share[i], gone[i] ? 0.0f : 1.0f, step);  // (a line with nobody racing keeps its cells while it closes)
+    for (int l = 0; l < lines; ++l) slide(g_line_share[l], line_gone[l] ? 0.0f : 1.0f, step);  // (somebody races: some line stays)
 }
 
 RECT cell(int player, int players, long width, long height) {
     const RECT home = home_cell(player, players, width, height);
     if (players < 2 || players != g_players || !moved()) return home;
-    const int row = row_of(player, players), rows = row_count(players);
-    float above = 0.0f, all = 0.0f;
-    for (int r = 0; r < rows; ++r) {
-        const float share = eased(g_row_share[r]);
-        if (r < row) above += share;
-        all += share;
+    const int line = line_of(player, players), lines = line_count(players);
+    float before_line = 0.0f, all_lines = 0.0f;
+    for (int l = 0; l < lines; ++l) {
+        const float share = eased(g_line_share[l]);
+        if (l < line) before_line += share;
+        all_lines += share;
     }
     float before = 0.0f, total = 0.0f;
-    long left = width, right = 0;
+    long lo = g_vertical ? height : width, hi = 0, end = 0;  // the line's span along it; where the lines end across (a grid of 5 has an empty row)
     for (int i = 0; i < players; ++i) {
-        if (row_of(i, players) != row) continue;
         const RECT other = home_cell(i, players, width, height);
+        end = std::max(end, across(other).hi);
+        if (line_of(i, players) != line) continue;
         const float share = eased(g_share[i]);
         if (i < player) before += share;
         total += share;
-        left = std::min(left, other.left);
-        right = std::max(right, other.right);
+        lo = std::min(lo, along(other).lo);
+        hi = std::max(hi, along(other).hi);
     }
-    if (all <= 0.0f || total <= 0.0f) return home;
-    const float span = static_cast<float>(right - left), mine = eased(g_share[player]);
-    const float bottom = static_cast<float>(home_cell(players - 1, players, width, height).bottom), tall = eased(g_row_share[row]);  // (the rows' bottom: a grid of 5 has an empty row)
-    RECT r;
-    r.left = left + std::lround(span * before / total);
-    r.right = left + std::lround(span * (before + mine) / total);
-    r.top = std::lround(bottom * above / all);
-    r.bottom = std::lround(bottom * (above + tall) / all);
-    return r;
+    if (all_lines <= 0.0f || total <= 0.0f) return home;
+    const float span = static_cast<float>(hi - lo), mine = eased(g_share[player]), thick = eased(g_line_share[line]);
+    const Span a = {lo + std::lround(span * before / total), lo + std::lround(span * (before + mine) / total)};
+    const Span c = {std::lround(end * before_line / all_lines), std::lround(end * (before_line + thick) / all_lines)};
+    return make(a, c);
 }
 
 float hud_scale(int player, int players, long width, long height) {
-    const RECT home = home_cell(player, players, width, height), now = cell(player, players, width, height);
-    const long home_width = home.right - home.left;
-    if (home_width <= 0) return 1.0f;
-    return std::min(1.0f, hud_base_scale(home, width, height) * (now.right - now.left) / home_width);
+    const RECT now = cell(player, players, width, height);
+    return width > 0 ? std::min(1.0f, static_cast<float>(now.right - now.left) / static_cast<float>(width)) : 1.0f;
 }
 
 float presence(int player) {
     if (player < 0 || player >= g_players) return 1.0f;
-    return eased(g_share[player]) * eased(g_row_share[row_of(player, g_players)]);
+    return eased(g_share[player]) * eased(g_line_share[line_of(player, g_players)]);
 }
 
-bool changed(int players) { return players >= 2 && players == g_players && moved(); }
+bool game_halves(int players) { return players >= 2 && players <= 3 && !g_vertical && !(players == g_players && moved()); }
 
 }  // namespace split_screen_support::layout
