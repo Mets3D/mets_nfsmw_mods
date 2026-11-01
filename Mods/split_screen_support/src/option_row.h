@@ -52,6 +52,9 @@ inline void set_texts(void *self, unsigned title_hash, unsigned value_hash) {
     set(field<void *>(self, kData), value_hash);
 }
 
+// Draws one row again (its virtual Draw).
+inline void redraw(void *widget) { reinterpret_cast<void(__fastcall *)(void *, void *)>(field<void **>(widget, 0)[kDrawSlot])(widget, nullptr); }
+
 // What an Act does once the value has changed: the arrow blinks for the pad message and the row is drawn again.
 inline void value_changed(void *self, unsigned data) {
     field<unsigned char>(self, kChanged) = 1;

@@ -57,6 +57,9 @@ void make_only_local_player(int index, bool on);
 // How the game and the menus call player 1 to 4 (0 to 3): "Player 3 - Xbox One S Controller".
 void player_name(int player, char *text, unsigned size);
 
+// "Player 3" (0-based player), without the device.
+void player_label(int player, char *text, unsigned size);
+
 // The Car Select screens of a split screen race say which player and which device (all split screen races, not only those with more than two players).
 void install_car_select_label();
 

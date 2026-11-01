@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "ai_in_split_screen.h"
+#include "race_end.h"
 #include "hooks.h"
 #include "max_players.h"
 #include "players.h"
@@ -306,6 +307,7 @@ void cutscene_over_impl() {
 
 void hook_init_racers(void *race_start) {
     ai_in_split_screen::prepare_race();
+    race_end::race_started();
     g_orig_init_racers(race_start);
     ai_in_split_screen::racers_made();
     g_start_known = race_start != nullptr;

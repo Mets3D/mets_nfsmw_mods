@@ -1,4 +1,4 @@
-# 2 players and 2 opponents (the Total Racers row one down from 5): the engine sounds of the opponents are logged by nfsmw_split_screen_support (the `engine sounds:` lines, every 3 s per engine). Nobody drives.
+# 2 players and 3 opponents (the AI Opponents row as it starts): the engine sounds of the opponents are logged by nfsmw_split_screen_support (the `engine sounds:` lines, every 3 s per engine). Nobody drives.
 wait_until main_menu timeout=120
 wait 2
 press right 2

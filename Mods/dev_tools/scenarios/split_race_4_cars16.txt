@@ -1,4 +1,4 @@
-# 16 racers: which car each racer has and whether it is customized (log_racers), and the picture at the end. (split_race_4_streaming with 16 racers (Total Racers wraps from 4 to 16), then the game stays open for 15 minutes (to be looked at from outside).
+# 16 racers: which car each racer has and whether it is customized (log_racers), and the picture at the end. (split_race_4_streaming with 16 racers (AI Opponents wraps from 0 to 12), then the game stays open for 15 minutes (to be looked at from outside).
 # Through the real menus with the Players row set to 4: Press Start and Car Select for players 1 and 2, then again for players 3 and 4
 # (devices: keyboard, controllers 0, 1 and 2), then the race, which has 2 players until the code that makes more exists. The log of
 # nfsmw_split_screen_support says what each round chose.

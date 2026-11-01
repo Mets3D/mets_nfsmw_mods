@@ -15,6 +15,9 @@
  *   minimap_option.cpp the Options > Player > Minimap row: each player can hide their own minimap
  *   player_count.cpp   the "Players" row (2 or 4) of the split screen race options
  *   more_players.cpp   players 3 and 4: a second round of Press Start and Car Select, their picks kept in a table, their cars in the race
+ *   standings.cpp      the racers' names of players 3 and 4, the leaderboard of a player ranked below 4
+ *   knockout.cpp       a player knocked out of a lap knockout: the car stops and the game's message shows
+ *   race_end.cpp       the end of a race: every player gets the race-over message, the results wait a few seconds
  *   extra_streaming.cpp the track streamer's two positions chosen among four cars
  *   players.cpp        which controller is whose (XInput), player 1's alone reaches the game
  *   state_log.cpp      a log of the player count, devices and view mode
@@ -30,6 +33,9 @@
 #include "ai_in_split_screen.h"
 #include "engine_sounds.h"
 #include "split_volume.h"
+#include "knockout.h"
+#include "race_end.h"
+#include "standings.h"
 #include "events.h"
 #include "extra_cameras.h"
 #include "extra_streaming.h"
@@ -88,6 +94,9 @@ NFSMW_PLUGIN_MAIN() {
     skin_slots::install();
     engine_sounds::install();
     split_volume::install();
+    standings::install();
+    knockout::install();
+    race_end::install();
     if (ini_flag("options", "ai_in_split_screen", true)) ai_in_split_screen::install();  // after player_count: its rows come after the Players row
     more_players::install_car_select_label();
     if (ini_flag("options", "share_player1_cars", true)) more_players::install_shared_stable();

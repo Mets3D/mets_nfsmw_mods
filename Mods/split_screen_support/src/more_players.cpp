@@ -518,8 +518,8 @@ int round() { return g_round; }
 int g_press_start_player = 0;  // the player of the last Press Start screen of this round: 0 or 1
 constexpr unsigned kCarSelectPlayerObject = 0xE3FE27FE, kPlayerOneString = 0x7B070984;
 
-// "Player 3 - Xbox One S Controller": the game's "Player 1" text with the number changed, and the device's name as the Controls menu shows it.
-void format_player_name(int number, int device, char *text, unsigned size) {
+// "Player 3": the game's "Player 1" text with the number changed.
+void format_player_label(int number, char *text, unsigned size) {
     const char *label = reinterpret_cast<const char *(*)(unsigned)>(kGetLocalizedString)(kPlayerOneString);
     strncpy(text, label ? label : "PLAYER 1", size - 1);
     text[size - 1] = 0;
@@ -528,6 +528,11 @@ void format_player_name(int number, int device, char *text, unsigned size) {
             *c = static_cast<char>('0' + number);
             break;
         }
+}
+
+// "Player 3 - Xbox One S Controller": the label, and the device's name as the Controls menu shows it.
+void format_player_name(int number, int device, char *text, unsigned size) {
+    format_player_label(number, text, size);
     char name[96];
     players::device_label(device, name, sizeof(name));
     if (name[0]) snprintf(text + strlen(text), size - strlen(text), " - %s", name);
@@ -559,6 +564,8 @@ void *hook_create_car_select(void *data) {
 void player_name(int player, char *text, unsigned size) {
     format_player_name(player + 1, player < 2 ? players::chosen(player) : pick_device(player), text, size);
 }
+
+void player_label(int player, char *text, unsigned size) { format_player_label(player + 1, text, size); }
 
 void on_press_start_screen(void *screen) {
     g_press_start_player = *reinterpret_cast<int *>(static_cast<char *>(screen) + kPressStartPlayer) & 1;
