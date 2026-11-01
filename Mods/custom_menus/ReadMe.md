@@ -19,7 +19,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) provides other mods with the
   - **Help**: Shows a description of the currently selected value. The help text is provided by the mod that is creating the menu.
 - **Localization**: Mods can provide translations for the game's 9 supported additional languages for all labels, values, Help texts, keybindings that they're adding.
 - **Add button mappings**: Mods can add new key and button bindings to Options > Controls, and rename the game's texts.
-- **Expand existing menus**: Mods can also add options to the end of the game's menu screens.
+- **Expand existing menus**: Mods can also add options to the end of the game's menu screens, and to the Quick Race options (any race type; the list scrolls when the screen's 9 rows are not enough).
 - **Sub-menus**: Mods can also define options menus that are accessed in some other way rather than through the regular Options menu list. For example, the Controller Settings page of the Controller Support mod.
 
 ## Other fixes & tweaks

@@ -46,7 +46,8 @@
  *
  * Other places for rows (Page::placement): the end of the game's own Options > Audio, Video, Advanced Video, Gameplay or Player
  * (kAudioOptions, kVideoOptions, kAdvancedVideoOptions, kGameplayOptions, kPlayerOptions), a page that only the mod opens (kHidden), an
- * entry in the main menu's Options as well (kNewEntryEverywhere). The Controls screen takes binding rows (Host::register_controls_rows).
+ * entry in the main menu's Options as well (kNewEntryEverywhere), and the end of the Quick Race options (kRaceOptions, see "the race options" below). The Controls
+ * screen takes binding rows (Host::register_controls_rows).
  *
  * Entries in the pause menu and the main menu themselves: kPauseMenuEntry, kMainMenuEntry and kPauseAndMainMenuEntry put an icon before the
  * menu's own Options entry, which opens the page (for things that are not settings, say tools for the current race). Three extra pages here
@@ -149,6 +150,68 @@ void defaults() { g_now = Settings(); }
 
 opt::Page g_page;
 
+// ---- the race options (kRaceOptions): six dummy rows at the end of the options of a Circuit race ----
+// The screen (the one after Car Select, with the laps, traffic, opponents...) has 9 row slots and the game's own rows use most of them, so these rows make the list scroll:
+// the cursor goes down past the last row in view and the list moves up. `available` is asked each time the screen is built, and says here that the page is for circuit races
+// only (Host::race_type); other mods' rows are added to the same screen, after the game's and in the order the mods' pages were registered. The rows are value rows. Changes
+// take effect at once and there is no Back that undoes them (`changed` and `discard` are not called); `accept` is called when the race is started from the screen.
+const opt::Host *g_host = nullptr;
+
+enum RaceRow { RR_WEATHER, RR_NITROUS, RR_RIVALS, RR_HANDICAP, RR_FUEL, RR_BONUS, RR_COUNT };
+constexpr int kRaceValues[RR_COUNT] = {3, 2, 9, 11, 3, 3};  // how many values each row steps through
+constexpr const char *kWeather[] = {"Clear", "Rain", "Fog"}, *kFuel[] = {"Normal", "Low", "None"}, *kBonus[] = {"Off", "Small", "Big"};
+int g_race[RR_COUNT] = {0, 1, 3, 0, 0, 1};
+
+constexpr opt::Row kRaceRows[] = {
+    {opt::kValueRow, "Dummy Weather", 0, "An example row of the race options: picks the weather."},
+    {opt::kValueRow, "Dummy Nitrous", 0, "An example row of the race options. The Dummy Bonus row below follows it: it is greyed out while this is off."},
+    {opt::kValueRow, "Dummy Rivals", 0, "An example row of the race options: 0 to 8."},
+    {opt::kValueRow, "Dummy Handicap", 0, "An example row of the race options: 0 to 100% in steps of 10."},
+    {opt::kValueRow, "Dummy Fuel", 0, "An example row of the race options."},
+    {opt::kValueRow, "Dummy Bonus", 0, "An example row of the race options, greyed out while Dummy Nitrous is off."},
+};
+
+bool race_available() { return g_host && g_host->race_type && g_host->race_type() == opt::kRaceCircuit; }
+
+unsigned race_value(int row, char *out, unsigned size) {
+    switch (row) {
+        case RR_WEATHER: snprintf(out, size, "%s", kWeather[g_race[row]]); return 0;
+        case RR_NITROUS: return g_race[row] ? kGameOn : kGameOff;
+        case RR_RIVALS: snprintf(out, size, "%d", g_race[row]); return 0;
+        case RR_HANDICAP: snprintf(out, size, "%d%%", g_race[row] * 10); return 0;
+        case RR_FUEL: snprintf(out, size, "%s", kFuel[g_race[row]]); return 0;
+        default: snprintf(out, size, "%s", kBonus[g_race[row]]); return 0;
+    }
+}
+
+void race_change(int row, int direction, bool) {
+    g_race[row] = g_race[row] + direction < 0 ? 0 : g_race[row] + direction >= kRaceValues[row] ? kRaceValues[row] - 1 : g_race[row] + direction;
+}
+
+bool race_row_enabled(int row) { return row != RR_BONUS || g_race[RR_NITROUS] != 0; }
+
+void race_accept() {
+    for (int i = 0; i < RR_COUNT; ++i) {
+        char key[16], text[16];
+        snprintf(key, sizeof(key), "race_%d", i);
+        snprintf(text, sizeof(text), "%d", g_race[i]);
+        WritePrivateProfileStringA("example", key, text, g_ini);
+    }
+}
+
+void race_load() {
+    for (int i = 0; i < RR_COUNT; ++i) {
+        char key[16];
+        snprintf(key, sizeof(key), "race_%d", i);
+        g_race[i] = GetPrivateProfileIntA("example", key, g_race[i], g_ini);
+        if (g_race[i] < 0 || g_race[i] >= kRaceValues[i]) g_race[i] = 0;
+    }
+}
+
+bool race_changed() { return false; }
+void race_nothing() {}
+opt::Page g_race_page;
+
 // ---- entries in the pause menu and the main menu (kPauseMenuEntry...): the same rows, one page per placement ----
 bool pause_entry_available() { return GetPrivateProfileIntA("example", "hide_pause_entry", 0, g_ini) == 0; }
 
@@ -177,6 +240,12 @@ extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const opt::Host
               /* available */ nullptr, opened, value, change, changed, accept, discard, defaults,
               opt::kNewEntryEverywhere, fill};
     host->register_page(&g_page);
+    g_host = host;
+    race_load();
+    g_race_page = {"example_race", "Example Race Options", "EXAMPLE RACE OPTIONS", "EXAMPLE RACE OPTIONS INFO", 0, 0, nullptr, RR_COUNT, kRaceRows,
+                   race_available, race_nothing, race_value, race_change, race_changed, race_accept, race_nothing, race_nothing,
+                   opt::kRaceOptions, nullptr, race_row_enabled};
+    host->register_page(&g_race_page);
     for (size_t i = 0; i < sizeof(kMenuTests) / sizeof(kMenuTests[0]); ++i) {
         const MenuTest &t = kMenuTests[i];
         g_menu_pages[i] = {t.id, t.entry, t.title, t.help_title, 0, 0, nullptr,

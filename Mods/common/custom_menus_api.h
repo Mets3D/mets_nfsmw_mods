@@ -55,6 +55,22 @@ enum Placement {
     kPauseMenuEntry,
     kMainMenuEntry,
     kPauseAndMainMenuEntry,
+    // Rows added to the end of the Quick Race options (the screen of a race's laps, traffic, opponents..., Track_Options.fng), after the game's rows and those of any
+    // other mod that adds rows to it: for a race of any type, so `available` says which (Host::race_type); it is asked each time the screen is built, and then `opened`
+    // is called. The layout has 9 row slots; when the rows are more, the list scrolls (the cursor passes the last row in view and the list moves). Only value rows
+    // (kSliderRow is a value row here). Changes take effect at once, as the game's own race options do: there is no Back that undoes them, `changed` and `discard`
+    // are not called; `accept` is called when the player starts the race from the screen. `defaults` is not called. The rows of an online race are not added.
+    kRaceOptions,
+};
+
+// GRace::Type: what Host::race_type returns.
+enum RaceType {
+    kRaceSprint = 0,
+    kRaceCircuit = 1,
+    kRaceDrag = 2,
+    kRaceKnockout = 3,
+    kRaceTollbooth = 4,
+    kRaceSpeedTrap = 5,
 };
 
 struct Page {
@@ -126,6 +142,9 @@ struct Host {
     // When the page is left (Back, with the game's own question about unsaved changes, or Accept), `on_exit` is called instead of the
     // game's own way out, and has to switch to the next screen itself. Valid after the provide export returned.
     void (*open_page)(const char *id, bool in_game, void (*on_exit)());
+    // While a kRaceOptions page's `available` is asked: the type of the race the options are for (RaceType), else -1. (Added after open_page: a mod built with an older
+    // copy of this header never reads it.)
+    int (*race_type)();
 };
 
 using ProvideFn = void (*)(const Host *);

@@ -205,6 +205,7 @@ constexpr unsigned kDialogMessageNo = 0x34DC1BCF, kDialogMessageYes = 0xD05FC3A3
 constexpr unsigned kDialogOkText = 0x417B2601;
 constexpr int kDialogInfo = 2;                    // eDialogTitle dialog_info
 constexpr int kCategoryAudio = 0, kCategoryVideo = 1, kCategoryGameplay = 3, kCategoryPlayer = 4;  // OptionsSettings::CurrentCategory
+constexpr int kCategoryRace = 100;  // not a category of the Options: the rows added to the Quick Race options (Placement kRaceOptions) are kept like those of a category
 // The Player screen's layout (Pause_Options.fng) has 10 row slots. The Video screen's (Pause_PCDisplayOptions.fng, the PC "Advanced Video"
 // one) has 15, and a scroll bar with chevrons, so pages with more rows than the first holds are built on the second.
 
@@ -231,6 +232,7 @@ std::vector<LangEntry> g_entries;
 bool g_discovered = false;
 opt::Host g_host;  // what the mods are given (and keep: open_page is used later)
 void open_page(const char *id, bool in_game, void (*on_exit)());
+int race_type();  // Host::race_type
 void (*g_exit_callback)() = nullptr;  // the open page was opened by open_page: where it goes when left
 
 unsigned add_text(const char *id, const char *what, int row, const char *text) {
@@ -275,6 +277,7 @@ int category_of(opt::Placement placement) {
         case opt::kAdvancedVideoOptions: return kCategoryVideo;
         case opt::kGameplayOptions: return kCategoryGameplay;
         case opt::kPlayerOptions: return kCategoryPlayer;
+        case opt::kRaceOptions: return kCategoryRace;
         default: return -1;
     }
 }
@@ -303,7 +306,7 @@ void discover_pages() {
     g_discovered = true;
     g_host = {&register_page, &custom_menus::controls_rows::add_rows, &custom_menus::controls_rows::add_text,
               &custom_menus::translations::add_folder, &custom_menus::controls_rows::set_binding_label,
-              &custom_menus::controls_rows::add_refresh, &custom_menus::controls_rows::add_controller_defaults, &open_page};
+              &custom_menus::controls_rows::add_refresh, &custom_menus::controls_rows::add_controller_defaults, &open_page, &race_type};
     custom_menus::language::provide(&g_host, &g_log, &language_changed);  // our own row in Options > Player
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId());
     if (snapshot == INVALID_HANDLE_VALUE) {
@@ -672,6 +675,7 @@ const char *category_name(int category) {
         case kCategoryAudio: return "Audio";
         case kCategoryVideo: return "Video";
         case kCategoryGameplay: return "Gameplay";
+        case kCategoryRace: return "Race options";
         default: return "Player";
     }
 }
@@ -776,6 +780,29 @@ void share_objects(void *screen) {
     }
 }
 
+// The bracket around the selected row moves by the scripts POS1 .. POSn of the cursor object, one for each place in view (UpdateCursorPos). Track_Options.fng has 9 row slots
+// and the screen shows 9, but the cursor has 8 places: past the 8th place the bracket stays where it was (or goes back to the first row). So no more rows are shown than the
+// cursor has places.
+void limit_shown_to_cursor_places(void *screen) {
+    void *cursor = field<void *>(screen, 0x50);
+    if (!cursor) return;
+    int places = 0;
+    for (; places < 32; ++places) {
+        char name[16];
+        snprintf(name, sizeof(name), "POS%d", places + 1);
+        if (!game::FindScript(cursor, game::FEHashUpper(name))) break;
+    }
+    int &shown = field<int>(screen, 0x10C);
+    if (places > 0 && places < shown) {
+        log_line("the cursor of the screen has %d places for the %d rows it shows: it shows %d", places, shown, places);
+        shown = places;
+        if (void *first = GetWidget(screen, 1)) {  // (the rows past the places that are in view now go)
+            if (!field<void *>(screen, 0x38)) field<void *>(screen, 0x38) = first;
+            Reposition(screen);
+        }
+    }
+}
+
 void add_extra_rows(void *screen, opt::Placement placement) {
     const int category = category_of(placement);
     clear_extra();
@@ -799,17 +826,20 @@ void add_extra_rows(void *screen, opt::Placement placement) {
     g_extra_category = category;
     g_extra_screen = screen;
     const char *pkg = field<const char *>(screen, kScreenPackage);
+    if (!g_extra_rows.empty()) limit_shown_to_cursor_places(screen);
     const int room = free_row_slots(screen), rows = static_cast<int>(g_extra_rows.size());
     const int slots = layout_slots(pkg), shown = field<int>(screen, 0x10C);
     const bool bars = layout_has_sliders(pkg);
     if (rows == 0) return;
+    char where[48];
+    snprintf(where, sizeof(where), category == kCategoryRace ? "%s" : "Options > %s", category_name(category));
     char ids[200] = {};
     for (PageInfo *info : g_extra_pages)
         if (info->page->placement == placement)
             snprintf(ids + strlen(ids), sizeof(ids) - strlen(ids), "%s%s", ids[0] ? ", " : "", info->page->id);
     if (rows <= room) {
         for (const ExtraRow &er : g_extra_rows) add_page_row(screen, er.info, er.row, er.row, bars);
-        log_line("Options > %s: %d added row(s) (%s)", category_name(category), rows, ids);
+        log_line("%s: %d added row(s) (%s)", where, rows, ids);
     } else if (slots >= shown && shown > 0) {
         // The Camera selector is the game's own widget and cannot take part.
         for (const ExtraRow &er : g_extra_rows)
@@ -821,13 +851,62 @@ void add_extra_rows(void *screen, opt::Placement placement) {
             if (!field<void *>(screen, 0x38)) field<void *>(screen, 0x38) = first;
             Reposition(screen);
         }
-        log_line("Options > %s: %d added rows (%s), more than the %d free slots: the list scrolls", category_name(category), rows, ids, room);
+        log_line("%s: %d added rows (%s), more than the %d free slots: the list scrolls", where, rows, ids, room);
     } else {
-        log_line("Options > %s: the screen has room for %d of the %d added rows (%s; %d slots, %d shown): the rest are left out", category_name(category), room,
-                 rows, ids, slots, shown);
+        log_line("%s: the screen has room for %d of the %d added rows (%s; %d slots, %d shown): the rest are left out", where, room, rows, ids, slots, shown);
         for (int k = 0; k < room; ++k) add_page_row(screen, g_extra_rows[k].info, g_extra_rows[k].row, g_extra_rows[k].row, bars);
     }
     game::RefreshWidgets(screen);
+}
+
+// ------------------------------------------------------------------------------------------------
+// The Quick Race options (Placement kRaceOptions): UIQRTrackOptions is a UIWidgetMenu of Track_Options.fng, which has 9 row slots (and the screen shows 9, +0x10C), so the rows
+// of the pages are added to it as to the Options screens. They are added on the screen's first tick, after the game's Setup and whatever other mods' calls of it added: they come
+// last, and the free slots they find are the real ones. The race starts with the message 0x406415E3 (the screen leaves for the next one).
+// ------------------------------------------------------------------------------------------------
+constexpr unsigned kRaceScreenParams = 0x128;   // UIQRTrackOptions: its GRaceParameters
+constexpr uintptr_t kGetRaceType = 0x5FAA20;    // GRaceParameters::GetRaceType
+constexpr unsigned kRaceStartMsg = 0x406415E3;
+void keep_bracket_on_row(void *screen);  // (below)
+void keep_shared_looks(void *screen);
+void *g_race_screen = nullptr;  // the race options screen whose rows were added (null again once it is left)
+void *g_race_asking = nullptr;  // the screen whose pages are asked whether they apply now
+
+int race_type() {
+    void *race = g_race_asking ? field<void *>(g_race_asking, kRaceScreenParams) : nullptr;
+    return race ? reinterpret_cast<int(THISCALL *)(void *)>(kGetRaceType)(race) : -1;
+}
+
+void add_race_rows(void *screen) {
+    g_race_screen = screen;
+    void *database = *reinterpret_cast<void **>(game::kFEDatabase);
+    const unsigned flags = database ? field<unsigned>(database, 0x12C) : 0;
+    if ((flags >> 3 | flags >> 6) & 1) return;  // an online race
+    discover_pages();
+    ensure_language_entries();
+    g_race_asking = screen;
+    add_extra_rows(screen, opt::kRaceOptions);
+    log_line("race options screen: race type %d, %d page(s) apply, %d row(s) added", race_type(), static_cast<int>(g_extra_pages.size()), static_cast<int>(g_extra_rows.size()));
+    g_race_asking = nullptr;
+}
+
+using NotifyFn = void(FASTCALL *)(void *, void *, unsigned, void *, unsigned, unsigned);
+NotifyFn g_orig_race_notify = nullptr;
+void FASTCALL hook_race_notify(void *self, void *edx, unsigned msg, void *obj, unsigned p1, unsigned p2) {
+    if (msg == kRaceStartMsg && self == g_race_screen && g_extra_category == kCategoryRace)
+        for (PageInfo *info : g_extra_pages)
+            if (info->page->accept) info->page->accept();
+    g_orig_race_notify(self, edx, msg, obj, p1, p2);
+    if (msg == kScreenTick) {
+        if (self != g_race_screen) add_race_rows(self);
+        else if (g_shared_slots > 0 && self == g_extra_screen) {
+            keep_bracket_on_row(self);
+            keep_shared_looks(self);
+        }
+    } else if (msg == kExitComplete && self == g_race_screen) {
+        g_race_screen = nullptr;
+        reset_extra();
+    }
 }
 
 bool extra_rows_changed() {
@@ -1615,6 +1694,11 @@ void install_hooks() {
     };
     nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), g_log, g_ini);
     g_video_hook = g_orig_setupvideo != nullptr;
+    const nfsmw::Hook race_hooks[] = {
+        {"racenotify", "UIQRTrackOptions::NotificationMessage", 0x7AB430, {0x8B, 0x44, 0x24, 0x10, 0x8B, 0x54, 0x24}, false, nfsmw::detour(&hook_race_notify),
+         nfsmw::orig(&g_orig_race_notify)},
+    };
+    nfsmw::install_hooks(race_hooks, 1, g_log, g_ini, "race options");
     // Entries in the pause menu and the main menu: they need the AddOption and screen switch hooks above, and each other (all or none).
     if (g_orig_addoption && g_orig_queue_switch) {
         const nfsmw::Hook entry_hooks[] = {
