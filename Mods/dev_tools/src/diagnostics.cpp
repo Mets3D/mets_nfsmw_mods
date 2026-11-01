@@ -227,9 +227,11 @@ BOOL WINAPI hook_terminate_process(HANDLE process, UINT code) {
 
 }  // namespace
 
-void install() {
+void install_early() {
+    static bool done = false;
+    if (done) return;
+    done = true;
     AddVectoredExceptionHandler(1, exception_logger);
-    if (HANDLE watcher = CreateThread(nullptr, 0, watch_tls, nullptr, 0, nullptr)) CloseHandle(watcher);
     if (MH_CreateHookApi(L"kernel32", "ExitProcess", reinterpret_cast<void *>(&hook_exit_process),
                          reinterpret_cast<void **>(&g_orig_exit_process)) == MH_OK &&
         MH_CreateHookApi(L"kernel32", "TerminateProcess", reinterpret_cast<void *>(&hook_terminate_process),
@@ -237,6 +239,11 @@ void install() {
         MH_EnableHook(MH_ALL_HOOKS);
     else
         g_log.line("could not hook ExitProcess / TerminateProcess");
+}
+
+void install() {
+    install_early();
+    if (HANDLE watcher = CreateThread(nullptr, 0, watch_tls, nullptr, 0, nullptr)) CloseHandle(watcher);
 }
 
 }  // namespace dev_tools::diagnostics

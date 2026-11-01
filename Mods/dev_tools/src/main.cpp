@@ -53,6 +53,7 @@ void init() {
 NFSMW_PLUGIN_EARLY() {
     using namespace dev_tools;
     init();
+    if (ini_flag("diagnostics", "enabled")) diagnostics::install_early();
     if (ini_flag("quick_start", "enabled")) quick_start::install_early();
     return NFSMW_OK;
 }
