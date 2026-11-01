@@ -7,11 +7,13 @@
  */
 #include "diagnostics.h"
 
+#include <algorithm>
 #include <string>
 
 #include <MinHook.h>
 
 #include "dev_tools.h"
+#include "hooks.h"
 
 namespace dev_tools::diagnostics {
 
@@ -80,6 +82,22 @@ void log_game_stack(const unsigned long *sp) {
         }
         if (shown) return;
     }
+}
+
+// The game's 32 bit address space: what is free and the largest free block (a big allocation fails when that is too small), and the game's main heap
+// (bMalloc pool 0: bLargestMalloc 0x464080).
+void log_address_space(const char *prefix = "    ") {
+    unsigned long long free_bytes = 0, largest = 0;
+    MEMORY_BASIC_INFORMATION info;
+    for (const char *p = nullptr; VirtualQuery(p, &info, sizeof(info)) == sizeof(info); p = static_cast<const char *>(info.BaseAddress) + info.RegionSize) {
+        if (info.State == MEM_FREE) {
+            free_bytes += info.RegionSize;
+            largest = std::max<unsigned long long>(largest, info.RegionSize);
+        }
+        if (static_cast<const char *>(info.BaseAddress) + info.RegionSize < static_cast<const char *>(info.BaseAddress)) break;
+    }
+    const int heap = reinterpret_cast<int(__cdecl *)(int)>(0x464080)(0);
+    g_log.line("%smemory: address space %llu MB free, the largest free block %llu MB; the main heap's largest free block %d KB", prefix, free_bytes >> 20, largest >> 20, heap >> 10);
 }
 
 void log_caller_trace(const char *what, unsigned code) {
@@ -205,7 +223,12 @@ LONG CALLBACK exception_logger(EXCEPTION_POINTERS *e) {
     }
     check_tls_directories("at the access violation");
     log_thread();
-    log_game_stack(reinterpret_cast<const unsigned long *>(c->Esp));
+    // The top of the stack as it is: the arguments of the function that failed are there (the size bWareMalloc was asked for when it gave up).
+    const unsigned long *sp = reinterpret_cast<const unsigned long *>(c->Esp);
+    g_log.line("    esp: %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx  %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx", sp[0], sp[1], sp[2], sp[3], sp[4], sp[5],
+               sp[6], sp[7], sp[8], sp[9], sp[10], sp[11], sp[12], sp[13], sp[14], sp[15]);
+    log_address_space();
+    log_game_stack(sp);
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
@@ -223,6 +246,18 @@ BOOL WINAPI hook_terminate_process(HANDLE process, UINT code) {
     if (process == GetCurrentProcess() || GetProcessId(process) == GetCurrentProcessId())
         log_caller_trace("TerminateProcess", code);
     return g_orig_terminate_process(process, code);
+}
+
+// The memory when the game starts loading the menus or a track: a long session that runs out shows how it got there.
+void (*g_orig_load_front_end)();
+void (*g_orig_load_track)();
+void hook_load_front_end() {
+    log_address_space("loading the menus: ");
+    g_orig_load_front_end();
+}
+void hook_load_track() {
+    log_address_space("loading a track: ");
+    g_orig_load_track();
 }
 
 }  // namespace
@@ -244,6 +279,12 @@ void install_early() {
 void install() {
     install_early();
     if (HANDLE watcher = CreateThread(nullptr, 0, watch_tls, nullptr, 0, nullptr)) CloseHandle(watcher);
+    const nfsmw::Hook hooks[] = {
+        {"memory_frontend", "BeginGameFlowLoadingFrontEnd", 0x664B80, {0x6A, 0xFF, 0x68, 0x5F, 0xA3, 0x87, 0x00}, false, nfsmw::detour(&hook_load_front_end),
+         nfsmw::orig(&g_orig_load_front_end)},
+        {"memory_track", "BeginGameFlowLoadTrack", 0x666FA0, {0x6A, 0x00, 0x6A, 0x00, 0xC7, 0x05, 0x90}, false, nfsmw::detour(&hook_load_track), nfsmw::orig(&g_orig_load_track)},
+    };
+    nfsmw::install_hooks(hooks, 2, g_log, g_ini, "memory log");
 }
 
 }  // namespace dev_tools::diagnostics
