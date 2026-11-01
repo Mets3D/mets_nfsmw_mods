@@ -1,5 +1,7 @@
 #include "events.h"
 
+#include <vector>
+
 #include "hooks.h"
 #include "split_screen_support.h"
 
@@ -8,13 +10,10 @@ namespace split_screen_support::events {
 namespace {
 
 struct List {
-    Callback callbacks[8];
-    int count = 0;
-    void add(Callback c) {
-        if (count < 8) callbacks[count++] = c;
-    }
+    std::vector<Callback> callbacks;
+    void add(Callback c) { callbacks.push_back(c); }
     void call() const {
-        for (int i = 0; i < count; ++i) callbacks[i]();
+        for (Callback c : callbacks) c();
     }
 };
 List g_world_load, g_frame;
@@ -80,10 +79,10 @@ void on_hud_update(HudUpdate before, HudUpdate after) {
 void install() {
     nfsmw::Hook hooks[5];
     size_t count = 0;
-    if (g_world_load.count)
+    if (!g_world_load.callbacks.empty())
         hooks[count++] = {"worldload", "BeginWorldLoad", 0x662950, {0x6A, 0xFF, 0x68, 0xB4, 0xA2, 0x87, 0x00}, false,
                           nfsmw::detour(&hook_begin_world_load), nfsmw::orig(&g_orig_begin_world_load)};
-    if (g_frame.count)
+    if (!g_frame.callbacks.empty())
         hooks[count++] = {"frame", "eDisplayFrame", 0x6E7220, {0xA0, 0xC8, 0x1A, 0x90, 0x00, 0x83, 0xEC}, false,
                           nfsmw::detour(&hook_display_frame), nfsmw::orig(&g_orig_display_frame)};
     if (g_hud_filter.count || g_hud_made.count)
