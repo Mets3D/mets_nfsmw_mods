@@ -19,6 +19,8 @@
  * road they stand), 7.5 m apart. A split screen race has no cutscene to read: racer k (the order of `GRaceStatus`: the players, then the opponents) has slot k, slots 0 to 3
  * being the places of the 2 by 2 grid above (rear left, rear right, front left, front right) and each pair after them a row 7.5 m further back. Rows follow the road (the
  * same nav as `Game_InitRacers`). Without a road at the start (the nav is not near it) nothing is changed.
+ * A tollbooth race is the exception: the game's cutscene for it (IntroNisToll01) leaves the first two racers 1.6 m apart (the cars of a two player race stand on each
+ * other), so its cars ignore the cutscene's poses and stand in rows across the selectable lanes of the road at the start (`start_lanes`, `plan_lane_grid`).
  */
 #include "start_grid.h"
 
@@ -53,7 +55,10 @@ constexpr float kMaxFromStart = 30.0f;    // the nav has found a road when it is
 constexpr int kCutsceneRacers = 4;        // the racers the Quick Race cutscene places
 constexpr uintptr_t kPlaceSplitScreenPlayers = 0x60D820, kRestoreStartPositions = 0x60AA50, kSetStartPosition = 0x5DC750, kGetRaceType = 0x5FAA20;
 constexpr unsigned kRaceParameters = 0x1968;  // GRaceStatus: the race's GRaceParameters
-constexpr int kRaceDrag = 2, kRaceKnockout = 3;  // GRace::Type
+constexpr int kRaceDrag = 2, kRaceKnockout = 3, kRaceTollbooth = 4;  // GRace::Type
+constexpr uintptr_t kSetPathType = 0x7658A0, kSnapToSelectableLane = 0x77BA80, kIncLane = 0x778360;  // WRoadNav, as PlaceSplitScreenPlayersAtStart uses them
+constexpr unsigned kNavLaneType = 0x80;  // set to 6 (the selectable lanes) there
+constexpr int kMaxLanes = 12;
 constexpr int kMaxRowWidth = kCutsceneRacers;
 constexpr float kSingleRowBehind = 3.1f;  // a drag race's row of four (the laterals are from the drag race of one test; the fourth is a guess, a knockout's are a guess)
 constexpr float kSingleRowLateral[kMaxRowWidth] = {4.4f, 1.4f, -1.7f, -4.8f};
@@ -152,6 +157,7 @@ bool racer_pose(const unsigned char *info, Pose &pose) {
 struct Placement {
     int racer;
     float behind, lateral;
+    bool from_start = false;  // lateral is measured from the race's start, not from the road's line the nav walks along
 };
 
 // Slot k of a split screen grid: the row (0 is the front one) and the side (+1 left of the way the race goes, -1 right): the order of the game's 2 by 2 grid for the first four.
@@ -195,9 +201,58 @@ bool read_cutscene_layout(const unsigned char *status, const float *start, const
     return true;
 }
 
+bool inc_lane(void *nav, int step) { return reinterpret_cast<bool(__thiscall *)(void *, int)>(kIncLane)(nav, step); }
+
+// The selectable lanes of the road at the race's start (the lanes PlaceSplitScreenPlayersAtStart picks from: it puts players 1 and 2 on the outermost ones), as metres to the
+// left of the start, the left-most first.
+std::vector<float> start_lanes(const float *start, const float *direction) {
+    std::vector<float> lanes;
+    const float length = hypotf(direction[0], direction[2]);
+    if (length < 0.01f) return lanes;
+    const float left_x = -direction[2] / length, left_z = direction[0] / length;
+    unsigned char *nav = static_cast<unsigned char *>(_aligned_malloc(kNavSize, 16));
+    if (!nav) return lanes;
+    memset(nav, 0, kNavSize);
+    reinterpret_cast<void(__thiscall *)(void *)>(kRoadNavConstructor)(nav);
+    *reinterpret_cast<int *>(nav + kNavType) = 2;
+    reinterpret_cast<void(__thiscall *)(void *, int)>(kSetPathType)(nav, 4);
+    *reinterpret_cast<int *>(nav + kNavLaneType) = 6;
+    reinterpret_cast<void(__thiscall *)(void *, const float *, const float *, bool, float)>(kInitAtPoint)(nav, start, direction, false, 1.0f);
+    reinterpret_cast<void(__thiscall *)(void *)>(kSnapToSelectableLane)(nav);
+    const float *position = reinterpret_cast<const float *>(nav + kNavPosition);
+    for (int i = 0; i < kMaxLanes && inc_lane(nav, -1); ++i) {}  // to the lane on one side, then across to the other
+    auto record = [&] { lanes.push_back((position[0] - start[0]) * left_x + (position[2] - start[2]) * left_z); };
+    record();
+    for (int i = 0; i < kMaxLanes && inc_lane(nav, 1); ++i) record();
+    reinterpret_cast<void(__thiscall *)(void *)>(kRoadNavDestructor)(nav);
+    _aligned_free(nav);
+    std::sort(lanes.begin(), lanes.end(), [](float a, float b) { return a > b; });
+    return lanes;
+}
+
+// A grid across the road's lanes: rows of as many cars as there are lanes (a row with fewer cars uses lanes spread over the road, the outer ones for two), the first row
+// kFrontRowBehind behind the start and the others kRowSpacing apart.
+std::vector<Placement> plan_lane_grid(int count, const std::vector<float> &lanes) {
+    std::vector<Placement> out;
+    const int lane_count = static_cast<int>(lanes.size()), width = std::min(lane_count, count);
+    for (int k = 0; k < count; ++k) {
+        const int row = k / width, col = k % width, cars = std::min(width, count - row * width);
+        const int lane = cars == 1 ? (lane_count - 1) / 2 : (col * (lane_count - 1) + (cars - 1) / 2) / (cars - 1);
+        out.push_back({k, kFrontRowBehind + kRowSpacing * row, lanes[lane], true});
+    }
+    return out;
+}
+
 std::vector<Placement> plan_placements(const unsigned char *status, int count, const float *start, const float *direction) {
     std::vector<Placement> out;
-    if (players::split_screen() && !g_have_poses) {  // no cutscene: the 2 by 2 grid of the game, which is what most of them make
+    if (players::split_screen() && race_type(status) == kRaceTollbooth) {  // the cutscene's grid is made for one player: the cars of two players stand on each other
+        const std::vector<float> lanes = start_lanes(start, direction);
+        g_log.line("start grid: tollbooth, %d selectable lanes at the start (m to the left of it: %.1f %.1f %.1f %.1f %.1f %.1f)", static_cast<int>(lanes.size()),
+                   lanes.size() > 0 ? lanes[0] : 0.0f, lanes.size() > 1 ? lanes[1] : 0.0f, lanes.size() > 2 ? lanes[2] : 0.0f, lanes.size() > 3 ? lanes[3] : 0.0f,
+                   lanes.size() > 4 ? lanes[4] : 0.0f, lanes.size() > 5 ? lanes[5] : 0.0f);
+        if (lanes.size() >= 2) return plan_lane_grid(count, lanes);
+    }
+    if (players::split_screen() && (!g_have_poses || race_type(status) == kRaceTollbooth)) {  // no cutscene: the 2 by 2 grid of the game, which is what most of them make
         if (count <= nfsmw::kPlayersPerRound) return out;
         // The cutscene's layouts that were seen (a drag race and a lap knockout start in a single row of four, the others in a 2 by 2 grid); there is no cutscene to read.
         const int type = race_type(status);
@@ -238,7 +293,7 @@ void place_racers(const float *start, const float *direction) {
     const unsigned char *status = *reinterpret_cast<unsigned char **>(kRaceStatus);
     if (!status) return;
     const int count = *reinterpret_cast<const int *>(status + 0x1958);
-    if (g_have_poses) {  // the first four racers go back to where the cutscene left them (the game moved players 1 and 2 to the starting lanes)
+    if (g_have_poses && !(players::split_screen() && race_type(status) == kRaceTollbooth)) {  // the first four racers go back to where the cutscene left them (the game moved players 1 and 2 to the starting lanes)
         for (int k = 0; k < count && k < kCutsceneRacers; ++k) {
             void *vehicle = vehicle_of(racer_simable(status + 0x18 + k * 0x194));
             if (!vehicle) continue;
@@ -261,6 +316,8 @@ void place_racers(const float *start, const float *direction) {
         g_log.line("start grid: no road at the start (the nav is at (%.1f, %.1f, %.1f)): the racers stay where they were made", position[0], position[1], position[2]);
     } else {
         float row_start[3] = {position[0], position[1], position[2]};
+        const float direction_length = hypotf(direction[0], direction[2]);
+        const float base_lateral = direction_length < 0.01f ? 0.0f : ((position[0] - start[0]) * -direction[2] + (position[2] - start[2]) * direction[0]) / direction_length;
         float walked = 0;  // how far behind the start the nav is (the sum of the legs: each leg is a straight distance from the last stop)
         for (size_t i = 0; i < placements.size(); ++i) {
             if (placements[i].behind > walked + 0.01f) {
@@ -279,7 +336,7 @@ void place_racers(const float *start, const float *direction) {
             const float left[3] = {-facing[2] / length, 0, facing[0] / length};
             void *vehicle = vehicle_of(racer_simable(status + 0x18 + placements[i].racer * 0x194));
             if (!vehicle) continue;
-            const float offset = placements[i].lateral;
+            const float offset = placements[i].lateral - (placements[i].from_start ? base_lateral : 0.0f);
             const float car[3] = {position[0] + left[0] * offset, position[1], position[2] + left[2] * offset};
             put_on_ground(vehicle, car, facing);
             set_start_position(status + 0x18 + placements[i].racer * 0x194, car, facing);
