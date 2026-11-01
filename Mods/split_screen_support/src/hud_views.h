@@ -18,6 +18,8 @@ void classify_as_minimap(void *object);
 
 // An object that was made later (a copy of a minimap marker) belongs where `model` does.
 void classify_like(void *object, void *model);
+// The object and everything in it belong where `model` does (a group: where its first object that has a part does).
+void classify_tree_like(void *object, void *model);
 // The part of the HUD (and so the viewport) an object was given: -1 when it has none, 255 hidden, 254 the divider. For the log.
 int part_of_object(const void *object);
 

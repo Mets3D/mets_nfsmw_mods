@@ -285,6 +285,28 @@ void classify_like(void *object, void *model) {
     if (found != g_part.end()) g_part[object] = found->second;
 }
 
+namespace {
+int part_of_tree(void *object, int depth = 0) {
+    const auto found = g_part.find(object);
+    if (found != g_part.end()) return found->second;
+    if (!is_group(object) || depth > 8) return -1;
+    for (void *child = first_child(object); child; child = next_of(child))
+        if (const int part = part_of_tree(child, depth + 1); part >= 0) return part;
+    return -1;
+}
+
+void set_tree(void *object, unsigned char part, int depth = 0) {
+    g_part[object] = part;
+    if (is_group(object) && depth < 8)
+        for (void *child = first_child(object); child; child = next_of(child)) set_tree(child, part, depth + 1);
+}
+}  // namespace
+
+void classify_tree_like(void *object, void *model) {
+    const int part = object && model ? part_of_tree(model) : -1;
+    if (part >= 0) set_tree(object, static_cast<unsigned char>(part));
+}
+
 void set_scale(int player, int percent) {
     if (player >= 0 && player < kMaxPlayers) g_scale[player] = std::clamp(percent, 30, kMaxScale);
 }

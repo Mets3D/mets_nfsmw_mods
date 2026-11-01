@@ -13,14 +13,16 @@ Points marked with * require the [Custom Menus](../custom_menus/ReadMe.md) mod t
 - 2, 3, and 4 player split-screen.
 - New race options:
   - **Layout**: Horizontal or Vertical split screen.
-  - **Start**: Players Front (the game's grid), Players Rear (the opponents start ahead of the players), or Random.
-  - **Time** (Tollbooth races): 30% to 300% of the game's time, both the time you start with and the time each booth adds.
-- AI opponents allowed: Up to 16 total cars in a race.
-- Each player can invoke the pause menu. The "Player Options" menu will affect the player who opened the pause menu. The name of the affected player is displayed in the menu's header.
-- *Each player gets their own minimap and minimap color. Each player can hide their own minimap in **Options > Player > Minimap**. The players' colours and the opponents' colour and marker size can be changed in the [.ini](nfsmw_split_screen_support.ini) (`[minimap]`).
-- *Each player can scale their HUD (also in a game with one player) in **Options > Player > HUD Scale**.
-- *Each player can set their own volume in **Options > Player > Split-Screen Volume**.
+  - **Start**: Starting position of player cars: Players Front / Players Rear / Random.
+  - **AI opponents**: Up to 16 total cars in a race (including players).
+  - **Tollbooth: Time**: Make tollbooth races harder or easier by tweaking the available time.
+- New Player Options:
+  - Each player can invoke the pause menu. The "Player Options" menu will affect the player who opened the pause menu. The name of the affected player is displayed in the menu's header.
+  - **Minimap On/Off**: Each player can toggle their own minimap.
+  - **HUD Scale**: Each player can scale their own HUD.
+  - **Split-Screen Volume**: Each player can tweak how much their screen contributes to the game's audio.
 - Tollbooth races are supported: Each player has their own clock, if you run out of time you get knocked out, starting positions work for up to 16 cars (although above 4 it gets unfair), and the end-of-race summary screen shows your remaining time.
+- Each player has the leaderboard of the single-player HUD (the game's split screen HUD has none), under their race information, following the per-player Leaderboard option.
 - If a player is eliminated, their screen disappears, one of the neighbouring players takes up the available screen space. The eliminated player's resources are freed, their screen no longer rendered, their audio muted.
 
 ## Non-features
@@ -42,7 +44,6 @@ This is a bit of a documentation on what issues were encountered during developm
 - All 16 cars spawn in correct places, whether the race has a 2-row (2x2) or a 1-row (1x4) layout.
 - Knockout races work: You cannot specify lap count, it is determined by total racers. When you get knocked out, you no longer control your car, but you can still open the pause menu.
 - All opponents including AI opponents appear on the minimap and also the world map.
-- No rear-view mirrors in split screen. The game draws the mirror only in its single-player view mode, from one mirror camera; split screen would need a mirror camera and an extra drawing of the world for every player, which would cost roughly as much again as the players' own pictures.
 
 ## Mod Compatibility
 
@@ -58,9 +59,10 @@ This is a bit of a documentation on what issues were encountered during developm
 ---
 
 # TODOS
-- The only issue with Speedtrap is that you can't see your standing in the race - I believe the leaderboard HUD is just always disabled in all split-screen modes. I think this is unnecessary because there is a per-player option to disable it anyways.
-- Minor UI issue: Values of race options turn gray after stepping over them. Fix probably belows in Custom Menus mod. (Claude, 2026-11-01: not reproduced with the keyboard: a 2 player circuit's options, values changed on Laps, Players and Layout and the cursor moved on, and stepping down every row: no value went grey in the pictures. Which race type / device / steps?)
-- Heat Level (cops) is the one Quick Race option not available in Split Screen yet. It is not a row of the base game: Redux v3's NFSMWRaceFixes adds it in its own code. Should check its code to see if we should just duplicate it, or only have this functionality when that mod is also present.
+- No rear-view mirrors in split screen. I asked Claude to implement it, and it came back with the tremendous conclusion that Mirror is disabled in split-screen, therefore nothing can be done. This was Opus set to High effort. What an absolute joke.
+- Suspected memory leak causing increased memory usage when new races are started, likely related to car skins because we run out of memory faster if we have more cars in the race.
+- When using the Players Rear or Random car starting layouts, the player cars are still shown at the front for the intro cutscene, resulting in other cars appearing on top of them. It would be better if we always laid out the cars with "Players Front" at first for the sake of the cutscene, but after the cutscene is done, we re-order them according to the real value of the setting, and save those positions as the race start positions (to reset to when restarting the race).
+- Minor UI issue: Values of race options turn a darker shade (not functionally grayed out, just a different font color) after stepping over them. Fix probably belows in Custom Menus mod.
 
 ### AI Disclaimer
 
