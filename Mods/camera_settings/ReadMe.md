@@ -5,7 +5,7 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) lets you tune camera views i
 [YouTube link.](https://www.youtube.com/watch?v=F0Cw4eQ8czg)
 
 ## Installation
-Download the latest zip from the [Releases](../../releases) page and copy its `scripts` folder into the game's folder (next to `speed.exe`). If you don't want one of the mods, simply delete its `.asi` file.
+Download the latest zip from the [Releases](../../../../releases) page and copy its `scripts` folder into the game's folder (next to `speed.exe`). If you don't want one of the mods, simply delete its `.asi` file.
 
 ## Features
 
