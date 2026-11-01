@@ -42,6 +42,7 @@ This is a bit of a documentation on what issues were encountered during developm
 - All 16 cars spawn in correct places, whether the race has a 2-row (2x2) or a 1-row (1x4) layout.
 - Knockout races work: You cannot specify lap count, it is determined by total racers. When you get knocked out, you no longer control your car, but you can still open the pause menu.
 - All opponents including AI opponents appear on the minimap and also the world map.
+- No rear-view mirrors in split screen. The game draws the mirror only in its single-player view mode, from one mirror camera; split screen would need a mirror camera and an extra drawing of the world for every player, which would cost roughly as much again as the players' own pictures.
 
 ## Mod Compatibility
 
@@ -58,8 +59,7 @@ This is a bit of a documentation on what issues were encountered during developm
 
 # TODOS
 - The only issue with Speedtrap is that you can't see your standing in the race - I believe the leaderboard HUD is just always disabled in all split-screen modes. I think this is unnecessary because there is a per-player option to disable it anyways.
-- I think rear-view mirrors are disabled in split-screen, I wonder why, and if we could allow them, and how bad the performance impact would be. If it's bad, we can add Options->Gameplay->"Split Screen Mirrors": "Allowed"/"Disabled"
-- Minor UI issue: Values of race options turn gray after stepping over them. Fix probably belows in Custom Menus mod.
+- Minor UI issue: Values of race options turn gray after stepping over them. Fix probably belows in Custom Menus mod. (Claude, 2026-11-01: not reproduced with the keyboard: a 2 player circuit's options, values changed on Laps, Players and Layout and the cursor moved on, and stepping down every row: no value went grey in the pictures. Which race type / device / steps?)
 - Heat Level (cops) is the one Quick Race option not available in Split Screen yet. It is not a row of the base game: Redux v3's NFSMWRaceFixes adds it in its own code. Should check its code to see if we should just duplicate it, or only have this functionality when that mod is also present.
 
 ### AI Disclaimer
