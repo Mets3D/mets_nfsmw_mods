@@ -16,6 +16,7 @@ Points marked with * require the [Custom Menus](../custom_menus/ReadMe.md) mod t
 - *Each player gets their own minimap and minimap color. Each player can hide their own minimap in **Options > Player > Minimap**.
 - *Each player can scale their HUD (also in a game with one player) in **Options > Player > HUD Scale**.
 - *Each player can set their own volume in **Options > Player > Split-Screen Volume**.
+- Tollbooth races are supported: Each player has their own clock, if you run out of time you get knocked out, starting positions work for up to 16 cars (although above 4 it gets unfair), and the end-of-race summary screen shows your remaining time.
 
 ## Non-features
 This is a bit of a documentation on what issues were encountered during development. Things you should take for granted, but other mods that aren't paying enough attention might miss.
@@ -23,7 +24,7 @@ This is a bit of a documentation on what issues were encountered during developm
 - The game now allocates enough memory and skin slots for cars to allow 16 unique racers, and also for 4 sets of minimap tiles.
 - The engine sounds of all AI opponents plays - albeit the computationally cheap versions.
 - Sound effects for all players plays correctly. This was a surprisingly huge challenge.
-- Each player can choose from player 1's cars, including those of their Career and their custom cars (the game gives player 2 only the default cars).
+- Each player can choose from player 1's cars, including those of their Career and their custom cars.
 - Each player can control their own camera - which camera preset they're on, looking around with free look from the Controller Support mod, and look-back.
 - The mouse looks around only for the player using the keyboard, if any.
 - Controller rumble works for all 4 players.
@@ -51,8 +52,12 @@ This is a bit of a documentation on what issues were encountered during developm
 ---
 
 # TODOS
-- Need to test all race types. Never tried tollbooth or speedtrap.
-- Maybe a knocked out player in either lap knockout or drag race should be removed from the screen after a few seconds? Although this would be too jarring if it happened suddenly, and animating a screen re-organization would surely be crazy. But... what if it works? >.>
+- The only issue with Speedtrap is that you can't see your standing in the race - I believe the leaderboard HUD is just always disabled in all split-screen modes. I think this is unnecessary because there is a per-player option to disable it anyways.
+- Tollbooth added option idea: "Time Reduction", a percentage value to tweak the difficulty to one's liking.
+- Maybe a knocked out player (which can happen in knockout, drag, tollbooth) should be removed from the screen after a few seconds? Although this would be too jarring if it happened suddenly, and animating a screen re-organization would surely be crazy. But... what if it works? >.>
+- Minor UI issue: Values of race options turn gray after stepping over them.
+- Would be fun to allow customizing some minimap properties: Player 1,2,3,4 colors, AI opponent color, AI opponent size.
+- Idea: Option to change race start layout between the current behaviour (humans first), vs humans in the back, vs randomized.
 - How about vertical split screen? ;) Maybe an option under Gameplay. In 3-player, player 1 would take the entire left side, while players 2 and 3 share the right side.
 - Heat Level (cops) is the one Quick Race option not available in Split Screen yet (the others are above, under "Needs your testing"). It is not a row of the game: Redux v3's NFSMWRaceFixes adds it in its own code, so it needs that plugin's row class.
 

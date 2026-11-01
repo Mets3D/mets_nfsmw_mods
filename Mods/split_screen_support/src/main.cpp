@@ -86,15 +86,13 @@ NFSMW_PLUGIN_MAIN() {
     hud_views::install();
     hud_players::install();
     minimap_option::install();
-    if (ini_flag("options", "more_players", false)) {  // work in progress: see the ini
-        player_count::install();
-        more_players::install();
-        extra_streaming::install();
-        extra_cameras::install();
-        start_grid::install();
-        player_settings::install();
-        race_again::install();  // (the picks it races with are kept by more_players)
-    }
+    player_count::install();
+    more_players::install();
+    extra_streaming::install();
+    extra_cameras::install();
+    start_grid::install();
+    player_settings::install();
+    race_again::install();  // (the picks it races with are kept by more_players)
     race_intro::install();
     streaming_log::install();
     skin_slots::install();
@@ -106,9 +104,9 @@ NFSMW_PLUGIN_MAIN() {
     tollbooth_results::install();
     race_end::install();
     world_map::install();
-    if (ini_flag("options", "ai_in_split_screen", true)) ai_in_split_screen::install();  // after player_count: its rows come after the Players row
+    if (ini_flag("options", "enable_ai_opponents_in_split_screen", true)) ai_in_split_screen::install();  // after player_count: its rows come after the Players row
     more_players::install_car_select_label();
-    if (ini_flag("options", "share_player1_cars", true)) more_players::install_shared_stable();
+    more_players::install_shared_stable();
     players::install();  // before state_log: the world load log shows its ports
     state_log::install();
     events::install();

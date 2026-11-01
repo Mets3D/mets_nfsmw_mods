@@ -54,7 +54,6 @@ void __fastcall hook_knock_out(void *racer, void *edx) {
 }  // namespace
 
 void install() {
-    if (!ini_flag("options", "knockout_players", true)) return;
     if (const uintptr_t previous = nfsmw::chain_call(kKnockOutCall, reinterpret_cast<uintptr_t>(&hook_knock_out))) {
         g_knock_out = previous;
         g_log.line("knockout: a knocked out player's car will be stopped (the call went to %#x)", static_cast<unsigned>(previous));

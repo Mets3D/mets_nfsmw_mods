@@ -117,7 +117,7 @@ void hud_filter(int &type, const char *&package) {
 
 void hud_made(void *hud, int type, const char *package, void *player, int number) {
     g_log.line("hud: type %d, package %s, player %d", type, package ? package : "?", number);
-    if (package && ini_flag("options", "dump_hud", false)) minimap::dump_package(package);
+    if (package && ini_flag("diagnostics", "dump_hud", false)) minimap::dump_package(package);
     if (!package) return;
     if (!active()) {  // a game with one player: its HUD, whichever it is, goes by the player's HUD scale
         hud_views::assign(package, 0, 1);

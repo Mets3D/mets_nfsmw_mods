@@ -14,7 +14,7 @@ void set_markers(void *minimap, const char *package, unsigned own_rgb, const voi
 // Calls `fn` with every FEng object of a minimap (the ones its code moves about: the map picture, the ring, the markers...).
 void for_each_object(void *minimap, void (*fn)(void *object));
 
-// Logs the objects of an FEng package (a tree: name hash, type, position, size, flags): for working out a HUD's layout. ([options] dump_hud=1)
+// Logs the objects of an FEng package (a tree: name hash, type, position, size, flags): for working out a HUD's layout. ([diagnostics] dump_hud=1)
 void dump_package(const char *package);
 
 void install();

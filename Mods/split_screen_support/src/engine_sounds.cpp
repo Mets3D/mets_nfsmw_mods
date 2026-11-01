@@ -43,6 +43,7 @@
 #include "more_players.h"
 #include "patch.h"
 #include "players.h"
+#include "racers.h"
 #include "split_screen_support.h"
 #include "split_volume.h"
 #include "streaming_log.h"
@@ -694,7 +695,7 @@ void count_states(int manager, int *states, int *attached) {
 }
 
 // CSTATEMGR_AICar::QueueSlots 0x4E5C80 uses the synthesized (Ginsu) engines for the opponents when there are 2 or fewer (`cmp eax, 2` at 0x4E5CF3), the sampled (AEMS) ones
-// otherwise: in the tests a single player race with 3 or more opponents (AEMS) was heard, and a split screen race with 2 (Ginsu) was not. `[options] ai_sampled_engines` (1) makes
+// otherwise: in the tests a single player race with 3 or more opponents (AEMS) was heard, and a split screen race with 2 (Ginsu) was not. The patch makes
 // the limit 0 in a split screen race, so that the opponents always have the sampled engines.
 constexpr uintptr_t kGinsuLimit = 0x4E5CF5;  // the imm8 of that compare
 bool g_sampled_engines = false;
@@ -712,14 +713,7 @@ void on_world_load() {
     g_extra_states = players::split_screen() && !g_player_set ? more_players::extras_in_race() : 0;
 }
 
-// The opponents' sound manager attaches an engine to a car within `m_fConnectDistance` (+0x20: 135 m, set by its constructor) of the nearest listener.
-float g_connect_distance = 0;
-
 void on_frame() {
-    if (g_connect_distance > 0) {
-        void *mgr = *reinterpret_cast<void **>(kStateManagers + 4 * kAiManager);
-        if (mgr) *reinterpret_cast<float *>(static_cast<unsigned char *>(mgr) + 0x20) = g_connect_distance;
-    }
     refresh_listeners();
     refresh_extra_listeners();
     g_extra_states = players::split_screen() && !g_player_set ? more_players::extras_in_race() : 0;
@@ -732,75 +726,68 @@ void on_frame() {
 void log_state(const char *why) { dump(why); }
 
 void install() {
-    g_sampled_engines = GetPrivateProfileIntA("options", "ai_sampled_engines", 1, g_ini) != 0;
-    g_connect_distance = static_cast<float>(GetPrivateProfileIntA("options", "ai_engine_radius", 0, g_ini));
-    if (g_connect_distance > 0) g_log.line("engine sounds: opponents' engines are attached to cars within %.0f m of a player (the game's 135)", g_connect_distance);
-    const int wanted = static_cast<int>(GetPrivateProfileIntA("options", "ai_engine_sounds", 15, g_ini));
-    if (wanted > 4 && wanted <= 100) {
+    g_sampled_engines = true;
+    const int wanted = racers::max_racers(g_ini) - 1;  // (the opponents of a race of the most racers)
+    if (wanted > 4) {
         const unsigned char four = 4, limit8 = static_cast<unsigned char>(wanted);
         const unsigned char expected32[4] = {4, 0, 0, 0}, limit32[4] = {limit8, 0, 0, 0};
         const bool patched = nfsmw::patch_bytes(kCompareLimit, &four, &limit8, 1) && nfsmw::patch_bytes(kClampLimit, expected32, limit32, 4);
         g_log.line("engine sounds: up to %d opponents have an engine sound (the game's 4)%s", wanted, patched ? "" : ": NOT CHANGED, the code is not as expected");
     }
-    if (GetPrivateProfileIntA("options", "extra_player_sounds", 1, g_ini)) {
-        const unsigned char expected[4] = {0x30, 0x44, 0x91, 0x00};
-        const unsigned char *call = reinterpret_cast<const unsigned char *>(kClosestCall);
-        const bool as_expected = call[0] == 0xE8 && memcmp(reinterpret_cast<const void *>(kListenerArray), expected, 4) == 0;
-        refresh_listeners();
-        bool listeners = false;
-        if (as_expected) {  // (the array first, then the call that fills the index: neither is any use without the other)
-            const uintptr_t array = reinterpret_cast<uintptr_t>(&g_listeners[0][0]);
-            unsigned char replacement[4];
-            memcpy(replacement, &array, 4);
-            listeners = nfsmw::redirect_call(kClosestCall, kClosestPlayerCar, reinterpret_cast<uintptr_t>(&closest_listener)) && nfsmw::patch_bytes(kListenerArray, expected, replacement, 4);
-        }
-        const unsigned char online[4] = {0xC4, 0xCF, 0x92, 0x00};
-        const uintptr_t extra_states = reinterpret_cast<uintptr_t>(&g_extra_states);
-        unsigned char states_address[4];
-        memcpy(states_address, &extra_states, 4);
-        const bool states = nfsmw::patch_bytes(kStatesRemoteCount, online, states_address, 4) && nfsmw::patch_bytes(kSlotsRemoteCount, online, states_address, 4);
-        g_log.line("engine sounds: the cars of players 3 and up count as opponents%s; the listeners are the cameras of all players%s", states ? "" : " (NOT CHANGED: the count of states)",
-                   listeners ? "" : " (NOT CHANGED: the listeners)");
-        g_player_set = GetPrivateProfileIntA("options", "extra_player_sound_set", 1, g_ini) != 0;
-        if (g_player_set) {
-            const unsigned char two = 2, many = 0x40;
-            const bool cap = nfsmw::patch_bytes(kAttachCap, &two, &many, 1);
-            g_log.line("engine sounds: players 3 and up have the players' sounds%s", cap ? "" : " (NOT CHANGED: the attach loop)");
-            g_player_set = cap;
-        }
-        const nfsmw::Hook hooks[] = {
-            {"resolvecarbanks", "CSTATEMGR_CarState::ResolveCarBanks", kResolveCarBanks, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8, 0x6A}, false, nfsmw::detour(&hook_resolve_car_banks),
-             nfsmw::orig(&g_orig_resolve_car_banks)},
-            {"sfx3dparams", "SFXCTL_3DObjPos::UpdateParams", kUpdateParams3D, {0x56, 0x8B, 0xF1, 0x8B, 0x46, 0x28, 0x33}, false, nfsmw::detour(&hook_update_params_3d),
-             nfsmw::orig(&g_orig_update_params_3d)},
-            {"ginsuengine", "CARSFX_GinsuEngine::SetEngineParams", kGinsuEngineParams, {0x51, 0x56, 0x8B, 0xF1, 0x8A, 0x46, 0x08}, false, nfsmw::detour(&hook_ginsu_engine_params),
-             nfsmw::orig(&g_orig_ginsu_engine_params)},
-            {"aemsengine", "CARSFX_AEMSEngine::SetEngineParams", kAemsEngineParams, {0x83, 0xEC, 0x0C, 0x56, 0x8B, 0xF1, 0x8B}, false, nfsmw::detour(&hook_aems_engine_params),
-             nfsmw::orig(&g_orig_aems_engine_params)},
-            {"sndvol", "_SNDvol", kSndVol, {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x10, 0x80}, false, nfsmw::detour(&hook_snd_vol), nfsmw::orig(&g_orig_snd_vol)},
-            {"sndfxlevel", "_SNDfxlevel", kSndFxLevel, {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C, 0x80}, false, nfsmw::detour(&hook_snd_fx_level), nfsmw::orig(&g_orig_snd_fx_level)},
-            {"aemstick", "SNDAEMS instance walk", kAemsTick, {0x80, 0x3D, 0xF2, 0x1B, 0x9C, 0x00, 0x00}, false, nfsmw::detour(&hook_aems_tick), nfsmw::orig(&g_orig_aems_tick)},
-            {"aemsconstructor", "SNDAEMS instance constructor", kAemsConstructor, {0x56, 0xE8, 0x5A, 0x14, 0x00, 0x00, 0x8B}, false, nfsmw::detour(&hook_aems_constructor),
-             nfsmw::orig(&g_orig_aems_constructor)},
-            {"aemsbankvol", "SNDAEMSI_bankvol", kAemsBankVol, {0x55, 0x8B, 0xEC, 0x8B, 0x45, 0x08, 0x53}, false, nfsmw::detour(&hook_bank_vol), nfsmw::orig(&g_orig_bank_vol)},
-            {"aemsoptvol", "SNDAEMSI_optvol", kAemsOptVol, {0x33, 0xC0, 0x39, 0x44, 0x24, 0x08, 0x7C}, false, nfsmw::detour(&hook_opt_vol), nfsmw::orig(&g_orig_opt_vol)},
-            {"aemsbankfxwet", "SNDAEMSI_bankfxwet0", kAemsBankFxWet, {0x55, 0x8B, 0xEC, 0x56, 0x8B, 0x75, 0x0C}, false, nfsmw::detour(&hook_bank_fx_wet), nfsmw::orig(&g_orig_bank_fx_wet)},
-            {"aemsoptfxwet", "SNDAEMSI_optfxwet0", kAemsOptFxWet, {0x33, 0xC0, 0x39, 0x44, 0x24, 0x08, 0x7C}, false, nfsmw::detour(&hook_opt_fx_wet), nfsmw::orig(&g_orig_opt_fx_wet)},
-        };
-        nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), g_log, g_ini, "engine sounds");
-        if (g_player_set) {
-            const nfsmw::Hook player_hooks[] = {
-                {"playerenterworld", "CSTATEMGR_PlayerCar::EnterWorld", kPlayerEnterWorld, {0x6A, 0xFF, 0x68, 0x88, 0xD3, 0x86, 0x00}, false, nfsmw::detour(&hook_player_enter_world),
-                 nfsmw::orig(&g_orig_player_enter_world)},
-                {"tunerupdate", "EAXTunerCar::UpdateParams", kTunerUpdateParams, {0x8B, 0x44, 0x24, 0x04, 0x56, 0x50, 0x8B}, false, nfsmw::detour(&hook_tuner_update), nfsmw::orig(&g_orig_tuner_update)},
-                {"carprocess", "EAXCar::ProcessUpdate", kCarProcessUpdate, {0x8B, 0x41, 0x34, 0x85, 0xC0, 0x74, 0x18}, false, nfsmw::detour(&hook_car_process_update),
-                 nfsmw::orig(&g_orig_car_process_update)},
-            };
-            nfsmw::install_hooks(player_hooks, 3, g_log, g_ini, "engine sounds (players' set)");
-        }
-        events::on_world_load(&on_world_load);
-        events::on_frame(&on_frame);
+    const unsigned char expected[4] = {0x30, 0x44, 0x91, 0x00};
+    const unsigned char *call = reinterpret_cast<const unsigned char *>(kClosestCall);
+    const bool as_expected = call[0] == 0xE8 && memcmp(reinterpret_cast<const void *>(kListenerArray), expected, 4) == 0;
+    refresh_listeners();
+    bool listeners = false;
+    if (as_expected) {  // (the array first, then the call that fills the index: neither is any use without the other)
+        const uintptr_t array = reinterpret_cast<uintptr_t>(&g_listeners[0][0]);
+        unsigned char replacement[4];
+        memcpy(replacement, &array, 4);
+        listeners = nfsmw::redirect_call(kClosestCall, kClosestPlayerCar, reinterpret_cast<uintptr_t>(&closest_listener)) && nfsmw::patch_bytes(kListenerArray, expected, replacement, 4);
     }
+    const unsigned char online[4] = {0xC4, 0xCF, 0x92, 0x00};
+    const uintptr_t extra_states = reinterpret_cast<uintptr_t>(&g_extra_states);
+    unsigned char states_address[4];
+    memcpy(states_address, &extra_states, 4);
+    const bool states = nfsmw::patch_bytes(kStatesRemoteCount, online, states_address, 4) && nfsmw::patch_bytes(kSlotsRemoteCount, online, states_address, 4);
+    g_log.line("engine sounds: the cars of players 3 and up count as opponents%s; the listeners are the cameras of all players%s", states ? "" : " (NOT CHANGED: the count of states)",
+               listeners ? "" : " (NOT CHANGED: the listeners)");
+    const unsigned char two = 2, many = 0x40;
+    const bool cap = nfsmw::patch_bytes(kAttachCap, &two, &many, 1);
+    g_log.line("engine sounds: players 3 and up have the players' sounds%s", cap ? "" : " (NOT CHANGED: the attach loop)");
+    g_player_set = cap;
+    const nfsmw::Hook hooks[] = {
+        {"resolvecarbanks", "CSTATEMGR_CarState::ResolveCarBanks", kResolveCarBanks, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8, 0x6A}, false, nfsmw::detour(&hook_resolve_car_banks),
+         nfsmw::orig(&g_orig_resolve_car_banks)},
+        {"sfx3dparams", "SFXCTL_3DObjPos::UpdateParams", kUpdateParams3D, {0x56, 0x8B, 0xF1, 0x8B, 0x46, 0x28, 0x33}, false, nfsmw::detour(&hook_update_params_3d),
+         nfsmw::orig(&g_orig_update_params_3d)},
+        {"ginsuengine", "CARSFX_GinsuEngine::SetEngineParams", kGinsuEngineParams, {0x51, 0x56, 0x8B, 0xF1, 0x8A, 0x46, 0x08}, false, nfsmw::detour(&hook_ginsu_engine_params),
+         nfsmw::orig(&g_orig_ginsu_engine_params)},
+        {"aemsengine", "CARSFX_AEMSEngine::SetEngineParams", kAemsEngineParams, {0x83, 0xEC, 0x0C, 0x56, 0x8B, 0xF1, 0x8B}, false, nfsmw::detour(&hook_aems_engine_params),
+         nfsmw::orig(&g_orig_aems_engine_params)},
+        {"sndvol", "_SNDvol", kSndVol, {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x10, 0x80}, false, nfsmw::detour(&hook_snd_vol), nfsmw::orig(&g_orig_snd_vol)},
+        {"sndfxlevel", "_SNDfxlevel", kSndFxLevel, {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C, 0x80}, false, nfsmw::detour(&hook_snd_fx_level), nfsmw::orig(&g_orig_snd_fx_level)},
+        {"aemstick", "SNDAEMS instance walk", kAemsTick, {0x80, 0x3D, 0xF2, 0x1B, 0x9C, 0x00, 0x00}, false, nfsmw::detour(&hook_aems_tick), nfsmw::orig(&g_orig_aems_tick)},
+        {"aemsconstructor", "SNDAEMS instance constructor", kAemsConstructor, {0x56, 0xE8, 0x5A, 0x14, 0x00, 0x00, 0x8B}, false, nfsmw::detour(&hook_aems_constructor),
+         nfsmw::orig(&g_orig_aems_constructor)},
+        {"aemsbankvol", "SNDAEMSI_bankvol", kAemsBankVol, {0x55, 0x8B, 0xEC, 0x8B, 0x45, 0x08, 0x53}, false, nfsmw::detour(&hook_bank_vol), nfsmw::orig(&g_orig_bank_vol)},
+        {"aemsoptvol", "SNDAEMSI_optvol", kAemsOptVol, {0x33, 0xC0, 0x39, 0x44, 0x24, 0x08, 0x7C}, false, nfsmw::detour(&hook_opt_vol), nfsmw::orig(&g_orig_opt_vol)},
+        {"aemsbankfxwet", "SNDAEMSI_bankfxwet0", kAemsBankFxWet, {0x55, 0x8B, 0xEC, 0x56, 0x8B, 0x75, 0x0C}, false, nfsmw::detour(&hook_bank_fx_wet), nfsmw::orig(&g_orig_bank_fx_wet)},
+        {"aemsoptfxwet", "SNDAEMSI_optfxwet0", kAemsOptFxWet, {0x33, 0xC0, 0x39, 0x44, 0x24, 0x08, 0x7C}, false, nfsmw::detour(&hook_opt_fx_wet), nfsmw::orig(&g_orig_opt_fx_wet)},
+    };
+    nfsmw::install_hooks(hooks, sizeof(hooks) / sizeof(hooks[0]), g_log, g_ini, "engine sounds");
+    if (g_player_set) {
+        const nfsmw::Hook player_hooks[] = {
+            {"playerenterworld", "CSTATEMGR_PlayerCar::EnterWorld", kPlayerEnterWorld, {0x6A, 0xFF, 0x68, 0x88, 0xD3, 0x86, 0x00}, false, nfsmw::detour(&hook_player_enter_world),
+             nfsmw::orig(&g_orig_player_enter_world)},
+            {"tunerupdate", "EAXTunerCar::UpdateParams", kTunerUpdateParams, {0x8B, 0x44, 0x24, 0x04, 0x56, 0x50, 0x8B}, false, nfsmw::detour(&hook_tuner_update), nfsmw::orig(&g_orig_tuner_update)},
+            {"carprocess", "EAXCar::ProcessUpdate", kCarProcessUpdate, {0x8B, 0x41, 0x34, 0x85, 0xC0, 0x74, 0x18}, false, nfsmw::detour(&hook_car_process_update),
+             nfsmw::orig(&g_orig_car_process_update)},
+        };
+        nfsmw::install_hooks(player_hooks, 3, g_log, g_ini, "engine sounds (players' set)");
+    }
+    events::on_world_load(&on_world_load);
+    events::on_frame(&on_frame);
 }
 
 }  // namespace split_screen_support::engine_sounds

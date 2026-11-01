@@ -16,7 +16,7 @@
 #include "tollbooth.h"
 
 #include <algorithm>
-#include <cstring>
+#include <vector>
 
 #include "hooks.h"
 #include "max_players.h"
@@ -38,12 +38,21 @@ constexpr unsigned kRaceParameters = 0x1968, kBooths = 0x30, kBoothTimes = 0x34,
 constexpr unsigned kPlayerGetSimable = 1;                                                         // IPlayer virtual table slot
 constexpr unsigned kLocalPlayerInterface = 0x2C, kInterfaceGetSimable = 3;                         // LocalPlayer::UpdateHud asks the object at this + 0x2C (virtual slot 3)
 
-float g_bonus[racers::kMax];  // the time each racer has been awarded
-int g_crossing = -1;          // the racer who crossed the booth the script is dealing with
-int g_context = -1;           // the racer the game is asking the time of (-1: nobody in particular)
-bool g_timed_out[racers::kMax];
-float g_frozen[racers::kMax];  // the time left at the finish: a racer who finished has no clock any more
-bool g_has_frozen[racers::kMax];
+struct Clock {
+    float bonus = 0;           // the time the racer has been awarded
+    bool timed_out = false;
+    bool has_frozen = false;   // the racer finished: they have no clock any more, only the time they had left
+    float frozen = 0;
+};
+std::vector<Clock> g_clocks;  // one for each racer of the race
+
+Clock &clock_of(int racer) {
+    if (static_cast<size_t>(racer) >= g_clocks.size()) g_clocks.resize(racer + 1);
+    return g_clocks[racer];
+}
+
+int g_crossing = -1;  // the racer who crossed the booth the script is dealing with
+int g_context = -1;   // the racer the game is asking the time of (-1: nobody in particular)
 
 float(__fastcall *g_orig_remaining)(void *, void *);
 void(__fastcall *g_orig_award)(void *, void *, float);
@@ -79,14 +88,15 @@ float time_limit(void *status) {
 // What the racer has left: the limit and what they were awarded, less the time that has passed; the same from the finish on.
 float time_left(void *status, int racer) {
     const float limit = time_limit(status);
-    if (limit <= 0.0f || racer < 0 || racer >= racers::kMax) return 0.0f;
-    if (g_has_frozen[racer]) return g_frozen[racer];
-    const float left = limit + g_bonus[racer] - reinterpret_cast<float(__fastcall *)(void *, void *)>(kGetRaceTimeElapsed)(status, nullptr);
+    if (limit <= 0.0f || racer < 0 || racer >= racers::count()) return 0.0f;
+    Clock &clock = clock_of(racer);
+    if (clock.has_frozen) return clock.frozen;
+    const float left = limit + clock.bonus - reinterpret_cast<float(__fastcall *)(void *, void *)>(kGetRaceTimeElapsed)(status, nullptr);
     const float live = left > 0.0f ? left : 0.0f;
     const unsigned char *info = racers::info(racer);
     if (info && info[racers::kFinished]) {
-        g_has_frozen[racer] = true;
-        g_frozen[racer] = live;
+        clock.has_frozen = true;
+        clock.frozen = live;
     }
     return live;
 }
@@ -116,11 +126,11 @@ float __fastcall tick(void *status, void *edx) {
         for (int i = 0; i < racers::count(); ++i) {
             const unsigned char *info = racers::info(i);
             if (info && info[racers::kFinished]) time_left(status, i);  // (stops the clock of a racer who finished)
-            if (!info || info[racers::kKnockedOut] || info[racers::kFinished] || g_timed_out[i]) continue;
+            if (!info || info[racers::kKnockedOut] || info[racers::kFinished] || clock_of(i).timed_out) continue;
             if (time_left(status, i) > 0.0f) continue;
             void *simable = racers::simable(info);
             if (!simable) continue;
-            g_timed_out[i] = true;
+            clock_of(i).timed_out = true;
             g_log.line("tollbooth: racer %d (%s) is out of time", i + 1, is_human(i) ? "a player" : "an opponent");
             reinterpret_cast<void(*)(void *)>(kKnockoutRacer)(simable);
         }
@@ -130,9 +140,7 @@ float __fastcall tick(void *status, void *edx) {
 
 void __fastcall hook_reset_timers(void *status, void *edx) {
     g_orig_reset_timers(status, edx);
-    memset(g_bonus, 0, sizeof(g_bonus));
-    memset(g_timed_out, 0, sizeof(g_timed_out));
-    memset(g_has_frozen, 0, sizeof(g_has_frozen));
+    g_clocks.assign(racers::count(), Clock());
     g_crossing = -1;
 }
 
@@ -148,7 +156,7 @@ void __fastcall hook_award(void *status, void *edx, float bonus) {
     int &booths = *reinterpret_cast<int *>(info + kBooths);
     if (booths >= 0 && booths < static_cast<int>(kMaxBooths)) *reinterpret_cast<float *>(info + kBoothTimes + booths * 4) = time_left(status, g_crossing);
     ++booths;
-    g_bonus[g_crossing] += bonus;
+    clock_of(g_crossing).bonus += bonus;
     g_log.line("tollbooth: racer %d crosses booth %d: +%.1f s, %.1f s left", g_crossing + 1, booths, bonus, time_left(status, g_crossing));
 }
 

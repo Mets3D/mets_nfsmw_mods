@@ -124,7 +124,7 @@ void test_select_car(int device) {
 }
 
 void install() {
-    if (!ini_flag("options", "race_again", true)) return;
+    if (!ini_flag("options", "optional_car_select", true)) return;
     const nfsmw::Hook hooks[] = {
         {"raceoptions", "UIQRTrackOptions::NotificationMessage", kNotify, {0x8B, 0x44, 0x24, 0x10, 0x8B, 0x54, 0x24}, false, nfsmw::detour(&hook_notify),
          nfsmw::orig(&g_orig_notify)},

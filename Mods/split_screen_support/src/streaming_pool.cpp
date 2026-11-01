@@ -21,6 +21,7 @@
 
 #include "nfsmw_util.h"
 #include "patch.h"
+#include "racers.h"
 #include "split_screen_support.h"
 
 namespace split_screen_support::streaming_pool {
@@ -31,7 +32,8 @@ constexpr uintptr_t kSite = 0x664A47, kInitMemoryPoolCall = 0x664A4F, kStreamer 
 constexpr long long kMB = 1048576;
 constexpr long long kKeepBlockMB = 600;  // the largest free block that must be left
 
-int g_wanted_mb = 0, g_keep_mb = 0, g_car_extra_mb = 0;
+int g_wanted_mb = 0, g_car_extra_mb = 0;
+constexpr int kKeepMb = 2400;  // the address space the pool leaves free (see choose_pool_size)
 bool g_patched = false;
 
 // The car loader's memory (CarLoader::SetMemoryPoolSize 0x75C550: bMalloc(size, 7), a pool of its own made in that block) comes out of the track streamer's pool (pool 7), for which
@@ -126,7 +128,7 @@ int __cdecl choose_pool_size(int game_size) {
         if (!probe) continue;
         const Space after = measure();  // with the block taken
         VirtualFree(probe, 0, MEM_RELEASE);
-        if (after.free_mb >= g_keep_mb && after.largest_mb >= kKeepBlockMB) {
+        if (after.free_mb >= kKeepMb && after.largest_mb >= kKeepBlockMB) {
             g_result.chosen_mb = mb;
             g_result.free_after_mb = after.free_mb;
             g_result.largest_after_mb = after.largest_mb;
@@ -139,11 +141,11 @@ int __cdecl choose_pool_size(int game_size) {
 // The texture packs: `eInitTextures` (0x4FCD00) makes the slot pool that every TexturePack object comes from, `bNewSlotPool(0x20, 0x80, name, 0)`: 128 slots of 32 bytes, so 128 texture
 // packs at a time (the cars, the minimap tiles, the track's texture sections, the HUD...). A slot pool that is full returns null and `TexturePack::AttachTextureTable` 0x506090 crashed on it
 // [tested: the stack of two crashes in a long session of 4 players driving apart: 0x5673F8 UncompressMaps and 0x727E22 ActivateSection, the second with 77 sections loaded], so the
-// count is `[options] texture_pack_slots` (1024 by default: 32 KB; 0 = the game's own). The pool object is at [0x916044]: +0x18 in use, +0x1C the most used, +0x2C the capacity.
+// count is 1024 (32 KB). The pool object is at [0x916044]: +0x18 in use, +0x1C the most used, +0x2C the capacity.
 constexpr uintptr_t kTexturePackSlotsPush = 0x4FCD07;
-void patch_texture_pack_slots(const char *ini) {
-    const int slots = static_cast<int>(GetPrivateProfileIntA("options", "texture_pack_slots", 1024, ini));
-    if (slots <= 0x80) return;
+constexpr int kTexturePackSlots = 1024;
+void patch_texture_pack_slots() {
+    const int slots = kTexturePackSlots;
     static const unsigned char expected[5] = {0x68, 0x80, 0x00, 0x00, 0x00};  // push 0x80
     unsigned char patched[5] = {0x68};
     memcpy(patched + 1, &slots, 4);
@@ -154,12 +156,12 @@ void patch_texture_pack_slots(const char *ini) {
 // when sound is on) given to `bInitMemoryPool` as `AudioMemoryPool` [0x8EE558]. The engine banks of the opponents are loaded into it (`EAXAemsManager::InitiateLoad` 0x4CFFA0 fails with
 // -4 when its largest free block is smaller than the bank; `AsyncResidentAllocCB` 0x4CFB20), and so are the Csis middleware's objects, the bank slots' buffers and the mixer's memory.
 // An engine whose bank is not loaded is never initialized (its `InitSFX`, which makes its Csis::CAR object, waits for the bank): with 2 players and 4 opponents none of the
-// opponents had a Csis::CAR object and none was heard, with 3 all were [tested], and a bigger pool of Csis objects taken from the same memory made 2 the most. `[options]
-// audio_pool_mb` (32 by default; 0 = the game's own) is the size.
+// opponents had a Csis::CAR object and none was heard, with 3 all were [tested], and a bigger pool of Csis objects taken from the same memory made 2 the most. 2 MB for
+// each racer of `[options] max_racers` (32 MB for 16; the game's own with 4) is the size.
 constexpr uintptr_t kAudioPoolSize = 0x4CC3AA;
-void patch_audio_pool(const char *ini) {
-    const int mb = static_cast<int>(GetPrivateProfileIntA("options", "audio_pool_mb", 32, ini));
-    if (mb <= 6 || mb > 512) return;
+void patch_audio_pool(int most) {
+    const int mb = most > 4 ? 2 * most : 0;  // 32 MB for 16 racers
+    if (mb <= 6) return;
     const int value = mb * 1048576 - 0x4000;
     static const unsigned char expected[4] = {0x00, 0x30, 0x56, 0x00};  // the 0x563000 of `and eax, 0x563000`
     unsigned char patched[4];
@@ -170,11 +172,11 @@ void patch_audio_pool(const char *ini) {
 // The objects of the Csis middleware: `EAXSND8Wrapper::Initialize` (0x4C40C0) makes one slot pool for everything it allocates (`Csis::System::Alloc` is `bOMalloc(pCsisSlotPools)`:
 // one slot of the pool's size whatever is asked for), `bNewSlotPool(slot size, 0x100, "AUD:Csis SlotPools", AudioMemoryPool)`: 256. Each engine sound takes several (its Csis::CAR object, its
 // class instance ...): 199 of them were in use in a race of 2 players and 14 opponents [tested], and a full pool returns null, which leaves an engine without its Csis::CAR object: silent.
-// `[options] csis_slots` (1024 by default; 0 = the game's own) is the count; the pool is taken from the sound system's memory (above).
+// 1024 is the count; the pool is taken from the sound system's memory (above).
 constexpr uintptr_t kCsisSlotsPush = 0x4C411E;
-void patch_csis_slots(const char *ini) {
-    const int slots = static_cast<int>(GetPrivateProfileIntA("options", "csis_slots", 1024, ini));
-    if (slots <= 0x100) return;
+constexpr int kCsisSlots = 1024;
+void patch_csis_slots() {
+    const int slots = kCsisSlots;
     static const unsigned char expected[5] = {0x68, 0x00, 0x01, 0x00, 0x00};  // push 0x100
     unsigned char patched[5] = {0x68};
     memcpy(patched + 1, &slots, 4);
@@ -183,11 +185,11 @@ void patch_csis_slots(const char *ini) {
 
 // The sound hardware's voices (one playing sample each; an engine plays several): `EAXSND8Wrapper::Initialize` asks for 64 (`push 0x40` at 0x4C4213, `Snd6System::SetVoices(0, 64)`),
 // and the library makes its voice table that big (clamped to its own most, 255 on this machine [tested: logged]). A race of 2 players and 14 opponents used 48 at once [tested].
-// `[options] sound_voices` (128 by default, up to 255; 0 = the game's own) is the count.
+// 128 is the count.
 constexpr uintptr_t kVoicesPush = 0x4C4213;
-void patch_voices(const char *ini) {
-    const int voices = static_cast<int>(GetPrivateProfileIntA("options", "sound_voices", 128, ini));
-    if (voices <= 0x40 || voices > 255) return;
+constexpr int kSoundVoices = 128;
+void patch_voices() {
+    const int voices = kSoundVoices;
     static const unsigned char expected[2] = {0x6A, 0x40};  // push 0x40 (SetVoices takes the low byte)
     const unsigned char patched[2] = {0x6A, static_cast<unsigned char>(voices)};
     nfsmw::patch_bytes(kVoicesPush, expected, patched, sizeof(patched));
@@ -198,12 +200,12 @@ struct Early {
         char ini[MAX_PATH];
         nfsmw::data_file("nfsmw_split_screen_support.ini", ini, sizeof(ini));
         g_wanted_mb = static_cast<int>(GetPrivateProfileIntA("options", "streaming_pool_mb", 512, ini));
-        g_keep_mb = static_cast<int>(GetPrivateProfileIntA("options", "streaming_pool_keep_mb", 2400, ini));
-        g_car_extra_mb = std::max(0, static_cast<int>(GetPrivateProfileIntA("options", "car_pool_extra_mb", 128, ini)));
-        patch_texture_pack_slots(ini);
-        patch_audio_pool(ini);
-        patch_csis_slots(ini);
-        patch_voices(ini);
+        const int most = racers::max_racers(ini);
+        g_car_extra_mb = most > 4 ? 8 * most : 0;  // 128 MB for 16 racers
+        patch_texture_pack_slots();
+        patch_audio_pool(most);
+        patch_csis_slots();
+        patch_voices();
         patch_car_pool();
         if (g_wanted_mb <= 0 && g_car_extra_mb <= 0) return;
         static const unsigned char expected[8] = {0x03, 0xC6, 0x50, 0xB9, 0xD0, 0xA9, 0x9A, 0x00};  // add eax, esi; push eax; mov ecx, 0x9AA9D0
@@ -226,7 +228,7 @@ struct Early {
 void report() {
     if (g_car_extra_mb > 0) {
         const bool redirected = g_set_car_pool[0] && g_set_car_pool[1] && g_set_car_pool[2] && g_make_space && g_car_malloc && g_car_free;
-        g_log.line("streaming pool: the car loader's pool gets %d MB more than the game's ([options] car_pool_extra_mb), in a block of its own: %s", g_car_extra_mb,
+        g_log.line("streaming pool: the car loader's pool gets %d MB more than the game's (8 MB for each racer of [options] max_racers), in a block of its own: %s", g_car_extra_mb,
                    !redirected ? "not all of the game's calls are as expected" : g_car_block ? "reserved" : "could not be reserved (it comes from the track pool, as in the game)");
     }
     if (g_wanted_mb <= 0) {
@@ -238,7 +240,7 @@ void report() {
     } else {
         g_log.line("streaming pool: %lld MB (the game's own %lld MB; up to %d MB wanted, %d MB of address space to keep free): the address space was %lld MB free, the largest block %lld MB; "
                    "with the pool %lld MB free, the largest block %lld MB",
-                   g_result.chosen_mb, g_result.game_mb, g_wanted_mb, g_keep_mb, g_result.free_before_mb, g_result.largest_before_mb, g_result.free_after_mb, g_result.largest_after_mb);
+                   g_result.chosen_mb, g_result.game_mb, g_wanted_mb, kKeepMb, g_result.free_before_mb, g_result.largest_before_mb, g_result.free_after_mb, g_result.largest_after_mb);
     }
 }
 

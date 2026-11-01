@@ -2,14 +2,21 @@
 // opponents. A racer's simable is found by the handle at the start of its GRacerInfo in the table at 0x92FEB4.
 #pragma once
 
+#include <windows.h>
+
+#include <algorithm>
 #include <cstdint>
 
 namespace split_screen_support::racers {
 
-constexpr int kMax = 16;  // GRaceStatus has room for 16 racers
+constexpr int kMax = 16;  // the game's race state keeps the racers in tables of 16 (GRaceStatus: the GRacerInfos, then the count; lap times, check times...): more needs them moved
 constexpr unsigned kInfoSize = 0x194;
 // GRacerInfo (the PC layout)
 constexpr unsigned kKnockedOut = 0x1C, kFinished = 0x21;  // bytes
+
+// [options] max_racers: how many cars a race has at most, players and opponents (4 up to kMax). The memory and the slots for customized paint and engine sounds that more
+// racers need are made at start-up from this one number. `ini` is the path of the ini (g_ini; the parts that start before it is known read the file themselves).
+inline int max_racers(const char *ini) { return std::clamp(static_cast<int>(GetPrivateProfileIntA("options", "max_racers", kMax, ini)), 4, kMax); }
 
 inline unsigned char *status() { return *reinterpret_cast<unsigned char **>(0x91E000); }
 

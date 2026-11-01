@@ -33,8 +33,8 @@ constexpr int kMaxPlayers = nfsmw::kMaxPlayers;
 
 bool g_split = false;
 int g_player = 0, g_players = 2;     // the pass being drawn, and how many passes there are
-int g_rate_limit_many = 1;           // the most faces-per-frame rate for more than two players ([options] reflection_rate_four_players; 0 = the game's)
-bool g_copies_wanted = true;         // [options] reflection_copies
+int g_rate_limit_many = 1;           // the most faces-per-frame rate for more than two players ([options] reflection_rate_many_players; 0 = the game's)
+bool g_copies_wanted = true;         // (false when the copies cannot be made)
 bool g_pass_drew_all = false;        // the update call forced every face in this pass
 
 struct Copy {
@@ -173,8 +173,7 @@ void end_pass(IDirect3DDevice9 *device, int player) {
 void release() { release_copies(); }
 
 void install() {
-    g_copies_wanted = ini_flag("options", "reflection_copies");
-    g_rate_limit_many = GetPrivateProfileIntA("options", "reflection_rate_four_players", 1, g_ini);
+    g_rate_limit_many = GetPrivateProfileIntA("options", "reflection_rate_many_players", 1, g_ini);
     const nfsmw::Hook hooks[] = {
         {"envmapcameras", "UpdateEnvironmentMapCameras", kUpdateEnvMapCameras, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x83}, false,
          nfsmw::detour(&hook_update_env_map_cameras), nfsmw::orig(&g_orig_update_env_map_cameras)},

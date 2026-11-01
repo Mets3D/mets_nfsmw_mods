@@ -118,7 +118,7 @@ void __fastcall hook_add_player_car(void *map, void *edx) {
 }  // namespace
 
 void install() {
-    if (!ini_flag("options", "world_map_markers", true)) return;
+    if (!ini_flag("options", "show_all_racers_on_world_map", true)) return;
     const nfsmw::Hook hooks[] = {
         {"mapplayercar", "WorldMap::AddPlayerCar", kAddPlayerCar, {0x64, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x6A}, false, nfsmw::detour(&hook_add_player_car),
          nfsmw::orig(&g_orig_add_player_car)},

@@ -17,6 +17,7 @@
 
 #include "hooks.h"
 #include "patch.h"
+#include "racers.h"
 #include "split_screen_support.h"
 
 namespace split_screen_support::skin_slots {
@@ -48,7 +49,7 @@ void __fastcall hook_set_composite_name_hash(unsigned char *ride, void *, int sl
 }  // namespace
 
 void install() {
-    g_slots = static_cast<int>(GetPrivateProfileIntA("options", "skin_slots", 16, g_ini));
+    g_slots = racers::max_racers(g_ini);
     if (g_slots <= 4) return;
     if (g_slots > kMaxSlots) g_slots = kMaxSlots;
     const nfsmw::Hook hooks[] = {

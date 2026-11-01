@@ -1,10 +1,9 @@
 /*
  * What a bug report about missing geometry needs: the state of the track streamer, the game's memory, and where every player's car is.
- *   - F11 (`[options] streaming_dump_key`, a virtual key code; 0 = none; F7 and F8 are taken by other mods, F9 by this one) writes a dump to the log when pressed: the streamer (the pool, the sections loaded, in memory
+ *   - a dump in the log, written when sections run out of memory (the streamer's count at +0x28 goes up): the streamer (the pool, the sections loaded, in memory
  *     trouble), the two places it has and the extra places (extra_streaming.cpp) with their zones, the game's address space (a 32 bit process: 4 GB, of which a
  *     block of a few hundred MB must be free to load a section), and a `teleport` line for each player's car that puts it back where it is (the dev_tools command).
  *   - every 30 seconds of a race a line says how much is loaded and how much address space is left, so that a session of many races shows what grows;
- *   - the same dump is written when sections run out of memory (the streamer's count at +0x28 goes up).
  * The streamer's layout (the PC's: see agent_docs/split-screen.md): the sections table at +0, its count at +4, the counts of sections loaded / loading / activated /
  * out of memory at +0x1C / 0x20 / 0x24 / 0x28, the two places from +0xC0 (0x64 bytes each; `CurrentZone` at +0x1E), the pool's size at +0x83C. A section is 0x5C bytes:
  * status at +0xC (3 loaded, 4 activated) and size at +0x18.
@@ -20,7 +19,6 @@
 #include "engine_sounds.h"
 #include "events.h"
 #include "extra_streaming.h"
-#include "keys.h"
 #include "max_players.h"
 #include "more_players.h"
 #include "players.h"
@@ -35,8 +33,6 @@ constexpr uintptr_t kStreamer = 0x9AA9D0, kGameFlowState = 0x925E90;
 constexpr unsigned kEntries = 0xC0, kEntrySize = 0x64, kZone = 0x1E, kPoolSize = 0x83C;
 constexpr unsigned kSectionSize = 0x5C;
 
-int g_key = VK_F11;
-bool g_key_before = false;
 unsigned g_frames = 0;
 DWORD g_last_summary_ms = 0;
 int g_last_out_of_memory = 0;
@@ -146,7 +142,6 @@ void on_frame() {
         streaming_pool::report();
         g_log.line("streaming: the car loader's pool is number %d, the size the game gave it %d MB", *reinterpret_cast<int *>(kCarLoaderPool), *reinterpret_cast<int *>(0x8F7EF0) >> 10);
     }
-    if (nfsmw::key_clicked(g_key, g_key_before)) dump("dump asked for");
     if (g_start_line && *reinterpret_cast<int *>(kGameFlowState) == 6 && GetTickCount() - g_last_summary_ms >= 12000) {  // the start of the race, with the cars close together
         g_start_line = false;
         summary("a few seconds into the race");
@@ -185,7 +180,6 @@ const char *pools_text() {
 }
 
 void install() {
-    g_key = static_cast<int>(GetPrivateProfileIntA("options", "streaming_dump_key", VK_F11, g_ini));
     events::on_world_load(&on_world_load);
     events::on_frame(&on_frame);
 }

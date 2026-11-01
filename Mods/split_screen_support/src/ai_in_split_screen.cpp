@@ -13,7 +13,7 @@
  * the GRaceCustom and then, in split screen mode, `SetNumOpponents(1)` (the call at 0x7AB500) overrides the opponents. `Game_InitRacers` makes
  * `1 - racers + NumOpponents` opponents (the racers are all the players), so that call is redirected to `Opponents + players - 1`: the number on the row
  * is the number of opponents.
- * The game's Opponents row (1 to 3) is not the one a split screen race gets: an "AI Opponents" row of ours (0 up to 16 minus the players: GRaceStatus has room for 16 racers)
+ * The game's Opponents row (1 to 3) is not the one a split screen race gets: an "AI Opponents" row of ours (0 up to `[options] max_racers` minus the players; GRaceStatus has room for 16 racers)
  * takes its place, and a change of the Players row lowers it to what fits. The race then gets `SetNumOpponents(opponents + players - 1)`. Without the row's texts
  * (nfsmw_custom_menus) the game's Opponents row is added.
  * Every race type gets the rows: Redux v3's options of the knockout and the tollbooth have none in split screen, and a race without the row got the opponents of the
@@ -31,11 +31,14 @@
 #include "ai_in_split_screen.h"
 
 #include <algorithm>
+#include <array>
+#include <vector>
 
 #include "hooks.h"
 #include "option_row.h"
 #include "patch.h"
 #include "player_count.h"
+#include "racers.h"
 #include "players.h"
 #include "split_screen_support.h"
 
@@ -81,7 +84,6 @@ void add_row(void *screen, uintptr_t vtable) {
 }
 
 // ---- the AI Opponents row: in a split screen race it takes the place of the Opponents row
-constexpr int kMaxRacers = 16;        // GRaceStatus has room for 16 racers (0x194 bytes each from +0x18, the count at +0x1958)
 constexpr int kDefaultOpponents = 3;  // the Quick Race's, until the row is changed
 const unsigned kOpponentsTitleHash = nfsmw::bstring_hash("SPLIT_AI_OPPONENTS");
 
@@ -97,7 +99,10 @@ bool g_opponents_row = false;  // the race options that were built last have the
 void *g_opponents_widget = nullptr;
 void *g_opponents_vtable[option_row::kSlots];
 
-int max_opponents() { return kMaxRacers - player_count::wanted(); }
+int max_opponents() {
+    static const int racers_most = racers::max_racers(g_ini);
+    return racers_most - player_count::wanted();
+}
 int ai_opponents() { return std::clamp(g_opponents, 0, max_opponents()); }
 
 bool g_knockout_screen = false;  // the race options that were built last are a lap knockout's
@@ -250,18 +255,18 @@ void prepare_race() {
 void racers_made() { g_making_racers = false; }
 
 void players_changed() {
-    g_opponents = ai_opponents();  // (the players and the opponents are never more than 16)
+    g_opponents = ai_opponents();  // (the players and the opponents are never more than max_racers)
     if (g_opponents_row && g_opponents_widget) opponents_draw(g_opponents_widget, nullptr);
     sync_rows();
 }
 
 void register_texts(const nfsmw::custom_menus::Host *host) {
-    if (!ini_flag("options", "ai_in_split_screen", true)) return;
+    if (!ini_flag("options", "enable_ai_opponents_in_split_screen", true)) return;
     host->register_text(kOpponentsTitleHash, "AI Opponents");
-    static char texts[kMaxRacers][8];  // the host keeps the pointers
-    for (int opponents = 0; opponents < kMaxRacers; ++opponents) {
-        snprintf(texts[opponents], sizeof(texts[opponents]), "%d", opponents);
-        host->register_text(opponents_hash(opponents), texts[opponents]);
+    static std::vector<std::array<char, 8>> texts(racers::max_racers(g_ini));  // the host keeps the pointers
+    for (int opponents = 0; opponents < static_cast<int>(texts.size()); ++opponents) {
+        snprintf(texts[opponents].data(), texts[opponents].size(), "%d", opponents);
+        host->register_text(opponents_hash(opponents), texts[opponents].data());
     }
     g_opponents_texts = true;
 }

@@ -376,7 +376,7 @@ void log_first(IDirect3DDevice9 *, IDirect3DSurface9 *back_buffer, const D3DSURF
                view_surface == back_buffer ? "is" : "is not");
 }
 
-// ---- Where the time of a four player frame goes ([options] frame_timing=1 in the ini): the GPU time of each pass (a timestamp query before the first
+// ---- Where the time of a four player frame goes ([diagnostics] frame_timing=1 in the ini): the GPU time of each pass (a timestamp query before the first
 // and after each pass, read two frames later so the reading does not wait) and the CPU time the game spends in each pass call. Every 300 frames the
 // averages go to the log.
 constexpr int kTimedFrames = 3, kTimestamps = nfsmw::kMaxPlayers + 1;  // a timestamp before the first pass and after each
@@ -600,7 +600,7 @@ void hook_display_frame() {
 }  // namespace
 
 void install() {
-    g_timing_on = ini_flag("options", "frame_timing", false);
+    g_timing_on = ini_flag("diagnostics", "frame_timing", false);
     events::on_world_load(&on_world_load);
     events::on_frame(&on_frame);
     const nfsmw::Hook hooks[] = {
