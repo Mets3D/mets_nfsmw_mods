@@ -18,33 +18,41 @@ Points marked with * require the [Custom Menus](../custom_menus/ReadMe.md) mod t
   - **Tollbooth: Time**: Make tollbooth races harder or easier by tweaking the available time.
 - **Player Options**:
   - Each player can invoke the pause menu. The "Player Options" menu will affect the player who opened the pause menu. The name of the affected player is displayed in the menu's header.
-  - **Minimap On/Off**: Each player can toggle their own minimap.
+  - **Minimap On/Off**: Each player can toggle their own minimap. All racers appear on the minimap as well as the world map.
   - **HUD Scale**: Each player can scale their own HUD.
   - **Split-Screen Volume**: Each player can tweak how much their screen contributes to the game's audio.
   - **Leaderboard On/Off**: This option already existed, but the game's split-screen HUD didn't include the leaderboard. This mod brings it back, as it's important for Speedtrap races, but can be disabled if you want to free up screen space. Drag races don't show it.
 - Tollbooth races are supported: Each player has their own clock, if you run out of time you get knocked out, starting positions work for up to 16 cars (although above 4 it gets unfair), and the end-of-race summary screen shows your remaining time.
-- Rear-View Mirrors are allowed to render in split-screen, one for each player.
+- Knockout races work: You cannot specify lap count, it is determined by total racers. When you get knocked out, you no longer control your car, but you can still open the pause menu.
 - If a player is eliminated, their screen disappears, one of the neighbouring players takes up the available screen space. The eliminated player's resources are freed, their screen no longer rendered, their audio muted.
+- Rear-View Mirrors are allowed to render in split-screen, one for each player. This can be disabled in the game's Advanced Video Options.
+- Reduced menu navigation:
+  - After a race, the game goes to the race options instead of all the way out into the main menu.
+  - After a race, the previously selected cars are remembered, even across sessions.
+  - After a race, players don't need to re-select their cars unless the player count setting changes. A new "Select Car" button is added in the Race Options menu. Whichever player presses it, can change their selected car.
+  - The Car Select screen and the Player Options menus show which player they're currently changing, eg. "Player 2 - Xbox One S Controller".
 
-## Non-features
-This is a bit of a documentation on what issues were encountered during development. Things you should take for granted, but other mods that aren't paying enough attention might miss.
+## Tested functionality
+<details>
+<summary>
+List of things that could not be taken for granted during development and had to be addressed, but you wouldn't think of them as features.
+</summary>
+
+- Races start with the intro cutscenes, just like in single-player.
 - World Geometry, shadows, reflections, light trails, sparks, and sun glare, are rendered correctly for each player. The sun was pain in the butt.
-- The game now allocates enough memory and skin slots for cars to allow 16 unique racers, and also for 4 sets of minimap tiles.
-- The engine sounds of all AI opponents plays - albeit the computationally cheap versions.
-- Sound effects for all players plays correctly. This was a surprisingly huge challenge.
-- Each player can choose from player 1's cars, including those of their Career and their custom cars.
+- Expanded memory and list sizes for car skin slots, engine sounds, and minimap tiles, to allow 4 players and 16 total racers.
+- The engine sounds of all AI opponents plays.
+- Sound effects for all players plays, and can even be tweaked in the Player Options menu.
+- All players have access to Career cars of the currently loaded save file.
 - Each player can control their own camera - which camera preset they're on, looking around with free look from the Controller Support mod, and look-back.
 - The mouse looks around only for the player using the keyboard, if any.
 - Controller rumble works for all 4 players.
 - The camera is offset by a hard-coded amount for players whose screens are wider due to the split-screen layout: Player 1 in 3-player, and both players in 2-player mode.
-- Performance optimization culling smaller objects is disabled, since it's not needed on modern computers. Can be turned back on in the [.ini](nfsmw_split_screen_support.ini) (`cull_small_objects`).
-- After a race, the game goes to the race options instead of all the way out into the main menu.
-- After a race, the previously selected cars are remembered, even across sessions, and the menu to select cars again is optional, unless the player count changes. Whichever player presses the "Select Car" button, gets to change their car.
-- The Car Select screen and the Player Options menus show which player they're changing. ("Player 2 - Xbox One S Controller").
-- Races start with the intro cutscenes just like in single-player.
-- All 16 cars spawn in correct places, whether the race has a 2-row (2x2) or a 1-row (1x4) layout.
-- Knockout races work: You cannot specify lap count, it is determined by total racers. When you get knocked out, you no longer control your car, but you can still open the pause menu.
-- All opponents including AI opponents appear on the minimap and also the world map.
+- Performance optimization culling smaller objects is disabled by default, since it's not needed on modern computers. Can be turned back on in the [.ini](nfsmw_split_screen_support.ini) (`cull_small_objects`).
+- All 16 cars spawn in correct places, whether the race has a 2-row (2x2) or a 1-row (1x4) layout, and even in Tollbooth races.
+- Rear-view mirrors are working for each player, and they have their own HUD scaling logic to avoid covering up the whole screen.
+
+</details>
 
 ## Mod Compatibility
 
