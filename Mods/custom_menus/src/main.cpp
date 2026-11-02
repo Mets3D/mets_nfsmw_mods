@@ -50,6 +50,7 @@
 #include "skip_movies.h"
 #include "last_button.h"
 #include "steady_values.h"
+#include "scroll_indicator.h"
 #include "translations.h"
 #include "texture_pack.h"
 #include "text_guard.h"
@@ -886,6 +887,7 @@ void add_race_rows(void *screen) {
     ensure_language_entries();
     g_race_asking = screen;
     add_extra_rows(screen, opt::kRaceOptions);
+    if (g_extra_category == kCategoryRace) custom_menus::scroll_indicator::add(screen, g_log);
     log_line("race options screen: race type %d, %d page(s) apply, %d row(s) added", race_type(), static_cast<int>(g_extra_pages.size()), static_cast<int>(g_extra_rows.size()));
     g_race_asking = nullptr;
 }
@@ -903,8 +905,10 @@ void FASTCALL hook_race_notify(void *self, void *edx, unsigned msg, void *obj, u
             keep_bracket_on_row(self);
             keep_shared_looks(self);
         }
+        if (self == g_race_screen) custom_menus::scroll_indicator::update(self);
     } else if (msg == kExitComplete && self == g_race_screen) {
         g_race_screen = nullptr;
+        custom_menus::scroll_indicator::forget();
         reset_extra();
     }
 }
