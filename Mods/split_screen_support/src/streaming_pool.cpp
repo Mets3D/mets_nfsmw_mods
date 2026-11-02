@@ -186,6 +186,22 @@ void patch_csis_slots() {
 // The sound hardware's voices (one playing sample each; an engine plays several): `EAXSND8Wrapper::Initialize` asks for 64 (`push 0x40` at 0x4C4213, `Snd6System::SetVoices(0, 64)`),
 // and the library makes its voice table that big (clamped to its own most, 255 on this machine [tested: logged]). A race of 2 players and 14 opponents used 48 at once [tested].
 // 128 is the count.
+// The sound library's own heap (Snd6Memory::SetHeap, the allocator 0x81E9E7: its voices, its table of banks, the buffers of the effects): `EAXSND8Wrapper::Initialize`
+// takes 400 KB (0x64000) for it from the sound system's memory, made for the game's limits (64 voices, 32 banks, 4 opponents' engines). With 128 voices, 120 banks and 16
+// racers it ran out in a race: the reverb's buffer (GlobalFxProcessor::SetCustom from SFXObj_Reverb::ProcessUpdate, about 48 KB) came back null and the library filled it
+// with zeros at address 0 [tested: the crash's registers and stack]. The size is in four places: the stored size, the check against the largest free block, both mallocs.
+constexpr uintptr_t kSoundHeapSites[] = {0x4C4151, 0x4C4164, 0x4C4179, 0x4C41A0};  // the imm32s of mov [esi+0xC], cmp eax, push, push
+constexpr unsigned kSoundHeap = 0x200000;                                           // 2 MB (the sound system's memory is 32 MB for 16 racers)
+bool g_sound_heap_patched = false;
+void patch_sound_heap() {
+    const unsigned game = 0x64000;
+    for (uintptr_t at : kSoundHeapSites)
+        if (memcmp(reinterpret_cast<const void *>(at), &game, 4) != 0) return;  // (all or none)
+    g_sound_heap_patched = true;
+    for (uintptr_t at : kSoundHeapSites)
+        g_sound_heap_patched &= nfsmw::patch_bytes(at, reinterpret_cast<const unsigned char *>(&game), reinterpret_cast<const unsigned char *>(&kSoundHeap), 4);
+}
+
 constexpr uintptr_t kVoicesPush = 0x4C4213;
 constexpr int kSoundVoices = 128;
 void patch_voices() {
@@ -274,6 +290,7 @@ struct Early {
         patch_car_pool();
         patch_render_contexts();
         patch_bank_listings();
+        patch_sound_heap();
         if (g_wanted_mb <= 0 && g_car_extra_mb <= 0) return;
         static const unsigned char expected[8] = {0x03, 0xC6, 0x50, 0xB9, 0xD0, 0xA9, 0x9A, 0x00};  // add eax, esi; push eax; mov ecx, 0x9AA9D0
         nfsmw::Stub stub;
@@ -299,6 +316,7 @@ void report() {
     g_log.line("menus: %s; the renderer's object is %s", g_render_contexts_patched ? "1024 render contexts (the game's 180)" : "the game's 180 render contexts (the code is not as expected)",
                !render ? "not made yet" : block == kRenderArray + kRenderContexts * kRenderContextSize ? "the bigger one" : "the game's size");
     g_log.line("sound: %s", g_bank_listings_patched ? "room for 120 loaded sound banks (the game's 48)" : "the game's 48 loaded sound banks (the code is not as expected)");
+    g_log.line("sound: the sound library's heap is %s", g_sound_heap_patched ? "2 MB (the game's 400 KB)" : "the game's 400 KB (the code is not as expected)");
     if (g_car_extra_mb > 0) {
         const bool redirected = g_set_car_pool[0] && g_set_car_pool[1] && g_set_car_pool[2] && g_make_space && g_car_malloc && g_car_free;
         g_log.line("streaming pool: the car loader's pool gets %d MB more than the game's (8 MB for each racer of [options] max_racers), in a block of its own: %s", g_car_extra_mb,

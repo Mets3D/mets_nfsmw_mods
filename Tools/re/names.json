@@ -175,6 +175,16 @@
     "confidence": "read",
     "note": "thiscall: projection from the view's camera and render target size; reads [view+0x60]"
   },
+  "0x81e9e7": {
+    "name": "Snd6Memory::Alloc",
+    "confidence": "read",
+    "note": "cdecl (size) -> block of the sound library heap ([0x9C21FC], given by Snd6Memory::SetHeap 0x81B94B; 400 KB in the game, 2 MB with split_screen_support), size rounded up to 16; null when it has none"
+  },
+  "0x822050": {
+    "name": "ZeroDoubles",
+    "confidence": "read",
+    "note": "cdecl (buffer, bytes): fills with 0.0 in 8 byte steps, 32 at a time; no check of the buffer (a null one from Snd6Memory::Alloc was written at address 0)"
+  },
   "0x823e0b": {
     "name": "Snd::System::FindFreeBank",
     "confidence": "guess",

@@ -222,6 +222,14 @@ bool read_cutscene_layout(const unsigned char *status, const float *start, const
     for (int k = 0; k < kCutsceneRacers; ++k)
         if (behind[k] >= rear - kSameRow) g_cutscene.lateral[g_cutscene.width++] = lateral[k];
     std::sort(g_cutscene.lateral, g_cutscene.lateral + g_cutscene.width, [](float a, float b) { return a > b; });
+    if (g_cutscene.width < 2) {
+        // One car alone at the back (IntroNis03 of a race of type 2: the twelve opponents after the first four stood in single file, 100 m long, 9 m to the side
+        // [tested: the log]): two to a row, centred, as the game's split screen grid.
+        g_log.line("start grid: the cutscene's rear row has one car (%.1f m to the left): 2 cars to a row, centred", g_cutscene.lateral[0]);
+        g_cutscene.width = 2;
+        g_cutscene.lateral[0] = kHalfWidth;
+        g_cutscene.lateral[1] = -kHalfWidth;
+    }
     g_cutscene.rear_behind = rear;
     g_cutscene.known = true;
     g_log.line("start grid: race type %d, the cutscene's rear row has %d cars, %.1f m behind the start, at %.1f %.1f %.1f %.1f m to the left", race_type(status), g_cutscene.width, rear,
