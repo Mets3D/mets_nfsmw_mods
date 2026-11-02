@@ -2,37 +2,52 @@
 
 This mod for Need for Speed: Most Wanted 2005 (1.3) implements full Split Screen support.
 
-## How to use
+[YouTube link.](https://youtu.be/qJE3Hd06I24)
 
-1. Installing [Controller Support](../controller_support/ReadMe.md) mod highly recommended: without it, you can't have both players playing on a controller, one must use the keyboard.
-2. Choose **Quick Race > Split Screen**. Each player presses Start (or Enter) on their own device. It can be a keyboard + controller, or 2 controllers. The first device to press Start/Enter will be on top, the 2nd on bottom.
-3. Pick the cars, the track and the options, and race.
+### Installation
+1. Download the latest zip from the [Releases](../../../../releases) page and copy its `scripts` folder into the game's folder (next to `speed.exe`). If you don't want one of the mods, simply delete its `.asi` file.
+2. Follow the [instructions of the Controller Support mod](https://github.com/Mets3D/mets_nfsmw_mods/tree/master/Mods/controller_support#installation) to enable Steam Input.
+3. Choose **Quick Race > Split Screen**.
 
-## Features
-Points marked with * require the [Custom Menus](../custom_menus/ReadMe.md) mod to be installed. They're bundled together in the release.
-- 2, 3, and 4 player split-screen.
-- **Race options**:
-  - **Layout**: Horizontal or Vertical split screen.
-  - **Start**: Starting position of player cars: Players Front / Players Rear / Random.
-  - **AI opponents**: Up to 16 total cars in a race (including players).
-  - **Tollbooth: Time**: Make tollbooth races harder or easier by tweaking the available time.
-- **Player Options**:
-  - Each player can invoke the pause menu. The "Player Options" menu will affect the player who opened the pause menu. The name of the affected player is displayed in the menu's header.
-  - **Minimap On/Off**: Each player can toggle their own minimap. All racers appear on the minimap as well as the world map.
-  - **HUD Scale**: Each player can scale their own HUD.
-  - **Split-Screen Volume**: Each player can tweak how much their screen contributes to the game's audio.
-  - **Leaderboard On/Off**: This option already existed, but the game's split-screen HUD didn't include the leaderboard. This mod brings it back, as it's important for Speedtrap races, but can be disabled if you want to free up screen space. Drag races don't show it.
-- Tollbooth races are supported: Each player has their own clock, if you run out of time you get knocked out, starting positions work for up to 16 cars (although above 4 it gets unfair), and the end-of-race summary screen shows your remaining time.
-- Knockout races work: You cannot specify lap count, it is determined by total racers. When you get knocked out, you no longer control your car, but you can still open the pause menu.
-- If a player is eliminated, their screen disappears, one of the neighbouring players takes up the available screen space. The eliminated player's resources are freed, their screen no longer rendered, their audio muted.
-- Rear-View Mirrors are allowed to render in split-screen, one for each player. This can be disabled in the game's Advanced Video Options.
-- Reduced menu navigation:
-  - After a race, the game goes to the race options instead of all the way out into the main menu.
-  - After a race, the previously selected cars are remembered, even across sessions.
-  - After a race, players don't need to re-select their cars unless the player count setting changes. A new "Select Car" button is added in the Race Options menu. Whichever player presses it, can change their selected car.
-  - The Car Select screen and the Player Options menus show which player they're currently changing, eg. "Player 2 - Xbox One S Controller".
+---
 
-## Tested functionality
+## Split-Screen
+
+- 2, 3, and 4 player split-screen is supported.
+- When a player is eliminated from the race, their screen is removed to make space for other players.
+- Horizontal and vertical split-screen layouts for 2 & 3-player.
+
+https://github.com/user-attachments/assets/96c8153f-56ce-491a-bb4a-8462fbc5392e
+
+## Race Options
+- All race types supported:
+    - Circuit, Sprint, and Drag, work without any changes. Totaled and engine-blown players in Drag are removed from the screen.
+    - Speedtrap: The mod brings the leaderboard HUD back, making Speedtrap playable.
+    - Tollbooth: The mod fixes car spawn positions at race start and gives each player their own timer, making Tollbooth playable.
+    - Knockout: Lap count is determined by racer count, and knocked out players are removed from the screen, making Knockout playable.
+- **Players**: The number of human player screens.
+- **Layout**: Horizontal or Vertical split screen layout.
+- **Start**: Starting position of player cars: Players Front / Players Rear / Random.
+- **AI opponents**: Up to 16 total cars in a race (including players).
+- **Tollbooth: Time**: Make tollbooth races harder or easier by tweaking the available time.
+<img width="600" src="https://github.com/user-attachments/assets/f540b18b-915a-4cb9-839a-b5bc85455cf5" />
+
+## Player Options
+- Each player can invoke the pause menu. The "Player Options" menu will affect the player who opened the pause menu. The name of the affected player is displayed in the menu's header.
+- **Minimap On/Off**: Each player can toggle their own minimap. All racers appear on the minimap as well as the world map.
+- **HUD Scale**: Each player can scale their own HUD.
+- **Split-Screen Volume**: Each player can tweak how much their screen contributes to the game's audio.
+- **Leaderboard On/Off**: This option already existed, but the game's split-screen HUD didn't include the leaderboard. This mod brings it back, as it's important for Speedtrap races, but can be disabled if you want to free up screen space. Drag races don't show it.
+
+<img width="600" src="https://github.com/user-attachments/assets/a3f3412f-3f0a-4d32-baf8-d1f2f91ebbf6" />
+
+### Reduced menu navigation
+- After a race, the game goes to the race options instead of all the way out into the main menu.
+- After a race, the previously selected cars are remembered, even across sessions.
+- After a race, players don't need to re-select their cars unless the player count setting changes. A new "Select Car" button is added in the Race Options menu. Whichever player presses it, can change their selected car.
+- The Car Select screen and the Player Options menus show which player they're currently changing, eg. "Player 2 - Xbox One S Controller".
+
+### Tested functionality
 <details>
 <summary>
 List of things that could not be taken for granted during development and had to be addressed, but you wouldn't think of them as features.
@@ -43,8 +58,9 @@ List of things that could not be taken for granted during development and had to
 - Expanded memory and list sizes for car skin slots, engine sounds, and minimap tiles, to allow 4 players and 16 total racers.
 - The engine sounds of all AI opponents plays.
 - Sound effects for all players plays, and can even be tweaked in the Player Options menu.
-- All players have access to Career cars of the currently loaded save file.
+- Rear-View Mirrors are allowed to render in split-screen, one for each player. This can be disabled in the game's Advanced Video Options.
 - Each player can control their own camera - which camera preset they're on, looking around with free look from the Controller Support mod, and look-back.
+- All players have access to Career cars of the currently loaded save file.
 - The mouse looks around only for the player using the keyboard, if any.
 - Controller rumble works for all 4 players.
 - The camera is offset by a hard-coded amount for players whose screens are wider due to the split-screen layout: Player 1 in 3-player, and both players in 2-player mode.
@@ -53,6 +69,8 @@ List of things that could not be taken for granted during development and had to
 - Rear-view mirrors are working for each player, and they have their own HUD scaling logic to avoid covering up the whole screen.
 
 </details>
+
+---
 
 ## Mod Compatibility
 
