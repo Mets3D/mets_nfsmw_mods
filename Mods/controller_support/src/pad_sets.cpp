@@ -283,8 +283,8 @@ void FASTCALL hook_message(void *screen, void *edx, unsigned message, void *obje
 
 int menu_pad() { return g_menu_pad; }
 
-// What the Controls screen calls a controller: its real model ("Xbox One S Controller"; "#2" for a second of the same name) or
-// DirectInput's name for it, else the game's name, with its number when there are several.
+// What the Controls screen calls a controller: its real model ("Xbox One S Controller"; "#2" for a second of the same name among those
+// connected) or DirectInput's name for it, else the game's name, with its number when there are several.
 void label_of_pad(int pad, const char *game_name, char *out, size_t size) {
     const int n = joystick_count();
     char name[128];
@@ -297,6 +297,7 @@ void label_of_pad(int pad, const char *game_name, char *out, size_t size) {
     int same = 0, ordinal = 0;
     for (int k = 0; k < n; ++k) {
         char other[128];
+        if (k != pad && !input::joystick_connected(k)) continue;
         input::joystick_name(k, other, sizeof(other));
         if (strcmp(other, name)) continue;
         ++same;
@@ -347,19 +348,26 @@ void controllers_changed() {
     show_device(g_screen, field<int>(g_screen, 0xE4), g_menu_pad);
 }
 
-// The device switch: keyboard, controller 1, controller 2 ... in a circle, in the direction of the button.
+// The device switch: keyboard, controller 1, controller 2 ... in a circle, in the direction of the button. The circle has the controllers that are
+// connected (the game keeps the object of one that is unplugged), and the one being shown.
 void FASTCALL hook_switch_device(void *screen, void *edx) {
     (void)edx;
     int &column = field<int>(screen, 0xE4);  // 1 keyboard, 3 controller
     const int n = joystick_count();
     if (n == 0) return;
     if (controls_options::on_device_switch(screen)) return;  // the Rumble hint: the page opens instead
-    const int item = column == 3 ? g_menu_pad + 1 : 0;  // 0 the keyboard, 1.. the controllers
-    const int next = ((item + g_direction) % (n + 1) + n + 1) % (n + 1);
-    const int new_column = next == 0 ? 1 : 3, pad = next == 0 ? 0 : next - 1;
+    int items[kMaxPads + 1] = {-1}, count = 1, current = 0;  // -1 the keyboard, else a controller
+    for (int k = 0; k < n; ++k) {
+        const bool shown = column == 3 && k == g_menu_pad;
+        if (!shown && !input::joystick_connected(k)) continue;
+        if (shown) current = count;
+        items[count++] = k;
+    }
+    const int next = items[((current + g_direction) % count + count) % count];
+    const int new_column = next < 0 ? 1 : 3, pad = next < 0 ? 0 : next;
     if (new_column == column && pad == g_menu_pad) return;
     show_device(screen, new_column, pad);
-    if (new_column == 3 && n > 1) rumble::pulse(input::rumble_slot_of_joystick(pad));
+    if (new_column == 3 && count > 2) rumble::pulse(input::rumble_slot_of_joystick(pad));
 }
 
 // The screen closes: controller 0's set goes back in the live table (the profile saves that one).
@@ -396,6 +404,7 @@ void install_hooks() {
 }  // namespace pad::pad_sets
 
 // The name of a device as the Controls menu shows it: the keyboard's, or the controller of an XInput slot (its model, "#2" for a second of the same name).
+// With a single controller connected no game controller reports a slot of its own (they share): rumble_slot_of_joystick says which slot that one is.
 // `source`: an XInput controller 0-3, or controller_api::kSourceKeyboard. Returns 0 when the controller is not known (the label is then "Controller N").
 extern "C" __declspec(dllexport) int mets_controller_support_device_label(int source, char *out, int size) {
     using namespace pad::pad_sets;
@@ -405,7 +414,7 @@ extern "C" __declspec(dllexport) int mets_controller_support_device_label(int so
         return 1;
     }
     for (int pad = 0; pad < joystick_count(); ++pad)
-        if (pad::input::xinput_slot_of_joystick(pad) == source) {
+        if (pad::input::rumble_slot_of_joystick(pad) == source) {
             label_of_pad(pad, g_orig_name ? g_orig_name(3) : "Controller", out, size);
             return 1;
         }

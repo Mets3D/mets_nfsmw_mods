@@ -27,7 +27,8 @@ int player_one_rumble_slot();    // the XInput controller player 1 rumbles on, o
 bool identity_of_slot(int slot, char *out, size_t size);  // what tells the controller in an XInput slot from others of its kind, if anything
 int xinput_slot_of_joystick(int index);  // the XInput controller a game controller reports, or -1
 void joystick_name(int index, char *out, size_t size);  // a game controller's name for the Controls screen: its real model when known, else DirectInput's name for it
-int rumble_slot_of_joystick(int index);  // the XInput controller it rumbles through (the one in use when it is the only one), or -1
+int rumble_slot_of_joystick(int index);  // the XInput controller it is (rumble, name): its own, or with a single one the one connected; -1 not XInput or unplugged
+bool joystick_connected(int index);      // false for a game controller that is unplugged (the game keeps its object, which serves again when it is plugged back in)
 bool key_down(int dik);  // a key of the real keyboard (whether or not it reaches the game)
 float binding_value(int type, int object, const xinput::Gamepad &pad, int slot);  // a controller binding, read from XInput controller `slot`
 // The last thing the player touched was a controller (not the keyboard or the mouse).

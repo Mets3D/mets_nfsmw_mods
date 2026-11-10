@@ -380,13 +380,32 @@ int xinput_slot_of_joystick(int index) {
     return device ? own_slot_unlogged(device) : -1;
 }
 
-// The XInput controller (0-3) a game controller rumbles through: its own slot, or with a single XInput controller (whose slot the
-// game cannot tell) the one in use; -1 for a controller that is not XInput.
+// The game never drops a controller's object: one that is unplugged stays in its list (and serves again when the same device comes back). DirectInput's
+// list of attached XInput controllers says which those are; a controller the game has just been given is not in that list yet.
+bool joystick_connected(int index) {
+    void *device = pad_sets::joystick_di_device(index);
+    if (!device) return false;
+    if (!is_xinput_device(device)) return true;  // (not asked about again)
+    update_xinput_list();
+    return g_listed_joysticks != pad_sets::joystick_count() || pad_of_device(device) != nullptr;
+}
+
+// The XInput controller (0-3) a game controller is, for its rumble and its name: its own slot, or with a single XInput controller (whose slot the
+// game cannot tell) the only slot that has one, else the one in use; -1 for a controller that is not XInput or is unplugged (it took the name of
+// the controller in use, and rumbled it).
 int rumble_slot_of_joystick(int index) {
     void *device = pad_sets::joystick_di_device(index);
     if (!device || !is_xinput_device(device)) return -1;
     const int slot = own_slot_unlogged(device);
     if (slot >= 0) return slot;
+    if (!joystick_connected(index)) return -1;
+    int only = -1, connected = 0;
+    for (int s = 0; s < 4; ++s)
+        if (g_slot_connected[s]) {
+            only = s;
+            ++connected;
+        }
+    if (connected == 1) return only;
     return xinput::port >= 0 ? xinput::port : 0;
 }
 
