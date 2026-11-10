@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "car_select_label.h"
 #include "hooks.h"
 #include "max_players.h"
 #include "fixes.h"
@@ -501,10 +502,10 @@ void reset() {
 int round() { return g_round; }
 
 // The Car Select screen of a split screen race says which player it is for and with which device: the game's label (the language string 0x7B070984 /
-// 0x7B070985, "Player 1" / "Player 2" in the object 0xE3FE27FE) with the number changed (3 and 4 in the second round), and the device's name as the
-// Controls menu shows it, for the player whose Press Start came just before.
+// 0x7B070985, "Player 1" / "Player 2") with the number changed (3 and 4 in the second round), and in a row below it the device's name as the
+// Controls menu shows it (car_select_label.cpp), for the player whose Press Start came just before.
 int g_press_start_player = 0;  // the player of the last Press Start screen of this round: 0 or 1
-constexpr unsigned kCarSelectPlayerObject = 0xE3FE27FE, kPlayerOneString = 0x7B070984;
+constexpr unsigned kPlayerOneString = 0x7B070984;
 
 // "Player 3": the game's "Player 1" text with the number changed.
 void format_player_label(int number, char *text, unsigned size) {
@@ -533,21 +534,11 @@ void *hook_create_car_select(void *data) {
     if (players::split_screen()) preselect_car(2 * g_round + g_press_start_player, g_press_start_player);
     void *screen = g_orig_create_car_select(data);
     if (!screen || !players::split_screen()) return screen;
-    char text[160];
-    format_player_name(2 * g_round + g_press_start_player + 1, players::chosen(g_press_start_player), text, sizeof(text));
-    const char *package = *reinterpret_cast<const char **>(static_cast<char *>(screen) + kScreenPackage);
-    // The label is a group of strings (the text and its shadow). A string has room for 15 characters (FEPrintf cuts the text there), so they are assigned
-    // with the game's own FEWideString::operator= (0x57E8C0), which makes room, and the flags FEPrintf sets: do not take the text from the language string
-    // (2), the text is new (0x400000).
-    if (void *group = reinterpret_cast<void *(*)(const char *, unsigned)>(0x524850)(package, kCarSelectPlayerObject)) {  // FEngFindObject
-        for (void *child = *reinterpret_cast<void **>(static_cast<char *>(group) + 0x64); child; child = *reinterpret_cast<void **>(static_cast<char *>(child) + 4)) {
-            char *o = static_cast<char *>(child);
-            if (*reinterpret_cast<int *>(o + 0x18) != 2) continue;  // a string
-            reinterpret_cast<void *(__fastcall *)(void *, void *, const char *)>(0x57E8C0)(o + 0x64, nullptr, text);
-            *reinterpret_cast<unsigned *>(o + 0x1C) |= (1u << 25) | (1u << 24) | 0x400002u;
-        }
-    }
-    g_log.line("Car Select: \"%s\"", text);
+    char label[64], device[96];
+    format_player_label(2 * g_round + g_press_start_player + 1, label, sizeof(label));
+    players::device_label(players::chosen(g_press_start_player), device, sizeof(device));
+    car_select_label::show(*reinterpret_cast<const char **>(static_cast<char *>(screen) + kScreenPackage), label, device);
+    g_log.line("Car Select: \"%s\", \"%s\"", label, device);
     return screen;
 }
 
