@@ -13,6 +13,7 @@
  *   world_map.cpp      the world map: the right stick moves its cursor, LT and RT zoom
  *   showroom.cpp       the showroom (the garage's car view): LT and RT zoom by how far they are pulled, LB and RB fully
  *   new_controllers.cpp controllers connected after the game started are handed to it like the first ones
+ *   device_watch.cpp   hears from Windows when a device is plugged in or out: controllers are looked for only then
  *   extra_device.cpp   a second game input device, so that a second local player has an input path of the game's own
  *   rumble.cpp         rumble (the force feedback events, the controller's motors)
  *   device_settings.cpp  the dead zones of each XInput controller
@@ -25,6 +26,7 @@
 #include "button_icons.h"
 #include "controls_menu.h"
 #include "default_layout.h"
+#include "device_watch.h"
 #include "pad_sets.h"
 #include "input.h"
 #include "look.h"
@@ -68,6 +70,7 @@ NFSMW_PLUGIN_MAIN() {
     load_settings();
     if (!g_cfg.enabled) return NFSMW_OK;
     xinput::load(&g_log);
+    device_watch::start();
     bindings::prepare_default_look_entries();
     menu_buttons::patch_default_table();
     default_layout::patch_default_table();

@@ -7,6 +7,7 @@
 #include <cwctype>
 
 #include "controller_api.h"
+#include "device_scan.h"
 #include "hooks.h"
 #include "device_settings.h"
 #include "input.h"
@@ -302,12 +303,10 @@ void list_xinput_devices() {
     assign_slots();
 }
 
-// Looks at the XInput slots every 2 seconds (asking about an empty slot is slow); any thread may.
+// Looks at the XInput slots now and then (asking about an empty slot is slow: device_scan.h); any thread may.
 void update_xinput_list() {
-    static DWORD next = 0;
-    const DWORD now = GetTickCount();
-    if (static_cast<LONG>(now - next) < 0) return;
-    next = now + 2000;
+    static nfsmw::device_scan::Pace pace;
+    if (!nfsmw::device_scan::due(pace)) return;
     bool changed = false;
     for (int slot = 0; slot < 4; ++slot) {
         xinput::Gamepad p;
@@ -504,7 +503,7 @@ void learn_slot(void *device, const JoyState &raw) {
 }
 
 // All connected XInput controllers as one: any button, each stick axis and trigger from the pad pushing it furthest.
-// An empty slot is asked about again every 2 seconds at most (that is slow).
+// An empty slot is asked about only now and then (that is slow: device_scan.h).
 bool read_merged(xinput::Gamepad *out) {
     return xinput::read_any(out, [](int slot, const xinput::Gamepad &p) {
         if (in_use(p)) xinput::port = slot;  // the controller in use is the one that rumbles

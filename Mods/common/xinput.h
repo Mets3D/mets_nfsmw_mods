@@ -2,6 +2,7 @@
 // each mod that includes it has its own copy of the state.
 #pragma once
 
+#include "device_scan.h"
 #include "nfsmw_util.h"
 
 namespace nfsmw::xinput {
@@ -43,7 +44,7 @@ using GetCapabilitiesExFn = DWORD(WINAPI *)(DWORD, DWORD, DWORD, CapabilitiesEx 
 inline SetStateFn set_state = nullptr;
 inline GetCapabilitiesExFn get_capabilities_ex = nullptr;
 inline int port = -1;        // the controller in use, or -1
-inline DWORD next_scan = 0;  // polling an empty port is slow: look for a controller at most every 2 seconds
+inline device_scan::Pace read_pace;  // looking at an empty port is slow: see device_scan.h
 inline Logger *log = nullptr;
 
 inline void logf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
@@ -80,7 +81,7 @@ inline bool capabilities_ex(int slot, CapabilitiesEx *out) {
     return get_capabilities_ex && slot >= 0 && slot < 4 && get_capabilities_ex(1, slot, 0, out) == ERROR_SUCCESS;
 }
 
-// The first connected controller's state. False when there is none (an empty port is only looked at every 2 seconds).
+// The first connected controller's state. False when there is none (an empty port is only looked at now and then: device_scan.h).
 inline bool read(Gamepad *out) {
     if (!get_state) return false;
     State s;
@@ -91,11 +92,9 @@ inline bool read(Gamepad *out) {
         }
         logf("XInput controller %d disconnected", port);
         port = -1;
-        next_scan = GetTickCount() + 2000;
         return false;
     }
-    if (static_cast<LONG>(GetTickCount() - next_scan) < 0) return false;
-    next_scan = GetTickCount() + 2000;
+    if (!device_scan::due(read_pace)) return false;
     for (int i = 0; i < 4; ++i) {
         if (get_state(i, &s) == ERROR_SUCCESS) {
             port = i;
@@ -117,13 +116,12 @@ inline bool read_slot(int slot, Gamepad *out) {
 }
 
 // All connected controllers as one: any button, and each trigger and stick axis from the controller pushing it furthest. Empty slots are
-// asked about at most every 2 seconds (that is slow). False when none is connected. (`read` is the first controller's only.) `each`, if given,
+// asked about only now and then (that is slow: device_scan.h). False when none is connected. (`read` is the first controller's only.) `each`, if given,
 // is called with every connected controller's slot and state.
 inline bool read_any(Gamepad *out, void (*each)(int slot, const Gamepad &pad) = nullptr) {
     static bool connected[4];
-    static DWORD next = 0;
-    const bool scan = static_cast<LONG>(GetTickCount() - next) >= 0;
-    if (scan) next = GetTickCount() + 2000;
+    static device_scan::Pace pace;
+    const bool scan = device_scan::due(pace);
     const auto furthest = [](SHORT a, SHORT b) { return (b < 0 ? -b : b) > (a < 0 ? -a : a) ? b : a; };
     Gamepad merged = {};
     bool any = false;

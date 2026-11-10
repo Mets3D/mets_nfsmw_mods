@@ -21,6 +21,7 @@
 #include "players.h"
 
 #include "controller_api.h"
+#include "device_scan.h"
 #include "events.h"
 #include "hooks.h"
 #include "max_players.h"
@@ -47,7 +48,7 @@ constexpr int kXInputSlots = 4;  // the controllers XInput knows
 bool g_start_was_down[kXInputSlots];
 bool g_key_was_down = false, g_next_key_was_down = false;
 bool g_connected[kXInputSlots];
-DWORD g_next_scan = 0;
+nfsmw::device_scan::Pace g_scan_pace;  // empty slots are slow to ask about
 int g_chosen[2] = {kNotChosen, kNotChosen};  // at the Press Start screens
 int g_race[nfsmw::kMaxPlayers];            // in the race (kKeyboard until a race is made)
 int g_extra_port[nfsmw::kMaxExtras];       // the game input device ports of players 3 and up (-1: none)
@@ -91,9 +92,7 @@ int next_free_device() {
 }
 
 void poll() {
-    const DWORD now = GetTickCount();
-    const bool scan = static_cast<LONG>(now - g_next_scan) >= 0;
-    if (scan) g_next_scan = now + 2000;
+    const bool scan = nfsmw::device_scan::due(g_scan_pace);
     int released = kNotChosen;
     for (int i = 0; i < kXInputSlots; ++i) {
         if (!g_connected[i] && !scan) continue;  // asking an empty slot is slow

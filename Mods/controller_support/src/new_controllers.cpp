@@ -2,6 +2,7 @@
 
 #include "bindings.h"
 #include "default_layout.h"
+#include "device_scan.h"
 #include "hooks.h"
 #include "input.h"
 #include "pad_sets.h"
@@ -177,11 +178,11 @@ BOOL WINAPI add_if_new(const input::DeviceInstance *d, void *context) {
     return 1;
 }
 
+// DirectInput's EnumDevices opens every HID device of the system, which takes long on some (a user's game froze every 2 seconds while this ran
+// that often): it is run only after Windows told of a device change (device_watch.cpp), or every 2 seconds when it does not tell.
 void check() {
-    static DWORD next = 0;
-    const DWORD now = GetTickCount();
-    if (static_cast<LONG>(now - next) < 0) return;
-    next = now + 2000;
+    static nfsmw::device_scan::Pace pace;
+    if (!nfsmw::device_scan::due(pace)) return;
     void *manager = *reinterpret_cast<void **>(kManager);
     void *di = manager ? field<void *>(manager, 0xB4) : nullptr;
     if (!di || pad_sets::joystick_count() >= kMaxJoysticks) return;
@@ -199,7 +200,17 @@ void check() {
     const int before = pad_sets::joystick_count();
     using EnumDevicesFn = HRESULT(WINAPI *)(void *, DWORD, BOOL(WINAPI *)(const input::DeviceInstance *, void *), void *, DWORD);
     constexpr DWORD kClassGameControllers = 4, kAttachedOnly = 1;
+    LARGE_INTEGER started, ended, frequency;
+    QueryPerformanceCounter(&started);
     reinterpret_cast<EnumDevicesFn>((*static_cast<void ***>(di))[4])(di, kClassGameControllers, &add_if_new, &scan, kAttachedOnly);
+    QueryPerformanceCounter(&ended);
+    QueryPerformanceFrequency(&frequency);
+    const double ms = 1000.0 * static_cast<double>(ended.QuadPart - started.QuadPart) / static_cast<double>(frequency.QuadPart);
+    static int timed = 0;  // (for bug reports of stutter: the first look, and the slow ones)
+    if (timed < 8 && (timed == 0 || ms > 15.0)) {
+        ++timed;
+        log_line("new controllers: looking took %.1f ms", ms);
+    }
     if (!scan.added) return;
     log_line("the game now has %d controller(s)", pad_sets::joystick_count());
     if (before == 0 && pad_sets::joystick_count() > 0) first_controller_arrived();
