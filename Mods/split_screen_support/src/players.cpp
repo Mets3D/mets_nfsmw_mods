@@ -5,8 +5,9 @@
  * version has one input device, port 0, for the keyboard and the controllers, and which of them ends in its Start
  * message depends on the bindings. So the game's own Start messages are ignored here, and the screen is told by this part:
  * every frame the four XInput slots and the keyboard (through mets_controller_support, which sees it) are read, and when a
- * controller lets go of Start, or Enter, numpad Enter or Space is let go, the screen gets the Start message (0xEBFCDA65)
- * and that device becomes that player's.
+ * controller lets go of Start or A (the menus' Accept), or Enter, numpad Enter or Space is let go, the screen gets the Start message
+ * (0xEBFCDA65) and that device becomes that player's. Accept is also what opened the screen (on the race options, or the Car Select of the
+ * player before) and may still be down when it comes up: a button counts only when it went down on a Press Start screen.
  *
  * Every device always reaches the game's menus (the Press Start screens, the car select, the pause menu with its Controls
  * screen). What is told to mets_controller_support (common/controller_api.h) is only who drives the vehicles:
@@ -45,8 +46,11 @@ constexpr int kStartKeys[] = {0x1C, 0x39, 0x9C};  // DirectInput codes: Enter, S
 constexpr int kNextDeviceKey = 0x43;               // F9: the Press Start screen takes the next device that has no player (see poll())
 
 constexpr int kXInputSlots = 4;  // the controllers XInput knows
-bool g_start_was_down[kXInputSlots];
-bool g_key_was_down = false, g_next_key_was_down = false;
+struct Button {
+    bool down = false, counts = false;  // counts: it went down while a Press Start screen was up
+};
+Button g_start[kXInputSlots], g_start_key;
+bool g_next_key_was_down = false;
 bool g_connected[kXInputSlots];
 nfsmw::device_scan::Pace g_scan_pace;  // empty slots are slow to ask about
 int g_chosen[2] = {kNotChosen, kNotChosen};  // at the Press Start screens
@@ -91,6 +95,14 @@ int next_free_device() {
     return kNotChosen;
 }
 
+// Whether the button was let go of just now, after a press that counts.
+bool let_go(Button &button, bool down) {
+    const bool released = button.down && !down && button.counts;
+    if (down && !button.down) button.counts = g_press_start_screen != nullptr;
+    button.down = down;
+    return released;
+}
+
 void poll() {
     const bool scan = nfsmw::device_scan::due(g_scan_pace);
     int released = kNotChosen;
@@ -100,9 +112,7 @@ void poll() {
         const bool was = g_connected[i];
         g_connected[i] = xinput::read_slot(i, &p);
         if (g_connected[i] != was) g_log.line("XInput controller %d %s", i, g_connected[i] ? "connected" : "disconnected");
-        const bool down = g_connected[i] && (p.buttons & xinput::kStart);
-        if (g_start_was_down[i] && !down && released == kNotChosen) released = i;
-        g_start_was_down[i] = down;
+        if (let_go(g_start[i], g_connected[i] && (p.buttons & (xinput::kStart | xinput::kButtonA))) && released == kNotChosen) released = i;
     }
     unsigned char keys[256];
     if (read_keyboard(keys)) {
@@ -113,8 +123,7 @@ void poll() {
         }
         bool down = false;
         for (const int key : kStartKeys) down |= (keys[key] & 0x80) != 0;
-        if (g_key_was_down && !down && released == kNotChosen) released = kKeyboard;
-        g_key_was_down = down;
+        if (let_go(g_start_key, down) && released == kNotChosen) released = kKeyboard;
         const bool next = (keys[kNextDeviceKey] & 0x80) != 0;
         if (g_next_key_was_down && !next && released == kNotChosen) {
             const int device = next_free_device();
