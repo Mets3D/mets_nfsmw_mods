@@ -44,7 +44,7 @@ https://github.com/user-attachments/assets/96c8153f-56ce-491a-bb4a-8462fbc5392e
 <img width="600" src="https://github.com/user-attachments/assets/a3f3412f-3f0a-4d32-baf8-d1f2f91ebbf6" />
 
 ### Reduced menu navigation
-- After a race, the game goes to the race options instead of all the way out to the main menu.
+- After a race, the game goes to track selection instead of all the way out to the main menu.
 - After a race, the previously selected cars are remembered, even across sessions.
 - *After a race, players don't need to re-select their cars unless the player count setting changes. A new "Select Car" button is added in the Race Options menu. Whichever player presses it can change their selected car.
 - The Car Select screen and the Player Options menus show which player they currently apply to, e.g. "Player 2 - Xbox One S Controller".

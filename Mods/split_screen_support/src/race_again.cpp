@@ -1,5 +1,5 @@
 /*
- * After a split screen race the race options come back (after_race.cpp). Their Accept (UIQRTrackOptions::NotificationMessage 0x7AB430: it makes the race,
+ * With after_race=track_options the race options come back after a split screen race (after_race.cpp). Their Accept (UIQRTrackOptions::NotificationMessage 0x7AB430: it makes the race,
  * then ends in a tail jump to QueuePackageSwitch("PressStart.fng") at 0x7AB56D) starts the next race at once with the cars and devices of the last one
  * (more_players keeps every player's pick) when the Players row still says as many players; otherwise the Press Start and Car Select screens come as the
  * first time. A new split screen game (the entry of the Quick Race menu) forgets the cars.

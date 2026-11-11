@@ -1,8 +1,8 @@
 /*
  * A race ends, or is quit from the pause menu, with an EQuitToFE event (constructor 0x62FE40: garage type +8, screen name +0xC). Its destructor (0x623F80) is where the
  * game decides what the front end shows first: it sets FEManager +0xC, the package to push once the front end is loaded, which for a quick race is MainMenu_Sub.fng: the
- * Quick Race menu, from which a split screen game takes five screens of clicking to start again. After a split screen race this puts the race's own options screen there
- * (Track_Options.fng: the track, laps and the Players row stay as they were; Back goes to the track choice), or the track choice, as `[options] after_race` says.
+ * Quick Race menu, from which a split screen game takes five screens of clicking to start again. After a split screen race this puts the track choice there by default,
+ * or the race's own options screen (Track_Options.fng: the track, laps and the Players row stay as they were; Back goes to the track choice), as `[options] after_race` says.
  * The race leaves the FEDatabase game mode at Quick Race (4) without the mode select bit (0x400) the Quick Race menu sets for the race type menu and the screens
  * after it. The showroom camera is looked up by mode and screen name ("quickrace_car_select" with the bit, "quickracemain_..." without, which these screens do not
  * have), so without the bit the camera stayed where it was; it is set again.
@@ -23,7 +23,7 @@ constexpr uintptr_t kFEManagerGet = 0x516E10;
 constexpr unsigned kFirstScreen = 0xC;  // FEManager: the package the front end shows first
 constexpr uintptr_t kFeDatabase = 0x91CF90;
 constexpr unsigned kGameMode = 0x12C, kModeSelect = 0x400;
-const char *g_screen = "Track_Options.fng";
+const char *g_screen = "Track_Select.fng";
 
 void(__fastcall *g_orig_quit_to_fe_end)(void *);
 void __fastcall hook_quit_to_fe_end(void *self) {
@@ -42,8 +42,8 @@ void __fastcall hook_quit_to_fe_end(void *self) {
 
 void install() {
     char choice[32];
-    GetPrivateProfileStringA("options", "after_race", "track_options", choice, sizeof(choice), g_ini);
-    if (!_stricmp(choice, "track_select")) g_screen = "Track_Select.fng";
+    GetPrivateProfileStringA("options", "after_race", "track_select", choice, sizeof(choice), g_ini);
+    if (!_stricmp(choice, "track_options")) g_screen = "Track_Options.fng";
     else if (!_stricmp(choice, "menu")) g_screen = nullptr;  // the game's own: the Quick Race menu
     if (!g_screen) return;
     const nfsmw::Hook hooks[] = {
