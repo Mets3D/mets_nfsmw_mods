@@ -9,12 +9,14 @@ This mod for Need for Speed: Most Wanted 2005 (1.3) implements full split-screen
 2. Follow the [instructions for the Controller Support mod](https://github.com/Mets3D/mets_nfsmw_mods/tree/master/Mods/controller_support#installation) to enable Steam Input.
 3. Choose **Quick Race > Split Screen**.
 
+Throughout this ReadMe, bullet points marked with * can be disabled in the [.ini file](nfsmw_split_screen_support.ini).
+
 ---
 
-## Split-Screen
+## Feature Highlights
 
 - Split-screen is supported for 2, 3, and 4 players.
-- When a player is eliminated from the race, their screen is removed to make space for other players.
+- *When a player is eliminated from the race, their screen is removed to make space for other players.
 - Horizontal and vertical split-screen layouts are available for 2 and 3 players.
 
 https://github.com/user-attachments/assets/96c8153f-56ce-491a-bb4a-8462fbc5392e
@@ -44,7 +46,7 @@ https://github.com/user-attachments/assets/96c8153f-56ce-491a-bb4a-8462fbc5392e
 ### Reduced menu navigation
 - After a race, the game goes to the race options instead of all the way out to the main menu.
 - After a race, the previously selected cars are remembered, even across sessions.
-- After a race, players don't need to re-select their cars unless the player count setting changes. A new "Select Car" button is added in the Race Options menu. Whichever player presses it can change their selected car.
+- *After a race, players don't need to re-select their cars unless the player count setting changes. A new "Select Car" button is added in the Race Options menu. Whichever player presses it can change their selected car.
 - The Car Select screen and the Player Options menus show which player they currently apply to, e.g. "Player 2 - Xbox One S Controller".
 
 ### Tested functionality
@@ -53,7 +55,7 @@ https://github.com/user-attachments/assets/96c8153f-56ce-491a-bb4a-8462fbc5392e
 List of things that could not be taken for granted during development and had to be addressed, but you wouldn't think of them as features.
 </summary>
 
-- Races start with the intro cutscenes, just like in single-player.
+- *Races start with the intro cutscenes, just like in single-player.
 - World geometry, shadows, reflections, light trails, sparks, and sun glare are rendered correctly for each player. The sun was a pain in the butt.
 - Expanded memory and list sizes for car skin slots, engine sounds, and minimap tiles to allow 4 players and 16 total racers.
 - The engine sounds of all AI opponents play.
@@ -64,8 +66,9 @@ List of things that could not be taken for granted during development and had to
 - The mouse looks around only for the player using the keyboard (if any).
 - Controller rumble works for all 4 players.
 - The camera is offset by a hard-coded amount for players whose screens are wider due to the split-screen layout: Player 1 in 3-player mode and both players in 2-player mode.
-- The performance optimization that culls smaller objects is disabled by default, since it's not needed on modern computers. It can be turned back on in the [.ini file](nfsmw_split_screen_support.ini) (`cull_small_objects`).
+- *The performance optimization that culls smaller objects is disabled by default, since it's not needed on modern computers.
 - All 16 cars spawn in the correct places, whether the race has a 2-row (2x2) or a 1-row (1x4) layout, and even in Tollbooth races.
+- *The EA Trax song display is hidden so it does not cover player 1's picture. This can be disabled with `hide_ea_trax=0` in the mod's `.ini` file.
 
 </details>
 

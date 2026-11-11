@@ -19,6 +19,7 @@
  *   standings.cpp      the racers' names of players 3 and 4, the leaderboard of a player ranked below 4
  *   hud_copies.cpp    the leaderboard and the mirror's housing of a split screen HUD (copies of the single player HUD package's)
  *   mirrors.cpp        a rear view mirror for each player
+ *   ea_trax.cpp        hide the EA Trax song display, which covers player 1's picture
  *   knockout.cpp       a player knocked out of a lap knockout: the car stops and the game's message shows
  *   tollbooth.cpp      a clock for each racer of a tollbooth race; a racer whose time is up is knocked out
  *   tollbooth_results.cpp the end of a tollbooth race: the finish message, the order of the racers and the results screen
@@ -38,6 +39,7 @@
 #include "after_race.h"
 #include "ai_in_split_screen.h"
 #include "engine_sounds.h"
+#include "ea_trax.h"
 #include "split_volume.h"
 #include "knockout.h"
 #include "race_end.h"
@@ -106,6 +108,7 @@ NFSMW_PLUGIN_MAIN() {
     streaming_log::install();
     skin_slots::install();
     engine_sounds::install();
+    if (ini_flag("options", "hide_ea_trax", true)) ea_trax::install();
     split_volume::install();
     standings::install();
     knockout::install();

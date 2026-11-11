@@ -54,6 +54,7 @@ The parts of the mod and their ini switches: the header comment of `Mods/split_s
   blend the two pictures (not seen); shadows pop in oddly (maybe an old streaming issue).
 
 ## HUD and minimap
+- **EA Trax song display** [tested]: `SFXObj_PFEATrax::NotifyChyron` 0x4F4FC0 calls `SummonChyron` 0x595ED0, then sets bit 0x40 in its flags at +0x114 so the display is summoned once for that song. `ea_trax.cpp` skips the call in split screen and sets the bit itself; the music keeps playing. `[options] hide_ea_trax` disables this change.
 - Split screen makes two HUDs (`FEngHud` 0x5A6600): type 3 `HUD_Player1.fng` (player number 0) and type 4 `HUD_Player2.fng` (1) [tested: log]. The files are in `GLOBAL/InGameSplitScreen.bun` (JDLZ chunks, 0x30210).
   Only `HUD_Player1.fng` has the minimap objects (TRACK_MAP, the markers, ...); the `Minimap` is made in `FEngHud`'s constructor for types 1 and 3. Console design: one minimap at (-221, 0) in FEng coordinates
   (origin screen centre, 640 x 480), on the line between the halves, centred on player 1, player 2 as a second marker [tested].
