@@ -70,6 +70,7 @@ List of things that could not be taken for granted during development and had to
 - *The performance optimization that culls smaller objects is disabled by default, since it's not needed on modern computers.
 - All 16 cars spawn in the correct places, whether the race has a 2-row (2x2) or a 1-row (1x4) layout, and even in Tollbooth races.
 - *The EA Trax song display is hidden so it does not cover player 1's picture. This can be disabled with `hide_ea_trax=0` in the mod's `.ini` file.
+- The game profile only has settings slots for two players, so settings for players 3 and 4 are saved in the mod's `.ini` file.
 
 </details>
 

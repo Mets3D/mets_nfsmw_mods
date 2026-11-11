@@ -13,6 +13,10 @@
 #include "player_settings.h"
 
 #include <algorithm>
+#include <cctype>
+#include <climits>
+#include <cstddef>
+#include <cstdlib>
 
 #include "events.h"
 #include "hooks.h"
@@ -28,6 +32,21 @@ namespace {
 
 constexpr uintptr_t kFeDatabase = 0x91CF90, kPlayerToEdit = 0x91CA24, kUIOptionsScreenConstructor = 0x54FD60, kUIOptionsScreenDestructor = 0x529280;
 constexpr unsigned kSettingsArray = 0x80, kSettingsSize = 0x14;
+
+// The PC PlayerSettings layout. Only settings a player can change in the PC menus are persisted for players 3 and 4. The other bytes inherit player 1's or 2's
+// values when a race makes the extra player. This also deliberately leaves the final padding byte out of the ini.
+struct Settings {
+    unsigned char gauges, position, lap_info, score, vibration, leaderboard, transmission_prompt, drive_with_analog;
+    int controller_config;
+    int camera;
+    unsigned char split_time, transmission, handling, padding;
+};
+static_assert(sizeof(Settings) == kSettingsSize);
+static_assert(offsetof(Settings, camera) == 0x0C);
+
+constexpr const char *kCameraNames[] = {"bumper", "hood", "close", "far", "super_far", "drift", "pursuit"};
+constexpr int kCameraCount = sizeof(kCameraNames) / sizeof(kCameraNames[0]);
+constexpr int kControllerConfigurations = 5;
 
 int g_editing = -1;  // the extra player (0 or 1) whose settings are in the entry of g_slot while Options is open
 int g_slot = 0;
@@ -57,14 +76,39 @@ const char *section_of(int extra) {
     return name[extra];
 }
 
+void write_value(const char *section, const char *key, const char *value) {
+    char old[32] = "";
+    GetPrivateProfileStringA(section, key, "", old, sizeof(old), g_ini);
+    if (strcmp(old, value) != 0) WritePrivateProfileStringA(section, key, value, g_ini);
+}
+
 void save(int extra, const unsigned char *settings) {
-    char text[2 * kSettingsSize + 1];
-    for (unsigned i = 0; i < kSettingsSize; ++i) snprintf(text + 2 * i, 3, "%02X", settings[i]);
-    char old[2 * kSettingsSize + 1] = "";
-    GetPrivateProfileStringA(section_of(extra), "settings", "", old, sizeof(old), g_ini);
-    if (strcmp(old, text) == 0) return;
-    WritePrivateProfileStringA(section_of(extra), "settings", text, g_ini);
-    g_log.line("player settings: player %d's settings kept (%s)", extra + 3, text);
+    Settings values;
+    memcpy(&values, settings, sizeof(values));
+    const char *section = section_of(extra);
+    write_value(section, "transmission", values.transmission == 1 ? "manual" : "automatic");
+    char camera[16];
+    if (values.camera >= 0 && values.camera < kCameraCount) {
+        snprintf(camera, sizeof(camera), "%s", kCameraNames[values.camera]);
+    } else if (values.camera >= 0) {
+        snprintf(camera, sizeof(camera), "%d", values.camera);
+    } else {
+        snprintf(camera, sizeof(camera), "close");
+    }
+    write_value(section, "camera", camera);
+    write_value(section, "gauges", values.gauges ? "1" : "0");
+    write_value(section, "position", values.position ? "1" : "0");
+    write_value(section, "split_time", values.split_time == 4 ? "0" : "1");
+    write_value(section, "score", values.score ? "1" : "0");
+    write_value(section, "leaderboard", values.leaderboard ? "1" : "0");
+    write_value(section, "vibration", values.vibration ? "1" : "0");
+    int config = values.controller_config >= 0 && values.controller_config < kControllerConfigurations ? values.controller_config : 0;
+    config += values.drive_with_analog ? 1 : kControllerConfigurations + 1;  // the number shown by Options > Controls
+    char text[4];
+    snprintf(text, sizeof(text), "%d", config);
+    write_value(section, "controller_config", text);
+    WritePrivateProfileStringA(section, "settings", nullptr, g_ini);  // remove the old raw-memory format, if present
+    g_log.line("player settings: player %d's settings kept as named ini values", extra + 3);
 }
 
 void release() {
@@ -129,20 +173,159 @@ void on_world_load() {
     release();
 }
 
+bool read_text(int extra, const char *key, char *text, unsigned size) {
+    GetPrivateProfileStringA(section_of(extra), key, "", text, size, g_ini);
+    return text[0] != '\0';
+}
+
+void invalid_value(int extra, const char *key, const char *value) {
+    g_log.line("player settings: player %d: ignoring invalid %s=%s", extra + 3, key, value);
+}
+
+bool read_flag(int extra, const char *key, unsigned char &value) {
+    char text[32] = "";
+    if (!read_text(extra, key, text, sizeof(text))) return false;
+    if (!_stricmp(text, "1") || !_stricmp(text, "on") || !_stricmp(text, "true") || !_stricmp(text, "yes")) {
+        value = 1;
+        return true;
+    }
+    if (!_stricmp(text, "0") || !_stricmp(text, "off") || !_stricmp(text, "false") || !_stricmp(text, "no")) {
+        value = 0;
+        return true;
+    }
+    invalid_value(extra, key, text);
+    return false;
+}
+
+bool parse_integer(const char *text, int minimum, int maximum, int &value) {
+    char *end = nullptr;
+    const long long parsed = strtoll(text, &end, 10);
+    if (end == text) return false;
+    while (*end && isspace(static_cast<unsigned char>(*end))) ++end;
+    if (*end || parsed < minimum || parsed > maximum) return false;
+    value = static_cast<int>(parsed);
+    return true;
+}
+
+bool read_camera(int extra, int &camera) {
+    char text[32] = "";
+    if (!read_text(extra, "camera", text, sizeof(text))) return false;
+    for (int i = 0; i < kCameraCount; ++i) {
+        if (!_stricmp(text, kCameraNames[i])) {
+            camera = i;
+            return true;
+        }
+    }
+    if (!_stricmp(text, "super far") || !_stricmp(text, "super-far")) {
+        camera = 4;
+        return true;
+    }
+    int number = 0;
+    if (parse_integer(text, 0, INT_MAX, number)) {
+        camera = number;
+        return true;
+    }
+    invalid_value(extra, "camera", text);
+    return false;
+}
+
+bool read_transmission(int extra, unsigned char &transmission) {
+    char text[32] = "";
+    if (!read_text(extra, "transmission", text, sizeof(text))) return false;
+    if (!_stricmp(text, "automatic") || !_stricmp(text, "auto") || !_stricmp(text, "0")) {
+        transmission = 0;
+        return true;
+    }
+    if (!_stricmp(text, "manual") || !_stricmp(text, "1")) {
+        transmission = 1;
+        return true;
+    }
+    invalid_value(extra, "transmission", text);
+    return false;
+}
+
+bool read_controller_config(int extra, Settings &settings) {
+    char text[32] = "";
+    if (!read_text(extra, "controller_config", text, sizeof(text))) return false;
+    int number = 0;
+    if (!parse_integer(text, 1, 10, number)) {
+        invalid_value(extra, "controller_config", text);
+        return false;
+    }
+    settings.drive_with_analog = number <= kControllerConfigurations;
+    settings.controller_config = (number - 1) % kControllerConfigurations;
+    return true;
+}
+
+int hex_digit(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+bool read_legacy(int extra, Settings &legacy, bool &present) {
+    char text[2 * kSettingsSize + 2] = "";  // the extra character lets an overlong value fail the exact-length check
+    read_text(extra, "settings", text, sizeof(text));
+    present = text[0] != '\0';
+    if (!present || strlen(text) != 2 * kSettingsSize) return false;
+    unsigned char bytes[kSettingsSize];
+    for (unsigned i = 0; i < kSettingsSize; ++i) {
+        const int high = hex_digit(text[2 * i]), low = hex_digit(text[2 * i + 1]);
+        if (high < 0 || low < 0) return false;
+        bytes[i] = static_cast<unsigned char>((high << 4) | low);
+    }
+    memcpy(&legacy, bytes, sizeof(legacy));
+    return true;
+}
+
+void import_legacy(const Settings &legacy, Settings &settings) {
+    settings.gauges = legacy.gauges != 0;
+    settings.position = legacy.position != 0;
+    settings.score = legacy.score != 0;
+    settings.vibration = legacy.vibration != 0;
+    settings.leaderboard = legacy.leaderboard != 0;
+    settings.drive_with_analog = legacy.drive_with_analog != 0;
+    if (legacy.controller_config >= 0 && legacy.controller_config < kControllerConfigurations) settings.controller_config = legacy.controller_config;
+    if (legacy.camera >= 0) settings.camera = legacy.camera;
+    if (legacy.split_time <= 4) settings.split_time = legacy.split_time == 4 ? 4 : 0;
+    if (legacy.transmission <= 1) settings.transmission = legacy.transmission;
+}
+
 }  // namespace
 
 bool load(int extra, unsigned char *out) {
-    char text[2 * kSettingsSize + 1] = "";
-    GetPrivateProfileStringA(section_of(extra), "settings", "", text, sizeof(text), g_ini);
-    if (strlen(text) != 2 * kSettingsSize) return false;
-    unsigned char bytes[kSettingsSize];
-    for (unsigned i = 0; i < kSettingsSize; ++i) {
-        unsigned value = 0;
-        if (sscanf(text + 2 * i, "%2x", &value) != 1) return false;
-        bytes[i] = static_cast<unsigned char>(value);
+    if (!out || extra < 0 || extra >= nfsmw::kMaxExtras) return false;
+    Settings settings;
+    memcpy(&settings, out, sizeof(settings));  // defaults copied from player 1 or 2 by more_players.cpp
+
+    Settings legacy;
+    bool legacy_present = false;
+    bool found = read_legacy(extra, legacy, legacy_present);
+    if (found) {
+        import_legacy(legacy, settings);
+        g_log.line("player settings: player %d: importing the old settings= value", extra + 3);
+    } else if (legacy_present) {
+        g_log.line("player settings: player %d: discarding invalid old settings= value", extra + 3);
     }
-    memcpy(out, bytes, kSettingsSize);
-    return true;
+
+    found = read_transmission(extra, settings.transmission) || found;
+    found = read_camera(extra, settings.camera) || found;
+    found = read_flag(extra, "gauges", settings.gauges) || found;
+    found = read_flag(extra, "position", settings.position) || found;
+    unsigned char split_time = settings.split_time == 4 ? 0 : 1;
+    if (read_flag(extra, "split_time", split_time)) {
+        settings.split_time = split_time ? 0 : 4;
+        found = true;
+    }
+    found = read_flag(extra, "score", settings.score) || found;
+    found = read_flag(extra, "leaderboard", settings.leaderboard) || found;
+    found = read_flag(extra, "vibration", settings.vibration) || found;
+    found = read_controller_config(extra, settings) || found;
+
+    memcpy(out, &settings, sizeof(settings));
+    if (legacy_present) save(extra, out);  // one-time migration to named values, and removal of the raw value
+    return found;
 }
 
 Use::Use(int who, int slot_index) {
