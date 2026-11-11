@@ -5,6 +5,7 @@
 #include "controls_menu.h"
 #include "device_settings.h"
 #include "input.h"
+#include "keyboard2.h"
 #include "pad_sets.h"
 
 namespace pad::controls_menu {
@@ -67,7 +68,19 @@ bool controller_label(const Slot &b, char *out, size_t n, Style style) {
 // Called by nfsmw_custom_menus after the game wrote a binding's label: the widescreen fix turns the game's "Button 2" /
 // "X Axis +" text into names without a direction, so an XInput controller's get proper ones here.
 void binding_label(char *out, int column, int entry, bool primary) {
-    if (column == 1 || !out || entry < 0 || entry >= kBindingCount || !input::any_xinput_device()) return;
+    if (!out || entry < 0 || entry >= kBindingCount) return;
+    if (column == 1) {
+        if (!keyboard2::editing()) return;
+        const Slot &slot = slots_of(kBindingTable, entry)[primary ? 0 : 1];
+        if (slot.type == kKey && (slot.device & 0x80)) {
+            // The game's formatter strips the extended bit and labels arrows as numpad keys.
+            char text[64];
+            const LONG scan = ((slot.device & 0x7f) << 16) | (1 << 24);
+            if (GetKeyNameTextA(scan, text, sizeof(text))) snprintf(out, 0x104, "%s", text);
+        }
+        return;
+    }
+    if (!input::any_xinput_device()) return;
     char text[64];
     const int slot = input::xinput_slot_of_joystick(pad_sets::live_pad());  // the controller whose bindings the screen shows
     Style style = slot >= 0 ? device_settings::prompts(slot) : button_icons::default_style();

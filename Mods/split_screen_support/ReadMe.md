@@ -79,13 +79,12 @@ List of things that could not be taken for granted during development and had to
 ## Mod Compatibility
 
 - See [General Compatibility](../../ReadMe.md#general-compatibility).
-- Required for both players to use controllers: [Controller Support](../controller_support/ReadMe.md).
+- This mod is bundled and should be used with the [Controller Support](../controller_support/ReadMe.md) mod, which allows connecting several controllers of different types, controller rumble, input remapping, mouse look, analogue inputs, etc.
 - Conditionally compatible: NFSMWExtraOptionsSettings: Set `ExperimentalSplitScreenFix = 0` in its `.ini`.
 
 ## Device Compatibility
 
-- Having two players use a keyboard is not supported.
-- For supported controllers, see the [Controller Support](../controller_support/ReadMe.md) mod. The game natively supports Xbox controllers. For everything else, Steam Input has been tested and works as a translation layer.
+- You can play on a single keyboard as two players: See the keybinds in the game's Controls menu, under "Keyboard 2". (Arrow keys to drive, numpad keys to boost, handbrake, change cameras, gear shift.) When **Select Car** is available, Keyboard 2 can access it using Numpad 2.
 
 ---
 

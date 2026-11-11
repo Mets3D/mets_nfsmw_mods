@@ -1,0 +1,35 @@
+# Requires [options] simulate_two_keyboards=1 of nfsmw_split_screen_support.ini. The Press Start automation uses device -5 for Keyboard 2.
+wait_until main_menu timeout=35
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=15
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=15
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=15
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=15
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=15
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=15
+wait 2
+press_start -5
+wait_until screen=Car_Select.fng timeout=15
+wait 3
+press accept
+wait_until racing timeout=40
+wait 5
+state
+log_players
+screenshot keyboard_split
+quit

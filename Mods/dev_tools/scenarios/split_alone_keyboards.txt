@@ -1,0 +1,43 @@
+# nfsmw_split_screen_support without mets_controller_support and nfsmw_custom_menus (deploy with --only dev_tools split_screen_support): a 2 player race of
+# Keyboard 2 (device -5) and the keyboard, then player 2 drives. Without nfsmw_custom_menus each Car Select asks for the transmission (a dialog: Accept).
+# The split screen log must have "player devices: a GameDevice at port" and player 2's position must change between the two `log_players`.
+wait_until main_menu timeout=35
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=15
+wait 3
+press right 2
+press accept
+wait 3
+press accept
+wait_until screen=Track_Select.fng timeout=15
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=15
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=15
+wait 2
+press_start -5
+wait_until screen=Car_Select.fng timeout=15
+wait 3
+press accept
+wait 2
+press accept
+wait_until screen=PressStart.fng timeout=15
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=15
+wait 3
+press accept
+wait 2
+press accept
+wait_until racing timeout=60
+wait 22
+log_players
+drive 2 1 0
+wait 5
+log_players
+screenshot keyboards
+quit

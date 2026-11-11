@@ -14,7 +14,8 @@
  *   showroom.cpp       the showroom (the garage's car view): LT and RT zoom by how far they are pulled, LB and RB fully
  *   new_controllers.cpp controllers connected after the game started are handed to it like the first ones
  *   device_watch.cpp   hears from Windows when a device is plugged in or out: controllers are looked for only then
- *   extra_device.cpp   a second game input device, so that a second local player has an input path of the game's own
+ *   players.cpp        who plays with which device, as nfsmw_split_screen_support says it (whose controller rumbles, whose camera a device turns)
+ *   keyboard2.cpp      the Controls screen's page of a second keyboard that another mod keeps
  *   rumble.cpp         rumble (the force feedback events, the controller's motors)
  *   device_settings.cpp  the dead zones of each XInput controller
  *   controller_page.cpp  the Settings page (prompts, dead zones, rumble), a page of nfsmw_custom_menus (no entry in the Options menu)
@@ -29,6 +30,7 @@
 #include "device_watch.h"
 #include "pad_sets.h"
 #include "input.h"
+#include "keyboard2.h"
 #include "look.h"
 #include "menu_buttons.h"
 #include "new_controllers.h"
@@ -69,6 +71,7 @@ NFSMW_PLUGIN_MAIN() {
         log_line("widescreen fix: ImproveGamepadSupport is on in %s and could not be changed; set it to 0 by hand", g_widescreen_ini);
     load_settings();
     if (!g_cfg.enabled) return NFSMW_OK;
+    keyboard2::install_hooks();
     xinput::load(&g_log);
     device_watch::start();
     bindings::prepare_default_look_entries();

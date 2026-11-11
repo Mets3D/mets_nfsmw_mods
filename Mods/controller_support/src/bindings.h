@@ -28,5 +28,6 @@ void look_default_slots(int look, Slot out[4]);
 void provide_controls_rows(const nfsmw::custom_menus::Host *host);  // our rows, their names and the label hook, for nfsmw_custom_menus
 void resync_changes();        // takes the table as it is now as the one to compare with (after a swap)
 void install_hooks();         // GameDevice::PollDevice
+void log_binding_changes(bool force = false);
 
 }  // namespace pad::bindings

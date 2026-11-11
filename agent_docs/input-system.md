@@ -19,8 +19,12 @@ Marks: [read] disassembly, [tested] confirmed in game or by a crash, [guess].
   saved bindings (`UserProfile::BindingsIO_B` 0x56E200, copy kept by a hook on it) go over those again, as the profile load does at start-up. FEngine's pad count is a constant 1 (0x51692F). The Controls screen builds with its device elements (object 0x8A41F5B9) hidden (script HIDE 0x16A259) when there is no joystick; `controllers_changed` in `pad_sets.cpp` shows them again. DirectInput does not say which XInput slot a device is, and its list order is not the slot order (a slot is the first free one): `input.cpp` pairs them when a device's buttons match exactly one slot's (`learn_slot`).
 - **When controllers are looked for** [read; a user's report of a freeze every 2 seconds, not reproduced here]: DirectInput's `EnumDevices` (`new_controllers::check`) opens every HID device of the system, a few ms on most machines and much longer with some devices and drivers, and `XInputGetState` on an empty slot is slow too (Microsoft: space such checks out). Both ran every 2 seconds on the game's thread, each place with its own timer. `controller_support/src/device_watch.cpp` keeps a message-only window registered for device interface notifications (`RegisterDeviceNotification`, `DEVICE_NOTIFY_ALL_INTERFACE_CLASSES`; a message-only window gets no broadcasts) on a thread of its own and counts `WM_DEVICECHANGE` arrivals and removals; `common/device_scan.h` (`due(Pace&)`) makes every such look only for 5 seconds after a change (at 0, 2 and 4 s: a new device's driver takes a moment), and every 2 seconds as before when the count is not available (export `mets_controller_support_device_changes` returns -1: no window, or the mod is missing). The log has how long `EnumDevices` took (the first look, and up to 8 slow ones).
 - **An unplugged controller stays in the game's list** [read; the user saw three "DualSense" entries that all rumbled it after every controller was unplugged and one came back; the fix tested]: the joystick table only grows, and a device that comes back with the DirectInput instance GUID it had gets its old object (`new_controllers.cpp` skips a GUID the game has; that Steam's virtual controller n keeps its GUID is a [guess] from the user's count of three). `input.cpp` knows the attached XInput controllers from DirectInput's list (`joystick_connected`: not in the list = unplugged). An unplugged one used to fall back to "the controller in use" for its name and its rumble (`rumble_slot_of_joystick`); it now has no slot, the Controls screen's device switch leaves it out (`hook_switch_device`), and the "#2" of equal names counts connected controllers only. With a single controller connected no game controller reports a slot of its own (they share the merged state), so `mets_controller_support_device_label` found none and the split screen called it "Controller 1": it now asks `rumble_slot_of_joystick`, which for a single one is the only slot with a controller.
-- **Extra device** [tested]: a second GameDevice from `GameDevice::Create`, tables and records set up by hand, appended to the IOModule, filled each frame in
-  `PollDevice`'s hook (`Mods/controller_support/src/extra_device.cpp`). Gives a second player an input path of the game's own. There are three slots (players 2, 3 and 4: `mets_controller_support_extra_device_slot`); only slot 0 has rumble, camera look and the port -1 mapping.
+- **The players' devices** [tested with `drive`: 4 players with every mod, 2 players with `nfsmw_split_screen_support` alone]: `Mods/split_screen_support/src/player_devices.cpp`.
+  Each player after the first has a GameDevice of their own from `GameDevice::Create`, tables and records set up by hand, appended to the IOModule: an input path of the
+  game's own (`kMaxPlayers - 1` slots). `GameDevice::PollDevice` 0x6349B0 is **slot 4 of the GameDevice virtual table and only called through it** [read: no direct caller],
+  so no function is hooked for them: each of these devices, and the port 0 device once a player gets a device of their own, has **a copy of the virtual table with that slot
+  replaced**. That is what lets two mods work on the poll (`mets_controller_support` hooks the function itself; two MinHook hooks of one function overwrite each other) and
+  fixes the order: split screen's part runs after everything the function does.
 
 ## Bindings
 - **Binding table** (0x91F418) [read, tested]: 76 entries × 0x34 bytes: `{name*, 4 × slot}`, slot = `{type, device, object}`. Slots 0/1 keyboard, 2/3 controller.
@@ -37,10 +41,15 @@ Marks: [read] disassembly, [tested] confirmed in game or by a crash, [guess].
   `pad_sets.cpp` keeps a set per controller.
 
 ## Who may drive (our policy)
-`PollDevice`'s hook (`hook_poll`) takes the entries the game computed (every device's slots), adds the other controllers' sets (`add_values`), and then, when another mod named a
-vehicle source (`vehicle_source`: split screen), replaces the **vehicle entries** (0-13 gas...HUD pad, 15-18 camera / pause request, 25-28 look) with what that device alone asks for
-(`restrict_vehicle_entries`). Entries 14 and 19 up (menus, hotkeys) always come from every device, so a menu is never tied to one device. The DirectInput states of all devices are never blocked
+`mets_controller_support`'s hook of `PollDevice` (`hook_poll`) takes the entries the game computed (every device's slots) and adds the other controllers' sets (`add_values`): one
+player, every device. In a split screen game `nfsmw_split_screen_support`'s poll of the port 0 device (`player_devices.cpp` `poll_first`) then replaces the **vehicle entries**
+(0-13 gas...HUD pad, 15-18 camera / pause request, 25-28 look, Previous Camera View) with what player 1's device alone asks for, and each other player's device says what theirs asks for.
+Entries 14 and 19 up (menus, hotkeys) always come from every device, so a menu is never tied to one device. The DirectInput states of all devices are never blocked
 (the Controls screen's rebind capture reads them directly).
+What a device asks for (`actions_of`): the keyboard through the key slots of the binding table (read with a DirectInput keyboard of split screen's own, in front only: Enter and
+numpad Enter are two keys there), Keyboard 2 through its own keys, a controller through `mets_controller_support_actions` (its set of the Controls menu), or without that mod a fixed
+layout from XInput. `mets_controller_support` is only told who has what (`mets_controller_support_player_device`: player, device, port), for its rumble (the player's controller, the
+feedback object of the player's port) and look (the look entries of the device at the player's port; the mouse is the keyboard's player's).
 
 ## Queues and players
 - **ActionQueue** [read]: `+0x268` port, `+0x26C` has entries, `+0x270` entries, `+0x280/0x281` flags. A queue reads `IOModule.devices[port]`.
@@ -51,7 +60,8 @@ vehicle source (`vehicle_source`: split screen), replaces the **vehicle entries*
 ## FEDatabase (0x91CF90) joystick ports
 `+0x0C` / `+0x0D`: player 1 / 2 (signed byte, -1 none). **The menus' input (`cFEngJoyInput`) has one queue (`+0`, "all ports") and leaves the slots for ports 1-3
 uninitialised on PC**; `CheckUnplugged` and `JoyEnable` index them with these ports, so a port of 1-3 in the database crashes [tested]. Player 2's database
-port stays -1; their *LocalPlayer* gets the extra device's port instead (`SetControllerPort` hook).
+port stays -1; their *LocalPlayer* gets their own device's port instead: `more_players.cpp` calls `SetControllerPort` (IPlayer slot +0x30, which only stores the port and takes
+the device's feedback and wheel objects [read]) after `CreatePlayers`, before the cars are made.
 
 ## Controls screen (UIOptionsPCController)
 `+0xE4` column (1 keyboard, 3 controller). The shoulder buttons are the messages PAD_LTRIGGER 0x5073EF13 / PAD_RTRIGGER 0xD9FEEC59, both ending in

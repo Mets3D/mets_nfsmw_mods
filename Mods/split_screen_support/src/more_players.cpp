@@ -323,6 +323,9 @@ void give_own_settings(int index, void *player) {
 
 void __fastcall create_cars(void *quick_game, void *edx, const float *start) {
     using Fn = void(__fastcall *)(void *, void *, const float *);
+    // CreatePlayers gave player 2 the database's joystick port, which stays -1 for the menus (players.cpp): their game input device's port instead.
+    if (players::split_screen() && player_count_value() >= nfsmw::kPlayersPerRound && players::second_port() >= 0)
+        set_player_port(player_array()[1], kSetControllerPortSlot, players::second_port());
     reinterpret_cast<Fn>(g_create_cars)(quick_game, edx, start);
     const int extras = extras_wanted();
     if (!extras || !make_extra_players(quick_game, edx, extras)) return;

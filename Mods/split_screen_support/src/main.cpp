@@ -26,7 +26,9 @@
  *   race_end.cpp       the end of a race: every player gets the race-over message, the results wait a few seconds
  *   world_map.cpp      the world map shows every player and the opponents, in the colours of the minimaps
  *   extra_streaming.cpp the track streamer's two positions chosen among four cars
- *   players.cpp        which controller is whose (XInput), player 1's alone reaches the game
+ *   players.cpp        which device is whose (the Press Start screens)
+ *   player_devices.cpp a game input device for each player, that says what the player's device alone asks for
+ *   keyboard2.cpp      Keyboard 2: a second player on the same keyboard, with keys of their own
  *   state_log.cpp      a log of the player count, devices and view mode
  *   view_api.cpp       what other mods may draw into each player's picture (common/split_screen_api.h), e.g. nfsmw_improved_ai_opponents's overlay
  *   events.cpp         the game functions several parts need (world load, each frame)
@@ -55,6 +57,7 @@
 #include "hud_copies.h"
 #include "hud_players.h"
 #include "hud_views.h"
+#include "keyboard2.h"
 #include "layout.h"
 #include "menu_entry.h"
 #include "minimap.h"
@@ -136,6 +139,7 @@ NFSMW_PLUGIN_MAIN() {
     more_players::install_car_select_label();
     more_players::install_shared_stable();
     players::install();  // before state_log: the world load log shows its ports
+    if (ini_flag("options", "simulate_two_keyboards", true)) keyboard2::install();
     state_log::install();
     events::install();
     return NFSMW_OK;

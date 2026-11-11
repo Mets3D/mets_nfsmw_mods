@@ -1,11 +1,11 @@
 #include "bindings.h"
 #include "controller_api.h"
-#include "extra_device.h"
 #include "hooks.h"
 #include "input.h"
 #include "look.h"
 #include "look_options.h"
 #include "max_players.h"
+#include "players.h"
 #include "view_ids.h"
 
 namespace pad::look {
@@ -17,7 +17,7 @@ using namespace pad::bindings;
 // turned around the target (to) by the look offsets. The mover's camera mode (+0x9C) is the view type (0 bumper,
 // 1 hood, 2 close, 3 far, ...), +0xA1 is set while looking back (that view can be orbited too). Based on the widescreen fix's Camera.ixx (MIT,
 // ThirteenAG), generalised to every chase view and fed from the game's bindings. Another player (another mod gave
-// them a device: extra_device.h) looks around with the look bindings of that device, in their own view (view_ids.h: the view of the camera mover
+// them a device: players.h) looks around with the look bindings of that device, in their own view (view_ids.h: the view of the camera mover
 // says whose it is); the first player's look and the mouse stay with the first.
 // ------------------------------------------------------------------------------------------------
 struct Vec3 {
@@ -39,9 +39,8 @@ struct LookState {
 
 // The look of a player with a device of their own (-1..1 each way): their device's look entries, with the same bindings and dead zone as anybody's.
 void second_stick(int who, float *x, float *y) {
-    const int slot = who - 1;
-    *x = extra_device::value_slot(slot, kLookEntry[L_RIGHT]) - extra_device::value_slot(slot, kLookEntry[L_LEFT]);
-    *y = extra_device::value_slot(slot, kLookEntry[L_UP]) - extra_device::value_slot(slot, kLookEntry[L_DOWN]);
+    *x = players::value(who, kLookEntry[L_RIGHT]) - players::value(who, kLookEntry[L_LEFT]);
+    *y = players::value(who, kLookEntry[L_UP]) - players::value(who, kLookEntry[L_DOWN]);
 }
 
 using MoverUpdateFn = void(FASTCALL *)(void *, void *, float);
@@ -87,13 +86,11 @@ void __cdecl hook_draw_cursor(int x, int y) {
     g_orig_draw_cursor(x, y);
 }
 
-// Whose camera the mouse looks around in: the player the keyboard drives (player 1, or the player of an extra device whose source is the keyboard), or nobody
-// when every player is on a controller (-1; in a game of one player, whose vehicle source is every device, the mouse is player 1's).
+// Whose camera the mouse looks around in: the player on the keyboard, or nobody when no player is (-1; in a game of one player, who has every device, the
+// mouse is player 1's).
 int mouse_owner() {
-    const int slot = extra_device::keyboard_slot();
-    if (slot >= 0) return slot + 1;
-    const int vehicle = input::vehicle_source();
-    return vehicle == nfsmw::controller_api::kDefault || vehicle == nfsmw::controller_api::kSourceKeyboard ? 0 : -1;
+    const int player = players::on_keyboard();
+    return player >= 0 ? player : players::source(0) == nfsmw::controller_api::kDefault ? 0 : -1;
 }
 
 void reset_look(int who) {

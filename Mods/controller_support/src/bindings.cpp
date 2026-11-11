@@ -5,7 +5,6 @@
 #include "bindings.h"
 #include "controls_menu.h"
 #include "default_layout.h"
-#include "extra_device.h"
 #include "pad_sets.h"
 #include "profile.h"
 #include "hooks.h"
@@ -132,8 +131,9 @@ void resync_changes() {
         memcpy(g_last_slots[e], reinterpret_cast<const unsigned char *>(kBindingTable + e * kEntrySize) + 4, sizeof(g_last_slots[e]));
 }
 
-void log_binding_changes() {
-    if (GetTickCount() < g_next_binding_check) return;
+void log_binding_changes(bool force) {
+    if (pad_sets::live_pad() < 0) return;
+    if (!force && GetTickCount() < g_next_binding_check) return;
     g_next_binding_check = GetTickCount() + 1000;
     // Another profile was loaded: its look bindings go in the live table (not while the Controls screen shows another controller's set).
     if (g_look_entries_ok && g_look_profile_known && strcmp(profile::file(), g_look_profile) && pad_sets::live_pad() == 0) {
@@ -174,13 +174,11 @@ void FASTCALL hook_poll(void *self, void *edx) {
         input::hook_dinput();
         if (g_look_entries_ok) load_live_look_entries();
     }
-    if (extra_device::is_extra(self)) return extra_device::poll(self);  // the second player's device
-    if (field<int>(self, 0x24) != 0) return;  // GameDevice port: only port 0 polls
+    if (field<int>(self, 0x24) != 0) return;  // GameDevice port: only port 0 polls (the others are the players' of nfsmw_split_screen_support)
     new_controllers::check();
     const float *current = field<float *>(self, 0x20);
     if (current) {
         pad_sets::add_values(const_cast<float *>(current));  // the other controllers' sets
-        pad_sets::restrict_vehicle_entries(const_cast<float *>(current));  // the vehicle from player 1's device only
     }
     for (int l = 0; l < L_COUNT && current; ++l) g_look_input[l] = current[kLookEntry[l]];
     log_binding_changes();

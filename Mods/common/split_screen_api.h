@@ -17,6 +17,9 @@
 //   nfsmw_split_screen_support_press_start(int device)  for automated tests: the Press Start screen that is showing gets "this device let go of
 //                      Start" (device 0-3 = XInput controller, -1 = the keyboard), as if the person had pressed it.
 //   nfsmw_split_screen_support_select_car(int device)  for automated tests: on the race options after a split screen race, that device pressed Select Car (2 / X).
+//   nfsmw_split_screen_support_test_input(int slot, int on, int gas, int steer) / _test_entry(int slot, int entry, int milli) / _test_pause(int slot, int down)
+//                      for automated tests: the game input device of a player after the first (slot 0 is player 2's) says gas and steering (thousandths,
+//                      steering -1000 left to 1000 right, until `on` is 0), a value for a binding entry (thousandths, until -1), the pause request.
 #pragma once
 
 #include <d3d9.h>
@@ -64,6 +67,17 @@ inline PressStartFn find_press_start() {
     const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
     return module ? reinterpret_cast<PressStartFn>(GetProcAddress(module, "nfsmw_split_screen_support_press_start")) : nullptr;
 }
+
+using TestInputFn = void (*)(int slot, int on, int gas, int steer);
+using TestEntryFn = void (*)(int slot, int entry, int milli);
+using TestPauseFn = void (*)(int slot, int down);
+inline void *find_test(const char *name) {
+    const HMODULE module = GetModuleHandleA("nfsmw_split_screen_support.asi");
+    return module ? reinterpret_cast<void *>(GetProcAddress(module, name)) : nullptr;
+}
+inline TestInputFn find_test_input() { return reinterpret_cast<TestInputFn>(find_test("nfsmw_split_screen_support_test_input")); }
+inline TestEntryFn find_test_entry() { return reinterpret_cast<TestEntryFn>(find_test("nfsmw_split_screen_support_test_entry")); }
+inline TestPauseFn find_test_pause() { return reinterpret_cast<TestPauseFn>(find_test("nfsmw_split_screen_support_test_pause")); }
 
 using SelectCarFn = void (*)(int device);
 inline SelectCarFn find_select_car() {

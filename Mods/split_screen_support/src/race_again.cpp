@@ -4,9 +4,8 @@
  * (more_players keeps every player's pick) when the Players row still says as many players; otherwise the Press Start and Car Select screens come as the
  * first time. A new split screen game (the entry of the Quick Race menu) forgets the cars.
  *
- * "2 Select Car" in the hint bar (a clone of the "1 Defaults" hint, common/fe_hint.h) opens the Car Select of the player whose device pressed 2 (X on a
- * controller: mets_controller_support shows the button), and it comes back to the race options. The game cannot tell the devices apart (every one is
- * port 0), so the press is read here, as players.cpp reads Start; a click on the hint is the keyboard's player's.
+ * The Select Car hint (a clone of "1 Defaults") uses Menu Interaction #2. The game merges menu input, so we read the
+ * device that pressed it to pick whose Car Select to open. A mouse click uses the primary keyboard's player.
  */
 #include "race_again.h"
 
@@ -30,13 +29,13 @@ namespace hint = nfsmw::fe_hint;
 constexpr uintptr_t kNotify = 0x7AB430, kAcceptSwitchJump = 0x7AB56D;
 constexpr unsigned kScreenTick = 0xC98356BA, kExitComplete = 0xE1FDE1D1, kScreenPackage = 0x10;
 constexpr unsigned kClickMsg = 0xCA3E5C01, kHintName = 0xCA3E5CA0, kHintGuidBase = 0xCA3E5D00;
-constexpr int kKey2 = 0x03, kNumpad2 = 0x50;  // DirectInput codes
-constexpr int kXInputSlots = 4;
+constexpr int kMenuDevices[] = {0, 1, 2, 3, players::kKeyboard, players::kKeyboard2};
 
 hint::Hint g_hint;
 void *g_screen = nullptr;  // the race options screen the hint was tried on
 bool g_shown = false;
-bool g_was_down[kXInputSlots + 1];  // the controllers' X, the keyboard's 2 (last)
+struct Button { bool down = false, counts = false; };
+Button g_interaction2[sizeof(kMenuDevices) / sizeof(kMenuDevices[0])];
 bool g_changing = false;            // a Car Select was asked for from this screen
 
 bool kept() { return players::split_screen() && more_players::cars_kept(player_count::wanted()); }
@@ -44,7 +43,7 @@ bool kept() { return players::split_screen() && more_players::cars_kept(player_c
 void select_car(int device) {
     const int player = more_players::kept_player_of_device(device);
     if (player < 0) {
-        g_log.line("Select Car: %s plays no one", device == players::kKeyboard ? "the keyboard" : "that controller");
+        g_log.line("Select Car: %s plays no one", players::describe(device));
         return;
     }
     g_changing = true;
@@ -53,18 +52,24 @@ void select_car(int device) {
 
 // Which devices let go of X / 2 since the last frame (`act` false: only what is held now, at the screen's first tick).
 void poll(bool act) {
-    for (int i = 0; i <= kXInputSlots; ++i) {
+    unsigned char keys[256];
+    const bool have_keys = players::read_keyboard(keys);
+    const bool separate_keypad = more_players::kept_player_of_device(players::kKeyboard2) >= 0;
+    for (unsigned i = 0; i < sizeof(kMenuDevices) / sizeof(kMenuDevices[0]); ++i) {
+        const int device = kMenuDevices[i];
         bool down = false;
-        if (i < kXInputSlots) {
+        if (device >= 0) {
             nfsmw::xinput::Gamepad p;
-            down = nfsmw::xinput::read_slot(i, &p) && (p.buttons & nfsmw::xinput::kButtonX);
+            down = nfsmw::xinput::read_slot(device, &p) && (p.buttons & nfsmw::xinput::kButtonX);
         } else {
-            unsigned char keys[256];
-            down = players::read_keyboard(keys) && ((keys[kKey2] | keys[kNumpad2]) & 0x80);
+            down = have_keys && players::keyboard_menu_down(keys, device, players::KeyboardMenuAction::kInteraction2, separate_keypad);
         }
-        const bool released = g_was_down[i] && !down;
-        g_was_down[i] = down;
-        if (released && act && !g_changing) select_car(i < kXInputSlots ? i : players::kKeyboard);
+        Button &button = g_interaction2[i];
+        const bool released = button.down && !down && button.counts;
+        if (!act || !g_shown) button.counts = false;
+        else if (down && !button.down) button.counts = true;
+        button.down = down;
+        if (released && act && !g_changing) select_car(device);
     }
 }
 
@@ -85,7 +90,7 @@ void tick(void *screen) {
         g_shown = show;
         reinterpret_cast<void (*)(void *)>(show ? 0x514CC0 : 0x514C70)(g_hint.root());  // FEngSetVisible / FEngSetInvisible
     }
-    if (show) poll(true);
+    poll(show);
 }
 
 using NotifyFn = void(__fastcall *)(void *, void *, unsigned, void *, unsigned, unsigned);

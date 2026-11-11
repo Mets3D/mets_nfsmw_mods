@@ -4,6 +4,9 @@
 #include "controller_api.h"
 #include "hooks.h"
 #include "input.h"
+#include "keyboard2.h"
+#include "keys.h"
+#include "patch.h"
 #include "confirm_changes.h"
 #include "controls_options.h"
 #include "device_settings.h"
@@ -147,35 +150,7 @@ void select(int pad) {
     bindings::resync_changes();  // the swap is not the player's editing: no log lines, no look bindings saved
 }
 
-int live_pad() { return g_live; }
-
-// The entries the game's input mapping turns into the vehicle, its camera and its HUD actions: 0-13 (gas ... HUD pad), 15-18
-// (camera change / look back / pull back, pause request), the look entries 25-28 and Previous Camera View (nfsmw_camera_settings'
-// entry). The rest (14, 19-24, 29 and up) are the menus' and hotkeys', and come from every device.
-bool is_vehicle_entry(int e) {
-    return e <= 13 || (e >= 15 && e <= 18) || (e >= 25 && e <= 28) || e == nfsmw::binding_table::kPreviousCameraEntry;
-}
-
-void restrict_vehicle_entries(float *values) {
-    const int source = input::vehicle_source();
-    if (source == nfsmw::controller_api::kDefault) return;
-    float own[kBindingCount] = {};
-    if (source == nfsmw::controller_api::kSourceKeyboard) actions_of_keyboard(own);
-    else actions_of_slot(source, own);
-    for (int e = 0; e < kBindingCount; ++e)
-        if (is_vehicle_entry(e)) values[e] = own[e];
-}
-
-bool actions_of_keyboard(float *values) {
-    for (int e = 0; e < kBindingCount; ++e) {
-        values[e] = 0.0f;
-        for (int s = 0; s < 2; ++s) {
-            const Slot slot = slots_of(kBindingTable, e)[s];
-            if (slot.type == kKey && input::key_down(slot.device)) values[e] = 1.0f;
-        }
-    }
-    return true;
-}
+int live_pad() { return keyboard2::editing() ? -1 : g_live; }
 
 // The entries' values that one XInput controller asks for through the set of the game controller that reports it (for
 // players the game does not poll: the second one of a split screen).
@@ -271,8 +246,34 @@ int g_direction = 1;  // 1 next, -1 previous
 using MessageFn = void(FASTCALL *)(void *, void *, unsigned, void *, unsigned, unsigned);
 MessageFn g_orig_message;
 void *g_screen = nullptr;  // the Controls screen, while it is open
+constexpr int kKeyboard = -1, kKeyboard2 = -2;
+constexpr unsigned kScreenTick = 0xC98356BA, kDefaultsAccepted = 0xD05FC3A3;
+constexpr unsigned kPreviousDevice = 0x5073EF13, kNextDevice = 0xD9FEEC59;
+bool g_previous_down = false, g_next_down = false;
+
+unsigned keyboard_device_switch(void *screen) {
+    void *feng = *reinterpret_cast<void **>(0x91CADC);
+    const auto focused_package = reinterpret_cast<void *(FASTCALL *)(void *, void *)>(0x516A90);
+    void *package = feng ? focused_package(feng, nullptr) : nullptr;
+    const char *active = package ? field<const char *>(package, 0xC) : nullptr;
+    const char *own = field<const char *>(screen, 0x10);
+    const bool previous = nfsmw::key_clicked(VK_PRIOR, g_previous_down);
+    const bool next = nfsmw::key_clicked(VK_NEXT, g_next_down);
+    if (!active || !own || strcmp(active, own) || field<unsigned char>(screen, 0xE1)) return 0;
+    return previous ? kPreviousDevice : next ? kNextDevice : 0;
+}
+
 void FASTCALL hook_message(void *screen, void *edx, unsigned message, void *object, unsigned a, unsigned b) {
     g_screen = screen;
+    if (keyboard2::enabled() && message == kScreenTick) {
+        if (const unsigned switch_message = keyboard_device_switch(screen))
+            hook_message(screen, edx, switch_message, nullptr, 0, 0);
+    }
+    if (keyboard2::editing() && message == kDefaultsAccepted) {
+        keyboard2::reset_editor();
+        reinterpret_cast<RefreshFn>(0x51D410)(screen, nullptr);  // refresh labels without replacing the undo snapshot
+        return;
+    }
     message = controls_options::filter_message(screen, message);
     if (message == 0x5073EF13) g_direction = -1;      // PAD_LTRIGGER
     else if (message == 0xD9FEEC59) g_direction = 1;  // PAD_RTRIGGER
@@ -308,7 +309,10 @@ void label_of_pad(int pad, const char *game_name, char *out, size_t size) {
 }
 
 void show_device(void *screen, int new_column, int pad) {
+    const bool second_keyboard = new_column == 1 && pad == kKeyboard2;
+    if (!second_keyboard) keyboard2::end_edit();
     select(new_column == 3 ? pad : 0);
+    if (second_keyboard && !keyboard2::editing()) keyboard2::begin_edit();
     g_menu_pad = new_column == 3 ? pad : 0;
     field<int>(screen, 0xE4) = new_column;
     reinterpret_cast<RefreshFn>(0x52AC70)(screen, nullptr);  // the rows, and the header
@@ -320,7 +324,7 @@ void show_device(void *screen, int new_column, int pad) {
         label_of_pad(pad, "?", label, sizeof(label));
         log_line("Controls menu: controller %d of %d: %s (XInput controller %d)", pad + 1, joystick_count(), label, slot + 1);
     } else {
-        log_line("Controls menu: keyboard");
+        log_line("Controls menu: %s", second_keyboard ? keyboard2::name() : "keyboard");
     }
 }
 
@@ -334,7 +338,7 @@ void controllers_changed() {
     const auto find_script = reinterpret_cast<void *(FASTCALL *)(void *, void *, unsigned)>(0x5B1360);  // FEObject::FindScript
     const auto set_script = reinterpret_cast<void (*)(void *, unsigned, bool)>(0x514D10);    // FEngSetScript
     void *object = package ? find_object(package, 0x8A41F5B9) : nullptr;
-    if (object && joystick_count() > 0) {
+    if (object && (joystick_count() > 0 || keyboard2::enabled())) {
         for (const char *name : {"SHOW", "INIT", "ON", "NORMAL"}) {
             const unsigned hash = nfsmw::bstring_hash(name);
             if (!find_script(object, nullptr, hash)) continue;
@@ -345,7 +349,7 @@ void controllers_changed() {
     } else {
         log_line("Controls menu: device elements %s", object ? "not touched (no controller)" : "not found");
     }
-    show_device(g_screen, field<int>(g_screen, 0xE4), g_menu_pad);
+    if (!keyboard2::editing()) show_device(g_screen, field<int>(g_screen, 0xE4), g_menu_pad);
 }
 
 // The device switch: keyboard, controller 1, controller 2 ... in a circle, in the direction of the button. The circle has the controllers that are
@@ -354,37 +358,49 @@ void FASTCALL hook_switch_device(void *screen, void *edx) {
     (void)edx;
     int &column = field<int>(screen, 0xE4);  // 1 keyboard, 3 controller
     const int n = joystick_count();
-    if (n == 0) return;
+    if (n == 0 && !keyboard2::enabled()) return;
     if (controls_options::on_device_switch(screen)) return;  // the Rumble hint: the page opens instead
-    int items[kMaxPads + 1] = {-1}, count = 1, current = 0;  // -1 the keyboard, else a controller
+    int items[kMaxPads + 2] = {kKeyboard}, count = 1, current = 0;
+    if (keyboard2::enabled()) {
+        if (keyboard2::editing()) current = count;
+        items[count++] = kKeyboard2;
+    }
     for (int k = 0; k < n; ++k) {
         const bool shown = column == 3 && k == g_menu_pad;
         if (!shown && !input::joystick_connected(k)) continue;
         if (shown) current = count;
         items[count++] = k;
     }
-    const int next = items[((current + g_direction) % count + count) % count];
-    const int new_column = next < 0 ? 1 : 3, pad = next < 0 ? 0 : next;
-    if (new_column == column && pad == g_menu_pad) return;
-    show_device(screen, new_column, pad);
-    if (new_column == 3 && count > 2) rumble::pulse(input::rumble_slot_of_joystick(pad));
+    const int next = (current + g_direction + count) % count;
+    if (next == current) return;
+    const int device = items[next];
+    show_device(screen, device < 0 ? 1 : 3, device);
+    if (device >= 0 && n > 1) rumble::pulse(input::rumble_slot_of_joystick(device));
 }
 
 // The screen closes: controller 0's set goes back in the live table (the profile saves that one).
 void *FASTCALL hook_delete_screen(void *screen, void *edx, int flags) {
     if (screen == g_screen) g_screen = nullptr;
+    keyboard2::end_edit();
     select(0);
     g_menu_pad = 0;
+    g_previous_down = g_next_down = false;
     return g_orig_delete(screen, edx, flags);
 }
 
 // The header's device name: tells the controllers apart.
 const char *__stdcall hook_device_name(int column) {
+    if (column == 1 && keyboard2::editing()) return keyboard2::name();
     const char *name = g_orig_name(column);
     if (column != 3) return name;
     static char text[0x140];
     label_of_pad(g_menu_pad, name, text, sizeof(text));
     return text;
+}
+
+// A second keyboard is a reason to allow the Controls screen's device switch, as a controller is.
+bool FASTCALL can_switch_device(void *device, void *) {
+    return keyboard2::enabled() || reinterpret_cast<bool(FASTCALL *)(void *, void *)>(0x628C50)(device, nullptr);
 }
 
 void install_hooks() {
@@ -399,6 +415,10 @@ void install_hooks() {
          nfsmw::detour(&hook_device_name), nfsmw::orig(&g_orig_name)},
     };
     nfsmw::install_hooks(hooks, 4, g_log, nullptr, "controller list");
+    for (uintptr_t site : {0x5462D8u, 0x52ABA5u}) {
+        if (!nfsmw::redirect_call(site, 0x628C50, reinterpret_cast<uintptr_t>(&can_switch_device)))
+            log_line("Controls menu: no device switch for a second keyboard at %#x", static_cast<unsigned>(site));
+    }
 }
 
 }  // namespace pad::pad_sets
@@ -423,3 +443,8 @@ extern "C" __declspec(dllexport) int mets_controller_support_device_label(int so
 }
 
 extern "C" __declspec(dllexport) int mets_controller_support_live_pad() { return pad::pad_sets::live_pad(); }
+
+// What an XInput controller asks for through its bindings, per binding entry (76 floats, 0..1). Returns 0 (nothing written) when it cannot be read.
+extern "C" __declspec(dllexport) int mets_controller_support_actions(int xinput_slot, float *values) {
+    return values && pad::pad_sets::actions_of_slot(xinput_slot, values);
+}

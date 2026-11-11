@@ -6,7 +6,7 @@
 #include "hooks.h"
 #include "input.h"
 #include "max_players.h"
-#include "extra_device.h"
+#include "players.h"
 #include "profile.h"
 #include "rumble.h"
 
@@ -147,7 +147,7 @@ bool on_ground(const void *surface) {
 // thread talks to the controller: in a race the game thread just sets the level it should play (each frame), and
 // the Settings page's previews are played by the thread itself, so a crash and its preview reach the controller the same
 // way. The thread also stops the motors when the game stops updating (loading, a hang).
-// Every player can rumble (the others read the extra devices, see extra_device.h); g_cur is the one the game thread is
+// Every player can rumble (the others have game input devices of their own, see players.h); g_cur is the one the game thread is
 // working on, set at every entry from the game (the feedback objects know their player).
 constexpr int kPlayers = nfsmw::kMaxPlayers;
 int g_cur = 0;
@@ -234,7 +234,7 @@ bool preview_shape(int effect, float t, float *out) {
 // Which controller a player's rumble goes to: player 1 the one in use (or none, when no controller reaches the game),
 // the others the one that is the source of their device (-1: none, or the keyboard).
 int player_slot(int player) {
-    if (player >= 1) return extra_device::source_slot_of(player - 1);
+    if (player >= 1) return players::controller(player);
     return input::player_one_rumble_slot();
 }
 
@@ -595,8 +595,7 @@ int install_feedback(void *&ffb, int port) {
     for (int i = 0; i < kPlayers; ++i)
         if (ffb == &g_feedbacks[i]) return i;
     if (!g_rumble_enabled || !xinput::can_vibrate()) return -1;
-    const int slot = extra_device::slot_of_port(port);
-    const int index = port < 0 ? -1 : slot >= 0 ? slot + 1 : 0;
+    const int index = port < 0 ? -1 : std::max(0, players::of_port(port));
     if (index < 0) return -1;
     Feedback &feedback = g_feedbacks[index];
     feedback.vtbl = g_feedback_vtbl;
@@ -639,7 +638,6 @@ void FASTCALL hook_do_ffb(void *player, void *edx) {
 using SetPortFn = void(FASTCALL *)(void *, void *, int);
 SetPortFn g_orig_set_controller_port;
 void FASTCALL hook_set_controller_port(void *player, void *edx, int port) {
-    port = extra_device::port_for_player(port);  // the second player reads the extra device
     g_orig_set_controller_port(player, edx, port);
     keep_game_vibration_on(player);
     install_feedback(field<void *>(player, 0x0C), port);

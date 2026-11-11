@@ -4,20 +4,18 @@
  * The Press Start screen (uiQRPressStart) is shown once per player. The game itself cannot tell who pressed: the PC
  * version has one input device, port 0, for the keyboard and the controllers, and which of them ends in its Start
  * message depends on the bindings. So the game's own Start messages are ignored here, and the screen is told by this part:
- * every frame the four XInput slots and the keyboard (through mets_controller_support, which sees it) are read, and when a
+ * every frame the four XInput slots and the keyboard are read, and when a
  * controller lets go of Start or A (the menus' Accept), or Enter, numpad Enter or Space is let go, the screen gets the Start message
  * (0xEBFCDA65) and that device becomes that player's. Accept is also what opened the screen (on the race options, or the Car Select of the
  * player before) and may still be down when it comes up: a button counts only when it went down on a Press Start screen.
  *
  * Every device always reaches the game's menus (the Press Start screens, the car select, the pause menu with its Controls
- * screen). What is told to mets_controller_support (common/controller_api.h) is only who drives the vehicles:
+ * screen). Only who drives the vehicles is decided here (player_devices.h does it):
  *  - when the race loads: player 1's vehicle (and its camera, HUD actions and pause request) takes its input from player 1's
- *    device alone. Player 2's joystick port is set to -1 and they read a game input device of their own, made by
- *    mets_controller_support from the bindings of player 2's device (without it they have no input). A device that already
- *    has a player does nothing on the other player's Press Start screen; a player who somehow did not press Start gets
- *    another device: a free controller, else the keyboard;
+ *    device alone. Player 2's joystick port is set to -1 and they read a game input device of their own, which says what
+ *    player 2's device asks for. A device that already has a player does nothing on the other player's Press Start screen; a
+ *    player who somehow did not press Start gets another device: a free controller, else the keyboard;
  *  - back in the menus (no longer a split screen game): every device drives the vehicle again.
- * Without mets_controller_support every device drives player 1's vehicle, and player 2 has no input.
  */
 #include "players.h"
 
@@ -25,9 +23,12 @@
 #include "device_scan.h"
 #include "events.h"
 #include "hooks.h"
+#include "keyboard2.h"
 #include "keys.h"
 #include "max_players.h"
 #include "more_players.h"
+#include "player_count.h"
+#include "player_devices.h"
 #include "split_screen_support.h"
 
 namespace split_screen_support::players {
@@ -43,13 +44,14 @@ constexpr int kTwoViews = 3;
 constexpr unsigned kStartReleased = 0xEBFCDA65;
 constexpr int kNotChosen = -2;
 constexpr int kEveryone = -3, kNormal = -4;  // for give_controls(): every device; back to the default
-constexpr int kStartKeys[] = {0x1C, 0x39, 0x9C};  // DirectInput codes: Enter, Space, numpad Enter
+constexpr int kEnter = 0x1C, kSpace = 0x39, kNumpadEnter = 0x9C;
+constexpr int kKey2 = 0x03, kNumpad2 = 0x50;
 
 constexpr int kXInputSlots = 4;  // the controllers XInput knows
 struct Button {
     bool down = false, counts = false;  // counts: it went down while a Press Start screen was up
 };
-Button g_start[kXInputSlots], g_start_key;
+Button g_start[kXInputSlots], g_start_key, g_start_key2;
 bool g_add_player_key_was_down = false;
 int g_add_player_vk = 0;
 bool g_connected[kXInputSlots];
@@ -57,7 +59,7 @@ nfsmw::device_scan::Pace g_scan_pace;  // empty slots are slow to ask about
 int g_chosen[2] = {kNotChosen, kNotChosen};  // at the Press Start screens
 int g_race[nfsmw::kMaxPlayers];            // in the race (kKeyboard until a race is made)
 int g_extra_port[nfsmw::kMaxExtras];       // the game input device ports of players 3 and up (-1: none)
-bool g_controls_asked = false;                // mets_controller_support was told what reaches the game
+bool g_controls_asked = false;                // player 1's vehicle was given to a device (or to every device, on a Press Start screen)
 void *g_press_start_screen = nullptr;         // the Press Start screen showing, if any
 int g_pressed_by = kNotChosen;  // the device whose Start the screen is being told about (see press_start)
 enum class Phase { kMenus, kRace } g_phase = Phase::kMenus;  // kRace: the race of this split screen game is on
@@ -67,14 +69,12 @@ unsigned char *fe_database() { return *reinterpret_cast<unsigned char **>(kFeDat
 
 void __fastcall hook_press_start(void *screen, void *edx, unsigned message, void *object, unsigned param1, unsigned param2);
 
-const char *describe(int device) {
-    static const char *const names[] = {"controller 0", "controller 1", "controller 2", "controller 3"};
-    return device >= 0 && device < kXInputSlots ? names[device] : "the keyboard";
-}
+bool keyboard2_available() { return player_count::wanted() == 2 && keyboard2::enabled(); }
 
 // The Press Start screen is told that a device let go of Start.
 void press_start(int device) {
     if (!g_press_start_screen || !split_screen()) return;
+    if (device == kKeyboard2 && !keyboard2_available()) return;
     g_pressed_by = device;
     hook_press_start(g_press_start_screen, nullptr, kStartReleased, nullptr, 1, 0);  // joystick 0, as every press is
     g_pressed_by = kNotChosen;
@@ -91,6 +91,7 @@ int next_free_device() {
     for (int i = 0; i < kXInputSlots; ++i)
         if (g_connected[i] && !device_taken(i)) return i;
     if (!device_taken(kKeyboard)) return kKeyboard;
+    if (keyboard2_available() && !device_taken(kKeyboard2)) return kKeyboard2;
     for (int i = 0; i < kXInputSlots; ++i)
         if (!device_taken(i)) return i;
     return kNotChosen;
@@ -117,14 +118,11 @@ void poll() {
     }
     unsigned char keys[256];
     if (read_keyboard(keys)) {
-        static bool logged = false;
-        if (!logged) {
-            logged = true;
-            g_log.line("the keyboard can be seen (through mets_controller_support)");
-        }
-        bool down = false;
-        for (const int key : kStartKeys) down |= (keys[key] & 0x80) != 0;
-        if (let_go(g_start_key, down) && released == kNotChosen) released = kKeyboard;
+        const bool separate_keypad = split_screen() && keyboard2_available();
+        if (let_go(g_start_key, keyboard_menu_down(keys, kKeyboard, KeyboardMenuAction::kStart, separate_keypad)) && released == kNotChosen)
+            released = kKeyboard;
+        if (let_go(g_start_key2, keyboard_menu_down(keys, kKeyboard2, KeyboardMenuAction::kStart, separate_keypad)) && released == kNotChosen)
+            released = kKeyboard2;
     }
     if (g_add_player_vk) {
         const bool down = nfsmw::game_has_focus() && nfsmw::key_down(g_add_player_vk);
@@ -143,43 +141,24 @@ void poll() {
 // Which device drives player 1's vehicle: one device (a controller 0-3 or kKeyboard), or every device. All devices reach
 // the game's menus in any case.
 void give_controls(int device) {
-    static const api::VehicleSourceFn vehicle = api::find_vehicle_source();
-    static bool warned = false;
     g_controls_asked = device != kNormal;
-    if (!vehicle) {
-        if (!warned && g_controls_asked) {
-            warned = true;
-            g_log.line("mets_controller_support is not loaded: every device drives player 1's vehicle, and player 2 has no input");
-        }
-        return;
-    }
-    vehicle(device == kKeyboard ? api::kSourceKeyboard : device >= 0 ? device : api::kDefault);
+    player_devices::first_player(device);
 }
 
-// Player 2's input: a game input device of their own. mets_controller_support makes it, fills it with what the Controls
-// menu bindings of player 2's device ask for, and gives it to the player whose joystick port is -1 (their database port
-// stays -1: the menus' input knows no other port and crashes on one), so the game's own input path serves them: steering,
-// camera change, pause, rumble, the mouse look of a keyboard player. Returns false without mets_controller_support.
-bool start_second_player(int device) {
-    static const api::ExtraDeviceFn extra_device = api::find_extra_device();
-    if (!extra_device) {
-        g_log.line("mets_controller_support is not loaded: player 2 has no input");
-        return false;
-    }
-    const int port = extra_device(device == kKeyboard ? api::kSourceKeyboard : device);
+// Player 2's input: a game input device of their own (player_devices.h), which their LocalPlayer reads instead of the database's joystick port (that
+// stays -1: the menus' input knows no other port and crashes on one; more_players.cpp gives the player the device's port).
+void start_second_player(int device) {
+    const int port = player_devices::give(0, device);
     g_log.line("player 2 reads %s", port >= 0 ? "a game input device of their own" : "no game input device (none could be made)");
-    return port >= 0;
 }
 
-void end_second_player() {
-    static const api::ExtraDeviceFn extra_device = api::find_extra_device();
-    if (extra_device) extra_device(api::kSourceNone);
-}
+void end_second_player() { player_devices::give(0, kNotChosen); }
 
 // A device that is not `taken`: a connected controller, else the keyboard (which may be the same: nothing else is there).
 int other_device(int taken) {
     for (int i = 0; i < kXInputSlots; ++i)
         if (g_connected[i] && i != taken) return i;
+    if (taken == kKeyboard && keyboard2_available()) return kKeyboard2;
     return kKeyboard;
 }
 
@@ -193,24 +172,22 @@ int free_device(int count) {
     return kKeyboard;
 }
 
-// Players 3 and 4 read game input devices of their own, like player 2 (slots 1 and 2 of mets_controller_support's extra devices).
+// Players 3 and up read game input devices of their own, like player 2 (slots 1 and up of player_devices.h).
 void start_extra_players() {
-    static const api::ExtraDeviceSlotFn slot = api::find_extra_device_slot();
     for (int i = 0; i < more_players::extras_in_race(); ++i) {
         int device = more_players::pick_device(nfsmw::kPlayersPerRound + i);
         for (int p = 0; p < nfsmw::kPlayersPerRound + i; ++p)
             if (device == g_race[p]) device = kNotChosen;  // a device that has a player already
         if (device == kNotChosen) device = free_device(nfsmw::kPlayersPerRound + i);
         g_race[nfsmw::kPlayersPerRound + i] = device;
-        g_extra_port[i] = slot ? slot(1 + i, device == kKeyboard ? api::kSourceKeyboard : device) : -1;
+        g_extra_port[i] = player_devices::give(1 + i, device);
         g_log.line("player %d reads %s (%s)", 3 + i, describe(device), g_extra_port[i] >= 0 ? "a game input device of their own" : "no game input device");
     }
 }
 
 void end_extra_players() {
-    static const api::ExtraDeviceSlotFn slot = api::find_extra_device_slot();
     for (int i = 0; i < nfsmw::kMaxExtras; ++i) {
-        if (slot) slot(1 + i, api::kSourceNone);
+        player_devices::give(1 + i, kNotChosen);
         g_extra_port[i] = -1;
     }
 }
@@ -330,6 +307,20 @@ void __fastcall hook_press_start_destructor(void *screen) {
 
 }  // namespace
 
+bool keyboard_menu_down(const unsigned char *keys, int device, KeyboardMenuAction action, bool separate_keypad) {
+    const auto down = [keys](int key) { return (keys[key] & 0x80) != 0; };
+    const bool start = action == KeyboardMenuAction::kStart;
+    const int keypad = start ? kNumpadEnter : kNumpad2;
+    if (device == kKeyboard2) return separate_keypad && down(keypad);
+    return down(start ? kEnter : kKey2) || (start && down(kSpace)) || (!separate_keypad && down(keypad));
+}
+
+const char *describe(int device) {
+    static const char *const names[] = {"controller 0", "controller 1", "controller 2", "controller 3"};
+    if (device == kKeyboard2) return "Keyboard 2";
+    return device >= 0 && device < kXInputSlots ? names[device] : "the keyboard";
+}
+
 bool split_screen() {
     const unsigned char *db = fe_database();
     return db && db[0] == 2 && (*reinterpret_cast<const unsigned *>(db + 0x12C) & 4);
@@ -354,16 +345,15 @@ int chosen(int index) { return index >= 0 && index < 2 ? g_chosen[index] : kNotC
 void device_label(int device, char *out, unsigned size) {
     static const api::DeviceLabelFn label = api::find_device_label();
     out[0] = 0;
-    if (!label || device == kNotChosen) return;
-    label(device == kKeyboard ? api::kSourceKeyboard : device, out, static_cast<int>(size));
+    if (device == kKeyboard2) snprintf(out, size, "%s", keyboard2::kName);
+    else if (label && (device >= 0 || device == kKeyboard)) label(device >= 0 ? device : api::kSourceKeyboard, out, static_cast<int>(size));
 }
+
+int second_port() { return player_devices::port(0); }
 
 int extra_port(int extra) { return extra >= 0 && extra < nfsmw::kMaxExtras ? g_extra_port[extra] : -1; }
 
-bool read_keyboard(unsigned char *out) {
-    static const api::KeyboardStateFn fn = api::find_keyboard_state();
-    return fn && fn(out);
-}
+bool read_keyboard(unsigned char *out) { return player_devices::read_keyboard(out); }
 
 void install() {
     char key[32];
