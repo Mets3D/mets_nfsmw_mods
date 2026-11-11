@@ -25,6 +25,7 @@
 #include "device_scan.h"
 #include "events.h"
 #include "hooks.h"
+#include "keys.h"
 #include "max_players.h"
 #include "more_players.h"
 #include "split_screen_support.h"
@@ -43,14 +44,14 @@ constexpr unsigned kStartReleased = 0xEBFCDA65;
 constexpr int kNotChosen = -2;
 constexpr int kEveryone = -3, kNormal = -4;  // for give_controls(): every device; back to the default
 constexpr int kStartKeys[] = {0x1C, 0x39, 0x9C};  // DirectInput codes: Enter, Space, numpad Enter
-constexpr int kNextDeviceKey = 0x43;               // F9: the Press Start screen takes the next device that has no player (see poll())
 
 constexpr int kXInputSlots = 4;  // the controllers XInput knows
 struct Button {
     bool down = false, counts = false;  // counts: it went down while a Press Start screen was up
 };
 Button g_start[kXInputSlots], g_start_key;
-bool g_next_key_was_down = false;
+bool g_add_player_key_was_down = false;
+int g_add_player_vk = 0;
 bool g_connected[kXInputSlots];
 nfsmw::device_scan::Pace g_scan_pace;  // empty slots are slow to ask about
 int g_chosen[2] = {kNotChosen, kNotChosen};  // at the Press Start screens
@@ -84,7 +85,7 @@ bool device_taken(int device) {
     return more_players::round() >= 1 && more_players::device_used_in_earlier_round(device);
 }
 
-// F9 on a Press Start screen: the player gets the first device that has no player yet (a connected controller, else the keyboard, else a controller
+// The add-player hotkey on a Press Start screen: the player gets the first device that has no player yet (a connected controller, else the keyboard, else a controller
 // that is not connected), so a game can be tested with fewer devices than players.
 int next_free_device() {
     for (int i = 0; i < kXInputSlots; ++i)
@@ -124,15 +125,17 @@ void poll() {
         bool down = false;
         for (const int key : kStartKeys) down |= (keys[key] & 0x80) != 0;
         if (let_go(g_start_key, down) && released == kNotChosen) released = kKeyboard;
-        const bool next = (keys[kNextDeviceKey] & 0x80) != 0;
-        if (g_next_key_was_down && !next && released == kNotChosen) {
+    }
+    if (g_add_player_vk) {
+        const bool down = nfsmw::game_has_focus() && nfsmw::key_down(g_add_player_vk);
+        if (g_add_player_key_was_down && !down && released == kNotChosen) {
             const int device = next_free_device();
             if (device != kNotChosen) {
-                g_log.line("F9: the Press Start screen gets %s", describe(device));
+                g_log.line("add player hotkey: the Press Start screen gets %s", describe(device));
                 released = device;
             }
         }
-        g_next_key_was_down = next;
+        g_add_player_key_was_down = down;
     }
     if (released != kNotChosen) press_start(released);
 }
@@ -363,6 +366,9 @@ bool read_keyboard(unsigned char *out) {
 }
 
 void install() {
+    char key[32];
+    GetPrivateProfileStringA("debug", "add_player_hotkey", "0", key, sizeof(key), g_ini);
+    g_add_player_vk = key[0] == '0' && key[1] == 0 ? 0 : nfsmw::key_from_name(key);
     for (int &device : g_race) device = kKeyboard;
     for (int &port : g_extra_port) port = -1;
     if (!xinput::load(&g_log)) {

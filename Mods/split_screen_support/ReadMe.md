@@ -29,7 +29,7 @@ https://github.com/user-attachments/assets/96c8153f-56ce-491a-bb4a-8462fbc5392e
     - Knockout: Lap count is determined by racer count, and knocked-out players are removed from the screen, making Knockout playable.
 - **Players**: The number of human player screens.
 - **Layout**: Horizontal or vertical split-screen layout.
-- **Start**: Starting positions of player cars: Players Front / Players Rear / Random.
+- **Start Lineup**: Starting positions of player cars: Players Front / Players Rear / Random.
 - **AI opponents**: *Up to 16 total cars in a race (including players).
 - **Tollbooth: Time**: Make Tollbooth races harder or easier by tweaking the available time.
 <img width="600" src="https://github.com/user-attachments/assets/f540b18b-915a-4cb9-839a-b5bc85455cf5" />

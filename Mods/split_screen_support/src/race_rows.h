@@ -1,4 +1,4 @@
-// The Layout, Start and (tollbooth) Time rows of the split screen race options (see race_rows.cpp).
+// The Layout, Start Lineup and (tollbooth) Time rows of the split screen race options (see race_rows.cpp).
 #pragma once
 
 #include "custom_menus_api.h"

@@ -1,6 +1,6 @@
 /*
  * Rows of choices in the race options of a split screen race (Track_Options.fng), under the Players row (player_count.cpp) and before the AI rows: Layout (layout.h),
- * Start (start_grid.h) and, in a tollbooth race, Time (tollbooth.h). Each is kept in the ini ([race_options]) when it changes. Left and right step through the
+ * Start Lineup (start_grid.h) and, in a tollbooth race, Time (tollbooth.h). Each is kept in the ini ([race_options]) when it changes. Left and right step through the
  * values; the texts are language strings registered through nfsmw_custom_menus (without it there are no rows, and the ini's values are used).
  */
 #include "race_rows.h"
@@ -112,7 +112,7 @@ void register_texts(const nfsmw::custom_menus::Host *host) {
 
 void install() {
     add("layout", "Layout", {"horizontal", "vertical"}, {"Horizontal", "Vertical"}, 0, [](int v) { layout::set_vertical(v == 1); }, false);
-    add("start", "Start", {"front", "rear", "random"}, {"Players Front", "Players Rear", "Random"}, 0,
+    add("start", "Start Lineup", {"front", "rear", "random"}, {"Players Front", "Players Rear", "Random"}, 0,
         [](int v) { start_grid::set_start(static_cast<start_grid::Start>(v)); }, false);
     std::vector<std::string> words, texts;
     for (int i = 0; i < kTimeValues; ++i) {
@@ -125,7 +125,7 @@ void install() {
     make_vtable<1>();
     make_vtable<2>();
     if (const uintptr_t previous = nfsmw::chain_call(kSetupCallSite, reinterpret_cast<uintptr_t>(&setup_and_rows))) g_setup = previous;
-    else g_log.line("race options: the call at %#x is not a call; no Layout, Start and Time rows", static_cast<unsigned>(kSetupCallSite));
+    else g_log.line("race options: the call at %#x is not a call; no Layout, Start Lineup and Time rows", static_cast<unsigned>(kSetupCallSite));
 }
 
 }  // namespace split_screen_support::race_rows

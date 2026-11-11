@@ -21,7 +21,7 @@
  * same nav as `Game_InitRacers`). Without a road at the start (the nav is not near it) nothing is changed.
  * A tollbooth race is the exception: the game's cutscene for it (IntroNisToll01) leaves the first two racers 1.6 m apart (the cars of a two player race stand on each
  * other), so its cars ignore the cutscene's poses and stand in rows across the selectable lanes of the road at the start (`start_lanes`, `plan_lane_grid`).
- * Who stands where (the Start row of the race options, race_rows.cpp): the places above are slots, slot k racer k (the players first) for Players Front; Players Rear
+ * Who stands where (the Start Lineup row of the race options, race_rows.cpp): the places above are slots, slot k racer k (the players first) for Players Front; Players Rear
  * puts the players in the slots furthest behind the start and the opponents in front of them; Random shuffles everybody. The choice is made once for each race, so a
  * restart puts everybody back in the same slots. While the intro cutscene is still to come (race_intro::expected) everybody stands as for Players Front, because the cutscene
  * moves the first four racers into its grid, over whoever stands there; the choice is made when it is over, and saves the places a restart goes back to.
@@ -333,7 +333,7 @@ void place_racers(const float *start, const float *direction) {
     const bool poses = g_have_poses && !(players::split_screen() && race_type(status) == kRaceTollbooth);
     std::vector<Placement> placements = plan_placements(status, count, start, direction);
     // The cutscene is still to come and moves the first four racers into its own grid: whoever stands in those places now would be under them. Until it is over everybody
-    // stands as for Players Front, and the Start row's choice is made after it, which also saves the places a restart goes back to.
+    // stands as for Players Front, and the Start Lineup row's choice is made after it, which also saves the places a restart goes back to.
     std::vector<int> front_order;
     if (race_intro::expected()) {
         front_order.resize(count);

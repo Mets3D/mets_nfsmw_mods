@@ -14,7 +14,7 @@
  *   minimap.cpp        a minimap for each player, a colour for each player's marker
  *   minimap_option.cpp the Options > Player > Minimap row: each player can hide their own minimap
  *   player_count.cpp   the "Players" row (2 or 4) of the split screen race options
- *   race_rows.cpp      its Layout, Start and (tollbooth) Time rows
+ *   race_rows.cpp      its Layout, Start Lineup and (tollbooth) Time rows
  *   more_players.cpp   players 3 and 4: a second round of Press Start and Car Select, their picks kept in a table, their cars in the race
  *   standings.cpp      the racers' names of players 3 and 4, the leaderboard of a player ranked below 4
  *   hud_copies.cpp    the leaderboard and the mirror's housing of a split screen HUD (copies of the single player HUD package's)
