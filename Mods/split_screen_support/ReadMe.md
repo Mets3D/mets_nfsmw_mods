@@ -55,6 +55,7 @@ https://github.com/user-attachments/assets/96c8153f-56ce-491a-bb4a-8462fbc5392e
 List of things that could not be taken for granted during development and had to be addressed, but you wouldn't think of them as features.
 </summary>
 
+- *Reflection update rate with 3+ players is clamped at 2/3, regardless of what is set in the Advanced Video Options. This setting just proved to be a massive performance bottleneck for very little gain, particularly with the HD Reflections mod.
 - *Races start with the intro cutscenes, just like in single-player.
 - World geometry, shadows, reflections, light trails, sparks, and sun glare are rendered correctly for each player. The sun was a pain in the butt.
 - Expanded memory and list sizes for car skin slots, engine sounds, and minimap tiles to allow 4 players and 16 total racers.
