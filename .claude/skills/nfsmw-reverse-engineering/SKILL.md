@@ -15,6 +15,19 @@ description: How to read and document the code of speed.exe 1.3 (NFS Most Wanted
 - Find constants: hash strings with `h = h*33 + c` from 0xFFFFFFFF (bStringHash), search the exe for the 4 bytes. Message names like PAD_LTRIGGER are hashes of the plain string.
 - A crash: `eip` minus 0x400000 is the offset; `re.py name` gives the function; the surrounding registers say which pointer was bad (0xFDFDFDFD = uninitialised / freed memory).
 
+## Ghidra: readable C instead of a listing (`Tools/re/ghidra_decomp.py`)
+Use it when the question is *what does this function do* (control flow, which fields it reads, what it calls with what); keep `re.py dis` for exact bytes (prologues for hooks, patch sites) and `xref`. Ghidra's project is `D:\Tools\ghidra_projects`
+(program "speed.exe", the Redux v3 install's exe; our function names from `names.json` and the decomp's 46k names are already in it, so the output reads `SummonChyron(...)`, `this->...` and shows the vtable calls).
+Run from the repo root, with `python -I`; Ghidra and Java are found by the script's defaults (`D:\Tools\ghidra_12.1.3_PUBLIC`, `D:\Tools\jdk-21.0.12.1+1`), nothing to set up:
+- `python -I Tools/re/ghidra_decomp.py 0x4F4FC0 0x595ED0` decompiles the functions that contain these addresses (give all of them in **one** call: starting Ghidra costs ~35 s each time, the functions themselves ~1 s; at most 20 per call). [tested]
+- `--name SummonChyron` finds functions whose name contains the text (the way in when you only know a name). `--range 0x4A0000 0x500000 out.c` decompiles a whole range into a file, to `grep` instead of starting Ghidra again.
+  Put the file in the scratchpad.
+- `--import-names` only after `names.json` gained entries (it writes the project, so do not run it at the same time as another run; two plain decompiles at once were fine [tested]). New names then show in the next output.
+- It is the *same decomp that is wrong sometimes*: struct offsets come out as `*(int *)(this + 0x150)`, which is the exe's truth (good, take them), but argument types, `thiscall` vs `fastcall` and the ends of switch tables
+  can be off. A member offset or a calling convention that matters for a hook: confirm in `re.py dis`. Ignore the `_DAT_xxxxxx` ones: they are globals, read the address.
+- Give the shell call a timeout of ~2 minutes; a handful of functions is done well within it.
+- `.mcp.json` also lists a Ghidra MCP server (ReVa); it only exists in sessions that have its tools. If you have none, this script is the way.
+
 ## Method
 1. Find the owner of the data: who reads this field, who writes it (a global's relocation list in `symbols.json`, `xref` of its function).
 2. Work out the calling convention from the prologue and epilogue (`ret N` = callee pops; thiscall = ecx; floats return in st0).
