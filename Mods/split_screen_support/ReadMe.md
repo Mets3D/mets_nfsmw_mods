@@ -16,7 +16,7 @@ Throughout this ReadMe, bullet points marked with * can be disabled in the [.ini
 ## Feature Highlights
 
 - Split-screen is supported for 2, 3, and 4 players.
-- *When a player is eliminated from the race, their screen is removed to make space for other players.
+- When a player is eliminated from the race, their screen is removed to make space for other players. This can be toggled as **Split Screen Overtake** in Advanced Video.
 - Horizontal and vertical split-screen layouts are available for 2 and 3 players.
 
 https://github.com/user-attachments/assets/96c8153f-56ce-491a-bb4a-8462fbc5392e
@@ -30,13 +30,13 @@ https://github.com/user-attachments/assets/96c8153f-56ce-491a-bb4a-8462fbc5392e
 - **Players**: The number of human player screens.
 - **Layout**: Horizontal or vertical split-screen layout.
 - **Start**: Starting positions of player cars: Players Front / Players Rear / Random.
-- **AI opponents**: Up to 16 total cars in a race (including players).
+- **AI opponents**: *Up to 16 total cars in a race (including players).
 - **Tollbooth: Time**: Make Tollbooth races harder or easier by tweaking the available time.
 <img width="600" src="https://github.com/user-attachments/assets/f540b18b-915a-4cb9-839a-b5bc85455cf5" />
 
 ## Player Options
 - Each player can invoke the pause menu. The "Player Options" menu will affect the player who opened the pause menu. The name of the affected player is displayed in the menu's header.
-- **Minimap On/Off**: Each player can toggle their own minimap. All racers appear on the minimap as well as the world map.
+- **Minimap On/Off**: Each player can toggle their own minimap. *All racers appear on the minimap as well as the world map.
 - **HUD Scale**: Each player can scale their own HUD.
 - **Split-Screen Volume**: Each player can tweak how much their screen contributes to the game's audio.
 - **Leaderboard On/Off**: This option already existed, but the game's split-screen HUD didn't include the leaderboard. This mod brings it back, as it's important for Speedtrap races, but you can disable it if you want to free up screen space. Drag races don't show it.

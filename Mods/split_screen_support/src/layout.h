@@ -9,6 +9,10 @@
 
 #include <d3d9.h>
 
+namespace nfsmw::custom_menus {
+struct Host;
+}
+
 namespace split_screen_support::layout {
 
 // Cells on a side of the grid of four or more players: 2 for four players, 3 for five to nine.
@@ -48,5 +52,10 @@ float presence(int player);
 
 // Whether the screen is the game's own two halves, top and bottom, of two or three players (where the game's line between them belongs).
 bool game_halves(int players);
+
+// The Options > Advanced Video row for allow_split_screen_overtake.
+void register_page(const nfsmw::custom_menus::Host *host);
+
+void install();
 
 }  // namespace split_screen_support::layout

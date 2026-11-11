@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "custom_menus_api.h"
 #include "max_players.h"
 #include "more_players.h"
 #include "racers.h"
@@ -18,6 +19,7 @@ constexpr float kWaitSeconds = 3.0f;   // after a player is out (their "Totalled
 constexpr float kSlideSeconds = 1.2f;  // the slide
 
 bool g_vertical = false;
+bool g_overtake = true;
 
 // How much of its home size a cell has along its line, and a line across the lines: 1 its home, 0 none. Linear in time; eased when used.
 int g_players = 0;  // of the race the shares are for
@@ -94,8 +96,7 @@ void update(int players) {
     const float seconds = g_last.QuadPart ? std::clamp(static_cast<float>(now.QuadPart - g_last.QuadPart) / frequency.QuadPart, 0.0f, 0.1f) : 0.0f;
     g_last = now;
     players = std::min(players, nfsmw::kMaxPlayers);
-    static const bool on = ini_flag("options", "allow_split_screen_overtake", true);
-    if (players != g_players || !on) return reset(players);
+    if (players != g_players || !g_overtake) return reset(players);
 
     bool out[nfsmw::kMaxPlayers] = {}, anybody_out = false, anybody_racing = false;
     for (int i = 0; i < players; ++i) {
@@ -174,5 +175,40 @@ float presence(int player) {
 }
 
 bool game_halves(int players) { return players >= 2 && players <= 3 && !g_vertical && !(players == g_players && moved()); }
+
+// ---- Options > Advanced Video: Split Screen Overtake (the ini's allow_split_screen_overtake, at once)
+namespace {
+
+namespace opt = nfsmw::custom_menus;
+
+constexpr unsigned kOnText = 0x417B2604, kOffText = 0x70DFE5C2;  // the game's own "On" and "Off"
+constexpr opt::Row kRows[] = {
+    {opt::kValueRow, "Split Screen Overtake", 0,
+     "When a player is knocked out, totalled or blows their engine, the remaining players take over their part of the screen."},
+};
+bool g_opened_overtake = true;
+
+void opened() { g_opened_overtake = g_overtake; }
+unsigned value(int, char *, unsigned) { return g_overtake ? kOnText : kOffText; }
+void change(int, int direction, bool) { g_overtake = direction > 0; }
+bool changed() { return g_overtake != g_opened_overtake; }
+void accept() {
+    WritePrivateProfileStringA("options", "allow_split_screen_overtake", g_overtake ? "1" : "0", g_ini);
+    g_log.line("layout: split screen overtake %s", g_overtake ? "on" : "off");
+    g_opened_overtake = g_overtake;
+}
+void discard() { g_overtake = g_opened_overtake; }
+void defaults() { g_overtake = true; }
+opt::Page g_page;
+
+}  // namespace
+
+void register_page(const nfsmw::custom_menus::Host *host) {
+    g_page = {"split_overtake", "Split Screen Overtake", "SPLIT SCREEN OVERTAKE", "SPLIT SCREEN OVERTAKE", 0, 0, nullptr, 1, kRows, nullptr,
+              opened, value, change, changed, accept, discard, defaults, opt::kAdvancedVideoOptions, nullptr, nullptr, nullptr};
+    host->register_page(&g_page);
+}
+
+void install() { g_overtake = ini_flag("options", "allow_split_screen_overtake", true); }
 
 }  // namespace split_screen_support::layout

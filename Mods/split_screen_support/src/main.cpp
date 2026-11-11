@@ -36,6 +36,7 @@
  */
 #include "split_screen_support.h"
 
+#include "custom_menus_api.h"
 #include "after_race.h"
 #include "ai_in_split_screen.h"
 #include "engine_sounds.h"
@@ -54,6 +55,7 @@
 #include "hud_copies.h"
 #include "hud_players.h"
 #include "hud_views.h"
+#include "layout.h"
 #include "menu_entry.h"
 #include "minimap.h"
 #include "minimap_option.h"
@@ -81,6 +83,19 @@ char g_ini[MAX_PATH];
 
 }  // namespace split_screen_support
 
+// Called by nfsmw_custom_menus when the Options menu first opens.
+extern "C" __declspec(dllexport) void nfsmw_custom_menus_provide(const nfsmw::custom_menus::Host *host) {
+    char translations[MAX_PATH];
+    nfsmw::data_file("translations\\split_screen_support", translations, sizeof(translations));
+    host->register_translations(translations);  // before any text is registered
+    split_screen_support::minimap_option::register_page(host);
+    split_screen_support::mirrors::register_page(host);
+    split_screen_support::layout::register_page(host);
+    split_screen_support::player_count::register_texts(host);
+    split_screen_support::race_rows::register_texts(host);
+    split_screen_support::ai_in_split_screen::register_texts(host);
+}
+
 NFSMW_PLUGIN_MAIN() {
     using namespace split_screen_support;
     g_log.open_in_data_folder("nfsmw_split_screen_support.log");
@@ -89,6 +104,7 @@ NFSMW_PLUGIN_MAIN() {
     menu_entry::install();
     fixes::install();
     split_view::install();
+    layout::install();
     after_race::install();
     minimap::install();
     hud_views::install();
