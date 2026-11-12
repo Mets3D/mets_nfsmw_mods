@@ -37,8 +37,10 @@ struct LookState {
     bool prev_target_valid = false;
 } g_state[nfsmw::kMaxPlayers];  // by player
 
-// The look of a player with a device of their own (-1..1 each way): their device's look entries, with the same bindings and dead zone as anybody's.
-void second_stick(int who, float *x, float *y) {
+// A player's look (-1..1 each way): the look entries of their game input device, read when the camera asks. Player 1's device takes
+// every controller's bindings when it is polled, and nfsmw_split_screen_support then leaves it player 1's own: a copy taken at the
+// poll would have every player's stick in it.
+void look_stick(int who, float *x, float *y) {
     *x = players::value(who, kLookEntry[L_RIGHT]) - players::value(who, kLookEntry[L_LEFT]);
     *y = players::value(who, kLookEntry[L_UP]) - players::value(who, kLookEntry[L_DOWN]);
 }
@@ -140,12 +142,7 @@ void apply_look(int who, int mode, bool looking_back, float mover_dt, void *out,
     l.prev_target_valid = true;
 
     float stick_x, stick_y;
-    if (who == 0) {
-        stick_x = g_look_input[L_RIGHT] - g_look_input[L_LEFT];
-        stick_y = g_look_input[L_UP] - g_look_input[L_DOWN];
-    } else {
-        second_stick(who, &stick_x, &stick_y);  // none without a controller
-    }
+    look_stick(who, &stick_x, &stick_y);
     float yaw_delta = -stick_x * g_look_cfg.stick_speed * dt - mouse_x * g_look_cfg.mouse_sensitivity;
     // "Look Up" (stick_y > 0) raises the view, i.e. lowers the pitch offset; so does the mouse moving up (a negative count).
     float pitch_delta = -stick_y * g_look_cfg.stick_speed * dt + mouse_y * g_look_cfg.mouse_sensitivity;

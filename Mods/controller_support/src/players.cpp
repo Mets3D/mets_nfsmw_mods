@@ -46,8 +46,9 @@ int on_keyboard() {
 }
 
 float value(int player, int entry) {
-    const int port = valid(player) && player > 0 ? g.player[player].port : -1;
-    if (port <= 0 || port >= kMaxDevices || entry < 0 || entry >= bindings::kBindingCount) return 0.0f;
+    // Player 1's device is the game's own, at port 0; the others have one only at the port another mod gave them.
+    const int port = player == 0 ? 0 : valid(player) ? static_cast<int>(g.player[player].port) : -1;
+    if (port < 0 || (port == 0 && player != 0) || port >= kMaxDevices || entry < 0 || entry >= bindings::kBindingCount) return 0.0f;
     void *device = field<void *>(reinterpret_cast<void *>(kIoModule), 8 + port * 4);
     return device ? field<float *>(device, 0x20)[entry] : 0.0f;
 }

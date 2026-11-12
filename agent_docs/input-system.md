@@ -49,7 +49,7 @@ Entries 14 and 19 up (menus, hotkeys) always come from every device, so a menu i
 What a device asks for (`actions_of`): the keyboard through the key slots of the binding table (read with a DirectInput keyboard of split screen's own, in front only: Enter and
 numpad Enter are two keys there), Keyboard 2 through its own keys, a controller through `mets_controller_support_actions` (its set of the Controls menu), or without that mod a fixed
 layout from XInput. `mets_controller_support` is only told who has what (`mets_controller_support_player_device`: player, device, port), for its rumble (the player's controller, the
-feedback object of the player's port) and look (the look entries of the device at the player's port; the mouse is the keyboard's player's).
+feedback object of the player's port) and look (the look entries of the device at the player's port, player 1's at port 0, read when the camera asks: a copy taken in the poll hook, before `nfsmw_split_screen_support` narrows port 0 to player 1's device, had every controller's stick turning player 1's camera [seen: 4 players, player 1 on the keyboard]; the mouse is the keyboard's player's).
 
 ## Queues and players
 - **ActionQueue** [read]: `+0x268` port, `+0x26C` has entries, `+0x270` entries, `+0x280/0x281` flags. A queue reads `IOModule.devices[port]`.

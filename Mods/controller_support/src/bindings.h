@@ -19,7 +19,6 @@ constexpr int kBindingCount = kCount;
 enum Look { L_LEFT, L_RIGHT, L_UP, L_DOWN, L_COUNT };
 constexpr int kLookEntry[L_COUNT] = {26, 28, 25, 27};  // SC_A, SC_D, SC_W, SC_S
 
-extern float g_look_input[L_COUNT];  // 0..1 per direction, from the last poll
 extern bool g_look_entries_ok;       // the four entries were found and renamed
 
 void prepare_default_look_entries();                      // the default table, at start-up

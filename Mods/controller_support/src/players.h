@@ -11,6 +11,6 @@ int source(int player);      // an XInput controller 0-3, kSourceKeyboard or kSo
 int controller(int player);  // their XInput controller, or -1
 int of_port(int port);       // the player after the first whose game input device is at this port of the game's input module, or -1
 int on_keyboard();           // the player who plays on the keyboard (the mouse is theirs), or -1
-float value(int player, int entry);  // what the game input device of a player after the first says for a binding entry now (0..1)
+float value(int player, int entry);  // what a player's game input device says for a binding entry now (0..1)
 
 }  // namespace pad::players

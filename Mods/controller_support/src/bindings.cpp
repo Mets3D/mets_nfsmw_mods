@@ -14,7 +14,6 @@
 
 namespace pad::bindings {
 
-float g_look_input[L_COUNT];
 bool g_look_entries_ok = false;
 
 
@@ -180,7 +179,6 @@ void FASTCALL hook_poll(void *self, void *edx) {
     if (current) {
         pad_sets::add_values(const_cast<float *>(current));  // the other controllers' sets
     }
-    for (int l = 0; l < L_COUNT && current; ++l) g_look_input[l] = current[kLookEntry[l]];
     log_binding_changes();
 }
 
