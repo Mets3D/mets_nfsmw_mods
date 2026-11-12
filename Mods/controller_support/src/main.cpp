@@ -17,6 +17,7 @@
  *   players.cpp        who plays with which device, as nfsmw_split_screen_support says it (whose controller rumbles, whose camera a device turns)
  *   keyboard2.cpp      the Controls screen's page of a second keyboard that another mod keeps
  *   rumble.cpp         rumble (the force feedback events, the controller's motors)
+ *   dualsense.cpp      a DualSense's adaptive triggers in a race, through DSX
  *   device_settings.cpp  the dead zones of each XInput controller
  *   controller_page.cpp  the Settings page (prompts, dead zones, rumble), a page of nfsmw_custom_menus (no entry in the Options menu)
  *   controls_options.cpp the Controls screen's hint opens that page for the selected controller, and comes back

@@ -162,18 +162,43 @@ bool no_xinput_slot_resolved() {
     return xinput_controllers == 0;
 }
 
-bool actions_of_slot(int xinput_slot, float *values) {
-    refresh_sets();
+// The game controller whose set an XInput controller uses, or -1.
+int pad_of_slot(int xinput_slot) {
     const int n = joystick_count();
     int pad = -1;
     for (int k = 0; k < n && pad < 0; ++k)
         if (input::xinput_slot_of_joystick(k) == xinput_slot) pad = k;
     if (pad < 0 && n >= 1 && no_xinput_slot_resolved()) pad = 0;  // one game controller: all pads share it
+    return pad;
+}
+
+// A controller slot (0 or 1) of an entry in a game controller's set.
+Slot set_slot(int pad, int entry, int s) {
+    if (pad == g_live) return slots_of(kBindingTable, entry)[kControllerSlot + s];
+    if (g_sets[pad].valid) return g_sets[pad].slots[entry][s];
+    if (g_live == 0) return slots_of(kBindingTable, entry)[kControllerSlot + s];
+    return g_sets[0].slots[entry][s];
+}
+
+int trigger_bound_to(int xinput_slot, int entry) {
+    refresh_sets();
+    const int pad = pad_of_slot(xinput_slot);
+    if (pad < 0) return -1;
+    for (int s = 0; s < 2; ++s) {
+        const Slot slot = set_slot(pad, entry, s);
+        if ((slot.type == kSliderLow || slot.type == kSliderHigh) && slot.object >= 0 && slot.object <= 1) return slot.object;
+    }
+    return -1;
+}
+
+bool actions_of_slot(int xinput_slot, float *values) {
+    refresh_sets();
+    const int pad = pad_of_slot(xinput_slot);
     // Said once per XInput controller and reason: a second player's controller that does nothing is easier to explain with this.
     static bool said_no_pad[4], said_no_state[4];
     const int said = xinput_slot >= 0 && xinput_slot < 4 ? xinput_slot : 0;
     if (pad < 0) {
-        if (!said_no_pad[said]) log_line("XInput controller %d drives nothing of its own: no game controller reports it (%d game controller(s))", xinput_slot + 1, n);
+        if (!said_no_pad[said]) log_line("XInput controller %d drives nothing of its own: no game controller reports it (%d game controller(s))", xinput_slot + 1, joystick_count());
         said_no_pad[said] = true;
         return false;
     }
@@ -188,11 +213,7 @@ bool actions_of_slot(int xinput_slot, float *values) {
     for (int e = 0; e < kBindingCount; ++e) {
         values[e] = 0.0f;
         for (int s = 0; s < 2; ++s) {
-            Slot slot;
-            if (pad == g_live) slot = slots_of(kBindingTable, e)[kControllerSlot + s];
-            else if (g_sets[pad].valid) slot = g_sets[pad].slots[e][s];
-            else if (g_live == 0) slot = slots_of(kBindingTable, e)[kControllerSlot + s];
-            else slot = g_sets[0].slots[e][s];
+            const Slot slot = set_slot(pad, e, s);
             if (slot.type < kButton) continue;
             const float v = input::binding_value(slot.type, slot.object, state, xinput_slot);
             if (v > values[e]) values[e] = v;

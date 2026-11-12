@@ -52,6 +52,14 @@ Note that any controller with a low battery will fail to rumble due to the physi
 - Various events in-game will create controller rumble, such as gear shifts, collisions, driving on grass, nitrous, and more.
 - The rumble strength of each type of event can be customized per controller in **Options > Controls > a controller > Settings**, if [Custom Menus](../custom_menus/ReadMe.md) is installed.
 
+## DualSense Triggers
+If you have a PS5 controller, you can use the old free version of [DSX](https://github.com/Paliverse/DualSenseX) instead of Steam Input. The mod will use the DS5's adaptive triggers and trigger vibration for gear shifts, which you can configure to some extent only via the mod's .ini. The resistance curve is always linear.
+This has a bunch of limitations (PRs welcome!):
+    - Only ONE DS5 controller is supported by this version of DSX.
+    - Not tested with DSX's paid Steam version.
+    - Did not find a way to support left and right-side haptics for the DS5.
+    - I do not believe DSX works on Linux.
+
 ## Several controllers
 
 - With more than one controller connected, each controller can be customized. Their deadzones, rumble, and button mappings are stored per save file and per device ID.

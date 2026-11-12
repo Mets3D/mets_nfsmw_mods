@@ -3,9 +3,11 @@
 #include <algorithm>
 
 #include "device_settings.h"
+#include "dualsense.h"
 #include "hooks.h"
 #include "input.h"
 #include "max_players.h"
+#include "pad_sets.h"
 #include "players.h"
 #include "profile.h"
 #include "rumble.h"
@@ -157,6 +159,7 @@ volatile LONG g_preview_effect = -1;      // the effect being previewed, or -1
 volatile DWORD g_preview_start = 0;
 
 volatile LONG g_stop_now[kPlayers] = {};  // pause / reset: the motors stop at once, not after the short hold below
+volatile bool g_triggers_on = false;      // the DualSense's player has their controller in use and the game is in front: the triggers may resist (dualsense.cpp)
 
 void set_motors(float level) { g_game_level[g_cur] = level; }
 
@@ -241,8 +244,66 @@ int player_slot(int player) {
 // The levels of the controller a player rumbles on (the first controller's, when none does).
 const float *levels_of(int player) { return g_levels[clamp_slot(player_slot(player))]; }
 
+// DSX drives one DualSense, and nothing says outright which of the game's controllers that is. A slot's controller is ranked by what the
+// game knows of it (device_settings.h key_of, "<vendor>_<product>..."): 2 a DualSense (Steam Input shows it as one), 1 the controller DSX
+// makes of it (an Xbox 360 controller, or a DualShock 4; a real one of those looks the same), 0 anything else.
+int dsx_rank(int slot) {
+    if (slot < 0 || slot >= kSlots) return 0;
+    const char *key = device_settings::key_of(slot);
+    const auto is = [key](const char *id) { return strncmp(key, id, 9) == 0; };
+    if (is("054C_0CE6") || is("054C_0DF2")) return 2;  // DualSense, DualSense Edge
+    if (is("045E_028E") || is("054C_05C4")) return 1;  // what DSX can emulate
+    return 0;
+}
+
+// The triggers follow one player's race (g_trigger_player: the one whose controller ranks highest, player 1 when none does) and take
+// the Gear Shifts level and Vibration setting of one controller's page (g_trigger_slot): the DualSense's when the game sees one, else
+// that player's. Behind Steam Input the pad is two controllers, the DualSense and the one DSX makes of it, and the one "in use" is
+// whichever was polled last, usually not the one whose page the player edits.
+volatile int g_trigger_player = 0, g_trigger_slot = -1;
+
+void set_trigger_owner(int player, int pad_slot) {
+    int settings_slot = clamp_slot(pad_slot);
+    for (int s = kSlots - 1; s >= 0; --s)
+        if (dsx_rank(s) == 2) settings_slot = s;
+    if (player != g_trigger_player || settings_slot != g_trigger_slot)
+        log_line("dualsensex: the triggers follow player %d (XInput controller %d) and take the Gear Shifts level of controller %d (%s)", player + 1,
+                 pad_slot + 1, settings_slot + 1, device_settings::key_of(settings_slot));
+    g_trigger_player = player;
+    g_trigger_slot = settings_slot;
+    dualsense::set_triggers(pad_sets::trigger_bound_to(pad_slot, 0), pad_sets::trigger_bound_to(pad_slot, 1));
+}
+
+// In a race (game thread, now and then): the player among those racing whose controller ranks highest.
+void find_trigger_player() {
+    int player = 0, rank = -1;
+    for (int p = 0; p < kPlayers; ++p) {
+        const DWORD last_update = g_last_rumble_update[p];
+        if (static_cast<LONG>(GetTickCount() - last_update) > 1000) continue;  // not racing
+        const int r = dsx_rank(player_slot(p));
+        if (r > rank) {
+            rank = r;
+            player = p;
+        }
+    }
+    set_trigger_owner(player, player_slot(player));
+}
+
+// For the Settings page's sample (the page can be open before any race has run): the controller that ranks highest, player 1's when
+// none does. The player stays the one the last race found.
+void find_trigger_slot_for_sample() {
+    int slot = player_slot(0), rank = 0;
+    for (int s = 0; s < kSlots; ++s)
+        if (dsx_rank(s) > rank) {
+            rank = dsx_rank(s);
+            slot = s;
+        }
+    set_trigger_owner(g_trigger_player, slot);
+}
+
 DWORD WINAPI rumble_thread(void *) {
     for (;;) {
+        bool trigger_preview = false;  // the Settings page's gear shift sample plays on the accelerator trigger
         // The times come from the other thread: read them before GetTickCount(), and compare signed, so a time set a
         // tick later than our clock reading never looks like one from 49 days ago. (It did once: the motors were cut
         // to 0 every few frames, which made every effect in a race feel weak.)
@@ -254,15 +315,23 @@ DWORD WINAPI rumble_thread(void *) {
             const LONG update_age = static_cast<LONG>(GetTickCount() - last_update);
             if (effect >= 0 && effect < E_COUNT) {
                 float s = 0.0f;
-                if (preview_shape(effect, (preview_age > 0 ? preview_age : 0) / 1000.0f, &s))
-                    level = s * g_levels[g_edit_slot][effect];
-                else InterlockedCompareExchange(&g_preview_effect, -1, effect);
+                if (preview_shape(effect, (preview_age > 0 ? preview_age : 0) / 1000.0f, &s)) {
+                    // With DSX the sample plays where the race would play it (only on the page the trigger takes its level from).
+                    if (effect == E_SHIFTS && g_edit_slot == g_trigger_slot && dualsense::takes_shift()) {
+                        trigger_preview = true;
+                        dualsense::set_shift(g_levels[g_edit_slot][effect], s);
+                    } else {
+                        level = s * g_levels[g_edit_slot][effect];
+                    }
+                } else InterlockedCompareExchange(&g_preview_effect, -1, effect);
             } else if (update_age <= 250) {
                 level = g_game_level[player];
             }
             if (InterlockedExchange(&g_stop_now[player], 0) || (effect < 0 && update_age > 250)) level = 0.0f;
             send_level(player, level, effect >= 0 ? g_edit_slot : player_slot(player));  // previews play on the edited controller
         }
+        const DWORD race_update = g_last_rumble_update[g_trigger_player];
+        dualsense::update(g_preview_effect < 0 && g_triggers_on && static_cast<LONG>(GetTickCount() - race_update) <= 250, trigger_preview);
         Sleep(10);
     }
 }
@@ -356,6 +425,11 @@ void update_rumble() {
     g_last_rumble_update[g_cur] = GetTickCount();
     reload_rumble_levels_if_changed();
     const float *level = levels_of(g_cur);
+    static DWORD next_lookup = 0;
+    if (static_cast<LONG>(GetTickCount() - next_lookup) >= 0) {
+        next_lookup = GetTickCount() + 500;
+        find_trigger_player();
+    }
 
     // Each effect gives its level times how strong it is right now (0..1, reaching 1 in an ordinary instance of the
     // event: a normal drift, a solid hit). Effects at the same time combine like independent shakes, 1 - (1 - a)(1 - b),
@@ -406,10 +480,14 @@ void update_rumble() {
     if (upshift || (rs().gear < 0 && rs().shifting && !rs().was_shifting)) rs().shift_time = 0.0f;
     if (rs().gear >= 0) rs().was_gear = rs().gear;
     rs().was_shifting = rs().shifting;
+    float kick = 0.0f;
     if (rs().shift_time < 0.5f) {
-        add(E_SHIFTS, level[E_SHIFTS] * shift_shape(rs().shift_time));
+        kick = shift_shape(rs().shift_time);
         rs().shift_time += dt;
     }
+    // With DSX the accelerator trigger takes the kick instead (a DualSense's triggers have motors of their own).
+    if (g_cur == g_trigger_player && dualsense::takes_shift()) dualsense::set_shift(g_levels[clamp_slot(g_trigger_slot)][E_SHIFTS], kick);
+    else add(E_SHIFTS, level[E_SHIFTS] * kick);
     // Jolts (collisions, landings, blowouts) and scraping: started by events, carrying their own level.
     if (rs().jolt > 0.0f) {
         add(rs().jolt_effect, rs().jolt);
@@ -425,7 +503,12 @@ void update_rumble() {
     }
 
     // The controller's Vibration setting off, an idle controller or the game in the background: no rumble.
-    if (!vibration(player_slot(g_cur)) || (g_cur == 0 && !pad_in_use()) || !game_in_foreground()) out = 0.0f;
+    const bool pad_active = (g_cur != 0 || pad_in_use()) && game_in_foreground();
+    if (g_cur == g_trigger_player) {
+        g_triggers_on = pad_active;
+        if (!pad_active || !vibration(g_trigger_slot)) dualsense::set_shift(0.0f, 0.0f);
+    }
+    if (!vibration(player_slot(g_cur)) || !pad_active) out = 0.0f;
     set_motors(out);
 }
 
@@ -644,6 +727,7 @@ void FASTCALL hook_set_controller_port(void *player, void *edx, int port) {
 }
 
 void play_preview(int effect) {
+    find_trigger_slot_for_sample();
     g_preview_start = GetTickCount();
     g_preview_effect = effect;
 }

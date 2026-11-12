@@ -16,6 +16,8 @@ int joystick_count();                  // controllers in the game's joystick tab
 void *joystick_object(int index);      // the game's object of one (null past the last)
 void *joystick_di_device(int index);   // the DirectInput device of one (the game's own object has it at +0x468)
 int joystick_of_device(void *di_device);  // its index in the table, or -1
+// Which trigger (0 left, 1 right) an XInput controller's set binds to an entry (0 accelerate, 1 brake), or -1 when the entry is not on a trigger.
+int trigger_bound_to(int xinput_slot, int entry);
 bool actions_of_slot(int xinput_slot, float *values);  // the entries' values a controller asks for through its set
 int menu_pad();                        // the controller the Controls screen shows (0 when it shows the keyboard)
 // Shows the keyboard (column 1) or controller `pad` (column 3) on the Controls screen: swaps its set in, redraws the rows and header.
