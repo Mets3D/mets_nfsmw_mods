@@ -15,6 +15,9 @@ struct Host;
 
 namespace split_screen_support::layout {
 
+constexpr float kWaitSeconds = 3.0f;   // after a player is out (their "Totalled" or "Knocked Out" message), before their cell goes
+constexpr float kSlideSeconds = 1.2f;  // the slide
+
 // Cells on a side of the grid of four or more players: 2 for four players, 3 for five to nine.
 inline int grid_size(int players) {
     int n = 1;

@@ -20,7 +20,7 @@
  *   hud_copies.cpp    the leaderboard and the mirror's housing of a split screen HUD (copies of the single player HUD package's)
  *   mirrors.cpp        a rear view mirror for each player
  *   ea_trax.cpp        hide the EA Trax song display, which covers player 1's picture
- *   knockout.cpp       a player knocked out of a lap knockout: the car stops and the game's message shows
+ *   knockout.cpp       a player knocked out of a lap knockout: the car stops and leaves the world, the game's message shows
  *   tollbooth.cpp      a clock for each racer of a tollbooth race; a racer whose time is up is knocked out
  *   tollbooth_results.cpp the end of a tollbooth race: the finish message, the order of the racers and the results screen
  *   race_end.cpp       the end of a race: every player gets the race-over message, the results wait a few seconds

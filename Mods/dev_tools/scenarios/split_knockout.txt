@@ -1,0 +1,46 @@
+# A 2 player Lap Knockout with the AI opponents the race options start with. Nobody drives the players' cars, so the opponents knock them out: player by player, a lap apart.
+# The split screen log must have "knockout: player N is knocked out: the car is stopped and out of the world", and no exception after it; the screenshots show the car gone.
+wait_until main_menu timeout=120
+wait 2
+press right 2
+press accept
+wait_until screen=MainMenu_Sub.fng timeout=20
+wait 3
+press right 2
+press accept
+wait 3
+press right 4
+wait 1
+press accept
+wait_until screen=Track_Select.fng timeout=20
+wait 2
+press accept
+wait_until screen=Track_Options.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start keyboard
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until screen=PressStart.fng timeout=20
+wait 2
+press_start 0
+wait_until screen=Car_Select.fng timeout=20
+wait 3
+press accept
+wait_until racing timeout=180
+wait 4
+skip_cutscene
+wait 150
+state
+screenshot after_150 width=640
+wait 60
+state
+screenshot after_210 width=640
+wait 60
+state
+log_players
+screenshot after_270 width=640
+quit

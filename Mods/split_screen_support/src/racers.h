@@ -52,6 +52,20 @@ inline void *simable(const unsigned char *racer) {
     return node ? *reinterpret_cast<void **>(node + 4) : nullptr;
 }
 
+// The IVehicle of a simable (its interface list answers for the vehicle's handle), null when it has none.
+inline void *vehicle(void *racer_simable) {
+    constexpr uintptr_t kFind = 0x5D59F0, kVehicleInterface = 0x4040E0;
+    if (!racer_simable) return nullptr;
+    void *interfaces = *reinterpret_cast<void **>(static_cast<char *>(racer_simable) + 4);
+    return reinterpret_cast<void *(__thiscall *)(void *, void *)>(kFind)(interfaces, reinterpret_cast<void *>(kVehicleInterface));
+}
+
+// IVehicle::Activate / Deactivate: in the world, or out of it (not drawn, not simulated; the car and its parts stay). Activate does nothing to a car that is in.
+constexpr unsigned kVehicleActivateSlot = 0x80 / 4, kVehicleDeactivateSlot = 0x84 / 4;
+inline void call_vehicle(void *vehicle, unsigned slot) {
+    reinterpret_cast<void(__fastcall *)(void *, void *)>((*reinterpret_cast<void ***>(vehicle))[slot])(vehicle, nullptr);
+}
+
 // The racer of a simable (-1 when it is none of the race's).
 inline int index_of_simable(void *racer_simable) {
     constexpr uintptr_t kGetRacerInfo = 0x5E8B20;

@@ -53,12 +53,10 @@ namespace split_screen_support::start_grid {
 
 namespace {
 
-constexpr uintptr_t kInitRacers = 0x61DBE0, kSaveStartPositions = 0x604E90, kRoadNavConstructor = 0x77B9E0, kRoadNavDestructor = 0x76E220, kInitAtPoint = 0x7862D0, kIncNavPosition = 0x77BBA0,
-                    kFind = 0x5D59F0;
+constexpr uintptr_t kInitRacers = 0x61DBE0, kSaveStartPositions = 0x604E90, kRoadNavConstructor = 0x77B9E0, kRoadNavDestructor = 0x76E220, kInitAtPoint = 0x7862D0, kIncNavPosition = 0x77BBA0;
 constexpr unsigned kMarkerPosition = 0x28, kMarkerDirection = 0x34;  // the argument of Game_InitRacers
 constexpr unsigned kNavType = 0x78, kNavPosition = 0x98, kNavForward = 0xBC, kNavSize = 0x400;  // WRoadNav (PC): 0x78 is set to 2 as Game_InitRacers does
-constexpr unsigned kVehicleInterface = 0x4040E0, kSetVehicleOnGroundSlot = 0x68 / 4;  // IVehicle's handle for Find, and its SetVehicleOnGround(position, direction)
-constexpr unsigned kActivateSlot = 0x80 / 4, kDeactivateSlot = 0x84 / 4;              // IVehicle
+constexpr unsigned kSetVehicleOnGroundSlot = 0x68 / 4;  // IVehicle::SetVehicleOnGround(position, direction)
 constexpr unsigned kSavedPosition = 0x170, kSavedDirection = 0x180;                  // GRacerInfo: where a restart puts the racer
 constexpr float kFrontRowBehind = 2.75f;  // metres behind the start: the front row of the game's grid
 constexpr float kRowSpacing = 7.5f;       // between rows
@@ -95,13 +93,6 @@ struct Layout {
 Layout g_cutscene;
 
 float horizontal_distance(const float *a, const float *b) { return hypotf(a[0] - b[0], a[2] - b[2]); }
-
-// The IVehicle of a simable: its interface list answers for the vehicle handle.
-void *vehicle_of(void *simable) {
-    if (!simable) return nullptr;
-    void *interfaces = *reinterpret_cast<void **>(static_cast<char *>(simable) + 4);
-    return reinterpret_cast<void *(__thiscall *)(void *, void *)>(kFind)(interfaces, reinterpret_cast<void *>(kVehicleInterface));
-}
 
 void put_on_ground(void *vehicle, const float *position, const float *direction) {
     void **vtable = *reinterpret_cast<void ***>(vehicle);
@@ -352,7 +343,7 @@ void place_racers(const float *start, const float *direction) {
     if (poses) {  // the first four slots are where the cutscene left its racers (the game moved players 1 and 2 to the starting lanes)
         for (int k = 0; k < count && k < kCutsceneRacers; ++k) {
             const unsigned char *info = status + 0x18 + racer_of_slot[k] * 0x194;
-            void *vehicle = vehicle_of(racers::simable(info));
+            void *vehicle = racers::vehicle(racers::simable(info));
             if (!vehicle) continue;
             put_on_ground(vehicle, g_cutscene_poses[k].position, g_cutscene_poses[k].forward);
             set_start_position(info, g_cutscene_poses[k].position, g_cutscene_poses[k].forward);
@@ -391,7 +382,7 @@ void place_racers(const float *start, const float *direction) {
             const float length = hypotf(forward[0], forward[2]);
             const float facing[3] = {-forward[0], -forward[1], -forward[2]};
             const float left[3] = {-facing[2] / length, 0, facing[0] / length};
-            void *vehicle = vehicle_of(racers::simable(status + 0x18 + placements[i].racer * 0x194));
+            void *vehicle = racers::vehicle(racers::simable(status + 0x18 + placements[i].racer * 0x194));
             if (!vehicle) continue;
             const float offset = placements[i].lateral - (placements[i].from_start ? base_lateral : 0.0f);
             const float car[3] = {position[0] + left[0] * offset, position[1], position[2] + left[2] * offset};
@@ -405,7 +396,6 @@ void place_racers(const float *start, const float *direction) {
     _aligned_free(nav);
 }
 
-void call_vehicle(void *vehicle, unsigned slot) { reinterpret_cast<void(__fastcall *)(void *, void *)>((*reinterpret_cast<void ***>(vehicle))[slot])(vehicle, nullptr); }
 
 bool is_human(int racer) {
     for (int p = 0; p < nfsmw::kMaxPlayers; ++p)
@@ -417,9 +407,9 @@ void hide_extras() {
     const unsigned char *status = *reinterpret_cast<unsigned char **>(kRaceStatus);
     const int count = status ? *reinterpret_cast<const int *>(status + 0x1958) : 0;
     for (int k = kCutsceneRacers; k < count; ++k) {
-        void *vehicle = vehicle_of(racers::simable(status + 0x18 + k * 0x194));
+        void *vehicle = racers::vehicle(racers::simable(status + 0x18 + k * 0x194));
         if (!vehicle || is_human(k)) continue;  // (a player's camera and HUD follow their car)
-        call_vehicle(vehicle, kDeactivateSlot);
+        racers::call_vehicle(vehicle, racers::kVehicleDeactivateSlot);
         g_hidden.push_back(k);
     }
     if (!g_hidden.empty()) g_log.line("start grid: %d opponents after the first four are out of the world while the intro cutscene plays", static_cast<int>(g_hidden.size()));
@@ -429,9 +419,9 @@ void bring_back() {
     const unsigned char *status = *reinterpret_cast<unsigned char **>(kRaceStatus);
     for (const int k : g_hidden) {
         const unsigned char *info = status ? status + 0x18 + k * 0x194 : nullptr;
-        void *vehicle = info ? vehicle_of(racers::simable(info)) : nullptr;
+        void *vehicle = info ? racers::vehicle(racers::simable(info)) : nullptr;
         if (!vehicle) continue;
-        call_vehicle(vehicle, kActivateSlot);
+        racers::call_vehicle(vehicle, racers::kVehicleActivateSlot);
         const float *position = reinterpret_cast<const float *>(info + kSavedPosition);
         if (position[0] || position[1] || position[2]) put_on_ground(vehicle, position, reinterpret_cast<const float *>(info + kSavedDirection));
     }

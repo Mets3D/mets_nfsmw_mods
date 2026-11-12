@@ -15,9 +15,6 @@ namespace split_screen_support::layout {
 
 namespace {
 
-constexpr float kWaitSeconds = 3.0f;   // after a player is out (their "Totalled" or "Knocked Out" message), before their cell goes
-constexpr float kSlideSeconds = 1.2f;  // the slide
-
 bool g_vertical = false;
 bool g_overtake = true;
 
