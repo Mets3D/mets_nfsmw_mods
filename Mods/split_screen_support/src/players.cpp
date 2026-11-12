@@ -27,7 +27,6 @@
 #include "keys.h"
 #include "max_players.h"
 #include "more_players.h"
-#include "player_count.h"
 #include "player_devices.h"
 #include "split_screen_support.h"
 
@@ -62,6 +61,7 @@ int g_extra_port[nfsmw::kMaxExtras];       // the game input device ports of pla
 bool g_controls_asked = false;                // player 1's vehicle was given to a device (or to every device, on a Press Start screen)
 void *g_press_start_screen = nullptr;         // the Press Start screen showing, if any
 int g_pressed_by = kNotChosen;  // the device whose Start the screen is being told about (see press_start)
+bool g_start_taken = false;     // the screen showing has had its Start: another one would start its closing animation again
 enum class Phase { kMenus, kRace } g_phase = Phase::kMenus;  // kRace: the race of this split screen game is on
 bool g_race_seen = false;                                    // ...and has been seen on screen (two views)
 
@@ -69,12 +69,10 @@ unsigned char *fe_database() { return *reinterpret_cast<unsigned char **>(kFeDat
 
 void __fastcall hook_press_start(void *screen, void *edx, unsigned message, void *object, unsigned param1, unsigned param2);
 
-bool keyboard2_available() { return player_count::wanted() == 2 && keyboard2::enabled(); }
-
 // The Press Start screen is told that a device let go of Start.
 void press_start(int device) {
     if (!g_press_start_screen || !split_screen()) return;
-    if (device == kKeyboard2 && !keyboard2_available()) return;
+    if (device == kKeyboard2 && !keyboard2::enabled()) return;
     g_pressed_by = device;
     hook_press_start(g_press_start_screen, nullptr, kStartReleased, nullptr, 1, 0);  // joystick 0, as every press is
     g_pressed_by = kNotChosen;
@@ -91,7 +89,7 @@ int next_free_device() {
     for (int i = 0; i < kXInputSlots; ++i)
         if (g_connected[i] && !device_taken(i)) return i;
     if (!device_taken(kKeyboard)) return kKeyboard;
-    if (keyboard2_available() && !device_taken(kKeyboard2)) return kKeyboard2;
+    if (keyboard2::enabled() && !device_taken(kKeyboard2)) return kKeyboard2;
     for (int i = 0; i < kXInputSlots; ++i)
         if (!device_taken(i)) return i;
     return kNotChosen;
@@ -118,7 +116,7 @@ void poll() {
     }
     unsigned char keys[256];
     if (read_keyboard(keys)) {
-        const bool separate_keypad = split_screen() && keyboard2_available();
+        const bool separate_keypad = split_screen() && keyboard2::enabled();
         if (let_go(g_start_key, keyboard_menu_down(keys, kKeyboard, KeyboardMenuAction::kStart, separate_keypad)) && released == kNotChosen)
             released = kKeyboard;
         if (let_go(g_start_key2, keyboard_menu_down(keys, kKeyboard2, KeyboardMenuAction::kStart, separate_keypad)) && released == kNotChosen)
@@ -158,7 +156,7 @@ void end_second_player() { player_devices::give(0, kNotChosen); }
 int other_device(int taken) {
     for (int i = 0; i < kXInputSlots; ++i)
         if (g_connected[i] && i != taken) return i;
-    if (taken == kKeyboard && keyboard2_available()) return kKeyboard2;
+    if (taken == kKeyboard && keyboard2::enabled()) return kKeyboard2;
     return kKeyboard;
 }
 
@@ -258,6 +256,7 @@ PressStartFn g_orig_press_start;
 void __fastcall hook_press_start(void *screen, void *edx, unsigned message, void *object, unsigned param1, unsigned param2) {
     if (message == kStartReleased && split_screen()) {
         if (g_pressed_by == kNotChosen) return;  // the game's own Start message: it cannot tell the devices apart, press_start() does
+        if (g_start_taken) return;
         const int player = *reinterpret_cast<int *>(static_cast<char *>(screen) + 0x2C);
         if ((player == 0 || player == 1) && g_chosen[1 - player] == g_pressed_by) {
             g_log.line("Press Start: %s already plays player %d; ignored", describe(g_pressed_by), 2 - player);
@@ -272,6 +271,7 @@ void __fastcall hook_press_start(void *screen, void *edx, unsigned message, void
             g_log.line("Press Start: player %d on %s", player + 1, describe(g_pressed_by));
             give_controls(g_pressed_by);  // their car
         }
+        g_start_taken = true;
     }
     g_orig_press_start(screen, edx, message, object, param1, param2);
 }
@@ -283,6 +283,7 @@ void *hook_create_press_start(void *data) {
     void *screen = g_orig_create_press_start(data);
     if (screen && split_screen()) {
         g_press_start_screen = screen;
+        g_start_taken = false;
         more_players::on_press_start_screen(screen);
         const int player = *reinterpret_cast<int *>(static_cast<char *>(screen) + 0x2C);
         if (player == 0 && more_players::round() == 0 && (g_chosen[0] != kNotChosen || g_chosen[1] != kNotChosen)) {

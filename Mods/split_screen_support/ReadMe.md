@@ -18,6 +18,7 @@ Throughout this ReadMe, bullet points marked with * can be disabled in the [.ini
 - Split-screen is supported for 2, 3, and 4 players.
 - When a player is eliminated from the race, their screen is removed to make space for other players. This can be toggled as **Split Screen Overtake** in Advanced Video.
 - Horizontal and vertical split-screen layouts are available for 2 and 3 players.
+- You can play on a single keyboard as two players: Player 2 presses Numpad Enter to join. They control the car with arrow keys, and numpad keys. See the keybinds in the game's Controls menu, under "Keyboard 2". When **Select Car** is available, Player 2 can access it using Numpad 2.
 
 https://github.com/user-attachments/assets/96c8153f-56ce-491a-bb4a-8462fbc5392e
 
@@ -81,10 +82,6 @@ List of things that could not be taken for granted during development and had to
 - See [General Compatibility](../../ReadMe.md#general-compatibility).
 - This mod is bundled and should be used with the [Controller Support](../controller_support/ReadMe.md) mod, which allows connecting several controllers of different types, controller rumble, input remapping, mouse look, analogue inputs, etc.
 - Conditionally compatible: NFSMWExtraOptionsSettings: Set `ExperimentalSplitScreenFix = 0` in its `.ini`.
-
-## Device Compatibility
-
-- You can play on a single keyboard as two players: See the keybinds in the game's Controls menu, under "Keyboard 2". (Arrow keys to drive, numpad keys to boost, handbrake, change cameras, gear shift.) When **Select Car** is available, Keyboard 2 can access it using Numpad 2.
 
 ---
 
